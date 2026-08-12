@@ -1,0 +1,39 @@
+# أسرار — لا تُرفع أبدًا (ق-44)
+.env
+.env.*
+*.key
+*.pem
+*.keystore
+*.jks
+key.properties
+secrets/
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/google-services.json
+
+# نظام التشغيل والمحررات
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Node
+node_modules/
+
+# Supabase محلي
+supabase/.branches/
+supabase/.temp/
+
+# سجلات
+*.log
