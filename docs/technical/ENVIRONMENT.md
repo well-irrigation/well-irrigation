@@ -9,7 +9,7 @@
 ## الجهاز والنظام
 
 * نظام التشغيل: **Kali Linux**
-* مسار المشروع الحالي: `/home/kali/pr/well-management-platform`
+* مسار المشروع الحالي: `/home/kali/pr/well-irrigation`
 * المسار المستهدف بعد إعادة التسمية: `/home/kali/pr/well-irrigation` — ق-41
 
 ---
@@ -68,3 +68,6 @@
 ## قاعدة تحديث هذا الملف
 
 بعد كل تثبيت أو تغيير بيئي، يُحدّث هذا الملف فورًا بالإصدار الحقيقي الذي أظهره الأمر، لا بالإصدار المتوقع.
+
+## لقطة البيئة النهائية المؤكدة — 2026-08-13
+Flutter 3.47.0 و Dart 3.13.0 في ~/development/flutter. جافا 21 JDK كامل في jvm/java-21-openjdk-amd64. Android SDK في ~/Android/Sdk، الاصدارات 35.0.0 و 36.0.0، كل التراخيص السبعة مقبولة. Supabase CLI 2.111.0، PostgreSQL 17. المستودع البعيد: git@github.com:well-irrigation/well-irrigation.git.
