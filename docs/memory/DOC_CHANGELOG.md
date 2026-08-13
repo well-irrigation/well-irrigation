@@ -126,3 +126,10 @@
 **القسم:** إغلاق المرحلة 3 من ترتيب البناء الموثّق (ledger_accounts/journal_entries/journal_lines/invoices/invoice_lines/payment_allocations)
 **ما تغيّر:** إضافة ق-70، تحديث م-17، فتح م-20 (تباعد مخطط billing.payments عن §28)، تحديث PROGRESS/RESUME_POINT، إضافة سجل الهجرات 035-038 في MIGRATIONS.md.
 **رقم القرار المبرر:** ق-42.
+
+## 2026-08-13 — إقفال المرحلة 4
+- DECISIONS.md: اضافة ق-71 و ق-72.
+- OPEN_ISSUES.md: اقفال م-20.
+- PROGRESS.md: تسجيل المرحلة 4 بدفعاتها الثلاث.
+- RESUME_POINT.md: اعادة كتابة كاملة (46 هجرة، 49 جدولا، خطة المرحلة 5).
+- MIGRATIONS.md: الصفوف 039 الى 046.
