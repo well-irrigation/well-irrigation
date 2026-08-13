@@ -122,3 +122,29 @@
 | 038 | `_038_payment_allocations.sql` | `billing.payment_allocations` (مرتبط بـ `billing.payments` القائم — انظر م-20) |
 
 **حالة التطبيق:** مُطبّقة ومُختبرة محليًا (تحقق بنيوي + 19 حالة اختبار وظيفي ناجحة) — ق-70.
+
+## الملفات (039–046) — إغلاق المرحلة 4 (الديزل والمصروفات): الصندوق، المناوبات، المصروفات، الوقود
+
+| # | الملف | المحتوى |
+| --- | --- | --- |
+| 039 | `_039_unify_money_unit_to_minor.sql` | توحيد وحدة المال إلى الريال الكامل `_minor` وإعادة كتابة 5 دوال (ق-71) |
+| 040 | `_040_notifications_extend_and_helper.sql` | توسيع الإشعارات إلى 15 نوعًا + `ops.notify_well_owners` و`ops.notify_profile` |
+| 041 | `_041_cashboxes.sql` | صندوق عام لكل بئر يُنشأ تلقائيًا (`finance.cashboxes`) |
+| 042 | `_042_shifts_handovers_transfers.sql` | المناوبات والتسليم ونقل الجلسات (`ops.shifts`, `shift_handovers`, `session_shift_transfers`) |
+| 043 | `_043_payments_expansion.sql` | توسيع `billing.payments` والتحصيل بلا جلسة (م-20) |
+| 044 | `_044_expenses.sql` | `finance.expenses` وأنواعها التسعة وقواعد الاعتماد وقراراته |
+| 045 | `_045_shift_reports.sql` | `ops.shift_report` و`ops.operator_totals` وربط الجلسة بالمناوبة تلقائيًا |
+| 046 | `_046_fuel_tanks_and_transactions.sql` | `inventory.fuel_tanks` و`fuel_transactions` والمتوسط المرجح المتحرك وجسر الشراء القديم |
+
+**حالة التطبيق:** مُطبّقة ومُختبرة محليًا (تحقق بنيوي + 27/27 ثم 25/25 حالة اختبار وظيفي) — ق-71، ق-72.
+
+## الملفات (047–050) — إغلاق المرحلة 5 (الشركاء): الشركاء، الفترات المحاسبية، الصلاحيات
+
+| # | الملف | المحتوى |
+| --- | --- | --- |
+| 047 | `_047_partners_and_roles.sql` | `core.well_partners` مصدرًا وحيدًا للنِّسب، دورا `manager`/`partner`، `iam.profiles.is_platform_admin`، ترحيل بيانات الحصص القديمة وإسقاط جدولها، إعادة كتابة `generate_distribution_batch` و`notify_well_owners` |
+| 048 | `_048_partner_irrigation_policies.sql` | `core.partner_irrigation_policies` (دفع عادي / خصم من الأرباح) + ربط `invoices.partner_policy_id` و`journal_lines.partner_id` |
+| 049 | `_049_accounting_periods.sql` | `finance.accounting_periods` و`period_reopen_requests` و`period_reopen_approvals`، دوال الإقفال والتصويت والبت، الخطوة 5 من §32 في `post_journal_entry` |
+| 050 | `_050_manager_partner_access.sql` | توليد 120 سياسة «مدير» و49 سياسة «شريك» آليًا + سياسات التعيين المقيدة للمدير |
+
+**حالة التطبيق:** مُطبّقة ومُختبرة محليًا (تحقق بنيوي + 23/23 حالة اختبار وظيفي) — ق-73.
