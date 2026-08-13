@@ -81,3 +81,9 @@
 **منتهٍ الآن:** المرحلة 2 (التشغيل) كاملة: water_lines، pump_line_links، farmer_profiles/farmer_well_accounts، price_schedules/price_rules، irrigation_bookings/booking_status_history، resource_reservations (+ دالة reserve_resource)، session_segments (+ زناد منع التداخل). التفاصيل في ق-69.
 **التالي وفق الترتيب الموثّق:** المرحلة 3 (المال) — بجلب النص الحرفي من الوثيقتين المرجعيتين قبل الكتابة، كالعادة.
 **تنبيهات تحتاج تأكيد المالك:** دالتا `reserve_resource` و`validate_session_segment_overlap` مُستنتجتان بلا SQL حرفي في الوثائق؛ استبدال `iam.users` بـ `iam.profiles`؛ `booking_status_history` يُدرَج يدويًا من التطبيق لا بزناد؛ فجوة `core.pumps` (م-19).
+
+## تحديث نقطة الاستئناف — 2026-08-13 (بعد إغلاق المرحلة 3)
+**منتهٍ الآن:** المرحلة 3 (المال) كاملة: ledger_accounts (+ دالة إنشاء 26 حسابًا)، journal_entries/journal_lines (+ دالة الترحيل وزنادَي القفل)، invoices/invoice_lines، payment_allocations. التفاصيل في ق-70.
+**التالي وفق الترتيب الموثّق:** المرحلة 4 (الديزل والمصروفات) — fuel_tanks، fuel_transactions، expenses، approvals، cashboxes، shifts — بجلب النص الحرفي من `03_implementation_schema.md` §24، §25، §26، §29، §34، §35، §36 و`02_database_and_finance_design.md` §25، §26، §27، §28 قبل الكتابة.
+**قرار مطلوب قبل المرحلة 4:** م-20 (مخطط `billing.payments`) لأن `cashboxes` تتقاطع معه مباشرة.
+**تنبيهات تحتاج تأكيد المالك:** دالة إنشاء دليل الحسابات مُستنتجة؛ الخطوة 5 من §32 (إغلاق الفترة) مؤجلة للمرحلة 5؛ القيد الفريد `(well_id, source_type, source_id)` قد يمنع القيود العكسية؛ أعمدة `cashbox_id`/`fuel_tank_id`/`partner_id`/`partner_policy_id` بلا مفاتيح خارجية حتى تُبنى جداولها.

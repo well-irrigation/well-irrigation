@@ -119,3 +119,10 @@
 **القسم:** إغلاق المرحلة 2 من ترتيب البناء الموثّق (water_lines/farmer_profiles/price_schedules/irrigation_bookings/resource_reservations/session_segments)
 **ما تغيّر:** إضافة ق-69، تحديث م-17، فتح م-19 (فجوة مخطط core.pumps)، تحديث PROGRESS/RESUME_POINT، إضافة سجل الهجرات 029-034 في MIGRATIONS.md.
 **رقم القرار المبرر:** ق-42.
+
+## تحديث 2026-08-13 (الدفعة السادسة) — إغلاق المرحلة 3 (المال)
+**التاريخ:** 2026-08-13
+**الملف:** DECISIONS.md، OPEN_ISSUES.md، PROGRESS.md، RESUME_POINT.md، technical/MIGRATIONS.md
+**القسم:** إغلاق المرحلة 3 من ترتيب البناء الموثّق (ledger_accounts/journal_entries/journal_lines/invoices/invoice_lines/payment_allocations)
+**ما تغيّر:** إضافة ق-70، تحديث م-17، فتح م-20 (تباعد مخطط billing.payments عن §28)، تحديث PROGRESS/RESUME_POINT، إضافة سجل الهجرات 035-038 في MIGRATIONS.md.
+**رقم القرار المبرر:** ق-42.

@@ -109,3 +109,16 @@
 | 034 | `_034_session_segments.sql` | `ops.session_segments`، دالة وزناد `ops.validate_session_segment_overlap()` |
 
 **حالة التطبيق:** مُطبّقة ومُختبرة محليًا (بنيويًا ووظيفيًا، بيانات تجريبية ذاتية الاكتفاء) — ق-69.
+
+---
+
+## الملفات (035–038) — إغلاق المرحلة 3 (المال): الدفتر المزدوج، الفواتير، تخصيص الدفعات
+
+| # | الملف | المحتوى |
+| --- | --- | --- |
+| 035 | `_035_ledger_accounts.sql` | `finance.ledger_accounts` + دالة `finance.create_default_ledger_accounts()` (26 حسابًا نظاميًا لكل بئر — §30.1) |
+| 036 | `_036_journal_entries_and_lines.sql` | `finance.journal_entries`، `finance.journal_lines`، دالة `finance.post_journal_entry()`، زنادَي منع تعديل القيد المُرحّل وأطرافه |
+| 037 | `_037_invoices_and_lines.sql` | `billing.invoices` (قيد `paid+outstanding=total`)، `billing.invoice_lines` |
+| 038 | `_038_payment_allocations.sql` | `billing.payment_allocations` (مرتبط بـ `billing.payments` القائم — انظر م-20) |
+
+**حالة التطبيق:** مُطبّقة ومُختبرة محليًا (تحقق بنيوي + 19 حالة اختبار وظيفي ناجحة) — ق-70.
