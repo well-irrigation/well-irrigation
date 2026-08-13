@@ -82,3 +82,15 @@
 2. **لا تُعدّل هجرة طُبّقت أبدًا**؛ يُكتب ملف جديد يُصححها.
 3. بعد تطبيق أي هجرة يُحدّث هذا الملف فورًا مع **دليل التطبيق**.
 4. `PROGRESS.md` يسجل تاريخ التطبيق ونتيجته.
+
+---
+
+## الملفات (026–028) — إغلاق المرحلة 1 (النواة): المواقع، الأشخاص، كتالوج الأدوار
+
+| # | الملف | المحتوى |
+| --- | --- | --- |
+| 026 | `_026_locations.sql` | امتدادات pg_trgm/btree_gist/citext، `core.generate_public_code()`، `core.locations`، عمود `core.wells.location_id` |
+| 027 | `_027_persons_and_contacts.sql` | `core.persons`، `core.person_contacts`، `core.person_aliases`، فهارس trigram |
+| 028 | `_028_roles_and_permissions_catalog.sql` | `iam.roles`، `iam.permissions`، `iam.role_permissions` (كتالوج تأسيسي، غير مربوط بعد — انظر م-18) |
+
+**حالة التطبيق:** مُطبّقة ومُختبرة محليًا — ق-68.

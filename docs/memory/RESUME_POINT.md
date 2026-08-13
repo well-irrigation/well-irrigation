@@ -72,3 +72,7 @@
 **التالي المقترح (لم يُقرر بعد):** رفع هذا العمل إلى GitHub، ثم الاختيار بين إغلاق ت-09، أو حارس تكرار الجلسات المفتوحة، أو تضييق م-15، أو الانتقال لبناء تطبيق Flutter الحقيقي.
 
 **لم يبدأ بعد:** أي كود Flutter حقيقي (م-03 يخص فقط تطبيقًا تجريبيًا لإثبات البيئة).
+
+## تحديث نقطة الاستئناف — 2026-08-13 (بعد إغلاق المرحلة 1)
+**منتهٍ الآن:** المرحلة 1 (النواة) كاملة: tenants، persons، users (عبر profiles)، roles، permissions، wells، locations. التفاصيل في ق-68.
+**التالي وفق الترتيب الموثّق:** المرحلة 2 (التشغيل) — water_lines، pump_line_links، farmer_profiles/farmer_well_accounts، bookings (ops.irrigation_bookings، booking_status_history، resource_reservations)، session_segments، price_schedules/price_rules — بجلب النص الحرفي من `03_implementation_schema.md` §13/14/15/18/19 قبل الكتابة.
