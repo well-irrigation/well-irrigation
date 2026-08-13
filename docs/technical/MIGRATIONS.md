@@ -94,3 +94,18 @@
 | 028 | `_028_roles_and_permissions_catalog.sql` | `iam.roles`، `iam.permissions`، `iam.role_permissions` (كتالوج تأسيسي، غير مربوط بعد — انظر م-18) |
 
 **حالة التطبيق:** مُطبّقة ومُختبرة محليًا — ق-68.
+
+---
+
+## الملفات (029–034) — إغلاق المرحلة 2 (التشغيل): خطوط المياه، المزارعون، التسعير، الحجوزات، حجز الموارد، مقاطع الجلسة
+
+| # | الملف | المحتوى |
+| --- | --- | --- |
+| 029 | `_029_water_lines_and_pump_links.sql` | `core.water_lines`، `core.pump_line_links` |
+| 030 | `_030_farmer_profiles_and_well_accounts.sql` | `ops.farmer_profiles`، `ops.farmer_well_accounts` |
+| 031 | `_031_price_schedules_and_rules.sql` | `ops.price_schedules`، `ops.price_rules` (استُخدم iam.profiles بدل iam.users) |
+| 032 | `_032_irrigation_bookings.sql` | `ops.irrigation_bookings`، `ops.booking_status_history` (تحديث يدوي من التطبيق، بلا زناد) |
+| 033 | `_033_resource_reservations.sql` | `ops.resource_reservations`، دالة `ops.reserve_resource()` (صُحّحت لإدراج tenant_id بعد فشل أول اختبار) |
+| 034 | `_034_session_segments.sql` | `ops.session_segments`، دالة وزناد `ops.validate_session_segment_overlap()` |
+
+**حالة التطبيق:** مُطبّقة ومُختبرة محليًا (بنيويًا ووظيفيًا، بيانات تجريبية ذاتية الاكتفاء) — ق-69.

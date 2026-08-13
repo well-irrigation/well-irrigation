@@ -112,3 +112,10 @@
 **القسم:** إغلاق المرحلة 1 من ترتيب البناء الموثّق (persons/roles/permissions/locations)
 **ما تغيّر:** إضافة ق-68، تحديث م-17، فتح م-18 (فجوة ربط كتالوج الأدوار)، تحديث PROGRESS/RESUME_POINT، إضافة سجل الهجرات 026-028 في MIGRATIONS.md.
 **رقم القرار المبرر:** ق-42.
+
+## تحديث 2026-08-13 (الدفعة الخامسة) — إغلاق المرحلة 2 (التشغيل)
+**التاريخ:** 2026-08-13
+**الملف:** DECISIONS.md، OPEN_ISSUES.md، PROGRESS.md، RESUME_POINT.md، technical/MIGRATIONS.md
+**القسم:** إغلاق المرحلة 2 من ترتيب البناء الموثّق (water_lines/farmer_profiles/price_schedules/irrigation_bookings/resource_reservations/session_segments)
+**ما تغيّر:** إضافة ق-69، تحديث م-17، فتح م-19 (فجوة مخطط core.pumps)، تحديث PROGRESS/RESUME_POINT، إضافة سجل الهجرات 029-034 في MIGRATIONS.md.
+**رقم القرار المبرر:** ق-42.
