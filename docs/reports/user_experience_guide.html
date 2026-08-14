@@ -1,0 +1,1014 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>دليل تجربة المستخدم — منصة إدارة آبار السقي</title>
+  <style>
+    :root {
+      --deep: #0B5D7E;
+      --turquoise: #1FA2B4;
+      --palm: #2E7D32;
+      --sand: #F5EFE0;
+      --ink: #1F2A33;
+      --mist: #E8F7F8;
+      --line: #B7DDE2;
+      --white: #FFFFFF;
+    }
+
+    @page {
+      size: A4;
+      margin: 27mm 18mm 21mm 18mm;
+
+      @top-right {
+        content: "منصة إدارة آبار السقي";
+        direction: rtl;
+        color: #0B5D7E;
+        font-family: "Noto Naskh Arabic", serif;
+        font-size: 9.5pt;
+        font-weight: 700;
+        background: url("user_experience_logo.svg") no-repeat right center;
+        background-size: 11mm 11mm;
+        padding-right: 14mm;
+        vertical-align: middle;
+      }
+
+      @top-left {
+        content: "دليل تجربة المستخدم";
+        direction: rtl;
+        color: #1F2A33;
+        font-family: "Noto Naskh Arabic", serif;
+        font-size: 9pt;
+        vertical-align: middle;
+      }
+
+      @bottom-right {
+        content: "منصة إدارة آبار السقي";
+        color: #0B5D7E;
+        font-size: 9pt;
+        padding-top: 2mm;
+      }
+
+      @bottom-center {
+        content: counter(page);
+        color: #1F2A33;
+        font-size: 9pt;
+        padding-top: 2mm;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      direction: rtl;
+      font-family: "Noto Naskh Arabic", "Amiri", serif;
+      color: var(--ink);
+      background: var(--white);
+      font-size: 12.2pt;
+      line-height: 1.75;
+    }
+
+    body {
+      margin: 0;
+      direction: rtl;
+      text-align: right;
+    }
+
+    .page-header {
+      position: fixed;
+      top: -21mm;
+      right: 0;
+      left: 0;
+      width: 100%;
+      height: 15mm;
+      display: flex;
+      direction: rtl;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1.2pt solid var(--turquoise);
+      padding: 0 0 2.5mm 0;
+    }
+
+    .page-header .header-brand,
+    .page-header .header-title { display: none; }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 3mm;
+      color: var(--deep);
+      font-weight: 700;
+      font-size: 10pt;
+    }
+
+    .header-title {
+      color: var(--ink);
+      font-size: 9.3pt;
+      font-weight: 600;
+    }
+
+    .header-logo { width: 13mm; height: 13mm; }
+
+    .wave {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -1.6mm;
+      height: 2mm;
+      opacity: .45;
+      background: radial-gradient(10mm 2mm at 10mm 0, transparent 48%, var(--turquoise) 52%, transparent 58%) repeat-x;
+      background-size: 20mm 3mm;
+    }
+
+    h1, h2, h3, h4 {
+      color: var(--deep);
+      line-height: 1.35;
+      margin-top: 0;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    h1 { font-size: 30pt; }
+    h2 { font-size: 23pt; margin-bottom: 6mm; }
+    h3 { font-size: 16pt; margin: 7mm 0 2.5mm; }
+    h4 { font-size: 13.5pt; margin: 5mm 0 2mm; color: var(--palm); }
+
+    p { margin: 0 0 4mm; orphans: 3; widows: 3; }
+
+    strong { color: var(--deep); }
+
+    .chapter {
+      break-before: page;
+      page-break-before: always;
+    }
+
+    .chapter-title {
+      display: flex;
+      align-items: center;
+      gap: 4mm;
+      border-bottom: 2pt solid var(--turquoise);
+      padding-bottom: 3mm;
+      margin-bottom: 7mm;
+    }
+
+    .chapter-number {
+      min-width: 13mm;
+      height: 13mm;
+      border-radius: 50%;
+      background: var(--deep);
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14pt;
+      font-weight: 700;
+    }
+
+    .chapter-kicker {
+      color: var(--palm);
+      font-size: 10.5pt;
+      font-weight: 700;
+      letter-spacing: .2pt;
+      margin-bottom: 1mm;
+    }
+
+    .cover {
+      min-height: 238mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 15% 18%, rgba(31,162,180,.14), transparent 25%),
+        radial-gradient(circle at 90% 82%, rgba(46,125,50,.12), transparent 27%),
+        linear-gradient(155deg, #ffffff 0%, #f4fbfc 58%, #f5efe0 100%);
+      border: 1.2pt solid var(--line);
+      border-radius: 7mm;
+      padding: 20mm 16mm;
+    }
+
+    .cover::before, .cover::after {
+      content: "";
+      position: absolute;
+      width: 115mm;
+      height: 30mm;
+      border: 2pt solid rgba(31,162,180,.18);
+      border-radius: 50%;
+      transform: rotate(-8deg);
+    }
+
+    .cover::before { top: -18mm; right: -24mm; }
+    .cover::after { bottom: -16mm; left: -25mm; }
+
+    .cover-logo { width: 66mm; height: 66mm; margin-bottom: 9mm; }
+
+    .cover h1 {
+      max-width: 145mm;
+      margin: 0 0 5mm;
+      color: var(--deep);
+    }
+
+    .cover-lead {
+      font-size: 16pt;
+      color: var(--palm);
+      font-weight: 700;
+      margin-bottom: 13mm;
+    }
+
+    .cover-line {
+      width: 78mm;
+      height: 1.2mm;
+      background: linear-gradient(90deg, transparent, var(--turquoise), transparent);
+      margin-bottom: 10mm;
+    }
+
+    .cover-date {
+      color: var(--ink);
+      font-size: 12pt;
+      background: rgba(255,255,255,.78);
+      padding: 2mm 7mm;
+      border-radius: 9mm;
+      border: 1pt solid var(--line);
+    }
+
+    .toc {
+      break-before: page;
+      page-break-before: always;
+    }
+
+    .toc-list { margin: 8mm 0 0; padding: 0; list-style: none; }
+
+    .toc-list li {
+      display: flex;
+      align-items: baseline;
+      gap: 2.5mm;
+      border-bottom: .6pt dotted #9BBBC2;
+      padding: 2.2mm 0;
+      break-inside: avoid;
+    }
+
+    .toc-list a {
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .toc-list a::after {
+      content: target-counter(attr(href), page);
+      float: left;
+      color: var(--deep);
+      font-weight: 700;
+      min-width: 8mm;
+      text-align: center;
+    }
+
+    .meaning, .story, .quiet-note, .promise {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      border-radius: 4mm;
+      margin: 6mm 0;
+      padding: 5mm 6mm;
+    }
+
+    .meaning {
+      background: var(--mist);
+      border-right: 4pt solid var(--turquoise);
+    }
+
+    .story {
+      background: var(--sand);
+      border-right: 4pt solid var(--palm);
+    }
+
+    .quiet-note {
+      background: #F6F8F9;
+      border: 1pt solid #D7E1E4;
+    }
+
+    .promise {
+      background: linear-gradient(135deg, #0B5D7E, #167D94);
+      color: white;
+      border: 0;
+      box-shadow: 0 2mm 5mm rgba(11,93,126,.14);
+    }
+
+    .promise strong { color: white; }
+
+    .box-title {
+      display: block;
+      font-size: 13.2pt;
+      font-weight: 800;
+      color: var(--deep);
+      margin-bottom: 1.5mm;
+    }
+
+    .story .box-title { color: var(--palm); }
+    .promise .box-title { color: white; }
+
+    .steps {
+      list-style: none;
+      margin: 5mm 0;
+      padding: 0;
+      counter-reset: steps;
+    }
+
+    .steps li {
+      counter-increment: steps;
+      position: relative;
+      padding: 0 15mm 5mm 0;
+      break-inside: avoid;
+    }
+
+    .steps li::before {
+      content: counter(steps, arabic-indic);
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 9mm;
+      height: 9mm;
+      border-radius: 50%;
+      color: white;
+      background: var(--turquoise);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .role-grid, .guarantee-grid, .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 5mm;
+      margin: 6mm 0;
+    }
+
+    .role-card, .guarantee-card, .mini-card {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      border: 1pt solid var(--line);
+      border-radius: 4mm;
+      padding: 5mm;
+      background: white;
+    }
+
+    .role-card h3, .guarantee-card h3, .mini-card h3 {
+      margin: 0 0 2mm;
+      font-size: 14pt;
+    }
+
+    .role-card p, .guarantee-card p, .mini-card p { margin-bottom: 0; }
+
+    .role-card.owner { border-top: 4pt solid var(--deep); }
+    .role-card.manager { border-top: 4pt solid var(--palm); }
+    .role-card.operator { border-top: 4pt solid var(--turquoise); }
+    .role-card.partner { border-top: 4pt solid #C69A3B; }
+
+    .flow {
+      display: flex;
+      direction: rtl;
+      align-items: stretch;
+      gap: 2mm;
+      margin: 7mm 0;
+      break-inside: avoid;
+    }
+
+    .flow-item {
+      flex: 1;
+      text-align: center;
+      padding: 4mm 2mm;
+      border-radius: 3mm;
+      background: var(--mist);
+      color: var(--deep);
+      font-weight: 700;
+      font-size: 10.5pt;
+      border: 1pt solid var(--line);
+    }
+
+    .flow-arrow {
+      align-self: center;
+      color: var(--turquoise);
+      font-size: 15pt;
+      font-weight: 800;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 6mm 0;
+      font-size: 10.8pt;
+      break-inside: avoid;
+    }
+
+    thead { display: table-header-group; }
+
+    th {
+      background: var(--deep);
+      color: white;
+      padding: 3mm;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    td {
+      border: .6pt solid #C9D9DD;
+      padding: 3mm;
+      vertical-align: top;
+    }
+
+    tbody tr:nth-child(even) { background: #F6FAFA; }
+
+    .check-list {
+      list-style: none;
+      margin: 5mm 0;
+      padding: 0;
+    }
+
+    .check-list li {
+      position: relative;
+      padding: 1.5mm 9mm 1.5mm 0;
+      break-inside: avoid;
+    }
+
+    .check-list li::before {
+      content: "✓";
+      position: absolute;
+      right: 0;
+      color: var(--palm);
+      font-weight: 900;
+    }
+
+    .guarantee-grid { grid-template-columns: repeat(2, 1fr); }
+
+    .guarantee-card {
+      min-height: 42mm;
+      background: linear-gradient(160deg, #FFFFFF, #F2FAFA);
+      border-right: 4pt solid var(--turquoise);
+    }
+
+    .guarantee-card .num {
+      color: var(--palm);
+      font-size: 18pt;
+      font-weight: 900;
+      float: left;
+    }
+
+    .closing {
+      min-height: 195mm;
+      display: block;
+      text-align: center;
+      padding: 42mm 16mm 16mm;
+      background: linear-gradient(155deg, var(--mist), #FFFFFF 55%, var(--sand));
+      border-radius: 6mm;
+      border: 1pt solid var(--line);
+    }
+
+    .closing-header {
+      position: absolute;
+      top: -22mm;
+      right: 0;
+      left: 0;
+      height: 14mm;
+      display: flex;
+      direction: rtl;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--deep);
+      font-size: 9.5pt;
+      font-weight: 700;
+    }
+
+    .closing-header-brand {
+      min-height: 12mm;
+      padding-right: 14mm;
+      background: url("user_experience_logo.svg") no-repeat right center;
+      background-size: 11mm 11mm;
+      display: flex;
+      align-items: center;
+    }
+
+    .closing-header-title { color: var(--ink); font-size: 9pt; font-weight: 600; }
+
+    .closing-logo { display: block; width: 44mm; height: 44mm; margin: 0 auto 7mm; }
+    .closing p { max-width: 135mm; margin-right: auto; margin-left: auto; font-size: 15pt; }
+
+    .small { font-size: 10pt; color: #53636C; }
+    .center { text-align: center; }
+
+    @media print {
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-header" aria-hidden="true">
+    <div class="header-brand">
+      <svg class="header-logo" viewBox="0 0 120 120" role="img" aria-label="شعار منصة إدارة آبار السقي">
+        <path d="M24 66 C24 35 39 18 60 18 C81 18 96 35 96 66" fill="none" stroke="#0B5D7E" stroke-width="10" stroke-linecap="round"/>
+        <path d="M18 72 H102" fill="none" stroke="#0B5D7E" stroke-width="10" stroke-linecap="round"/>
+        <path d="M60 28 C43 48 39 57 39 69 C39 82 48 91 60 91 C72 91 81 82 81 69 C81 57 77 48 60 28Z" fill="#1FA2B4"/>
+        <path d="M60 94 V108" stroke="#2E7D32" stroke-width="6" stroke-linecap="round"/>
+        <path d="M59 103 C48 91 38 94 36 103 C44 110 52 111 59 103Z" fill="#2E7D32"/>
+        <path d="M61 103 C72 91 82 94 84 103 C76 110 68 111 61 103Z" fill="#4F9A45"/>
+      </svg>
+      <span>منصة إدارة آبار السقي</span>
+    </div>
+    <div class="header-title">دليل تجربة المستخدم</div>
+    <div class="wave"></div>
+  </div>
+
+  <main>
+    <section class="cover" id="cover">
+      <svg class="cover-logo" viewBox="0 0 180 180" role="img" aria-label="قطرة ماء داخل قوس بئر وتحتها برعم أخضر">
+        <path d="M35 105 C35 55 57 27 90 27 C123 27 145 55 145 105" fill="none" stroke="#0B5D7E" stroke-width="15" stroke-linecap="round"/>
+        <path d="M25 113 H155" fill="none" stroke="#0B5D7E" stroke-width="15" stroke-linecap="round"/>
+        <path d="M90 41 C64 72 58 87 58 105 C58 124 72 138 90 138 C108 138 122 124 122 105 C122 87 116 72 90 41Z" fill="#1FA2B4"/>
+        <path d="M90 142 V164" stroke="#2E7D32" stroke-width="9" stroke-linecap="round"/>
+        <path d="M88 156 C71 138 54 143 51 157 C64 168 77 169 88 156Z" fill="#2E7D32"/>
+        <path d="M92 156 C109 138 126 143 129 157 C116 168 103 169 92 156Z" fill="#4F9A45"/>
+      </svg>
+      <h1>دليل تجربة المستخدم<br>منصة إدارة آبار السقي</h1>
+      <div class="cover-lead">بئرك وحسابك وماؤك في جيبك</div>
+      <div class="cover-line"></div>
+      <p>رحلة يومية مبسطة تريك ماذا تفعل، وماذا يحدث لك تلقائيًا، وكيف تبقى حقوق الجميع واضحة.</p>
+      <div class="cover-date">١٥ أغسطس ٢٠٢٦</div>
+    </section>
+
+    <nav class="toc" id="toc" aria-label="فهرس الدليل">
+      <div class="chapter-title">
+        <span class="chapter-number">٢</span>
+        <div><div class="chapter-kicker">طريقك داخل الدليل</div><h2>الفهرس</h2></div>
+      </div>
+      <ol class="toc-list">
+        <li><a href="#plain-language">ما هذا النظام بلغة الناس</a></li>
+        <li><a href="#first-journey">رحلتك الأولى</a></li>
+        <li><a href="#operator-day">يوم المشغل من الفجر إلى المغرب</a></li>
+        <li><a href="#farmer-rights">المزارع وحقوقه</a></li>
+        <li><a href="#money-trust">المال والأمانة</a></li>
+        <li><a href="#partners">الشركاء والأرباح</a></li>
+        <li><a href="#diesel">خزان الديزل</a></li>
+        <li><a href="#shift-handover">المناوبة وتسليم الصندوق</a></li>
+        <li><a href="#alerts">التنبيهات التي ترعاك</a></li>
+        <li><a href="#offline">انقطاع الإنترنت لا يوقفك</a></li>
+        <li><a href="#privacy">خصوصيتك حصن</a></li>
+        <li><a href="#guarantees">الضمانات التي لا تُكسر</a></li>
+        <li><a href="#closing">خاتمة قصيرة</a></li>
+      </ol>
+      <div class="meaning">
+        <span class="box-title">💧 كيف تقرأ هذا الدليل؟</span>
+        <p>ابدأ من يومك الحقيقي. كل فقرة تقول لك: عندما تفعل شيئًا، ماذا يحدث لك، ولماذا يفيدك ذلك.</p>
+      </div>
+    </nav>
+
+    <section class="chapter" id="plain-language">
+      <div class="chapter-title">
+        <span class="chapter-number">٣</span>
+        <div><div class="chapter-kicker">الخلاصة</div><h2>ما هذا النظام بلغة الناس</h2></div>
+      </div>
+
+      <div class="promise">
+        <span class="box-title">بئرك وحسابك وماؤك في جيبك</span>
+        <p>عندما تبدأ يومك، تجد المزارعين والمزارع والمضخات والمواعيد والسقي والدفعات والديزل في مكان واحد؛ وهذا يعني لك أنك لا تبحث بين دفاتر متفرقة ولا تعتمد على الذاكرة.</p>
+      </div>
+
+      <p><strong>عندما تسقي مزارعًا،</strong> يُحفظ وقت البداية والنهاية والتوقف ومصدر الطاقة والسعر الذي بدأ به؛ وهذا يعني لك أن الفاتورة تخرج من تفاصيل ما حدث فعلًا، لا من تقدير متأخر.</p>
+
+      <p><strong>عندما تستلم أو تدفع ريالًا،</strong> يظهر أثره في حساب المزارع والصندوق والشريك والمصروف المناسب؛ وهذا يعني لك أن المال لا يختفي بين الكلام والورق.</p>
+
+      <p><strong>عندما يعود يوم أو شهر قديم،</strong> تستطيع معرفة من سقى، وكم استغرق، وكم استُحق، وكم دُفع، وكم بقي؛ وهذا يعني لك أن السؤال الصعب يصبح جوابًا واضحًا.</p>
+
+      <div class="mini-grid">
+        <div class="mini-card"><h3>🌾 للمزارع</h3><p>يرى حقه ووقته ودفعه ورصيده بوضوح.</p></div>
+        <div class="mini-card"><h3>🧑‍🌾 للمشغل</h3><p>يمشي في يومه خطوة بخطوة دون حساب يدوي.</p></div>
+        <div class="mini-card"><h3>🌴 للشريك</h3><p>يعرف حصته واستقطاعاته وما استلمه وما بقي له.</p></div>
+        <div class="mini-card"><h3>💧 للمالك</h3><p>يرى البئر كصورة واحدة: ماء ومال ووقود وعمل.</p></div>
+      </div>
+    </section>
+
+    <section class="chapter" id="first-journey">
+      <div class="chapter-title">
+        <span class="chapter-number">٤</span>
+        <div><div class="chapter-kicker">من أول دخول</div><h2>رحلتك الأولى</h2></div>
+      </div>
+
+      <ol class="steps">
+        <li><strong>عندما تنشئ حسابك،</strong> تظهر لك بطاقة باسمك وتصبح جاهزًا للعمل؛ وهذا يعني لك أن كل حركة تُنسب لصاحبها الصحيح.</li>
+        <li><strong>عندما تكتب اسم جهتك واسم أول بئر،</strong> يظهر البئر وتصبح أنت مالكه مباشرة؛ وهذا يعني لك أنك تبدأ من باب آمن لا يسمح لشخص غريب بإنشاء بئر داخل جهتك.</li>
+        <li><strong>عندما تضيف موقع البئر،</strong> تستطيع وصف المحافظة والمديرية والقرية والوادي وطريق الوصول؛ وهذا يعني لك أن الفريق يصل إلى المكان الصحيح حتى لو كان بعيدًا.</li>
+        <li><strong>عندما تضيف المضخة وخط الماء والخزان،</strong> تعرف أي مضخة تخدم أي خط وأين يوجد الوقود؛ وهذا يعني لك أن التشغيل لا يبقى معلومة في رأس شخص واحد.</li>
+        <li><strong>عندما تضيف فريقك،</strong> تعطي كل شخص قدر العمل الذي يحتاجه؛ وهذا يعني لك أن المسؤولية واضحة منذ اليوم الأول.</li>
+      </ol>
+
+      <h3>من يستطيع فعل ماذا؟</h3>
+      <div class="role-grid">
+        <div class="role-card owner">
+          <h3>👑 المالك</h3>
+          <p>عندما تدخل بصفتك مالكًا، تدير الأشخاص والأسعار والنسب والإقفال والتوزيع؛ وهذا يعني لك أن القرارات الحساسة تبقى بيدك.</p>
+        </div>
+        <div class="role-card manager">
+          <h3>🧭 المدير</h3>
+          <p>عندما يعمل المدير، يتابع التشغيل ويعيّن المشغلين ويراجع الأعمال المسموحة له؛ وهذا يعني لك أن اليوم يستمر حتى عند غيابك.</p>
+        </div>
+        <div class="role-card operator">
+          <h3>🧑‍🌾 المشغل</h3>
+          <p>عندما يدخل المشغل، يرى ما يحتاجه للسقي والتحصيل والمصروف اليومي فقط؛ وهذا يعني لك أنه يعمل بسرعة دون أن يصل إلى أسرار الشركاء.</p>
+        </div>
+        <div class="role-card partner">
+          <h3>🌴 الشريك</h3>
+          <p>عندما يدخل الشريك، يرى حصته وحسابه وسقيه وتوزيعاته دون أن يغيّرها؛ وهذا يعني له شفافية بلا عبث.</p>
+        </div>
+      </div>
+
+      <div class="story">
+        <span class="box-title">🌴 قصة قصيرة: بئر الوادي</span>
+        <p>عندما أنشأ سالم «بئر الوادي»، أضاف منير مديرًا وعليًا مشغلًا. رأى علي المزارعين والمواعيد وبدأ السقي، بينما بقي تغيير السعر ونسب الشركاء عند سالم؛ وهذا يعني أن كل واحد وجد عمله دون أن تتداخل الصلاحيات.</p>
+      </div>
+
+      <h3>الحجوزات قبل ازدحام اليوم</h3>
+      <p>عندما تحجز موعدًا لأحمد من السابعة إلى التاسعة، يُحفظ المزارع والأرض والمضخة والخط والطاقة المتوقعة؛ وهذا يعني لك أن الدور معروف قبل وصول الناس.</p>
+
+      <p>عندما يحاول شخص حجز المضخة نفسها في الوقت نفسه، يُرفض التعارض؛ وهذا يعني لك أن الوعد الذي أعطيته للمزارع لا يصطدم بوعد آخر.</p>
+
+      <p>عندما يتغير الموعد أو يتبادل مزارعان دوريهما، يُحفظ السبب ومن وافق؛ وهذا يعني لك أن ترتيب الطابور لا يتغير بصمت.</p>
+    </section>
+
+    <section class="chapter" id="operator-day">
+      <div class="chapter-title">
+        <span class="chapter-number">٥</span>
+        <div><div class="chapter-kicker">رحلة تشغيل كاملة</div><h2>يوم المشغل من الفجر إلى المغرب</h2></div>
+      </div>
+
+      <div class="flow" aria-label="خطوات يوم المشغل">
+        <div class="flow-item">فتح المناوبة</div><div class="flow-arrow">←</div>
+        <div class="flow-item">بدء السقي</div><div class="flow-arrow">←</div>
+        <div class="flow-item">توقف أو تبديل</div><div class="flow-arrow">←</div>
+        <div class="flow-item">إنهاء وفاتورة</div>
+      </div>
+
+      <h3>الفجر: تفتح مناوبتك</h3>
+      <p><strong>عندما تفتح مناوبتك،</strong> يرتبط عمل اليوم باسمك وصندوق البئر؛ وهذا يعني لك أن ما استلمته وما صرفته وما سلمته يُحسب عليك بوضوح، ولا يستطيع مشغل آخر فتح مناوبة ثانية على البئر نفسه.</p>
+
+      <h3>الصباح: تبدأ سقي المزارع</h3>
+      <p><strong>عندما تختار أحمد وأرضه والمضخة والطاقة الشمسية ثم تضغط بدء،</strong> يبدأ عد الوقت ويُثبت السعر في اللحظة نفسها؛ وهذا يعني لأحمد أن تغيير السعر لاحقًا لا يرفع قيمة الوقت الذي بدأه.</p>
+
+      <p><strong>عندما تكون المضخة مشغولة،</strong> لا تبدأ عليها جلسة أخرى إلا إذا كان المالك قد سمح بعدد أكبر؛ وهذا يعني لك أن الماء لا يُوعَد به لمزارعين في اللحظة نفسها.</p>
+
+      <h3>الظهيرة: توقف لا يُحسب</h3>
+      <p><strong>عندما توقف السقي بسبب المشغل أو بطلب المزارع،</strong> ينتهي وقت التشغيل ويبدأ وقت توقف غير محسوب؛ وهذا يعني للمزارع أنه لا يدفع عن ربع ساعة انتظر فيها إصلاح خرطوم أو ترتيب أرضه.</p>
+
+      <p><strong>عندما تستأنف،</strong> يعود التشغيل بالمصدر الأخير نفسه وبسعره المثبت؛ وهذا يعني لك أن التوقف لا يفتح بابًا لتغيير السعر على المزارع.</p>
+
+      <h3>العصر: تبدّل مصدر الطاقة</h3>
+      <p><strong>عندما تضعف الشمس وتنتقل إلى ديزل البئر،</strong> يُغلق وقت الشمس ويبدأ وقت الديزل بسعر تشغيله وسعر وقوده في لحظة التبديل؛ وهذا يعني لك أن كل جزء من الجلسة يُحسب بما استُخدم فيه فعلًا.</p>
+
+      <p><strong>عندما يستخدم المزارع ديزله الخاص،</strong> تُحسب عليه خدمة التشغيل فقط ولا تُضاف قيمة وقوده؛ وهذا يعني له أنه لا يدفع ثمن شيء أحضره من ماله.</p>
+
+      <div class="story">
+        <span class="box-title">🌴 قصة قصيرة: ساعتان وشمس وديزل</span>
+        <p>عندما سقى أحمد ساعة بالشمس، وتوقف خمس عشرة دقيقة، ثم أكمل ساعة بالشمس وساعة بديزل البئر، ظهرت له قيمة الشمس مرتين وقيمة تشغيل الديزل وقيمة الوقود المستهلك، بينما بقي التوقف بلا مبلغ؛ وهذا يعني أن فاتورته تحكي يومه كما حدث.</p>
+      </div>
+
+      <h3>المغرب: تكمل الجلسة وتصدر الفاتورة</h3>
+      <p><strong>عندما تضغط إكمال،</strong> يُغلق آخر وقت مفتوح، وتُجمع ثواني التشغيل وحدها، ويُخصم وقود البئر الفعلي، وتظهر لك خلاصة قبل إصدار الفاتورة؛ وهذا يعني لك أن شيئًا لا يُنسى بين العداد والصندوق والخزان.</p>
+
+      <p><strong>عندما تصدر الفاتورة،</strong> تظهر بنود الشمس وتشغيل الديزل ووقوده كلٌّ على حدة؛ وهذا يعني للمزارع أنه يستطيع فهم المبلغ بدل أن يرى رقمًا واحدًا غامضًا.</p>
+
+      <p><strong>عندما تحاول إصدار فاتورة ثانية للجلسة نفسها،</strong> تُرفض؛ وهذا يعني للمزارع أنه لا يدفع مرتين عن الماء نفسه.</p>
+
+      <div class="meaning">
+        <span class="box-title">💧 ماذا يعني لك يوم النهاية؟</span>
+        <p>عندما تبدأ الجلسة قبل منتصف الليل وتنهيها بعده، تظهر كاملة في يوم انتهائها. وإذا بدأت في آخر يوم من الشهر وانتهت في الشهر التالي، تظهر في الشهر التالي؛ وهذا يعني أن يومك وشهرك لا ينقسمان بطريقة تربك الحساب.</p>
+      </div>
+
+      <p><strong>عندما تنسى جلسة مفتوحة لأكثر من ست ساعات،</strong> يصلك تنبيه ولا تُغلق الجلسة عنك؛ وهذا يعني لك أنك تستعيد السيطرة بنفسك ولا يفترض أحد وقت نهاية لم يحدث.</p>
+
+      <p><strong>عندما تنقل جلسة ما زالت جارية إلى مشغل آخر،</strong> يُحفظ من سلّمها ومن استلم مسؤولية تحصيلها؛ وهذا يعني أن المبلغ لا يضيع بين مناوبتين.</p>
+    </section>
+
+    <section class="chapter" id="farmer-rights">
+      <div class="chapter-title">
+        <span class="chapter-number">٦</span>
+        <div><div class="chapter-kicker">وقت واضح وحساب مفهوم</div><h2>المزارع وحقوقه</h2></div>
+      </div>
+
+      <h3>تدفع عن الوقت الحقيقي</h3>
+      <p><strong>عندما يسقي أحمد ساعتين وسبع دقائق،</strong> تُحسب ساعتان وسبع دقائق كما هي دون رفعها إلى وقت أكبر؛ وهذا يعني له أنه لا يدفع عن ماء لم يصل إلى أرضه.</p>
+
+      <p><strong>عندما ينتج الحساب جزءًا من الريال،</strong> يُؤخذ عدد الريالات الكاملة فقط ولا تُحمّل عليه كسور لصالح البئر؛ وهذا يعني أن الكسر لا يعمل ضده.</p>
+
+      <h3>تدفع بالطريقة التي تناسبك</h3>
+      <p><strong>عندما تكون فاتورة أحمد ٢٠٬٠٠٠ ريال ويدفع ٨٬٠٠٠،</strong> يظهر أن المدفوع ٨٬٠٠٠ والمتبقي ١٢٬٠٠٠؛ وهذا يعني له أن الدفع الجزئي حق واضح لا يُعامل كدين مجهول.</p>
+
+      <p><strong>عندما يكمل أحمد الـ١٢٬٠٠٠ لاحقًا،</strong> تصبح الجلسة مسددة بالكامل؛ وهذا يعني له أن كل دفعة تجد مكانها الصحيح.</p>
+
+      <p><strong>عندما يدفع ٢٥٬٠٠٠ على دين ٢٠٬٠٠٠،</strong> يُسدّد الدين وتتحول الـ٥٬٠٠٠ الزائدة إلى رصيد مقدم؛ وهذا يعني له أن الزيادة لا تضيع ويستفيد منها في جلسة قادمة.</p>
+
+      <p><strong>عندما يستخدم رصيده المقدم لاحقًا،</strong> ينقص ما عليه دون دفع نقد جديد؛ وهذا يعني له أن ماله السابق يعمل لصالحه.</p>
+
+      <p><strong>عندما يدفع أخوه أو جاره عنه،</strong> يُحفظ اسم الدافع مع المبلغ؛ وهذا يعني أن الأسرة تعرف من دفع ولا يحدث خلاف عند المراجعة.</p>
+
+      <h3>ديزلك لك وحدك</h3>
+      <p><strong>عندما يودع أحمد خمسة لترات من ديزله ويستهلك ثلاثة،</strong> يبقى له لتران باسمه؛ وهذا يعني له أن رصيده لا يختلط بوقود البئر أو وقود مزارع آخر.</p>
+
+      <p><strong>عندما يحاول استهلاك وقود باسم شخص آخر،</strong> يُرفض؛ وهذا يعني أن لترًا واحدًا من ديزله لا يذهب إلى غيره بلا حق.</p>
+
+      <h3>هويتك لا تختلط باسم شبيه</h3>
+      <p><strong>عندما تضيف مزارعًا بلا هاتف،</strong> تستطيع إكمال بطاقته ومزرعته وحسابه؛ وهذا يعني أن من لا يملك هاتفًا لا يُحرم من الخدمة.</p>
+
+      <p><strong>عندما يوجد مزارع آخر بالاسم نفسه،</strong> يظهر تنبيه بالتشابه بدل دمجهما تلقائيًا؛ وهذا يعني أن «محمد صالح» الأول لا يحمل دين «محمد صالح» الثاني.</p>
+
+      <p><strong>عندما تتأكد أن بطاقتين لشخص واحد،</strong> تختار الأصل وتُنقل علاقاته وتبقى قصة الدمج محفوظة؛ وهذا يعني أن الحساب يصبح أنظف دون ضياع دين أو وقود أو أرض.</p>
+
+      <p><strong>عندما تضيف للمزارع أكثر من أرض أو تضيف أرضًا أثناء جلسة قائمة،</strong> تبقى كل أرض مستقلة وتظل الجلسة مستمرة؛ وهذا يعني أن واقع المزارع المتغير لا يعطل السقي.</p>
+
+      <div class="meaning">
+        <span class="box-title">💧 كشف حساب يفهمه المزارع</span>
+        <p>عندما يطلب أحمد كشفه، يرى فواتيره ودفعاته ودينه المتبقي ورصيده المقدم وديزله والأراضي التي سُقيت؛ وهذا يعني أن النقاش يبدأ من أرقام مشتركة لا من ذاكرة شخصين.</p>
+      </div>
+    </section>
+
+    <section class="chapter" id="money-trust">
+      <div class="chapter-title">
+        <span class="chapter-number">٧</span>
+        <div><div class="chapter-kicker">كل ريال له مقابل</div><h2>المال والأمانة</h2></div>
+      </div>
+
+      <div class="promise">
+        <span class="box-title">القاعدة البسيطة: لا ريال بلا جهة دخل منها وجهة ذهب إليها</span>
+        <p>عندما تستلم ٥٠٠ ريال من مزارع، يظهر أنها دخلت الصندوق وخفّضت ما عليه بالمقدار نفسه؛ وهذا يعني لك أن المال لا يستطيع الظهور أو الاختفاء من طرف واحد.</p>
+      </div>
+
+      <p><strong>عندما لا يتساوى طرفا أي حركة مالية،</strong> تُرفض؛ وهذا يعني لك أن خطأ الجمع لا يصل إلى حسابات الناس.</p>
+
+      <p><strong>عندما تثبت حركة مالية،</strong> لا تُمحى ولا تُغيّر؛ وهذا يعني لك أن تاريخ اليوم لا يعاد كتابته غدًا.</p>
+
+      <p><strong>عندما تكتشف دفعة مكررة أو مبلغًا خاطئًا،</strong> تُنشئ تصحيحًا معاكسًا مع السبب ويبقى الأصل ظاهرًا؛ وهذا يعني أن الخطأ يُصلح بأمانة بدل إخفائه.</p>
+
+      <h3>الإقفال يحمي الشهر</h3>
+      <p><strong>عندما تُقفل شهر مارس،</strong> لا يقبل الشهر حركة جديدة؛ وهذا يعني أن كشف مارس الذي راجعه الشركاء لا يتغير من وراء ظهورهم.</p>
+
+      <p><strong>عندما تحتاج إلى إعادة فتحه،</strong> تذكر السبب، ثم يصوت الشركاء. في بئر له أربعة شركاء لا تكفي موافقة اثنين، وتكتمل الموافقة بثلاثة، ثم يوافق المدير العام؛ وهذا يعني أن فتح الماضي ليس قرار شخص واحد.</p>
+
+      <h3>البداية القديمة تدخل مرة واحدة</h3>
+      <p><strong>عندما تبدأ باستخدام المنصة ولديك دين قديم على مزارع أو مبلغ في الصندوق أو وقود في الخزان أو مستحق لشريك،</strong> تدخله بتاريخ واضح وتراجعه ثم تثبته؛ وهذا يعني أن الماضي ينتقل معك دون أن يختلط بعمل اليوم.</p>
+
+      <h3>المصروفات والرواتب واضحة</h3>
+      <p><strong>عندما تدفع ٦٬٠٠٠ ريال صيانة من الصندوق،</strong> يظهر المصروف ويقل الصندوق بالمبلغ نفسه؛ وهذا يعني لك أن سبب نقص النقد معروف.</p>
+
+      <p><strong>عندما يدفع شريك ٨٠٠ ريال من ماله عن البئر،</strong> يظهر المصروف ويظهر أن للشريك مبلغًا مستحقًا؛ وهذا يعني أن مساهمته لا تُنسى عند توزيع الأرباح.</p>
+
+      <p><strong>عندما تسجل مصروفًا آجلًا،</strong> يظهر أنه واجب الدفع دون أن ينقص الصندوق قبل الدفع؛ وهذا يعني أن الدين والنقد لا يختلطان.</p>
+
+      <p><strong>عندما يحتاج مصروف كبير إلى موافقة أو صورة إيصال،</strong> يبقى معلقًا حتى يراجعه صاحب الصلاحية؛ وهذا يعني أن المبالغ الحساسة لا تمر بلا عين ثانية.</p>
+
+      <p><strong>عندما يستحق موظف راتبًا ثم يُدفع له،</strong> يظهر الاستحقاق أولًا ثم خروج النقد عند الدفع؛ وهذا يعني أن حق الموظف معروف حتى قبل أن يستلم.</p>
+
+      <div class="meaning">
+        <span class="box-title">💧 ماذا ترى في أي لحظة؟</span>
+        <p>عندما تفتح ملخصاتك، ترى رصيد الصندوق، وديون المزارعين، والرصيد المقدم، والوقود، وحساب كل شريك؛ وهذا يعني لك أن الصورة اليومية لا تحتاج إلى جمع يدوي.</p>
+      </div>
+    </section>
+
+    <section class="chapter" id="partners">
+      <div class="chapter-title">
+        <span class="chapter-number">٨</span>
+        <div><div class="chapter-kicker">حصة عادلة وتاريخ محفوظ</div><h2>الشركاء والأرباح</h2></div>
+      </div>
+
+      <h3>النسبة تتغير دون أن تغيّر الماضي</h3>
+      <p><strong>عندما تتغير نسبة شريك في أول يونيو،</strong> تنتهي نسبته القديمة في آخر مايو وتبدأ الجديدة في يونيو؛ وهذا يعني أن ربح يناير يبقى على نسبة يناير ولا يُعاد حسابه بنسبة اليوم.</p>
+
+      <p><strong>عندما تحاول إدخال نسبتين متداخلتين للشريك نفسه،</strong> تُرفض؛ وهذا يعني أن اليوم الواحد لا يحمل حصتين متعارضتين.</p>
+
+      <p><strong>عندما لا يكتمل مجموع الملكية والأرباح إلى مئة في المئة،</strong> لا يُعتمد التوزيع؛ وهذا يعني أن ريال الشركاء لا يتوزع على نسب ناقصة أو زائدة.</p>
+
+      <h3>لا توزع وعودًا لم تُحصّل</h3>
+      <p><strong>عندما توجد فاتورة ٢٠٬٠٠٠ لم تُدفع،</strong> لا تدخل في مال التوزيع. وعندما يقبض البئر ١٠٬٠٠٠ فقط، تبدأ الحسبة من ١٠٬٠٠٠؛ وهذا يعني أن الشركاء لا يقتسمون مالًا غير موجود في الصندوق.</p>
+
+      <p><strong>عندما يدفع مزارع ٥٬٠٠٠ مقدمًا لجلسة قادمة،</strong> لا تدخل في الأرباح؛ وهذا يعني أن مال الخدمة القادمة لا يُصرف اليوم.</p>
+
+      <h3>الصيانة والالتزامات قبل الربح</h3>
+      <p><strong>عندما يحدد المالك احتياطي صيانة قدره عشرة في المئة من المحصل،</strong> يُحجز أولًا. فإذا كان المحصل ١٠٬٠٠٠، يُحجز ١٬٠٠٠ ويصبح المتاح ٩٬٠٠٠؛ وهذا يعني أن البئر يحتفظ بقدرة إصلاحه قبل توزيع المال.</p>
+
+      <p><strong>عندما تُعتمد مستحقات يناير لشريك ولم تُدفع،</strong> تُحجز قبل توزيع فبراير؛ وهذا يعني أن مال الشهر السابق لا يُنسى ولا يُوزع مرة ثانية.</p>
+
+      <h3>سقي الشريك يظهر في حسابه</h3>
+      <p><strong>عندما يسقي الشريك على أن تُخصم القيمة من أرباحه،</strong> تظهر الفاتورة ثم تنقص من حصته عند التوزيع؛ وهذا يعني أنه يعامل بوضوح مثل بقية المزارعين مع طريقة تسوية تناسب كونه شريكًا.</p>
+
+      <div class="story">
+        <span class="box-title">🌴 قصة قصيرة: أرباح أقل من السقي</span>
+        <p>عندما كانت حصة الشريك في فبراير صفرًا بعد حجز مستحقات سابقة، وكانت قيمة سقيه ٦٬٠٠٠ ريال، ظهر صافيه ناقص ٦٬٠٠٠ ولم يُسمح باعتماد التوزيع حتى تُعالج الحالة؛ وهذا يعني أن العجز لا يُخفى داخل توزيع يبدو ناجحًا.</p>
+      </div>
+
+      <p><strong>عندما يبقى ريال أو ريالان لا يقبلان القسمة بين الشركاء،</strong> يذهبان لصاحب أكبر حصة بطريقة ثابتة، ويبقى مجموع ما وُزع مساويًا للمبلغ الأصلي؛ وهذا يعني أن ريالًا واحدًا لا يضيع كل شهر في فرق القسمة.</p>
+
+      <p><strong>عندما يعتمد التوزيع،</strong> يرى كل شريك حصته الإجمالية، وما دفعه عن البئر، وما خُصم من سقيه، وصافيه، ويصله تنبيه؛ وهذا يعني أن الشفافية تصل إليه بدل أن يطلبها كل مرة.</p>
+
+      <div class="meaning">
+        <span class="box-title">💧 دخول الشريك الخاص</span>
+        <p>عندما يدخل الشريك، يرى نسبة اليوم والنسب السابقة والأرباح والاستقطاعات والمبالغ المدفوعة وما بقي له من قبل؛ وهذا يعني له أنه يراجع حقه بنفسه دون أن يستطيع تغيير حساب غيره.</p>
+      </div>
+    </section>
+
+    <section class="chapter" id="diesel">
+      <div class="chapter-title">
+        <span class="chapter-number">٩</span>
+        <div><div class="chapter-kicker">كل لتر له قصة</div><h2>خزان الديزل</h2></div>
+      </div>
+
+      <p><strong>عندما تشتري عشرة لترات بسعر ١٬٠٠٠ ريال للتر ثم عشرة أخرى بسعر ٣٬٠٠٠،</strong> يصبح السعر العادل للمخزون ٢٬٠٠٠ ريال للتر؛ وهذا يعني أن استهلاك اليوم لا يُحسب على أرخص شحنة أو أغلاها وحدها.</p>
+
+      <p><strong>عندما تُدخل كمية شراء،</strong> يزيد رصيد الخزان وتظهر كلفة الشراء وخروج المال من الصندوق؛ وهذا يعني لك أن الكمية والقيمة تتحركان معًا.</p>
+
+      <p><strong>عندما تسجل استهلاك ديزل البئر أثناء جلسة،</strong> ينقص الخزان بالمقدار الفعلي وتظهر كلفته مع الجلسة؛ وهذا يعني أن قيمة الوقود ليست تخمينًا منفصلًا عن التشغيل.</p>
+
+      <p><strong>عندما تحاول سحب ١٧ لترًا والخزان فيه ١٦ فقط،</strong> تُرفض الحركة؛ وهذا يعني أن الرصيد لا ينزل تحت الصفر مهما كان سبب الاستعجال.</p>
+
+      <p><strong>عندما يكون القياس تقديريًا،</strong> يبقى مكتوبًا «بانتظار القياس الفعلي» ولا ينقص الخزان؛ وهذا يعني أن تقدير العين لا يصبح حقيقة مالية قبل القياس.</p>
+
+      <p><strong>عندما يصل القياس الفعلي لاحقًا،</strong> يُعتمد هو وحده في الخصم؛ وهذا يعني أن الفرق بين التقدير والواقع يبقى ظاهرًا ولا يتكرر الخصم.</p>
+
+      <table aria-label="قصة الوقود من الدخول إلى الخروج">
+        <thead><tr><th>عندما يحدث</th><th>ما تراه</th><th>ماذا يعني لك</th></tr></thead>
+        <tbody>
+          <tr><td>شراء جديد</td><td>كمية وقيمة وسعر عادل جديد</td><td>الخزان والصندوق متفقان</td></tr>
+          <tr><td>إيداع مزارع</td><td>كمية باسمه وحده</td><td>لا تختلط بوقود البئر</td></tr>
+          <tr><td>استهلاك جلسة</td><td>كمية مرتبطة بالسقي</td><td>تعرف أين ذهب الوقود</td></tr>
+          <tr><td>تسرب أو فقد</td><td>سبب وكمية ووقت</td><td>لا يختفي اللتر بلا قصة</td></tr>
+          <tr><td>عدّ فعلي</td><td>الفرق بين المتوقع والموجود</td><td>تكتشف الخلل مبكرًا</td></tr>
+        </tbody>
+      </table>
+
+      <div class="meaning">
+        <span class="box-title">💧 ماذا يعني لك رصيد الوقود؟</span>
+        <p>عندما تفتح ملخص الوقود، ترى وقود البئر ورصيد كل مزارع والفعلي والتقديري والفارق؛ وهذا يعني أن قرار الشراء القادم يعتمد على صورة واضحة.</p>
+      </div>
+    </section>
+
+    <section class="chapter" id="shift-handover">
+      <div class="chapter-title">
+        <span class="chapter-number">١٠</span>
+        <div><div class="chapter-kicker">المسؤولية تنتقل بوضوح</div><h2>المناوبة وتسليم الصندوق</h2></div>
+      </div>
+
+      <p><strong>عندما تكون مناوبة مفتوحة على البئر،</strong> لا تُفتح مناوبة ثانية؛ وهذا يعني أن مسؤولية الوقت والصندوق لا تقع على شخصين في اللحظة نفسها.</p>
+
+      <p><strong>عندما تحاول إقفال المناوبة وفيها جلسة جارية لم تُسلّم،</strong> تتوقف عملية الإقفال؛ وهذا يعني أن المزارع ومبلغه لا يعلقان بين مشغلين.</p>
+
+      <p><strong>عندما تسلّم الجلسة الجارية لمشغل آخر،</strong> يتلقى الطلب ويقبل المسؤولية ثم تظهر الجلسة في مناوبته؛ وهذا يعني أن الاستلام صريح لا شفهي فقط.</p>
+
+      <p><strong>عندما تعلن أنك سلمت ١٬٠٠٠ ريال ويؤكد المستلم ٩٠٠،</strong> يظهر الفرق ناقص ١٠٠ مع السبب ويبقى معلقًا؛ وهذا يعني أن النقص لا يُخفى ولا يُحمّل على شخص قبل المراجعة.</p>
+
+      <p><strong>عندما يكون المؤكد أكبر من المعلن،</strong> يظهر الفرق بالموجب؛ وهذا يعني أن الزيادة أيضًا تحتاج تفسيرًا مثل النقص.</p>
+
+      <p><strong>عندما يحسم المالك الفرق،</strong> تتحول الحالة من معلقة إلى محسومة ويصل التنبيه لمن سلّم؛ وهذا يعني أن المسؤولية لا تبقى مفتوحة إلى الأبد.</p>
+
+      <div class="story">
+        <span class="box-title">🌴 قصة قصيرة: تسليم المغرب</span>
+        <p>عندما أنهى علي مناوبته وسلّم الصندوق إلى منير، ظهر المتوقع والمعلن والمؤكد والجلسات المفتوحة. وجد منير نقص ١٠٠ ريال وكتب «فرق عدّ»، فراجع المالك وحسمه؛ وهذا يعني أن نهاية اليوم تحمي الطرفين بدل أن تبدأ خصومة جديدة.</p>
+      </div>
+
+      <h3>أرقام المناوبة الخمسة</h3>
+      <p>عندما تراجع مناوبتك، ترى ما جُمع، وما صُرف، وما سُلّم، ودين المزارعين، وما بقي في اليد؛ وهذا يعني أن تقرير المشغل يجيب عن الأسئلة الأساسية قبل مغادرته.</p>
+    </section>
+
+    <section class="chapter" id="alerts">
+      <div class="chapter-title">
+        <span class="chapter-number">١١</span>
+        <div><div class="chapter-kicker">تذكير في الوقت المناسب</div><h2>التنبيهات التي ترعاك</h2></div>
+      </div>
+
+      <div class="mini-grid">
+        <div class="mini-card">
+          <h3>⏳ الجلسة المنسية</h3>
+          <p>عندما تبقى جلسة مفتوحة ست ساعات، يصلك تنبيه وتبقى الجلسة تحت يدك؛ وهذا يعني أنك تتذكرها دون أن تُغلق بوقت غير حقيقي.</p>
+        </div>
+        <div class="mini-card">
+          <h3>⛽ اقتراب نفاد الديزل</h3>
+          <p>عندما يقترب الوقود من الحد الذي يهمك، يصلك تنبيه؛ وهذا يعني أنك تشتري قبل أن تتوقف المضخة في منتصف دور مزارع.</p>
+        </div>
+        <div class="mini-card">
+          <h3>💳 تجاوز حد الدين</h3>
+          <p>عندما يتجاوز دين مزارع الحد المتفق عليه، يظهر لك التنبيه؛ وهذا يعني أنك تتحدث معه مبكرًا بدل أن يتراكم مبلغ يصعب سداده.</p>
+        </div>
+        <div class="mini-card">
+          <h3>🌴 اكتمال توزيع الأرباح</h3>
+          <p>عندما يعتمد التوزيع، يصل لكل شريك ما يخصه؛ وهذا يعني أن الخبر والرقم يصلان معًا دون انتظار اتصال.</p>
+        </div>
+      </div>
+
+      <p><strong>عندما تُفتح أو تُغلق مناوبة، أو يظهر فرق صندوق، أو يُطلب نقل جلسة،</strong> تصل الرسالة إلى الأشخاص المعنيين؛ وهذا يعني أن المسؤولية لا تنتقل بصمت.</p>
+
+      <p><strong>عندما يُسجل مصروف يحتاج نظرًا،</strong> يعرف المالك أو المدير بوجوده؛ وهذا يعني أن المراجعة لا تعتمد على تذكر المشغل في نهاية الأسبوع.</p>
+
+      <div class="meaning">
+        <span class="box-title">💧 التنبيه يساعدك ولا يتصرف بدلًا منك</span>
+        <p>عندما يصلك التنبيه، تبقى أنت صاحب القرار؛ وهذا يعني أن المنصة تذكّرك بالخطر ولا تختار نهاية جلسة أو حسم فرق دونك.</p>
+      </div>
+    </section>
+
+    <section class="chapter" id="offline">
+      <div class="chapter-title">
+        <span class="chapter-number">١٢</span>
+        <div><div class="chapter-kicker">العمل يستمر</div><h2>انقطاع الإنترنت لا يوقفك</h2></div>
+      </div>
+
+      <p><strong>عندما تنقطع الشبكة في الحقل،</strong> تواصل تسجيل الجلسات والملاحظات والأعمال المتاحة لك؛ وهذا يعني أن ضعف التغطية لا يوقف دور المزارع ولا يجبرك على العودة إلى الورق.</p>
+
+      <p><strong>عندما تعود الشبكة،</strong> تُرسل أعمالك المعلقة بالترتيب؛ وهذا يعني أن ما كتبته في الوادي يصل دون أن تعيده يدويًا.</p>
+
+      <p><strong>عندما يتكرر إرسال العمل نفسه بسبب ضعف الاتصال،</strong> يُقبل مرة واحدة وتعود لك النتيجة السابقة؛ وهذا يعني أن الدفعة لا تتكرر، والجلسة لا تُنشأ مرتين، والمصروف لا يتضاعف.</p>
+
+      <div class="story">
+        <span class="box-title">🌴 قصة قصيرة: دفعة في منطقة بلا تغطية</span>
+        <p>عندما استلم علي ٥٬٠٠٠ ريال من أحمد ولم تكن هناك شبكة، حفظ العملية. وعند عودة الاتصال حاول الهاتف إرسالها أكثر من مرة، لكنها ظهرت مرة واحدة فقط؛ وهذا يعني أن ضعف الإشارة لا يحول دفعة واحدة إلى دفعتين.</p>
+      </div>
+
+      <p><strong>عندما يكون التغيير بسيطًا مثل ملاحظة جديدة،</strong> يمكن جمعه مع بقية العمل. وعندما يكون حساسًا مثل تغيير وقت جلسة أو سعر أو نسبة أو صندوق مقفل، يُطلب منك مراجعة واضحة؛ وهذا يعني أن السرعة لا تأتي على حساب المال.</p>
+
+      <div class="meaning">
+        <span class="box-title">💧 ماذا يعني لك؟</span>
+        <p>تعمل في المكان الذي يوجد فيه الماء، لا في المكان الذي توجد فيه الشبكة؛ وعندما يعود الاتصال، يبقى لكل عمل أثر واحد فقط.</p>
+      </div>
+    </section>
+
+    <section class="chapter" id="privacy">
+      <div class="chapter-title">
+        <span class="chapter-number">١٣</span>
+        <div><div class="chapter-kicker">كل بئر داخل حدوده</div><h2>خصوصيتك حصن</h2></div>
+      </div>
+
+      <div class="promise">
+        <span class="box-title">لا يرى أحد بئر غيره ولا يكتب فيه</span>
+        <p>عندما يدخل مستخدم مكلّف ببئر الوادي، يرى بئر الوادي فقط؛ وهذا يعني أن أسماء مزارعي بئر السهل وفواتيرهم وشركاءهم تبقى بعيدة عنه.</p>
+      </div>
+
+      <p><strong>عندما يحاول مستخدم فتح بئر لم يُعيّن فيه،</strong> لا يظهر له؛ وهذا يعني أن معرفة اسم البئر أو رقمه لا تعطيه حق الاطلاع.</p>
+
+      <p><strong>عندما يحاول إضافة أرض أو كتابة عمل داخل بئر غيره،</strong> يُرفض؛ وهذا يعني أن الخصوصية تمنع العبث كما تمنع المشاهدة.</p>
+
+      <p><strong>عندما يرى المشغل معلومات المزارع اللازمة للسقي،</strong> لا يرى نسب الشركاء ولا يعتمد أرباحهم؛ وهذا يعني أن كل دور يأخذ ما يحتاجه فقط.</p>
+
+      <p><strong>عندما يرى الشريك حسابه وتوزيعه،</strong> لا يغيّر دفعة أو مصروفًا أو نسبة؛ وهذا يعني أن الشفافية لا تتحول إلى صلاحية مفتوحة.</p>
+
+      <p><strong>عندما يغيّر المالك دور شخص أو يوقف تعيينه،</strong> تتغير قدرته على الدخول إلى عمل البئر؛ وهذا يعني أن العامل السابق لا يحتفظ بباب مفتوح.</p>
+
+      <div class="quiet-note">
+        <span class="box-title">حماية الإنشاء الأول</span>
+        <p>عندما تنشئ جهتك وأول بئر، تصبح مالكه. وبعد ذلك، عندما تضيف بئرًا آخر داخل الجهة، يجب أن تكون مالكًا نشطًا فيها؛ وهذا يعني أن الجهة لا تقبل بئرًا غريبًا من شخص لا ينتمي إليها.</p>
+      </div>
+    </section>
+
+    <section class="chapter" id="guarantees">
+      <div class="chapter-title">
+        <span class="chapter-number">١٤</span>
+        <div><div class="chapter-kicker">صفحة تحفظها في بالك</div><h2>الضمانات التي لا تُكسر</h2></div>
+      </div>
+
+      <div class="guarantee-grid">
+        <div class="guarantee-card"><span class="num">١</span><h3>وقت حقيقي</h3><p>عندما ينتهي السقي، تدفع عن الثواني التي اشتغلت فعلًا؛ وهذا يعني لا وقت زائد محسوب عليك.</p></div>
+        <div class="guarantee-card"><span class="num">٢</span><h3>سعر ثابت</h3><p>عندما تبدأ الجلسة، يثبت سعرها؛ وهذا يعني لا مفاجأة في منتصف السقي.</p></div>
+        <div class="guarantee-card"><span class="num">٣</span><h3>مضخة بلا تعارض</h3><p>عندما تكون المضخة مشغولة، لا تبدأ جلسة متعارضة؛ وهذا يعني وعد واحد واضح في اللحظة نفسها.</p></div>
+        <div class="guarantee-card"><span class="num">٤</span><h3>فاتورة واحدة</h3><p>عندما تصدر فاتورة الجلسة، لا تصدر ثانية لها؛ وهذا يعني لا تحصيل مزدوج.</p></div>
+        <div class="guarantee-card"><span class="num">٥</span><h3>مال متوازن</h3><p>عندما يدخل ريال أو يخرج، يظهر مقابله؛ وهذا يعني لا مبلغ بلا تفسير.</p></div>
+        <div class="guarantee-card"><span class="num">٦</span><h3>تصحيح بلا محو</h3><p>عندما يقع خطأ، يُعكس مع السبب ويبقى الأصل؛ وهذا يعني تاريخًا صادقًا.</p></div>
+        <div class="guarantee-card"><span class="num">٧</span><h3>وقود لا يصبح سالبًا</h3><p>عندما لا تكفي الكمية، يُرفض السحب؛ وهذا يعني أن الرصيد يعكس الموجود.</p></div>
+        <div class="guarantee-card"><span class="num">٨</span><h3>ديزل المزارع مصون</h3><p>عندما يودع المزارع وقوده، لا يستخدمه غيره؛ وهذا يعني أن كل لتر يبقى لصاحبه.</p></div>
+        <div class="guarantee-card"><span class="num">٩</span><h3>ربح من المحصل</h3><p>عندما تُوزع الأرباح، تدخل الأموال المقبوضة فقط؛ وهذا يعني لا توزيع لوعد لم يُدفع.</p></div>
+        <div class="guarantee-card"><span class="num">١٠</span><h3>خصوصية البئر</h3><p>عندما تدخل، ترى الآبار المسموحة لك فقط؛ وهذا يعني أن بياناتك داخل حصنك.</p></div>
+      </div>
+
+      <div class="meaning">
+        <span class="box-title">💧 ماذا تعني الضمانات العشر لك؟</span>
+        <p>تعني أن يومك يمكن أن يكون سريعًا دون أن يكون هشًا: المزارع يفهم حقه، والمشغل يعرف مسؤوليته، والمالك يراجع الصورة، والشريك يرى نصيبه.</p>
+      </div>
+    </section>
+
+    <section class="chapter" id="closing">
+      <div class="closing-header" aria-hidden="true">
+        <div class="closing-header-brand">منصة إدارة آبار السقي</div>
+        <div class="closing-header-title">دليل تجربة المستخدم</div>
+      </div>
+      <div class="closing">
+        <svg class="closing-logo" viewBox="0 0 180 180" role="img" aria-label="شعار الماء والزراعة">
+          <path d="M35 105 C35 55 57 27 90 27 C123 27 145 55 145 105" fill="none" stroke="#0B5D7E" stroke-width="15" stroke-linecap="round"/>
+          <path d="M25 113 H155" fill="none" stroke="#0B5D7E" stroke-width="15" stroke-linecap="round"/>
+          <path d="M90 41 C64 72 58 87 58 105 C58 124 72 138 90 138 C108 138 122 124 122 105 C122 87 116 72 90 41Z" fill="#1FA2B4"/>
+          <path d="M90 142 V164" stroke="#2E7D32" stroke-width="9" stroke-linecap="round"/>
+          <path d="M88 156 C71 138 54 143 51 157 C64 168 77 169 88 156Z" fill="#2E7D32"/>
+          <path d="M92 156 C109 138 126 143 129 157 C116 168 103 169 92 156Z" fill="#4F9A45"/>
+        </svg>
+        <h2>خاتمة قصيرة</h2>
+        <p>عندما تصبح تفاصيل البئر واضحة، يقل الخلاف ويزيد الاطمئنان. يعرف المزارع ما دفع، ويعرف المشغل ما سلّم، ويعرف الشريك ما استحق، ويعرف المالك أين يقف بئره اليوم.</p>
+        <p><strong>الماء أمانة، والمال أمانة، ووضوحهما راحة للجميع.</strong></p>
+        <div class="cover-line"></div>
+        <div class="small">منصة إدارة آبار السقي</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
