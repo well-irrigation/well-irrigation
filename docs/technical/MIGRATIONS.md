@@ -161,3 +161,12 @@
 | 056 | `_056_record_expense_overload_and_opening_approve_check.sql` | حذف ازدواج `record_expense` القديم، فحص توازن الأرصدة عند الاعتماد أيضًا |
 
 **حالة التطبيق:** مُطبّقة ومُختبرة محليًا (تحقق بنيوي + 19/19 ثم 17/17 حالة اختبار وظيفي) — ق-74.
+
+## الملفات (057–061) — الدفعة الختامية لمحطة قواعد البيانات (ق-75)
+- 20260814030001_057_audit_log.sql — مخطط audit + جدول audit_logs إلحاقي فقط + audit.log و track_changes موصولة على 6 جداول حساسة.
+- 20260814030002_058_sync_layer.sql — sync.processed_commands (begin_command/finish_command، الأمر المكرر يعيد المخزن) + sync.sync_conflicts.
+- 20260814030003_059_attachments.sql — core.attachments العامة (upload_status الافتراضي pending).
+- 20260814030004_060_reporting_views.sql — مخطط reporting + 5 عروض security_invoker (أرصدة المزارعين، الصناديق، الوقود، ملخص الشريك، التقرير اليومي).
+- 20260814031001_061_money_procedures.sql — فهرس فاتورة واحدة نشطة لكل جلسة؛ journal_entry_id للدفعات والفواتير؛ تحويل زيادة الدفعة لرصيد مقدم (حذف الرفض القديم)؛ ترحيل آلي للدفعات والمصروفات والفواتير؛ قيد شراء الديزل يحمل الصندوق الرئيسي؛ reverse_journal_entry و reverse_payment؛ إصلاح cashbox_balances ليحتسب المرحل والمعكوس.
+
+**حالة التطبيق:** مطبقة ومختبرة 2026-08-14 — الفحص البنيوي (4 زنادات + 6 دوال + فهرس + غياب القديم) والاختبار المالي 17/17 PASS.
