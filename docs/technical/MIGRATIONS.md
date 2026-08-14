@@ -187,3 +187,8 @@
 - 20260814043001_066_session_procedures.sql — الإجراءات الستة: start_irrigation_session و pause_irrigation_session و change_session_energy_source و resume_irrigation_session و complete_irrigation_session (خطوات الوثيقة 03 قسم 47: مقاطع بلا تقريب، تسعير مختلط بلقطات مثبتة، حركات وقود، تدقيق، ملخص JSONB) و billing.issue_session_invoice. أعمدة جديدة: sessions.farmer_well_account_id، حقول الثواني والمبالغ في session_segments، و session_charges.pricing_mode (flat/segments) مع تحيين قيد المعادلة لجلسات المقاطع؛ compute_session_charge أصبحت شبكة أمان للجلسات البسيطة فقط.
 
 **حالة التطبيق:** مطبقة ومختبرة 2026-08-15 — 66 هجرة نظيفة؛ الاختبارات الأربعة 17/17 و13/13 و12/12 و14/14.
+
+## الحزمة (067) — ق-77 البند 5: حزمة الاختبارات الدائمة (بنية اختبار فقط، بلا هجرة)
+- ثلاثة ملفات: 20260814_067_finance_time.test.sql (16 فحصا) و 20260814_067_inventory_sync_rls.test.sql (12) و 20260814_067_partners_distribution.test.sql (8)، مع scripts/db_test.sh وربط npm run db:test. البنود الملغاة بقرار (ق-12 التقريب، ق-75 الاجهزة وPowerSync، م-21 الميدانية) موثقة بتعليق بدل تنفيذها.
+
+**حالة التطبيق:** مختبرة 2026-08-15 بقناتين — 7 ملفات، 92 فحصا PASS، FAIL=0 ERROR=0؛ المشغل يتوقف عند اول ملف فاشل (اثبت ذلك فعليا اثناء التطوير).
