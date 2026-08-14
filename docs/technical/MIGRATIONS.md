@@ -148,3 +148,16 @@
 | 050 | `_050_manager_partner_access.sql` | توليد 120 سياسة «مدير» و49 سياسة «شريك» آليًا + سياسات التعيين المقيدة للمدير |
 
 **حالة التطبيق:** مُطبّقة ومُختبرة محليًا (تحقق بنيوي + 23/23 حالة اختبار وظيفي) — ق-73.
+
+## الملفات (051–056) — إغلاق المرحلة 6 (الإدارة): إصدارات النسب، محرك التوزيع الكامل، الاحتياطي، الأرصدة الافتتاحية، الرواتب، قيود الديزل
+
+| # | الملف | المحتوى |
+| --- | --- | --- |
+| 051 | `_051_share_versions.sql` | `core.ownership_share_versions` (فصل نسبة الملكية عن نسبة الأرباح + مانع تداخل + المُعتمد)، ترحيل النسب من `share_ppm` وحذفه، حالات الشريك الأربع، توحيد مسميات سياسة السقي |
+| 052 | `_052_distribution_engine.sql` | `finance.profit_distribution_cycles/lines` (§39)، `calculate_profit_distribution` و`approve_profit_distribution` (§49 بخطواته)، `maintenance_reserve_rules` (§38)، `distribution_settings` بمفتاح الالتزامات، `expenses.partner_id`، حذف جداول ودوال التوزيع القديمة |
+| 053 | `_053_distribution_fixes.sql` | إصلاح فحص `found` للاحتياطي، علامتا التسوية `settled_in_cycle_id` و`deducted_in_cycle_id` ضد ازدواج الدورات |
+| 054 | `_054_opening_balances.sql` | `finance.opening_balance_batches/items` (§41) بتسعة أنواع، اعتماد المالك، القفل، الترحيل، حركة مخزون للوقود الافتتاحي |
+| 055 | `_055_payroll_and_fuel_journal.sql` | إصلاح توازن الأرصدة (الأصول = الالتزامات + رأس المال)، `record_expense` بمعامل الشريك، `worker_compensation_rules` و`payroll_accruals` و`accrue_payroll`/`pay_salary` (doc 02 §29)، زناد قيود الديزل (§26)، الالتزامات مع الرواتب |
+| 056 | `_056_record_expense_overload_and_opening_approve_check.sql` | حذف ازدواج `record_expense` القديم، فحص توازن الأرصدة عند الاعتماد أيضًا |
+
+**حالة التطبيق:** مُطبّقة ومُختبرة محليًا (تحقق بنيوي + 19/19 ثم 17/17 حالة اختبار وظيفي) — ق-74.
