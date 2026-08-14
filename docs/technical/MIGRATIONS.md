@@ -182,3 +182,8 @@
 - 20260814042002_065_daily_view_end_day.sql — العرض اليومي reporting.well_daily_summary بيوم النهاية واستبعاد الجلسات الجارية من كل المجاميع (open_sessions معلوماتي فقط).
 
 **حالة التطبيق:** مطبقة ومختبرة 2026-08-14 — 65 هجرة نظيفة، والاختبارات 17/17 و13/13 و12/12 بقناتين مستقلتين.
+
+## الملف (066) — ق-77: طبقة إجراءات الجلسة الذرية (نفذها Codex وتحققنا بقناة مستقلة)
+- 20260814043001_066_session_procedures.sql — الإجراءات الستة: start_irrigation_session و pause_irrigation_session و change_session_energy_source و resume_irrigation_session و complete_irrigation_session (خطوات الوثيقة 03 قسم 47: مقاطع بلا تقريب، تسعير مختلط بلقطات مثبتة، حركات وقود، تدقيق، ملخص JSONB) و billing.issue_session_invoice. أعمدة جديدة: sessions.farmer_well_account_id، حقول الثواني والمبالغ في session_segments، و session_charges.pricing_mode (flat/segments) مع تحيين قيد المعادلة لجلسات المقاطع؛ compute_session_charge أصبحت شبكة أمان للجلسات البسيطة فقط.
+
+**حالة التطبيق:** مطبقة ومختبرة 2026-08-15 — 66 هجرة نظيفة؛ الاختبارات الأربعة 17/17 و13/13 و12/12 و14/14.
