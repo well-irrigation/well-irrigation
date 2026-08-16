@@ -30,10 +30,10 @@ Supabase المحلي يعمل فعليًا.
 
 آخر إعادة بناء نظيفة مثبتة وصلت إلى:
 
-- migration 074.
-- 75 migration.
-- 16 permanent test files.
-- 205 PASS.
+- migration 077.
+- 76 migration.
+- 17 permanent test files.
+- 217 PASS.
 - 0 FAIL.
 - 0 ERROR.
 
@@ -59,10 +59,13 @@ Exposed Schemas:
 
 السطح الحالي:
 
-- 32 RPC داخل `api`.
+- 33 RPC داخل `api`.
 - Direct DML = 0.
 - API SECURITY DEFINER = 0.
 - anon API EXECUTE = 0.
+- authenticated API EXECUTE = 33.
+- service_role API EXECUTE = 33.
+- API relations = 0.
 
 ## GitHub
 
@@ -130,3 +133,25 @@ Migration 076 نجحت ضمن `supabase db reset` كامل.
 - exposed schemas = api + graphql_public فقط.
 
 Stage 7 Readiness Gate مغلق.
+
+
+## Baseline بعد ق-82 / 077
+
+تم التحقق محليًا بواسطة المالك في 2026-08-17:
+
+- 76 migrations.
+- 17 permanent test files.
+- 217 PASS.
+- 0 FAIL.
+- 0 ERROR.
+- Data API RPC = 33.
+- Direct DML = 0.
+- API SECURITY DEFINER = 0.
+- anon API EXECUTE = 0.
+- authenticated API EXECUTE = 33.
+- service_role API EXECUTE = 33.
+- API relations = 0.
+- `api.app_bootstrap()` ظاهر فعليًا عبر Data API.
+
+Migration 077 نجحت ضمن إعادة بناء محلية كاملة،
+ثم نجحت الحزمة الدائمة كاملة.

@@ -14,14 +14,20 @@
 - ق-77: منفذ بالكامل.
 - ق-78: منفذ ومغلق.
 - ق-79: منفذ ومغلق.
-- migrations: 73.
-- permanent tests: 14.
-- PASS: 178.
+- ق-80: منفذ ومغلق.
+- ق-81: منفذ ومغلق.
+- ق-82: منفذ ومغلق.
+- S7-01 Mobile Bootstrap: مغلق.
+- migrations: 76.
+- permanent tests: 17.
+- PASS: 217.
 - FAIL: 0.
 - ERROR: 0.
-- Data API RPC: 31.
+- Data API RPC: 33.
 - Direct DML: 0.
-- الشرط التالي في Stage 7: Documentation Conformance.
+- API SECURITY DEFINER: 0.
+- anon API EXECUTE: 0.
+- الخطوة التالية: بوابة الهوية البصرية قبل بناء الواجهات.
 
 
 ## 2026-08-12 — التحليل والقرارات
@@ -318,3 +324,28 @@
 - final documentation cross-sync = PASS.
 - Condition 5 مغلق.
 - Stage 7 Readiness Gate مغلق بالكامل.
+
+
+## 2026-08-17 — ق-82 / عقد تهيئة التطبيق للقراءة
+
+أُضيفت Migration 077 واختبار دائم لعقد
+`api.app_bootstrap()`.
+
+أثبت التحقق الفعلي:
+
+- إعادة بناء نظيفة حتى 077.
+- اختبار 077 = 12 PASS.
+- الحزمة الكاملة = 17 ملفًا / 217 PASS / 0 FAIL / 0 ERROR.
+- Data API = 33 RPC.
+- `app_bootstrap` ظاهر عبر Data API.
+- Direct DML = 0.
+- API SECURITY DEFINER = 0.
+- anon API EXECUTE = 0.
+- authenticated/service_role API EXECUTE = 33.
+- API relations = 0.
+
+عُدّل فحص تاريخي في اختبار 075 بحيث يحافظ على baseline
+ذلك القرار مع السماح بإضافات API آمنة لاحقة؛ لم تتغير
+Migration 075 ولا أي هجرة مطبقة سابقة.
+
+الخطوة التالية قبل أي واجهة جديدة هي بوابة الهوية البصرية.

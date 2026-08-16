@@ -8,10 +8,10 @@
 
 ## الحالة الحالية الحاكمة — 2026-08-17
 
-- 75 migration مطبقة محليًا.
-- آخر migration: 076.
-- 14 ملف اختبار دائم.
-- 178 PASS / 0 FAIL / 0 ERROR.
+- 76 migration مطبقة محليًا.
+- آخر migration: 077.
+- 17 ملف اختبار دائم.
+- 217 PASS / 0 FAIL / 0 ERROR.
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
 - 073: عقد الكتابة الأساسي داخل api.
@@ -300,3 +300,41 @@ milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القا�
 الحزمة الكاملة:
 
 `FILES=16 PASS=205 FAIL=0 ERROR=0`.
+
+
+### 077 — App Bootstrap Read Contract — ق-82
+
+الملف:
+
+`20260817023001_077_app_bootstrap_read_contract.sql`
+
+**الحالة: مطبقة ومثبتة محليًا — 2026-08-17.**
+
+المنجز:
+
+- إضافة `api.app_bootstrap()`.
+- قراءة ملف المستخدم من هوية جلسة الدخول.
+- إرجاع الآبار ذات الوصول الفعلي فقط.
+- تجميع الأدوار النشطة لكل بئر.
+- دعم وصول الشريك الحالي من `core.well_partners`.
+- إبقاء `iam.roles` خارج مصدر التفويض الحالي حتى حسم م-18.
+- SECURITY INVOKER.
+- anon محجوب.
+- لا Direct DML جديد.
+- لا علاقات جدولية داخل `api`.
+
+الاختبار:
+
+`20260817_077_app_bootstrap_read_contract.test.sql`
+
+النتيجة:
+
+`PASS=12 FAIL=0 ERROR=0`.
+
+الحزمة الكاملة:
+
+`FILES=17 PASS=217 FAIL=0 ERROR=0`.
+
+Data API:
+
+`RPC=33`.

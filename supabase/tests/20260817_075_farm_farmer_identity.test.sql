@@ -192,7 +192,7 @@ begin
 
 
   -- ============================================================
-  -- 7. Surface target = 32
+  -- 7. Surface baseline from 075 = at least 32; later safe API additions are allowed
   -- ============================================================
 
   select count(*)
@@ -207,7 +207,7 @@ begin
       'EXECUTE'
     );
 
-  if v_count = 32
+  if v_count >= 32
      and (
        select count(*)
        from pg_proc p
@@ -219,7 +219,7 @@ begin
            p.oid,
            'EXECUTE'
          )
-     ) = 32
+     ) >= 32
      and (
        select count(*)
        from pg_proc p
@@ -242,10 +242,10 @@ begin
      ) = 0
   then
     raise notice
-      'PASS 7: سطح api المستهدف بعد 075 = 32 وanon/Definer = صفر';
+      'PASS 7: سطح api الأساسي من 075 محفوظ مع السماح بإضافات آمنة لاحقة وanon/Definer = صفر';
   else
     raise notice
-      'FAIL 7: سطح api بعد 075 لا يطابق 32 RPC الآمنة';
+      'FAIL 7: سطح api الأساسي من 075 غير محفوظ أو توجد صلاحيات غير آمنة';
   end if;
 
 

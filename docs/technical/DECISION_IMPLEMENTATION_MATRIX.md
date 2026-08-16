@@ -60,13 +60,15 @@
 
 ## baseline المرجعي
 
-- migrations = 75
-- permanent tests = 16
-- PASS = 205
+- migrations = 76
+- permanent tests = 17
+- PASS = 217
 - FAIL = 0
 - ERROR = 0
-- Data API RPC = 32
+- Data API RPC = 33
 - Direct DML = 0
 
 | ق-80 | Farm → Farmer Well Account بدل Login Profile؛ Farm/Account consistency | 075 مطبقة ومثبتة | 075 = 15 PASS؛ suite = 193 PASS | مغلق — 2026-08-17 |
 | ق-81 | Pump equipment model؛ session segments هي مصدر الطاقة؛ concurrency rules هي المرجع | 076 مطبقة ومثبتة | 076 = 12 PASS؛ suite = 205 PASS | مغلق — 2026-08-17 |
+
+| ق-82 | App Bootstrap Read Contract: المستخدم + الآبار + الأدوار الفعالة عبر `api` فقط | 077 مطبقة ومثبتة | 077 = 12 PASS؛ suite = 217 PASS؛ Data API = 33 RPC | مغلق — 2026-08-17 |

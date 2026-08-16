@@ -24,17 +24,17 @@
 
 ## Final verified baseline
 
-- migrations = 75.
-- permanent test files = 16.
-- PASS = 205.
+- migrations = 76.
+- permanent test files = 17.
+- PASS = 217.
 - FAIL = 0.
 - ERROR = 0.
-- Data API RPC = 32.
+- Data API RPC = 33.
 - Direct DML = 0.
 - API SECURITY DEFINER = 0.
 - anon API EXECUTE = 0.
-- authenticated API EXECUTE = 32.
-- service_role API EXECUTE = 32.
+- authenticated API EXECUTE = 33.
+- service_role API EXECUTE = 33.
 - exposed schemas = `api`, `graphql_public`.
 - `public` and internal business schemas are not exposed.
 
@@ -45,6 +45,7 @@
 - ق-79: RPC-only writes.
 - ق-80: Farm → Farmer Well Account.
 - ق-81: Pump equipment model / session energy source / concurrency authority.
+- ق-82: App Bootstrap Read Contract للمستخدم والآبار والأدوار.
 
 ## المسائل المفتوحة المعروفة بعد بوابة الجاهزية
 
@@ -56,9 +57,21 @@
 
 هذه المسائل لا تعيد فتح Stage 7 Readiness Gate.
 
+## Stage 7 — الحالة الحالية
+
+- S7-01 Mobile Bootstrap مغلق ومرفوع إلى GitHub.
+- ق-82 / Migration 077 مغلق ومثبت محليًا.
+- أول عقد قراءة للتطبيق أصبح جاهزًا.
+
 ## التالي
 
-**بدء تنفيذ Stage 7 على الـbaseline المثبت أعلاه.**
+**بوابة الهوية البصرية قبل أي بناء واجهة تشغيلية جديدة.**
+
+يجب مناقشة واعتماد الهوية البصرية وتجربة العرض بالتفصيل
+قبل بناء شاشة اختيار البئر أو شاشة اليوم أو أي واجهة فعلية.
+
+بعد اعتماد الهوية البصرية يبدأ ربط واجهات التطبيق بعقود
+القراءة المعتمدة.
 
 لا تُغيّر أرقام الـbaseline إلا بدليل تحقق جديد.
 

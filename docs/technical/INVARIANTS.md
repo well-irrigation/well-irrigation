@@ -119,3 +119,25 @@
 70. أولوية التوازي: resource-specific ثم well-wide ثم default.
 71. الافتراضي للمضخة = 1.
 72. لا يضاف concurrency limit مكرر إلى `core.pumps`.
+
+
+## ق-82 — ثوابت عقد القراءة الأولي
+
+73. القراءة الأولية لسياق المستخدم والآبار تمر عبر
+`api.app_bootstrap()` ولا تعتمد على قراءة Flutter المباشرة
+لجداول الأعمال الداخلية.
+
+74. هوية المستخدم داخل عقد التهيئة مشتقة من `auth.uid()`.
+
+75. الآبار من `core.well_assignments` لا تظهر إلا من
+التعيينات ذات الحالة `active`.
+
+76. وصول الشريك الحالي يمكن أن يأتي من
+`core.well_partners` النشط حتى دون سطر partner موازٍ
+في `core.well_assignments`.
+
+77. `iam.roles` و`iam.permissions` ليسا مصدر الصلاحية
+التشغيلية حتى حسم م-18.
+
+78. كل Read Contract جديد داخل `api` يجب أن يحافظ على
+SECURITY INVOKER، وحجب `anon`، وعدم كشف المخططات الداخلية.

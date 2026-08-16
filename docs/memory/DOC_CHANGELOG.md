@@ -365,3 +365,19 @@
 - لا توجد FAIL أو ERROR.
 - Direct DML بقي صفرًا.
 - نقطة الاستئناف انتقلت إلى بدء Stage 7 implementation.
+
+
+## تحديث 2026-08-17 — ق-82
+
+**الملفات:** DECISIONS.md، INVARIANTS.md، PROGRESS.md،
+RESUME_POINT.md، ENVIRONMENT.md، MIGRATIONS.md،
+API_ARCHITECTURE.md، DECISION_IMPLEMENTATION_MATRIX.md.
+
+**القسم:** Stage 7 App Bootstrap Read Contract.
+
+**ما تغيّر:** توثيق Migration 077 وعقد `api.app_bootstrap()`،
+وتحديث baseline المثبت إلى 76 migrations و17 اختبارًا دائمًا
+و217 PASS و33 Data API RPC، وتثبيت بوابة الهوية البصرية
+كخطوة تسبق بناء أي واجهة تشغيلية جديدة.
+
+**القرار المبرر:** ق-82.
