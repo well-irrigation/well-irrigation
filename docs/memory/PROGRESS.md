@@ -1,10 +1,28 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-08-13
+**آخر تحديث:** 2026-08-17
 
 قاعدة هذا الملف: **لا يُكتب فيه إلا ما تمّ فعلًا وثُبِت بدليل.** النية والخطة مكانهما `RESUME_POINT.md`.
 
 ---
+
+## Current verified baseline — 2026-08-17
+
+هذا القسم هو snapshot الحالي فقط.
+كل أرقام أقدم أسفل الملف تاريخية وصحيحة بالنسبة لوقت تسجيلها.
+
+- ق-77: منفذ بالكامل.
+- ق-78: منفذ ومغلق.
+- ق-79: منفذ ومغلق.
+- migrations: 73.
+- permanent tests: 14.
+- PASS: 178.
+- FAIL: 0.
+- ERROR: 0.
+- Data API RPC: 31.
+- Direct DML: 0.
+- الشرط التالي في Stage 7: Documentation Conformance.
+
 
 ## 2026-08-12 — التحليل والقرارات
 
@@ -206,3 +224,97 @@
 - الملخص اليومي يولد من ارقام العرض الرسمي للمالك والمدير بلا تكرار، ومراقب الدين ينبه عند التجاوز ويصمت تحت الحد ويعود عند تجاوز جديد.
 - تبقى من م-23 علامتان موثقتان: شاشة وقناة الاشعارات في المرحلة 7، وبند «تفعيل المجدول» الالزامي عند النشر.
 - الحصيلة النهائية لمحطة القاعدة: 69 هجرة؛ 10 ملفات اختبار دائمة؛ 138 فحصا كلها PASS بقناتين مستقلتين.
+
+## 2026-08-16 — ق-78: إغلاق الشرط الأول من بوابة جاهزية المرحلة 7
+
+- أنشئ مخطط `api` كعقد Data API الرسمي لتطبيق Flutter.
+- أصبحت Exposed Schemas هي `api` و`graphql_public` فقط؛ `public` و`ops` وبقية مخططات الأعمال ليست مكشوفة مباشرة.
+- `api.health()` مسبار تقني SECURITY INVOKER؛ الخادم والمستخدم الموثق فقط يملكان EXECUTE صريحًا، وanon محجوب.
+- كشف اختبار القبول خاصية PostgreSQL الخاصة بمنح EXECUTE الافتراضي إلى PUBLIC، وصُحح نمط الحماية إلى CREATE + REVOKE + GRANT داخل المعاملة نفسها مع مسح دائم لكل دوال api.
+- الدليل النهائي: 70 هجرة؛ 11 ملف اختبار؛ 145 PASS؛ FAIL=0؛ ERROR=0؛ واختبارات PostgREST الحية ناجحة.
+- الشرط الأول API Architecture مغلق. الشرط الثاني RPC-only writes ما زال مستقلًا ولم يُغلق ضمن ق-78.
+
+## 2026-08-16 — ق-79: إغلاق Direct DML بالهجرة 072
+
+- أزيلت جميع صلاحيات الكتابة الجدولية المباشرة من `anon` و`authenticated` على مخططات الأعمال الداخلية.
+- نتيجة التدقيق بعد 072: Direct DML = صفر.
+- بقيت إجراءات الأعمال الحرجة قابلة للتنفيذ.
+- لا توجد SECURITY DEFINER قابلة للتنفيذ بواسطة authenticated بلا search_path صريح.
+- حزمة القبول: 71 هجرة، 12 ملف اختبار، 154 PASS، بلا فشل أو خطأ.
+- اختبارا 066 و069 فُصلا بين Fixtures الإدارية وسلوك المستخدم بعد ق-79.
+- ق-79 لم يغلق كاملًا بعد؛ أغلفة الكتابة داخل api هي الخطوة التالية.
+
+## 2026-08-17 — إغلاق الشرط 2: RPC-only writes
+
+- أُغلق Direct DML بالكامل.
+- أُنشئ واستكمل عقد الكتابة الرسمي داخل api.
+- سطح api المثبت: 31 RPC.
+- baseline: 73 هجرة، 14 اختبارًا، 178 PASS.
+- بقي create_farm مؤجلًا إلى حسم م-22.
+- التالي: الشرط 3 — تنظيف وتوحيد الوثائق الرسمية.
+
+## 2026-08-17 — إغلاق الشرط 3: Documentation Conformance
+
+- Documentation Acceptance = PASS.
+- Cross-sync = PASS.
+- baseline موحد: 73 migration / 14 tests / 178 PASS.
+- API موحد: 31 RPC / Direct DML=0.
+- الوحدة المالية موحدة إلى الريال الكامل وفق ق-77.
+- باقي التوزيع موحد إلى صاحب أكبر حصة.
+- API/Sync/Decision-Implementation موثقة في ملفات حاكمة مستقلة.
+- فُصل Server Sync المنفذ عن Mobile Offline Sync المؤجل.
+- التالي: الشرط 4، بدءًا بم-22 ثم م-19.
+
+## 2026-08-17 — ق-80 / 075 محضرة
+
+- حُسم م-22 بنيويًا بق-80.
+- أُعدت 075 لتحويل Farm من Login Profile إلى Farmer Well Account.
+- أضيف invariant دائم Farm ↔ Farmer Well Account للحجوزات والجلسات.
+- أُعد `api.create_farm`.
+- عُدلت Fixtures 066 و069 لتستخدم الهوية الميدانية الصحيحة.
+- عُدلت Assertions التاريخية في 073/074 حتى تسمح بتوسعات API اللاحقة الآمنة.
+- لا تعتبر 075 مطبقة أو مثبتة قبل تحقق المالك.
+
+## 2026-08-17 — إغلاق ق-80 / م-22 / Condition 4A
+
+- Migration 075 أعيد بناؤها بنجاح.
+- اختبار 075 = 15 PASS.
+- suite = 15 files / 193 PASS / 0 FAIL / 0 ERROR.
+- Farm identity انتقلت من Login Profile إلى Farmer Well Account.
+- Farm/Account mismatch محمي في Booking وSession.
+- `api.create_farm` أصبح جزءًا من العقد.
+- API surface = 32.
+- Direct DML = 0.
+- م-22 مغلقة.
+- Condition 4A مغلق.
+- التالي مباشرة: Condition 4B / م-19.
+
+## 2026-08-17 — إغلاق ق-81 / م-19 / Condition 4
+
+- `supabase db reset` طبق Migration 076 بنجاح.
+- اختبار 076 = 12 PASS.
+- suite = 16 files / 205 PASS / 0 FAIL / 0 ERROR.
+- Pump model أصبح مطابقًا للنموذج المرجعي.
+- reporting للطاقة أصبح مبنيًا على session segments.
+- legacy flat fallback بقي متوافقًا.
+- reservation concurrency أصبح يستخدم resource concurrency rules.
+- م-19 مغلقة.
+- Condition 4B مغلق.
+- Condition 4 كله مغلق.
+- التالي حصريًا: Condition 5 / Final Clean Acceptance.
+
+## 2026-08-17 — Stage 7 Readiness Gate closed
+
+اكتمل Final Clean Acceptance:
+
+- clean reset نجح.
+- suite = 16 files / 205 PASS / 0 FAIL / 0 ERROR.
+- migrations = 75.
+- Data API = 32 RPC.
+- Direct DML = 0.
+- API SECURITY DEFINER = 0.
+- anon API EXECUTE = 0.
+- exposed schemas = api + graphql_public فقط.
+- final documentation cross-sync = PASS.
+- Condition 5 مغلق.
+- Stage 7 Readiness Gate مغلق بالكامل.

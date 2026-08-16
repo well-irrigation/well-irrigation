@@ -55,8 +55,27 @@ begin
   insert into ops.farmer_profiles (tenant_id, person_id) values (v_tenant, v_person_a) returning id into v_fp;
   insert into ops.farmer_well_accounts (tenant_id, farmer_profile_id, well_id, public_code)
   values (v_tenant, v_fp, v_well, 'FWA-067-INV') returning id into v_fwa;
-  insert into ops.farms (well_id, name) values (v_well, 'أرض أولى') returning id into v_farm;
-  insert into ops.farms (well_id, name) values (v_well, 'أرض ثانية');
+  insert into ops.farms (
+    well_id,
+    name,
+    farmer_well_account_id
+  )
+  values (
+    v_well,
+    'أرض أولى',
+    v_fwa
+  )
+  returning id into v_farm;
+  insert into ops.farms (
+    well_id,
+    name,
+    farmer_well_account_id
+  )
+  values (
+    v_well,
+    'أرض ثانية',
+    v_fwa
+  );
   if (select count(*) from ops.farms where well_id = v_well) = 2 then
     raise notice 'PASS 2: أضيفت عدة أراض للمزارع في البئر نفسه';
   else raise notice 'FAIL 2: لم تُحفظ الأراضي المتعددة'; end if;
@@ -65,7 +84,16 @@ begin
   insert into ops.irrigation_sessions (well_id, pump_id, farm_id, farmer_well_account_id, operator_profile_id)
   values (v_well, v_pump, v_farm, v_fwa, v_profile) returning id into v_session;
   begin
-    insert into ops.farms (well_id, name) values (v_well, 'أرض أضيفت أثناء جلسة');
+    insert into ops.farms (
+      well_id,
+      name,
+      farmer_well_account_id
+    )
+    values (
+      v_well,
+      'أرض أضيفت أثناء جلسة',
+      v_fwa
+    );
     raise notice 'PASS 3: أضيفت أرض جديدة أثناء بقاء جلسة السقي مفتوحة';
   exception when others then
     raise notice 'FAIL 3: رُفضت إضافة الأرض أثناء الجلسة: %', sqlerrm;

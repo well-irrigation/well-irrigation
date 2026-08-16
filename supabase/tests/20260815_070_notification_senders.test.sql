@@ -114,8 +114,17 @@ begin
     v_tenant, v_farmer_under, v_well, 'FWA-070-UNDER', 500
   ) returning id into v_account_under;
 
-  insert into ops.farms (well_id, name)
-  values (v_well, 'مزرعة الملخص اليومي') returning id into v_farm;
+  insert into ops.farms (
+    well_id,
+    name,
+    farmer_well_account_id
+  )
+  values (
+    v_well,
+    'مزرعة الملخص اليومي',
+    v_account_daily
+  )
+  returning id into v_farm;
 
   insert into core.pumps (well_id, name, power_source)
   values (v_well, 'مضخة الملخص اليومي', 'solar') returning id into v_pump;

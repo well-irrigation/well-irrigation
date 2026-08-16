@@ -1,73 +1,132 @@
 # بيئة العمل
 
-**آخر تحقق فعلي:** 2026-08-12
+**آخر تحقق فعلي:** 2026-08-17
 
-قاعدة هذا الملف: **المذكور هنا محقق فعليًا، وما لم يُحقّق مكتوب صراحةً أنه غير محقق.**
-
----
+هذا الملف وحده هو مصدر حقيقة البيئة الحالية.
 
 ## الجهاز والنظام
 
-* نظام التشغيل: **Kali Linux**
-* مسار المشروع الحالي: `/home/kali/pr/well-irrigation`
-* المسار المستهدف بعد إعادة التسمية: `/home/kali/pr/well-irrigation` — ق-41
+- نظام التشغيل: Kali Linux.
+- مسار المشروع: `/home/kali/pr/well-irrigation`.
+- Git branch: `main`.
 
----
+## الأدوات المثبتة والمثبت عملها
 
-## المثبت والمحقق
+- Docker: 28.5.2+dfsg4.
+- Node.js: v24.18.0.
+- npm: 11.16.0.
+- PostgreSQL client `psql`: 18.4.
+- Supabase CLI: 2.111.0.
+- Git: مثبت.
+- Flutter: مثبت ومثبت العمل.
+- Dart: متاح عبر بيئة Flutter.
+- Android SDK: مثبت ومثبت العمل.
+- `flutter doctor`: تحقق سابقًا بلا تحذيرات.
+- تطبيق Flutter شُغل سابقًا على جهاز Android حقيقي SM-A136U.
 
-* **Docker** — الإصدار 28.5.2+dfsg4
-* **Node.js** — الإصدار v24.18.0
-* **npm** — الإصدار 11.16.0
-* **psql** — الإصدار 18.4
-* **Supabase CLI** — الإصدار 2.111.0
-* **Git** — مثبت، الفرع الحالي `main`
+## Supabase المحلي
 
----
+Supabase المحلي يعمل فعليًا.
 
-## الناقص والمطلوب في المرحلة صفر
+آخر إعادة بناء نظيفة مثبتة وصلت إلى:
 
-* **Flutter** — غير موجود. الأمر `flutter` يعيد NOT_FOUND.
-* **Dart** — غير موجود.
-* **Android SDK** — غير مثبت.
-* **`ANDROID_HOME`** — غير مضبوط.
-* **`ANDROID_SDK_ROOT`** — غير مضبوط.
+- migration 074.
+- 75 migration.
+- 16 permanent test files.
+- 205 PASS.
+- 0 FAIL.
+- 0 ERROR.
 
----
+## Data API
 
-## غير مُثبَت بعد — خطر
+Exposed Schemas:
 
-* **`npx supabase start`** — لم يُجرّب بنجاح أبدًا. انظر م-02 في `OPEN_ISSUES.md`.
-* لا يوجد Commit واحد في Git.
-* لا يوجد مستودع GitHub بعيد.
-* لا توجد حسابات Supabase أو Firebase أو Google Play.
+- `api`
+- `graphql_public`
 
----
+غير مكشوفة:
 
-## الحزمة التقنية المعتمدة
+- `public`
+- `core`
+- `iam`
+- `ops`
+- `billing`
+- `finance`
+- `inventory`
+- `audit`
+- `sync`
+- `reporting`
 
-* **واجهة الجوال:** Flutter — أندرويد أولًا
-* **قاعدة البيانات المحلية:** SQLite داخل الجهاز
-* **المزامنة:** PowerSync
-* **الخادم:** Supabase مع PostgreSQL
-* **الدخول والتخزين والصلاحيات:** Supabase Auth وStorage وRLS
-* **الإشعارات والأعطال:** Firebase FCM وCrashlytics
-* **لوحة الإدارة:** Flutter Web
-* **أقل إصدار أندرويد:** `minSdk 26` — ق-45
+السطح الحالي:
 
----
+- 32 RPC داخل `api`.
+- Direct DML = 0.
+- API SECURITY DEFINER = 0.
+- anon API EXECUTE = 0.
 
-## مخططات قاعدة البيانات التسعة
+## GitHub
 
-`iam` · `core` · `ops` · `inventory` · `billing` · `finance` · `audit` · `sync` · `reporting`
+المستودع موجود داخل منظمة `well-irrigation`.
 
-**تذكير:** جداول الاشتراكات تنتمي إلى `billing` وليس `core` — ق-26.
+أداة التكامل التي حاولت الكتابة أعادت 403
+`Resource not accessible by integration`.
 
----
+لذلك لا تعتبر قدرة المساعد على الكتابة إلى GitHub مثبتة.
 
-## قاعدة تحديث هذا الملف
+## Flutter / Android
 
-بعد كل تثبيت أو تغيير بيئي، يُحدّث هذا الملف فورًا بالإصدار الحقيقي الذي أظهره الأمر، لا بالإصدار المتوقع.
+بيئة Flutter لم تعد مسألة مفتوحة.
 
-## لقطة البيئة النهائية المؤكدة — 2026-08-13
-Flutter 3.47.0 و Dart 3.13.0 في ~/development/flutter. جافا 21 JDK كامل في jvm/java-21-openjdk-amd64. Android SDK في ~/Android/Sdk، الاصدارات 35.0.0 و 36.0.0، كل التراخيص السبعة مقبولة. Supabase CLI 2.111.0، PostgreSQL 17. المستودع البعيد: git@github.com:well-irrigation/well-irrigation.git.
+المسألة م-03 مغلقة.
+
+بدء Stage 7 لا يتطلب إعادة تثبيت Flutter من الصفر.
+
+## Firebase / Google Play / Production
+
+لا توجد في هذا baseline شهادة تحقق من نشر Production فعلي.
+
+FCM وجدولة الإشعارات والنشر في Google Play تبقى عناصر
+مرحلة التطبيق/النشر إلى أن يتم التحقق منها صراحة.
+
+لا يُستنتج اكتمالها من اكتمال قاعدة البيانات.
+
+## قاعدة التحقق
+
+لا تُحدّث أرقام هذا الملف اعتمادًا على خطة أو نية.
+
+يجب أن يكون كل ادعاء هنا ناتجًا عن تحقق فعلي.
+
+## Baseline بعد ق-81 / 076
+
+تم التحقق محليًا بواسطة المالك في 2026-08-17:
+
+- 75 migration مطبقة.
+- 16 permanent test files.
+- 205 PASS.
+- 0 FAIL.
+- 0 ERROR.
+- Data API RPC = 32.
+- Direct DML = 0.
+- API SECURITY DEFINER = 0.
+- anon API EXECUTE = 0.
+
+Migration 076 نجحت ضمن `supabase db reset` كامل.
+
+## Final Clean Acceptance — 2026-08-17
+
+أعيد بناء البيئة المحلية من الصفر وقُبلت نهائيًا:
+
+- 75 migrations.
+- 16 permanent tests.
+- 205 PASS.
+- 0 FAIL.
+- 0 ERROR.
+- Data API RPC = 32.
+- Direct DML = 0.
+- API SECURITY DEFINER = 0.
+- anon API EXECUTE = 0.
+- authenticated API EXECUTE = 32.
+- service_role API EXECUTE = 32.
+- exposed schemas = api + graphql_public فقط.
+
+Stage 7 Readiness Gate مغلق.

@@ -1,4 +1,14 @@
 
+
+
+## ملاحظة تنفيذية حاكمة — 2026-08-17
+
+المخطط التنفيذي الحالي مقيد بق-77 وق-78 وق-79.
+
+- المال ريال كامل.
+- rounding fields الملغاة ليست جزءًا من المخطط الحالي.
+- Flutter لا يكتب الجداول مباشرة.
+- schema `api` هو حد التطبيق.
 **مشروع:** إدارة البئر والسقي
 **حالة الوثيقة:** مرجعية منقّحة — الإصدار 2.0
 **تاريخ التنقيح:** 2026-08-12
@@ -1743,7 +1753,6 @@ create table ops.session_billing_breakdowns (
 
     time_charge_minor bigint not null default 0,
     fuel_charge_minor bigint not null default 0,
-    rounding_adjustment_minor bigint not null default 0,
     total_charge_minor bigint not null,
 
     price_rule_id uuid
@@ -2027,7 +2036,6 @@ create table billing.invoices (
     currency_code char(3) not null default 'YER',
 
     subtotal_minor bigint not null default 0,
-    rounding_minor bigint not null default 0,
     total_minor bigint not null default 0,
 
     paid_minor bigint not null default 0,
@@ -3720,7 +3728,7 @@ on audit.audit_logs (
 10. توقف غير محسوب.
 11. جلسة شمس وديزل.
 12. تغيير المصدر عدة مرات.
-13. تقريب كل مصدر بعد جمع مقاطعه.
+13. لا تقريب لأي مصدر أو مقطع؛ الحساب يعتمد الزمن الفعلي.
 14. ديزل فعلي وتقديري.
 15. استخدام رصيد ديزل المزارع نفسه.
 16. رفض استخدامه لمزارع آخر.
@@ -3802,3 +3810,25 @@ on audit.audit_logs (
 ```
 
 ثم يبنى **المحرك المالي التطبيقي** فوق هذه الجداول على شكل إجراءات PostgreSQL ودوال Backend واختبارات تلقائية، وليس مجرد حسابات داخل شاشات Flutter.
+
+## ق-80 — Farm / Farmer identity override
+
+الحالة الحالية المنفذة بعد Migration 075:
+
+- الأرض لا ترتبط بـ`iam.profiles`.
+- العلاقة الحالية هي `ops.farms.farmer_well_account_id`.
+- Farmer Well Account يحدد المزارع داخل البئر.
+- أي وصف تاريخي يربط `ops.farms.farmer_profile_id`
+  بحساب دخول أصبح منسوخًا بق-80.
+- Booking/Session يجب أن يطابقا حساب المزارع المرتبط بالأرض.
+
+## ق-81 — Pump model override
+
+الحالة المنفذة بعد Migration 076:
+
+- `core.pumps` هو Equipment Metadata.
+- `power_source` ليس مصدر الحقيقة التشغيلي الحديث.
+- مصدر الطاقة للجلسات الحديثة هو `ops.session_segments.energy_source`.
+- Solar/Diesel reporting يعتمد المقاطع.
+- الجلسات `flat` التاريخية بلا مقاطع تستخدم legacy fallback فقط.
+- قواعد توازي المضخة تؤخذ من `ops.resource_concurrency_rules`.

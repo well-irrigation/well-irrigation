@@ -68,8 +68,16 @@ begin
   values (v_tenant, v_farmer_profile, v_well, 'FWA-066')
   returning id into v_farmer_account;
 
-  insert into ops.farms (well_id, name)
-  values (v_well, 'مزرعة اختبار 066')
+  insert into ops.farms (
+    well_id,
+    name,
+    farmer_well_account_id
+  )
+  values (
+    v_well,
+    'مزرعة اختبار 066',
+    v_farmer_account
+  )
   returning id into v_farm;
 
   insert into core.pumps (well_id, name, power_source)
@@ -159,9 +167,15 @@ begin
     raise notice 'FAIL 1: لم تُنشأ الجلسة أو لقطة المقطع الأول كما هو متوقع';
   end if;
 
+  -- ق-79: تغيير السعر هنا إعداد إداري للاختبار، وليس Direct DML من المستخدم.
+  -- نرجع مؤقتًا إلى مالك القاعدة ثم نعيد دور المستخدم قبل متابعة السيناريو.
+  execute 'reset role';
+
   update ops.price_rules
   set hourly_rate_minor = 9999
   where id = v_solar_rule;
+
+  execute 'set local role authenticated';
 
   perform ops.pause_irrigation_session(
     v_session, 'operator_pause', timestamptz '2026-08-10 09:00:00+00'
@@ -393,6 +407,10 @@ begin
       end if;
   end;
 
+  -- الجلسة البسيطة هنا Fixture لاختبار شبكة الأمان القديمة.
+  -- ليست مسار إنشاء مسموحًا لتطبيق العميل بعد ق-79.
+  execute 'reset role';
+
   insert into ops.irrigation_sessions (
     well_id, pump_id, farm_id, farmer_well_account_id,
     operator_profile_id, started_at
@@ -401,6 +419,8 @@ begin
     v_profile, timestamptz '2026-08-10 12:00:00+00'
   )
   returning id into v_simple_session;
+
+  execute 'set local role authenticated';
 
   begin
     perform ops.pause_irrigation_session(
@@ -417,9 +437,15 @@ begin
       end if;
   end;
 
+  -- إغلاق الجلسة البسيطة مباشرة مطلوب فقط لاختبار الزناد القديم.
+  -- تطبيق العميل لا يملك هذا المسار بعد ق-79.
+  execute 'reset role';
+
   update ops.irrigation_sessions
   set ended_at = timestamptz '2026-08-10 13:00:00+00', status = 'closed'
   where id = v_simple_session;
+
+  execute 'set local role authenticated';
 
   select amount_minor, price_per_hour_minor
   into v_amount, v_price

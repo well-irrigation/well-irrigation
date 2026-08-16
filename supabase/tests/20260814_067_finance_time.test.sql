@@ -53,7 +53,17 @@ begin
   insert into ops.farmer_profiles (tenant_id, person_id) values (v_tenant, v_person) returning id into v_fp;
   insert into ops.farmer_well_accounts (tenant_id, farmer_profile_id, well_id, public_code)
   values (v_tenant, v_fp, v_well, 'FWA-067-FIN') returning id into v_fwa;
-  insert into ops.farms (well_id, name) values (v_well, 'مزرعة اختبار المال') returning id into v_farm;
+  insert into ops.farms (
+    well_id,
+    name,
+    farmer_well_account_id
+  )
+  values (
+    v_well,
+    'مزرعة اختبار المال',
+    v_fwa
+  )
+  returning id into v_farm;
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة دفعات', 'solar') returning id into v_pump;
 
   v_debit := finance.ledger_account_id(v_well, '1000');
@@ -213,16 +223,46 @@ begin
   values (v_well, 3600, date '2026-01-01');
 
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة 61 دقيقة', 'solar') returning id into v_pump_61;
-  insert into ops.irrigation_sessions (well_id, pump_id, farm_id, operator_profile_id, started_at)
-  values (v_well, v_pump_61, v_farm, v_profile, timestamptz '2026-04-01 08:00:00+00') returning id into v_session;
+  insert into ops.irrigation_sessions (
+    well_id,
+    pump_id,
+    farm_id,
+    farmer_well_account_id,
+    operator_profile_id,
+    started_at
+  )
+  values (
+    v_well,
+    v_pump_61,
+    v_farm,
+    v_fwa,
+    v_profile,
+    timestamptz '2026-04-01 08:00:00+00'
+  )
+  returning id into v_session;
   update ops.irrigation_sessions set ended_at = timestamptz '2026-04-01 09:01:00+00', status = 'closed' where id = v_session;
   if (select duration_seconds = 3660 and amount_minor = 3660 from billing.session_charges where session_id = v_session) then
     raise notice 'PASS 12: جلسة شمس 1:01 حُسبت 3660 ثانية بلا تقريب';
   else raise notice 'FAIL 12: جلسة 1:01 لم تُحسب حرفيًا'; end if;
 
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة 75 دقيقة', 'solar') returning id into v_pump_75;
-  insert into ops.irrigation_sessions (well_id, pump_id, farm_id, operator_profile_id, started_at)
-  values (v_well, v_pump_75, v_farm, v_profile, timestamptz '2026-04-01 10:00:00+00') returning id into v_session;
+  insert into ops.irrigation_sessions (
+    well_id,
+    pump_id,
+    farm_id,
+    farmer_well_account_id,
+    operator_profile_id,
+    started_at
+  )
+  values (
+    v_well,
+    v_pump_75,
+    v_farm,
+    v_fwa,
+    v_profile,
+    timestamptz '2026-04-01 10:00:00+00'
+  )
+  returning id into v_session;
   update ops.irrigation_sessions set ended_at = timestamptz '2026-04-01 11:15:00+00', status = 'closed' where id = v_session;
   if (select duration_seconds = 4500 and amount_minor = 4500 from billing.session_charges where session_id = v_session) then
     raise notice 'PASS 13: جلسة شمس 1:15 حُسبت 4500 ثانية بلا تقريب';
@@ -235,8 +275,23 @@ begin
   values (v_well, 5000, date '2026-04-02');
 
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة كسر الريال', 'solar') returning id into v_pump_fraction;
-  insert into ops.irrigation_sessions (well_id, pump_id, farm_id, operator_profile_id, started_at)
-  values (v_well, v_pump_fraction, v_farm, v_profile, timestamptz '2026-04-02 12:00:00+00') returning id into v_session;
+  insert into ops.irrigation_sessions (
+    well_id,
+    pump_id,
+    farm_id,
+    farmer_well_account_id,
+    operator_profile_id,
+    started_at
+  )
+  values (
+    v_well,
+    v_pump_fraction,
+    v_farm,
+    v_fwa,
+    v_profile,
+    timestamptz '2026-04-02 12:00:00+00'
+  )
+  returning id into v_session;
   update ops.irrigation_sessions set ended_at = timestamptz '2026-04-02 12:00:01+00', status = 'closed' where id = v_session;
   select amount_minor into v_amount from billing.session_charges where session_id = v_session;
   if v_amount = 1 then
@@ -244,8 +299,23 @@ begin
   else raise notice 'FAIL 14: ناتج كسر الريال = % والمتوقع 1', v_amount; end if;
 
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة نهاية الشهر', 'solar') returning id into v_pump_month;
-  insert into ops.irrigation_sessions (well_id, pump_id, farm_id, operator_profile_id, started_at)
-  values (v_well, v_pump_month, v_farm, v_profile, timestamptz '2026-01-31 23:30:00+00') returning id into v_session;
+  insert into ops.irrigation_sessions (
+    well_id,
+    pump_id,
+    farm_id,
+    farmer_well_account_id,
+    operator_profile_id,
+    started_at
+  )
+  values (
+    v_well,
+    v_pump_month,
+    v_farm,
+    v_fwa,
+    v_profile,
+    timestamptz '2026-01-31 23:30:00+00'
+  )
+  returning id into v_session;
   update ops.irrigation_sessions set ended_at = timestamptz '2026-02-01 02:00:00+00', status = 'closed' where id = v_session;
   if exists (select 1 from reporting.well_daily_summary where well_id = v_well and day = date '2026-02-01' and charges_minor >= 9000)
      and not exists (select 1 from reporting.well_daily_summary where well_id = v_well and day = date '2026-01-31' and sessions_count > 0) then
@@ -253,8 +323,23 @@ begin
   else raise notice 'FAIL 15: جلسة نهاية الشهر لم تُنسب حصريًا إلى يوم النهاية'; end if;
 
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة الجلسة المنسية', 'solar') returning id into v_pump_long;
-  insert into ops.irrigation_sessions (well_id, pump_id, farm_id, operator_profile_id, started_at)
-  values (v_well, v_pump_long, v_farm, v_profile, now() - interval '7 hours') returning id into v_session;
+  insert into ops.irrigation_sessions (
+    well_id,
+    pump_id,
+    farm_id,
+    farmer_well_account_id,
+    operator_profile_id,
+    started_at
+  )
+  values (
+    v_well,
+    v_pump_long,
+    v_farm,
+    v_fwa,
+    v_profile,
+    now() - interval '7 hours'
+  )
+  returning id into v_session;
   perform ops.flag_long_running_sessions();
   if (select status from ops.irrigation_sessions where id = v_session) = 'open'
      and exists (select 1 from ops.notifications where session_id = v_session and type = 'long_session') then

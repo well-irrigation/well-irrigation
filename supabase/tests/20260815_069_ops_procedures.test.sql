@@ -103,10 +103,6 @@ begin
     timestamptz '2026-01-01 00:00:00+00', true
   );
 
-  insert into ops.farms (well_id, name, farmer_profile_id)
-  values (v_well, 'أرض تمهيدية للجلسة', v_farmer_login_profile)
-  returning id into v_farm_seed;
-
   select id into v_tank
   from inventory.fuel_tanks
   where well_id = v_well and status = 'active'
@@ -131,6 +127,24 @@ begin
     raise notice 'FAIL 1: نتيجة إنشاء المزارع الجديد غير صحيحة: %', v_summary;
   end if;
 
+  -- Fixture تمهيدي للجلسة المفتوحة.
+  -- بعد ق-80 يجب أن تحمل الأرض Farmer Well Account الحقيقي.
+  execute 'reset role';
+
+  insert into ops.farms (
+    well_id,
+    name,
+    farmer_well_account_id
+  )
+  values (
+    v_well,
+    'أرض تمهيدية للجلسة',
+    v_account
+  )
+  returning id into v_farm_seed;
+
+  execute 'set local role authenticated';
+
   -- التطابق الكامل يعيد الشخص نفسه ولا ينشئ مكررًا.
   select count(*) into v_before_count from core.persons where tenant_id = v_tenant;
   v_summary_2 := ops.create_farmer(v_well, 'أحمد علي', '00967-777111222');
@@ -154,7 +168,10 @@ begin
     raise notice 'FAIL 3: سلوك الاشتباه الجزئي غير صحيح: %', v_summary_2;
   end if;
 
-  -- جلسة مفتوحة لإثبات أن إنشاء الأرض لا يتوقف أثناء التشغيل.
+  -- جلسة Fixture لإثبات أن إنشاء الأرض لا يتوقف أثناء التشغيل.
+  -- ق-79 يمنع تطبيق العميل من إنشاء الجلسة مباشرة.
+  execute 'reset role';
+
   insert into ops.irrigation_sessions (
     well_id, pump_id, farm_id, farmer_well_account_id,
     operator_profile_id, started_at, status
@@ -163,7 +180,9 @@ begin
     v_owner_profile, timestamptz '2026-09-01 05:00:00+00', 'open'
   ) returning id into v_session;
 
-  v_summary := ops.create_farm(v_well, 'أرض أحمد الجديدة', v_farmer_login_profile);
+  execute 'set local role authenticated';
+
+  v_summary := ops.create_farm(v_well, 'أرض أحمد الجديدة', v_account);
   v_farm := (v_summary ->> 'farm_id')::uuid;
   if exists (select 1 from ops.farms where id = v_farm and status = 'active')
      and exists (select 1 from ops.irrigation_sessions where id = v_session and status = 'open') then
@@ -239,7 +258,15 @@ begin
     end if;
   end;
 
-  update ops.irrigation_bookings set status = 'completed' where id = v_booking;
+  -- تغيير الحالة إلى completed هو إعداد إداري لاختبار الرفض اللاحق.
+  execute 'reset role';
+
+  update ops.irrigation_bookings
+  set status = 'completed'
+  where id = v_booking;
+
+  execute 'set local role authenticated';
+
   begin
     perform ops.reschedule_booking(
       v_booking,
@@ -322,7 +349,10 @@ begin
     end if;
   end;
 
-  -- إيداع ديزل خاص بالمزارع ثم استهلاكه لصاحبه فقط.
+  -- إيداع ديزل المزارع هنا Fixture تمهيدي للاختبار.
+  -- الاستهلاك نفسه أدناه يبقى عملية المستخدم عبر الإجراء المعتمد.
+  execute 'reset role';
+
   insert into inventory.fuel_transactions (
     tenant_id, well_id, fuel_tank_id, transaction_type,
     ownership_type, owner_person_id, farmer_well_account_id,
@@ -332,6 +362,8 @@ begin
     'farmer', v_person, v_account,
     3000, 'in', 'actual', 'posted', v_owner_profile
   );
+
+  execute 'set local role authenticated';
 
   v_summary := inventory.record_fuel_consumption(
     v_well, 1000, 'farmer', 'actual',
@@ -420,7 +452,7 @@ begin
   end;
 
   begin
-    perform ops.create_farm(v_well, '   ', v_farmer_login_profile);
+    perform ops.create_farm(v_well, '   ', v_account);
     raise notice 'FAIL 21: سُمح بإنشاء أرض بلا اسم';
   exception when others then
     if position('اسم الأرض مطلوب' in sqlerrm) > 0 then
