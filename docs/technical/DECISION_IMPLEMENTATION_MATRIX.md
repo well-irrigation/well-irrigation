@@ -72,3 +72,5 @@
 | ق-81 | Pump equipment model؛ session segments هي مصدر الطاقة؛ concurrency rules هي المرجع | 076 مطبقة ومثبتة | 076 = 12 PASS؛ suite = 205 PASS | مغلق — 2026-08-17 |
 
 | ق-82 | App Bootstrap Read Contract: المستخدم + الآبار + الأدوار الفعالة عبر `api` فقط | 077 مطبقة ومثبتة | 077 = 12 PASS؛ suite = 217 PASS؛ Data API = 33 RPC | مغلق — 2026-08-17 |
+
+| ق-83 | الهوية البصرية العامة وثوابت Stage 7 | `docs/design/VISUAL_IDENTITY.md`؛ التنفيذ المرئي في الشاشات القادمة | اعتماد المالك وتوثيق المصدر الحاكم | معتمد كمرجع؛ UI الإنتاجي لم يبدأ بعد |

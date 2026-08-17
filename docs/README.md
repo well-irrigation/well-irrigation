@@ -32,10 +32,14 @@
 - ق-77 منفذ: الريال الكامل، بلا تقريب، وباقي التوزيع لأكبر حصة.
 - ق-78 مغلق: `api` هو عقد Data API.
 - ق-79 مغلق: Direct DML = صفر وRPC-only writes.
-- 73 هجرة.
-- 14 ملف اختبار دائم.
-- 193 PASS بلا FAIL أو ERROR.
-- 32 RPC داخل `api`.
+- ق-80 مغلق: Farm → Farmer Well Account.
+- ق-81 مغلق: Pump model/reporting/concurrency.
+- ق-82 مغلق: App Bootstrap Read Contract.
+- ق-83 معتمد: الهوية البصرية العامة وثوابت Stage 7.
+- 76 هجرة.
+- 17 ملف اختبار دائم.
+- 217 PASS بلا FAIL أو ERROR.
+- 33 RPC داخل `api`.
 
 لحدود التطبيق اقرأ `technical/API_ARCHITECTURE.md`.
 
@@ -43,6 +47,9 @@
 
 لمطابقة القرارات مع المنجز اقرأ
 `technical/DECISION_IMPLEMENTATION_MATRIX.md`.
+
+للهوية البصرية العامة وثوابت التصميم اقرأ
+`design/VISUAL_IDENTITY.md`.
 
 ## ترتيب القراءة الإلزامي
 
@@ -94,6 +101,9 @@ docs/
 │   ├── REMINDERS.md           ← تذكيرات إلزامية
 │   ├── OPEN_ISSUES.md         ← مشاكل لم تُحل
 │   └── DOC_CHANGELOG.md       ← تاريخ تعديل الوثائق
+│
+├── design/                    ← الهوية والتصميم
+│   └── VISUAL_IDENTITY.md    ← المصدر الحاكم للهوية البصرية
 │
 ├── technical/                 ← مراجع تقنية
 │   ├── INVARIANTS.md          ← القواعد الثابتة

@@ -24,10 +24,13 @@
 5. `technical/DECISION_IMPLEMENTATION_MATRIX.md`
    مطابقة القرارات ذات الأثر التنفيذي مع الهجرات والاختبارات والحالة.
 
-6. `reference/`
+6. `design/VISUAL_IDENTITY.md`
+   المصدر الحاكم للهوية البصرية بعد القرارات المرقمة.
+
+7. `reference/`
    المرجع الوظيفي والتصميمي، مقيد دائمًا بالقرارات الأحدث أعلاه.
 
-7. بقية الملفات التاريخية مثل `PROGRESS.md` و`DOC_CHANGELOG.md`
+8. بقية الملفات التاريخية مثل `PROGRESS.md` و`DOC_CHANGELOG.md`
    تحفظ تاريخ ما كان صحيحًا في لحظته ولا تتغلب على الحالة الحالية.
 
 ## 2. مصادر الحقيقة حسب الموضوع
@@ -35,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-79.
+آخر قرار مرقم حاليًا: ق-83.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -73,7 +76,18 @@
 - مخططات الأعمال الداخلية غير مكشوفة.
 - Direct DML لأدوار التطبيق = صفر.
 - Flutter يكتب عبر `api.*`.
-- سطح Data API المثبت حاليًا = 32 RPC.
+- سطح Data API المثبت حاليًا = 33 RPC.
+
+### الهوية البصرية
+
+ق-83 ثم `design/VISUAL_IDENTITY.md`.
+
+- الهوية العامة معتمدة مبدئيًا.
+- الشعار الحالي معتمد مبدئيًا وقابل للتطوير لاحقًا.
+- العربية RTL أصل التصميم.
+- الأرقام الإنجليزية 0-9 ثابتة.
+- لم تُنفذ واجهة إنتاجية جديدة نتيجة ق-83.
+- الخطوة التالية هي مناقشة الصفحات قبل تنفيذها.
 
 ### المزامنة والعمل دون اتصال
 ق-75 ثم `technical/SYNC_ARCHITECTURE.md`.
@@ -115,12 +129,12 @@
 
 اعتبارًا من 2026-08-17:
 
-- 74 migration.
-- 15 permanent database test files.
-- 193 PASS.
+- 76 migration.
+- 17 permanent database test files.
+- 217 PASS.
 - 0 FAIL.
 - 0 ERROR.
-- 32 RPC داخل `api`.
+- 33 RPC داخل `api`.
 - Direct DML = 0.
 - `anon` EXECUTE داخل `api` = 0.
 - SECURITY DEFINER داخل `api` = 0.
@@ -183,3 +197,29 @@
 - `public` والمخططات الداخلية غير مكشوفة للـData API.
 
 شروط الجاهزية الخمسة مغلقة.
+
+
+## Stage 7 — current after Q83
+
+### Current verified technical baseline
+
+- migrations = 76.
+- permanent tests = 17.
+- PASS = 217.
+- FAIL = 0.
+- ERROR = 0.
+- Data API RPC = 33.
+- Direct DML = 0.
+- API SECURITY DEFINER = 0.
+- anon API EXECUTE = 0.
+- authenticated API EXECUTE = 33.
+- service_role API EXECUTE = 33.
+
+### UX / Visual Design
+
+- S7-01 bootstrap: closed.
+- Q82 app bootstrap read contract: closed.
+- Q83 visual identity gate: closed provisionally.
+- governing visual identity source:
+  `design/VISUAL_IDENTITY.md`.
+- next step: page-by-page discussion before production UI implementation.
