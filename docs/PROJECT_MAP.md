@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-91.
+آخر قرار مرقم حاليًا: ق-92.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -116,14 +116,16 @@
 - UX-09 / Session Start Form: معتمد وموثق.
 - UX-10 / Device Readiness & Sync Status: معتمد وموثق.
 - UX-11 / Active Irrigation Session: معتمد وموثق.
+- UX-12 / Session Completion & Settlement: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
 - ق-90 / Device Readiness وSync Transparency: معتمد.
 - ق-91 / Active Session وBilling Consistency: معتمد.
+- ق-92 / Session Completion وSettlement Consistency: معتمد.
 
 الخطوة التالية:
 
-UX-12 / Session Completion & Settlement.
+UX-13 / Irrigation Session Details & History.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -165,6 +167,25 @@ UX-12 / Session Completion & Settlement.
 - Offline event ordering.
 - Completion consistency.
 - م-26.
+
+### إنهاء الجلسة والتسوية
+
+ق-92 ثم:
+
+`technical/SESSION_SETTLEMENT_ARCHITECTURE.md`
+
+المصدر يحدد:
+
+- Local Completed مقابل Server Settled.
+- Final Charge.
+- Automatic Invoice.
+- Session-linked Payment Allocation.
+- Advance.
+- Outstanding.
+- Idempotent Settlement Retry.
+- Offline reconciliation.
+- Correction path.
+- م-26 وم-27.
 
 ### Android Offline والتشغيل الخلفي
 

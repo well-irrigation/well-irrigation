@@ -82,6 +82,7 @@
 | ق-89 | Offline field operations + Android persistent background sync | Server sync foundation موجود؛ Mobile DB/outbox/worker/idempotent offline contracts غير منفذة | `ANDROID_OFFLINE_BACKGROUND_SYNC.md` + permanent/backend/Android field tests مطلوبة | معتمد؛ Stage 7 implementation Pending |
 | ق-90 | Device Readiness + sync transparency + non-blocking field UX | UX-10 موثق؛ local evaluator/status UI/reminders غير منفذة | Android integration + readiness/sync acceptance tests مطلوبة | معتمد؛ Flutter/Android Pending |
 | ق-91 | Active session UX + live amount + fuel-billing consistency | Session/segments backend foundation موجود؛ Fuel billing conflict وactive read/pause detail/resume-new-energy Pending | `ACTIVE_SESSION_ARCHITECTURE.md` + م-26 + backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
+| ق-92 | Session completion + invoice + payment settlement consistency | Complete/invoice/payment procedures موجودة منفصلة؛ orchestration وoffline settlement Pending | `SESSION_SETTLEMENT_ARCHITECTURE.md` + م-26 + م-27 | معتمد؛ Migration 078+ وFlutter Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 
@@ -186,3 +187,26 @@ integration + field verification.
 
 وجود Migration 066 لا يعني أن Fuel Billing الحالية
 مقبولة؛ DECISIONS.md وق-17 وق-91 هي السلطة الحاكمة.
+
+## Stage 7 — التزامات UX-12 / ق-92
+
+| المتطلب | الحالة الحالية | شرط الإغلاق |
+| --- | --- | --- |
+| Session complete | موجود أساسًا | ق-91/M-26 consistency |
+| Session charge | موجود | Q17-correct final amount |
+| Automatic invoice | الإجراء موجود منفصلًا | settlement orchestration |
+| Invoice uniqueness | حماية موجودة جزئيًا | idempotent retry test |
+| Session payment allocation | إجراءات موجودة | automatic linked allocation |
+| Excess advance | foundation موجود | settlement test |
+| Old unrelated advance | موجود كرصيد | no silent consumption |
+| Offline completion | Mobile Pending | ordered reconciliation |
+| Settlement idempotency | غير مكتمل | stable command + canonical replay |
+| Final settlement read model | غير موجود | typed api contract |
+| Conflict handling | foundation جزئي | UX + server result |
+| Correction path | غير مكتمل | audited non-destructive flow |
+| Fuel billing consistency | م-26 مفتوحة | must close first |
+| Settlement orchestration | م-27 مفتوحة | must close |
+| Android tests | غير منفذة | Offline/retry/process-death |
+
+UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
+`issue_session_invoice` كدالتين منفصلتين.

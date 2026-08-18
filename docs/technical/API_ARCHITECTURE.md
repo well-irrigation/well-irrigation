@@ -376,3 +376,39 @@ Live/Complete/Invoice contracts يجب أن تتفق على نفس
 - no Direct DML.
 - deterministic authorization.
 - permanent tests.
+
+## 17. ق-92 — Session Settlement Contract
+
+Backend الحالي يملك إجراءات منفصلة لإكمال الجلسة،
+إصدار الفاتورة، وتسجيل/تخصيص الدفعات.
+
+UX-12 يحتاج Orchestration آمنًا فوق هذه المكونات.
+
+العقد النهائي يجب أن يضمن:
+
+- stable settlement command id.
+- idempotent retry.
+- one canonical final charge.
+- one active invoice.
+- one-time session-payment allocation.
+- excess remains advance.
+- final settlement summary.
+- conflict result بدل partial silent success.
+
+Flutter لا يستدعي سلسلة عمليات مالية مستقلة بطريقة
+تسمح بنجاح بعضها وفشل بعضها دون Reconciliation.
+
+يمكن التنفيذ عبر:
+
+- Atomic RPC واحدة.
+- أو Idempotent orchestration protocol بضمانات مكافئة.
+
+الضمان هو الملزم، لا اسم الدالة.
+
+كل عقد جديد يبقى:
+
+- تحت `api.*`.
+- anon blocked.
+- no Direct DML.
+- least privilege.
+- permanent acceptance tests.

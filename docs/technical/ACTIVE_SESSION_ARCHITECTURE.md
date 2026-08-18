@@ -459,3 +459,25 @@ UX-11 لا تعتبر Production Complete إلا عندما:
 - payment reconciliation صحيح.
 - Android recovery مثبت.
 - permanent tests ناجحة.
+
+## 23. ق-92 — Handoff إلى Settlement
+
+عند Complete لا تنتهي مسؤولية النظام عند تغيير
+`irrigation_sessions.status`.
+
+بعد UX-11 ينتقل التدفق إلى:
+
+`technical/SESSION_SETTLEMENT_ARCHITECTURE.md`
+
+وهو المصدر الحاكم لـ:
+
+- Final Charge.
+- Invoice.
+- Payment Allocation.
+- Advance.
+- Outstanding.
+- Settlement Retry.
+- Offline reconciliation.
+
+Active Session Live Amount لا يعتبر بديلًا عن Settlement
+Result النهائي.

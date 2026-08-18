@@ -437,3 +437,45 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - اختبار Complete From Pause.
 - اختبار Offline replay دون duplicate.
 - Android process death/reboot verification.
+
+---
+
+## م-27 — Session Completion and Settlement Orchestration
+
+**الحالة:** مفتوحة — 2026-08-18
+**القرار الحاكم:** ق-92
+**UX:** UX-12
+**الأولوية:** حرجة قبل تنفيذ التسوية الإنتاجية
+
+### المطلوب
+
+- Settlement Orchestration موحد.
+- Idempotent settlement command.
+- Complete/Charge/Invoice consistency.
+- One active invoice per session.
+- Session-linked payment association.
+- Automatic one-time payment allocation.
+- Excess payment remains advance.
+- Old unrelated advance not silently consumed.
+- Offline completion reconciliation.
+- Final settlement read model.
+- Conflict handling.
+- Notification deduplication.
+- Audited correction path.
+
+### الاعتماد على م-26
+
+لا تغلق م-27 قبل إغلاق تعارض Fuel Billing في م-26،
+لأن Final Amount وInvoice يجب أن يطبقا ق-17 وق-91.
+
+### لا تغلق قبل
+
+- retry after lost response produces one settlement.
+- one invoice only.
+- one payment allocation only.
+- final amount equals invoice total.
+- paid + outstanding equals invoice total.
+- overpayment leaves correct advance.
+- Offline completion reaches same canonical result.
+- no data loss after Process Death/Reboot.
+- permanent Backend and Android tests.

@@ -1,7 +1,7 @@
 # Offline and Synchronization Architecture
 
 **آخر تحديث:** 2026-08-18
-**القرارات الحاكمة:** ق-75، ق-89، ق-90، ق-91
+**القرارات الحاكمة:** ق-75، ق-89، ق-90، ق-91، ق-92
 **الحالة:** الخادم منفذ جزئيًا؛ طبقة الهاتف ضمن Stage 7
 
 ## 1. لا تخلط بين Concurrency وSynchronization
@@ -373,3 +373,43 @@ Resume With New Energy يمثل Command ذريًا واحدًا
 - pending commands.
 
 لا يعتمد Recovery على Timer state في الذاكرة.
+
+## 28. ق-92 — Completion to Settlement Ordering
+
+الجلسة التي انتهت Offline يمكن أن تكون:
+
+    business_state = completed
+    settlement_state = pending
+
+التدفق لا يعيد فتح الجلسة.
+
+قبل Settlement يجب حسم Commands الأقدم التابعة لنفس
+الجلسة، خصوصًا Payments.
+
+## 29. Settlement Retry
+
+Settlement لها Stable Command ID.
+
+Retry لا يكرر:
+
+- complete effect.
+- invoice.
+- allocation.
+- journal effect.
+- notification business event.
+
+إذا كان الخادم قد أكمل العملية، يعيد Canonical Result.
+
+## 30. Settlement Conflict
+
+إذا كانت Dependency سابقة مثل Payment في Conflict:
+
+- لا تحذف.
+- لا تتجاهل.
+- لا تعتبر الفاتورة «غير مدفوعة» نهائيًا بصمت.
+
+Settlement تصبح Review/Conflict حتى الحسم المناسب.
+
+المصدر التفصيلي:
+
+`technical/SESSION_SETTLEMENT_ARCHITECTURE.md`.
