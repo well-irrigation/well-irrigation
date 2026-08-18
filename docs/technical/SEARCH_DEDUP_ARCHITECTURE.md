@@ -644,3 +644,36 @@ Pending.
 - acceptance tests.
 
 هذا هو حاجز «لا فجوات» لق-88.
+
+## 21. ق-89 — Offline Create and Dedup
+
+ق-89 يجعل Inline Create للمزارع والأرض جزءًا من
+Offline Start Session عند الحاجة.
+
+هذا لا يلغي ق-88.
+
+التدفق عند Sync:
+
+    local create command
+        ↓
+    server duplicate search/resolution
+        ↓
+    reuse canonical entity OR create once
+        ↓
+    persist local/server mapping
+        ↓
+    unblock dependent command
+
+إذا وجد الخادم Person/Farm مطابقًا:
+
+- لا ينشئ نسخة جديدة بسبب أن الهاتف كان Offline.
+- يعيد canonical UUID.
+- تحدث Dependencies المحلية.
+
+إذا كان التشابه Suspect ولا يمكن حسمه آليًا:
+
+- Command يصبح Conflict.
+- لا تنشأ هوية ثانية بصمت.
+- Session dependent تبقى محفوظة ولا تضيع.
+
+كل Offline create يحتاج Command ID ثابتًا أيضًا.

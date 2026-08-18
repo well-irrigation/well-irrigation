@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-88.
+آخر قرار مرقم حاليًا: ق-89.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -113,11 +113,13 @@
 - UX-06 / Owner Home: معتمد وموثق.
 - UX-07 / Role Section Cards: معتمد وموثق.
 - UX-08 / Operations Page: معتمد وموثق.
+- UX-09 / Session Start Form: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
+- ق-89 / Offline Field Operations وBackground Sync: معتمد.
 
 الخطوة التالية:
 
-UX-09 / Session Start Form.
+UX-10 / Device Readiness & Sync Status.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -139,6 +141,30 @@ UX-09 / Session Start Form.
 - فجوات Migration 078+ واختبارات القبول.
 
 لا تنشأ طبقة بحث أو هوية موازية لما هو موجود أصلًا.
+
+### Android Offline والتشغيل الخلفي
+
+ق-89 ثم:
+
+`technical/ANDROID_OFFLINE_BACKGROUND_SYNC.md`
+
+ثم:
+
+`technical/SYNC_ARCHITECTURE.md`
+
+المصدر يحدد:
+
+- Local durable DB.
+- Outbox.
+- WorkManager/background sync.
+- Retry/idempotency.
+- Reboot recovery.
+- Offline session lifecycle.
+- historical pricing.
+- time integrity.
+- device readiness.
+- permissions/settings.
+- Android field acceptance.
 
 ### المزامنة والعمل دون اتصال
 ق-75 ثم `technical/SYNC_ARCHITECTURE.md`.

@@ -346,3 +346,43 @@
 العداد:
 
 `75 migrations / 16 permanent tests`.
+
+---
+
+## م-25 — Offline Android Background Sync
+
+**الحالة:** مفتوحة — 2026-08-18
+**القرار الحاكم:** ق-89
+**الأولوية:** حرجة لـStage 7 الميداني
+
+### المطلوب
+
+تنفيذ وإثبات:
+
+- Local durable database.
+- ordered outbox.
+- stable command IDs.
+- idempotent API replay.
+- Offline irrigation lifecycle.
+- Offline advance/payment where used.
+- Inline farmer/farm Offline create.
+- dependency mapping.
+- historical pricing resolution.
+- time integrity handling.
+- WorkManager/background execution.
+- retry/backoff.
+- reboot recovery.
+- device readiness.
+- notification integration.
+- conflict UX.
+- field tests في مناطق ضعيفة أو معدومة التغطية.
+
+### لا يغلق قبل
+
+إثبات سيناريو Offline كامل يبدأ وينتهي ثم يتزامن
+دون فتح واجهة التطبيق عند سماح Android، مع عدم وجود
+Duplicate أو Data Loss.
+
+Force Stop / Restricted Mode يجب أن يكونا موثقين
+ومعروضين للمستخدم بوصفهما حدود منصة لا يمكن تجاوزها
+بصورة مضمونة.

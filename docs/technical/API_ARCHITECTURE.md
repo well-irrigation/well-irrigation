@@ -249,3 +249,52 @@ UX المعتمد كما هو.
 Contract غير موجود داخل `api`.
 
 التوثيق لا يبرر Direct DML مؤقتًا.
+
+## 13. ق-89 — Offline Commands
+
+Offline لا يغير API Boundary.
+
+المسار:
+
+    Local Outbox
+        ↓
+    Background Sync Worker
+        ↓
+    api.*
+        ↓
+    approved business procedure
+
+العقود التي ستستخدم Offline تحتاج:
+
+- stable command id.
+- idempotent replay.
+- original occurred_at.
+- deterministic result on retry.
+- authorization revalidation.
+- audit.
+- no anon execute.
+- no Direct DML.
+
+قد تنفذ هذه المتطلبات عبر typed wrappers جديدة أو
+توسعة العقود الحالية في Migration 078+.
+
+لا ينشأ Generic RPC يسمح للعميل بتنفيذ اسم دالة أو
+جدول ديناميكي.
+
+## 14. ق-89 — Offline Session Start Gap
+
+العقد الحالي لبدء الجلسة لم يعتبر بعد Offline-idempotent
+من جهة الهاتف.
+
+قبل الإنتاج يجب حسم:
+
+- client/server session identity.
+- command id.
+- historical pricing.
+- dependency mapping للمزارع/الأرض الجديدة.
+- payment coordination.
+- retry after lost response.
+
+التفاصيل في:
+
+`technical/ANDROID_OFFLINE_BACKGROUND_SYNC.md`

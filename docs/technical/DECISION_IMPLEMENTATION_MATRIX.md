@@ -79,6 +79,7 @@
 | ق-86 | حق تفعيل بئر دائم لكل شراء واستهلاك ذري | Model/API غير منفذ بعد | اختبارات entitlement/double-spend مطلوبة | معتمد؛ Migration 078+ Pending |
 | ق-87 | التوجيه بعد الدخول حسب الدور | `api.app_bootstrap` أساس جزئي؛ UI routing Pending | UX-05 موثق | معتمد؛ Flutter Pending |
 | ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ عقود البحث/farm dedup/operator farm/payment orchestration Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md` | معتمد؛ Migration 078+ وFlutter Pending |
+| ق-89 | Offline field operations + Android persistent background sync | Server sync foundation موجود؛ Mobile DB/outbox/worker/idempotent offline contracts غير منفذة | `ANDROID_OFFLINE_BACKGROUND_SYNC.md` + permanent/backend/Android field tests مطلوبة | معتمد؛ Stage 7 implementation Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 
@@ -111,3 +112,27 @@
 - Flutter integration.
 - Permission test.
 - Offline behavior محسوم عند انطباقه.
+
+## Stage 7 — التزامات ق-89
+
+| المتطلب | الحالة الحالية | شرط الإغلاق |
+| --- | --- | --- |
+| Durable local DB | غير منفذ | survives process death/reboot |
+| Outbox | غير منفذ على الهاتف | ordered persistent commands |
+| Server idempotency foundation | موجود في sync | دمجه مع كل Offline RPC |
+| Offline start session | غير منفذ | airplane-mode acceptance |
+| Offline pause/resume | غير منفذ | ordered replay |
+| Offline energy change | غير منفذ | correct segment replay |
+| Offline complete | غير منفذ | final result after delayed sync |
+| Offline payment | غير منفذ | one payment after retries |
+| Offline farmer/farm create | غير منفذ | Q88 dedup + dependency mapping |
+| Background worker | غير منفذ | sync without UI open when OS schedules |
+| Reboot recovery | غير منفذ | pending queue preserved |
+| Historical pricing | يحتاج إثبات/توسعة | original event time test |
+| Time integrity | غير منفذ | clock-change/reboot behavior |
+| Device readiness | غير منفذ | permission/settings UX |
+| Notification integration | م-23 Pending جزئيًا | post-sync delivery |
+| Field test | م-21 | weak/no coverage scenarios |
+
+لا يغلق ق-89 بوحدة اختبار DB فقط؛ يلزم Android
+integration + field verification.

@@ -1,0 +1,545 @@
+# Android Offline Field Operations and Background Sync Architecture
+
+**آخر تحديث:** 2026-08-18
+**القرار الحاكم:** ق-89
+**الحالة:** تصميم تقني ملزم؛ التنفيذ Pending
+**أول DB Migration جديدة:** 078 أو أحدث
+
+## 1. الهدف
+
+التطبيق يعمل في آبار ومناطق قد لا توجد فيها تغطية.
+
+لذلك لا يجوز ربط تشغيل البئر بتوفر الإنترنت.
+
+الهدف:
+
+    User action
+        ↓
+    Durable local commit
+        ↓
+    Immediate local UX
+        ↓
+    Persistent outbox
+        ↓
+    Network becomes available
+        ↓
+    Background sync
+        ↓
+    api.*
+        ↓
+    Business procedure
+        ↓
+    Idempotent server commit
+        ↓
+    Local reconciliation
+        ↓
+    Notifications
+
+## 2. ما لا يجوز
+
+لا يجوز:
+
+- حفظ جلسة حرجة في RAM فقط.
+- انتظار الإنترنت قبل بدء السقي.
+- تنفيذ Direct DML.
+- إعادة إنشاء Command ID في كل Retry.
+- الاعتماد على Connectivity Broadcast فقط.
+- تشغيل خدمة دائمة فقط لمنع Android من إيقاف التطبيق.
+- اعتبار local success = server success.
+- حذف Pending command قبل server acknowledgement.
+- استخدام سعر وقت Sync بدل سعر وقت الحدث بلا حسم تاريخي.
+
+## 3. Local durable database
+
+Stage 7 يحتاج قاعدة محلية دائمة.
+
+يجب أن تحفظ على الأقل:
+
+- cached master data.
+- cached permissions/context.
+- active local sessions.
+- local session events.
+- payments pending sync.
+- outbox commands.
+- command dependencies.
+- local/server ID mapping إذا لزم.
+- sync status.
+- last server time anchor.
+- last successful sync.
+- conflicts.
+- retry metadata.
+
+اختيار المكتبة النهائي يحسم أثناء التنفيذ، لكن العقد
+لا يعتمد على ذاكرة التطبيق.
+
+## 4. Local command envelope
+
+كل أمر Offline يحتاج Envelope منطقيًا يحتوي:
+
+- command_id UUID.
+- command_type.
+- aggregate/session local ID.
+- well_id.
+- actor/profile ID.
+- occurred_at.
+- sequence number.
+- payload.
+- created_local_at.
+- status.
+- retry_count.
+- last_error.
+- server_result reference.
+- idempotency state.
+
+لا يسمح للعميل بإرسال actor مختلف عن الهوية التي
+يستطيع الخادم التحقق منها عند Sync.
+
+## 5. Session identity
+
+قبل الاتصال يجب أن تمتلك الجلسة هوية مستقرة.
+
+الحل التنفيذي يجب أن يختار أحد نموذجين فقط:
+
+### Canonical client-generated UUID
+
+UUID الجلسة يولد على الهاتف ويصبح نفسه في الخادم.
+
+### Durable local-to-server mapping
+
+الجلسة تحمل Local UUID، وعند نجاح Start يحتفظ التطبيق
+بServer UUID في Mapping دائم وتستخدمه الأحداث اللاحقة.
+
+لا يسمح بمزيج غير حتمي بين النموذجين.
+
+الاختيار النهائي يحتاج Migration/API tests.
+
+## 6. Command ordering
+
+أحداث جلسة واحدة مرتبة.
+
+مثال:
+
+    START
+    PAUSE
+    RESUME
+    ENERGY_CHANGE
+    COMPLETE
+
+لا يرسل COMPLETE قبل نجاح أو حسم START.
+
+يمكن مزامنة Aggregate مختلف بالتوازي إذا لم توجد
+علاقة أعمال تمنع ذلك.
+
+## 7. Idempotency
+
+الـServer foundation الحالي في `sync` يعاد استخدامه.
+
+كل Command ID:
+
+- يقبل مرة واحدة.
+- يعيد نفس النتيجة عند Retry عندما يكون قد نجح.
+- لا يكرر الأثر المالي أو التشغيلي.
+
+العقود Offline-capable في `api.*` يجب أن تدمج
+idempotency صراحة قبل اعتبارها جاهزة.
+
+## 8. Automatic background synchronization
+
+Android implementation يجب أن يستخدم Persistent Work.
+
+المسار الافتراضي:
+
+- One-time WorkManager request عند وجود Pending Outbox.
+- NetworkType.CONNECTED constraint.
+- Unique Work لمنع عدة Sync Workers متضاربة.
+- Retry with backoff.
+- re-enqueue بينما توجد عناصر Pending.
+- enqueue عند App Start/Resume.
+- schedule survives process death.
+- recover/reschedule after reboot عبر المنصة.
+
+Expedited Work يمكن استخدامه عند الحاجة، مع fallback
+إلى العمل العادي إذا انتهت الحصة.
+
+لا يعتمد التصميم على تشغيل التطبيق في الواجهة.
+
+## 9. Android timing limitation
+
+Android لا يقدم ضمان «نفس الثانية» لمهمة خلفية عادية.
+
+لذلك SLA المنتج الداخلي:
+
+**ابدأ Sync في أقرب فرصة يسمح بها النظام بعد تحقق الشبكة.**
+
+يجب قياس:
+
+- network_available_to_worker_start latency.
+- worker_start_to_server_ack latency.
+- retry count.
+- oldest pending command age.
+
+تستخدم القياسات في M-21 Field Testing.
+
+## 10. Force Stop وRestricted mode
+
+إذا قام المستخدم بForce Stop قد يمنع النظام Background
+Work حتى يفتح المستخدم التطبيق مرة أخرى.
+
+بعض الأجهزة تضيف Battery/Auto-start restrictions.
+
+لا يمكن تجاوزها خلسة.
+
+الحل:
+
+- Device Readiness.
+- تعليمات واضحة.
+- Deep Link إلى إعداد النظام عندما يكون متاحًا.
+- إعادة فحص عند كل فتح للتطبيق.
+- manufacturer-specific guidance فقط بعد الاختبار.
+
+## 11. Permissions
+
+### Manifest / platform capabilities
+
+يضاف فقط ما يحتاجه التنفيذ النهائي.
+
+المتوقع عادة:
+
+- INTERNET.
+- ACCESS_NETWORK_STATE.
+- ما يحتاجه WorkManager عبر تبعياته.
+- notification declarations.
+- foreground service permission فقط إذا استخدم Flow فعليًا.
+
+### Runtime
+
+Android 13+ يحتاج Notification Runtime Permission
+لإشعارات التطبيق غير المعفاة.
+
+### Special settings
+
+Battery optimization/background restrictions لا تعامل
+كRuntime Permission عادية.
+
+يفتح التطبيق شاشة النظام ويشرح السبب.
+
+### ممنوع افتراضيًا
+
+لا نطلب للمزامنة وحدها:
+
+- Background Location.
+- Exact Alarm.
+- Accessibility.
+- SYSTEM_ALERT_WINDOW.
+- MANAGE_EXTERNAL_STORAGE.
+
+## 12. Battery optimization
+
+WorkManager هو المسار الأول.
+
+لا يطلب التطبيق Direct Ignore Battery Optimization
+بشكل افتراضي.
+
+إذا أثبتت الاختبارات أن وظيفة المزامنة الأساسية تتعطل
+على فئة أجهزة محددة:
+
+- يوثق السبب.
+- يراجع توافق Google Play.
+- يستخدم المسار الأقل صلاحية أولًا.
+- يقدم تعليمات يدوية إذا كانت كافية.
+
+## 13. Device Readiness model
+
+يحفظ التطبيق Snapshot غير حساس لحالة الجاهزية:
+
+- notifications_enabled.
+- background_execution_restricted.
+- battery_optimization_state when detectable.
+- background_data_state when detectable.
+- last_check_at.
+- manufacturer guidance version.
+
+UI تعرض:
+
+- جاهز.
+- يحتاج إعداد.
+- غير قابل للفحص تلقائيًا.
+
+لا تعرض «جاهز» إذا كانت حالة حرجة Unknown دون توضيح.
+
+## 14. Reminder policy
+
+عند أول تشغيل ميداني:
+
+- شرح كامل.
+
+بعد ذلك:
+
+- Indicator ثابت داخل «المزيد».
+- Reminder داخل التطبيق بحد افتراضي مرة كل 24 ساعة
+  عندما توجد مشكلة حرجة.
+- Reminder مختصر قبل Offline Field Work عند الحاجة.
+- لا نكرر System Permission Dialog بلا سبب.
+
+إذا رفض المستخدم Permission:
+
+- نحترم القرار.
+- نشرح الأثر.
+- نوفر فتح Settings عندما يكون ذلك مناسبًا.
+
+## 15. Offline start
+
+Start Session ينجح محليًا عندما:
+
+- البيانات الأساسية القابلة للتحقق محليًا موجودة.
+- local durable write نجح.
+
+عدم وجود شبكة ليس Failure.
+
+تعرض:
+
+    تم بدء الجلسة
+    محفوظ محليًا
+    بانتظار المزامنة
+
+## 16. Offline pause/resume/energy/complete
+
+كل Event:
+
+- يحفظ أولًا.
+- يحدث UX المحلي.
+- يدخل Outbox.
+- يحصل على sequence.
+
+إذا فشل الحفظ المحلي:
+
+- لا يدعي التطبيق نجاح العملية.
+- يظهر خطأ محلي واضح.
+
+## 17. Pricing snapshots
+
+عند كل Sync ناجح يجب تنزيل بيانات التسعير اللازمة
+للعمل المتوقع Offline.
+
+Pricing Snapshot يحتاج:
+
+- pricing rule identifier.
+- effective period.
+- billing model.
+- hourly rate أو الحقول المطلوبة.
+- energy source context.
+- version/update marker.
+
+إذا وجد Snapshot صالح:
+
+- يستخدم للعرض الجاري.
+
+إذا لم يوجد:
+
+- التشغيل لا يمنع.
+- amount counter لا يدعي رقمًا غير موثوق.
+- يظهر Pricing Pending.
+
+## 18. Historical price resolution
+
+عند Sync يجب أن يحسم Backend السعر باستخدام Event Time.
+
+اختبار القبول يجب أن يغطي:
+
+- session started Offline.
+- price changed on server later.
+- sync happened after price change.
+- session still receives rule effective at original start time.
+
+إذا البنية الحالية تحقق ذلك، يثبت الاختبار.
+
+إذا لا تحقق ذلك، تصلح في Migration 078+.
+
+## 19. Time integrity
+
+أثناء آخر اتصال يحتفظ التطبيق:
+
+- server timestamp.
+- local wall-clock timestamp.
+- monotonic elapsed anchor.
+- boot/session marker.
+
+أثناء نفس Boot يفضل حساب elapsed duration من Monotonic
+Clock لا من تغييرات Wall Clock.
+
+إذا اكتشف:
+
+- تعديل كبير في ساعة الهاتف.
+- reboot مع timeline غير موثوق.
+- event ordering impossible.
+
+يضع Time Integrity Flag.
+
+لا يعدل التكلفة بصمت.
+
+## 20. Offline payment
+
+الدفعة الميدانية Offline:
+
+- تحفظ محليًا.
+- تحصل على Command ID ثابت.
+- يظهر Receipt Local/Pending.
+- لا يقال Posted قبل Server ACK.
+- Retry لا يكررها.
+
+عند server success:
+
+- يستبدل/يربط receipt المحلي بالمرجع الخادمي.
+- تحدث حالة الدفع.
+- تنفذ القيود المالية الحالية مرة واحدة.
+
+## 21. Farmer/Farm inline Offline create
+
+لضمان أن Start Session لا يتعطل أمام مزارع جديد:
+
+- create farmer inline يجب أن يدعم Offline.
+- create farm inline يجب أن يدعم Offline بعد تنفيذ
+  صلاحية المشغل المعتمدة.
+
+كل كيان يحتاج Local UUID/Command ID وDedup Profile ق-88.
+
+عند Sync:
+
+- Search/Dedup server-side أولًا.
+- exact existing يعاد استخدامه.
+- لا ينشأ duplicate بسبب Offline create.
+- mapping يحدث قبل إرسال Session التي تعتمد على الكيان.
+
+## 22. Dependency graph
+
+مثال مزارع وأرض وجلسة جديدة بالكامل Offline:
+
+    CREATE_FARMER
+        ↓
+    CREATE_FARM
+        ↓
+    START_SESSION
+        ↓
+    PAYMENT
+        ↓
+    COMPLETE_SESSION
+
+Worker لا يرسل Child Command قبل حسم Parent IDs.
+
+## 23. Conflict handling
+
+أنواع أولية:
+
+- permission revoked.
+- farmer duplicate resolved to existing.
+- farm duplicate resolved to existing.
+- pump conflict.
+- pricing ambiguity.
+- time integrity issue.
+- server state already completed.
+- payment conflict.
+
+Conflict لا يحذف الأمر.
+
+يعرض للمستخدم/المالك وفق حساسية الحالة.
+
+## 24. Notifications after Sync
+
+بعد قبول الخادم للأوامر:
+
+- notification events تنشأ مرة واحدة.
+- M-23 هو مرجع قنوات الإشعار الحالية.
+- Android push transport يدمج مع المنظومة المعتمدة
+  عند تنفيذ M-23.
+- عدم وجود Notification Permission لا يمنع مزامنة
+  البيانات نفسها.
+
+## 25. Security
+
+لا يخزن محليًا:
+
+- service_role.
+- admin secret.
+- plaintext password.
+
+Local database تحمى بوسائل المنصة المناسبة.
+
+Offline command لا يمنح صلاحية جديدة.
+
+Server revalidates authorization عند Sync وفق العقد
+المحدد، مع سياسة Conflict واضحة إذا تغيرت الصلاحية
+بعد وقوع حدث Offline مشروع.
+
+## 26. Permission revocation while Offline
+
+إذا كان المستخدم مصرحًا عند آخر Sync ثم سحبت الصلاحية
+أثناء عدم اتصاله:
+
+لا يوجد حل آمن بالتخمين.
+
+يجب أن يعرف Backend:
+
+- event occurred_at.
+- last_authorization_snapshot.
+- current authorization.
+
+وقاعدة الأعمال تحدد هل يقبل الحدث التاريخي أو يحوله
+للمراجعة.
+
+لا يرفض/يقبل بصمت دون سياسة موثقة.
+
+## 27. Sync status model
+
+UI تحتاج حالات:
+
+- Local only.
+- Pending.
+- Syncing.
+- Synced.
+- Failed.
+- Conflict.
+
+وتعرض:
+
+- آخر مزامنة ناجحة.
+- عدد Pending.
+- أقدم Pending.
+- الخطأ القابل للإجراء.
+- زر إعادة المحاولة اليدوية.
+
+## 28. Acceptance tests
+
+قبل إغلاق ق-89 يجب إثبات على جهاز/محاكي Android:
+
+- start session airplane mode.
+- pause/resume Offline.
+- energy change Offline.
+- complete Offline.
+- advance payment Offline.
+- kill app process.
+- network returns with app UI closed.
+- background sync occurs when OS schedules it.
+- reboot with Pending outbox.
+- retry after mid-request network loss.
+- duplicate retry produces one server effect.
+- price changes before delayed sync.
+- device clock changes.
+- notification permission denied.
+- battery restricted mode.
+- manufacturer-specific field test where available.
+- no data loss after process death.
+
+## 29. Definition of Done
+
+ق-89 يغلق تقنيًا فقط إذا:
+
+- Local DB موجودة.
+- Outbox موجود.
+- Worker موجود.
+- api idempotency مربوط.
+- critical Offline commands موجودة.
+- conflicts لها UX.
+- permissions/readiness لها UX.
+- notifications مدمجة.
+- tests دائمة ناجحة.
+- M-21 field tests تشمل مناطق ضعيفة التغطية.

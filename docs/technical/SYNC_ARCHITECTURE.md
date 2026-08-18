@@ -1,7 +1,7 @@
 # Offline and Synchronization Architecture
 
 **آخر تحديث:** 2026-08-18
-**القرار الحاكم:** ق-75
+**القرارات الحاكمة:** ق-75، ق-89
 **الحالة:** الخادم منفذ جزئيًا؛ طبقة الهاتف ضمن Stage 7
 
 ## 1. لا تخلط بين Concurrency وSynchronization
@@ -162,3 +162,80 @@ Smart Lookup يمكن أن يستخدم Local Cache لسرعة عرض
 - Session state تختلف عن Payment state.
 
 تفاصيل العقد تحسم في Migration 078+.
+
+## 12. ق-89 — Offline Field Operations
+
+ق-89 ينقل Mobile Offline Workflow من «ميزة تحسين»
+إلى متطلب MVP تشغيلي للجلسات الميدانية.
+
+المطلوب:
+
+    Durable local DB
+        ↓
+    Ordered outbox
+        ↓
+    Background worker
+        ↓
+    api.*
+        ↓
+    idempotent business command
+        ↓
+    reconciliation
+
+## 13. العمليات الإلزامية Offline
+
+الدورة الميدانية الأولى:
+
+- بدء جلسة.
+- Pause.
+- Resume.
+- تغيير مصدر الطاقة.
+- إنهاء الجلسة.
+- دفعة الجلسة عند استخدامها.
+- إنشاء المزارع/الأرض inline عندما يحتاج Start Session.
+
+الإداريات الأخرى تناقش كل شاشة على حدة ولا تصبح
+Offline تلقائيًا من ق-89.
+
+## 14. Background execution
+
+Network recovery لا يعتمد على فتح Flutter UI.
+
+Android scheduler الدائم هو المسؤول عن Wake/Retry
+عندما يسمح النظام.
+
+لا يعتمد النظام على Manifest CONNECTIVITY_ACTION
+بوصفه آلية تشغيل أساسية.
+
+## 15. Reboot and process death
+
+Outbox والـActive Local Session تبقيان بعد:
+
+- إغلاق التطبيق.
+- قتل process.
+- إعادة تشغيل الهاتف.
+
+بعد Reboot يعاد جدولة Sync وفق إمكانات النظام.
+
+## 16. Conflict is a state
+
+`sync.sync_conflicts` foundation لا تكفي وحدها.
+
+Flutter يحتاج Conflict State وUX واضحًا.
+
+لا يحذف Pending operation عند التعارض.
+
+## 17. Pricing and time
+
+Offline event timestamps جزء من Command.
+
+Historical pricing يجب أن يستخدم event occurrence time.
+
+Time integrity metadata تحفظ محليًا، وأي انحراف مشبوه
+يظهر للمراجعة بدل تعديل المال بصمت.
+
+## 18. Android source
+
+التفاصيل الحاكمة للطبقة الهاتفية:
+
+`technical/ANDROID_OFFLINE_BACKGROUND_SYNC.md`
