@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-98.
+آخر قرار مرقم حاليًا: ق-99.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -172,6 +172,7 @@
 - UX-11 / Active Irrigation Session: معتمد وموثق.
 - UX-12 / Session Completion & Settlement: معتمد وموثق.
 - UX-13 / Operations, Records & Farmers: معتمد وموثق.
+- UX-14 / Money & Partners: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
 - ق-90 / Device Readiness وSync Transparency: معتمد.
@@ -180,7 +181,7 @@
 
 الخطوة التالية:
 
-UX-14 / Money & Partners.
+UX-15 / Well Management & Reports.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -459,3 +460,29 @@ UX-14 / Money & Partners.
 - Operational vs Cash Handover.
 - no-orphan active session.
 - م-28.
+
+### المال والشركاء والتوزيعات
+
+القرار:
+
+ق-99.
+
+المصدر التقني:
+
+`technical/MONEY_PARTNERS_ARCHITECTURE.md`
+
+يغطي:
+
+- Farmer financial accounts.
+- invoices/payments/advances.
+- explicit advance allocation.
+- expenses.
+- partner share history.
+- profit distributions.
+- partner payouts.
+- accounting periods.
+- financial corrections.
+- financial Offline/Reconciliation.
+- م-29.
+
+ق-99 تكمل ولا تستبدل ق-92 وم-27 في Session Settlement.

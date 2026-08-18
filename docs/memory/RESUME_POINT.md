@@ -105,6 +105,15 @@
 - ق-98: Operational Transfer منفصل عن Cash Handover.
 - م-28: Booking/History/Reservation atomicity وOffline booking
   وno-orphan shift contracts مفتوحة قبل UX-13 الإنتاجية.
+- ق-99: UX-14 توحد Farmer Accounts والدفعات والمصروفات
+  والشركاء ودورات الأرباح والتصحيحات المالية.
+- ق-99: debt وadvance يعرضان منفصلين ولا يوجد Silent Netting.
+- ق-99: old advance لا يستهلك دون فعل صريح.
+- ق-99: Distribution Calculation منفصل عن Approval.
+- ق-99: Posted Financial Records لا تعدل مباشرة.
+- ق-99: Final Financial Actions Online only.
+- م-29: Financial Reads/Idempotency/Expense Skip Reason/
+  Partner Privacy/Rounding/Corrections مفتوحة قبل Production.
 - م-25: تنفيذ Android Offline/Background Sync مفتوح وحرج.
 - م-26: Active Session Contract وFuel Billing consistency
   مفتوحة وحرجة قبل UX-11/UX-12 الإنتاجية.
@@ -198,8 +207,8 @@
   له بيانات مزارع مرتبطة بهويته صراحة.
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
-  UX-02/03/08/09/10/11/12/13
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98 غير منفذة؛
+  UX-02/03/08/09/10/11/12/13/14
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -226,31 +235,33 @@
 
 ## التالي
 
-**UX-14 — Money & Partners / المال والشركاء.**
+**UX-15 — Well Management & Reports / إدارة البئر والتقارير.**
 
-هذه ثاني حزمة من الخمس وفق ق-94، وبعد إغلاق UX-13
-ببوابة ق-97 أصبح المتبقي أربع مناقشات:
+بعد إغلاق UX-14 ببوابة ق-97 أصبح المتبقي ثلاث مناقشات:
 
-- UX-14: Money & Partners.
 - UX-15: Well Management & Reports.
 - UX-16: Account, Settings & Administration.
 - UX-17: Final Cross-Cutting Review.
 
-UX-13 معتمدة حتى القرار 407.
+UX-14 معتمدة حتى القرار 459.
 
-ق-98 يحكم:
+ق-99 يحكم:
 
-- الحفاظ على السجل التاريخي.
-- Booking server confirmation.
-- Offline tentative booking.
-- Smart Lookup reuse.
-- no-orphan active session.
-- receiver-accepted session transfer.
-- فصل Operational Transfer عن Cash Handover.
+- Farmer debt/advance separation.
+- explicit old-advance allocation.
+- payment visibility and receipts.
+- expenses and approvals.
+- partner share history.
+- profit distributions.
+- partner payouts.
+- accounting periods.
+- audited financial corrections.
+- Online authority للأفعال المالية النهائية.
 
-م-25 وم-26 وم-27 وم-28 والتنفيذ التقني المطلوب ما زال Pending.
+م-25 وم-26 وم-27 وم-28 وم-29 والتنفيذ التقني المطلوب
+ما زال Pending.
 
-لا تُغيّر أرقام الـbaseline إلا بدليل تحقق جديد.
+لا تغير أرقام Baseline إلا بدليل تحقق جديد.
 
 ## قاعدة التنفيذ
 

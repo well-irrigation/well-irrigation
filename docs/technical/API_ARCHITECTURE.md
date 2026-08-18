@@ -438,3 +438,34 @@ UX-13 يحتاج Typed Contracts إضافية داخل `api.*`.
 6. Cash Handover وOperational Transfer عقدان مختلفان.
 7. كل write حساس يحتاج auth-derived actor وصلاحية.
 8. أي عقد جديد يبدأ من Migration 078+.
+
+## ق-99 — Money & Partners Read/Write Contracts
+
+UX-14 يعيد استخدام إجراءات المال الحالية ولا ينشئ
+Accounting Logic داخل Flutter.
+
+Typed `api.*` المطلوبة حسب الحاجة تشمل:
+
+- farmer financial summary.
+- invoices list/detail.
+- payments list/detail.
+- advances read/allocation.
+- expense list/detail.
+- partner financial detail.
+- profit distribution list/detail/preview.
+- accounting period list/detail.
+- financial correction/reversal.
+- financial audit history.
+
+القواعد:
+
+1. debt وadvance حقلان/مفهومان منفصلان.
+2. old advance لا يستهلك بصمت.
+3. payment allocation يراجع قبل الإرسال.
+4. Canonical receipt يأتي من Backend.
+5. `attachment_skip_reason` يجب أن يصل للعقد عند التخطي.
+6. Partner projection تطبق Least Privilege.
+7. correction لا تستخدم Direct UPDATE.
+8. كل Write حساس يشتق Actor من auth.
+9. Flutter لا Direct DML.
+10. أي تغيير DB جديد يبدأ من 078+.

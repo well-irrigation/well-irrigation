@@ -604,3 +604,77 @@ Commit جديدًا.
 265. UX-13 لا تعتبر Production Complete قبل إغلاق م-28.
 
 266. لا تتغير أرقام Baseline التقنية دون اختبار جديد.
+
+## ق-99 — ثوابت المال والشركاء والتصحيحات
+
+267. Farmer debt وFarmer advance حقيقتان منفصلتان.
+
+268. لا Silent Netting بين الدين والرصيد المقدم.
+
+269. Existing old advance لا يستهلك دون Allocation صريحة.
+
+270. General payment allocation يعرض قبل التأكيد.
+
+271. Oldest-invoice ordering اقتراح افتراضي لا تسوية صامتة.
+
+272. Overpayment غير المخصص يبقى Advance.
+
+273. Canonical Receipt لا يعد نهائيًا قبل Server ACK.
+
+274. Offline Payment لا توصف Posted قبل المزامنة الناجحة.
+
+275. Payment retry لا يجوز أن ينشئ تحصيلًا مكررًا.
+
+276. Unknown financial delivery تحتاج Reconciliation أولًا.
+
+277. Posted Invoice/Payment لا تعدل مباشرة.
+
+278. Expense attachment skip يحفظ سببه عند تطبيق التخطي.
+
+279. Pending Approval Expense لا تعامل كPosted نهائية.
+
+280. Partner-paid expense لا تعامل كCashbox expense.
+
+281. Ownership Percentage وProfit Percentage مستقلتان.
+
+282. Share changes تحفظ كتاريخ فعال ولا تعيد كتابة الماضي.
+
+283. Distribution line تحفظ Profit Percentage Snapshot.
+
+284. تغيير النسب مستقبلًا لا يعيد حساب Distribution قديمة.
+
+285. Profit calculation لا يساوي Profit approval.
+
+286. Approved distribution amounts لا تعدل مباشرة.
+
+287. Partner receivable لا يحتسب في أكثر من دورة.
+
+288. Partner irrigation deduction لا يخصم في أكثر من دورة.
+
+289. Partial partner payout يحفظ paid وremaining.
+
+290. Partner لا يرى Financial Details خاصة بشريك آخر عبر API.
+
+291. Distribution final actions Online only.
+
+292. Closed Accounting Period لا تقبل Posting عاديًا.
+
+293. Reopen Period مسار مدقق وليس Toggle مباشرًا.
+
+294. Posted Financial Correction تستخدم Reversal/Adjustment
+وليس Direct Edit.
+
+295. Flutter لا تنفذ Accounting Engine موازية.
+
+296. Flutter لا تنفذ Rounding مالي مستقل.
+
+297. Maintenance Reserve `round()` الحالي يحتاج Audit
+قبل Production.
+
+298. Backend هو Authority للمال والتواريخ النهائية.
+
+299. أي DB fix جديد يبدأ من Migration 078+.
+
+300. UX-14 لا تعتبر Production Complete قبل إغلاق م-29.
+
+301. عدم تشغيل اختبارات جديدة لا يغير Baseline المثبت.

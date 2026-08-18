@@ -420,3 +420,18 @@ UX-12 لا تعتبر Production Complete حتى:
 - final read model موجود.
 - correction path غير destructive.
 - permanent tests ناجحة.
+
+## ق-99 / UX-14 — Farmer Account Handoff
+
+ق-99 تكمل ق-92 بعد إصدار الفاتورة والتسوية.
+
+القواعد المشتركة:
+
+- Session-linked payment تطبق على سياق الجلسة حسب ق-92.
+- Excess يبقى Advance.
+- Existing old Advance لا يستهلك بصمت.
+- استخدام old Advance لاحقًا فعل مالي صريح.
+- Farmer account يعرض debt وadvance منفصلين.
+- لا يظهر Net Zero قبل وجود Allocation Canonical.
+- Offline payment لا تصبح Posted قبل ACK.
+- Payment idempotency تبقى ضمن م-27 وم-29 معًا.

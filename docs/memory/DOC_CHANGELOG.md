@@ -575,3 +575,53 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 **القرار المبرر:** ق-98.
 
 **نوع الدفعة:** توثيقية فقط؛ Baseline الاختبارات لم يتغير.
+
+## تحديث 2026-08-18 — UX-14 / ق-99
+
+**المجال:** المال والشركاء والتوزيعات والتصحيحات.
+
+**السبب:**
+
+اعتماد القرارات 408–459 مع ضرورة حفظ السياسات المالية
+والفجوات الحالية بصورة يمكن تتبعها حسب ق-97.
+
+**الملف الجديد:**
+
+- `technical/MONEY_PARTNERS_ARCHITECTURE.md`
+
+**الملفات المحدثة:**
+
+- `design/UX_UI_SPEC.md`
+- `memory/DECISIONS.md`
+- `memory/OPEN_ISSUES.md`
+- `memory/PROGRESS.md`
+- `memory/RESUME_POINT.md`
+- `PROJECT_MAP.md`
+- `technical/API_ARCHITECTURE.md`
+- `technical/SYNC_ARCHITECTURE.md`
+- `technical/SESSION_SETTLEMENT_ARCHITECTURE.md`
+- `technical/INVARIANTS.md`
+- `technical/DECISION_IMPLEMENTATION_MATRIX.md`
+
+**أهم ما ثبت:**
+
+- Debt وAdvance منفصلان.
+- No Silent Netting.
+- Old Advance Allocation فعل صريح.
+- Oldest invoices مجرد Default Suggestion.
+- Receipt النهائي خادمي.
+- Offline Payment ليست Posted قبل ACK.
+- Attachment Skip Reason إلزامي عند التخطي.
+- Ownership وProfit Percentage مستقلتان.
+- Share History لا يعاد كتابتها.
+- Calculation منفصل عن Approval.
+- Approved Distribution مقفلة.
+- Partner private financial projection مطلوبة.
+- Final Financial Actions Online only.
+- Corrections لا تستخدم Direct Edit.
+- Rounding الحالي للاحتياطي يحتاج Audit.
+- م-29 فتحت للفجوات التنفيذية.
+
+**القرار المبرر:** ق-99.
+
+**نوع الدفعة:** توثيقية فقط؛ Baseline الاختبارات لم يتغير.

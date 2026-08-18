@@ -458,3 +458,32 @@ Migration 075 ولا أي هجرة مطبقة سابقة.
 
 لم تنفذ Migration 078 ولم تشغل اختبارات قاعدة بيانات
 جديدة، لذلك يبقى Baseline التقني السابق دون تغيير.
+
+## 2026-08-18 — اعتماد وتوثيق UX-14 / ق-99
+
+**المنجز المثبت في هذه الدفعة التوثيقية:**
+
+- اعتماد UX-14 من القرار 408 إلى 459.
+- توثيق Farmer Financial Account UX.
+- توثيق فصل Debt عن Advance.
+- توثيق Explicit Old Advance Allocation.
+- توثيق Payment/Receipt/Offline behavior.
+- توثيق Expense/Approval UX.
+- توثيق Partner-paid expenses.
+- توثيق فصل Ownership عن Profit Percentage.
+- توثيق Historical Share Versions.
+- توثيق Profit Distribution Review/Approval.
+- توثيق Partial/Full Partner Payout.
+- توثيق Accounting Period Close/Reopen.
+- توثيق Financial Correction/Audit UX.
+- إنشاء `MONEY_PARTNERS_ARCHITECTURE.md`.
+- فتح م-29.
+- تسجيل فجوة Attachment Skip Reason.
+- تسجيل مراجعة Maintenance Reserve Rounding.
+- تحديث API/Sync/Settlement architecture handoffs.
+- تحديد UX-15 كنقطة العمل التالية.
+
+هذه دفعة توثيقية فقط.
+
+لم تنفذ Migration 078 ولم تشغل اختبارات قاعدة بيانات
+جديدة، لذلك يبقى Baseline التقني السابق دون تغيير.

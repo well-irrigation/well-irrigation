@@ -89,6 +89,7 @@
 | ق-96 | Terminal command + recovery protocol | `TERMINAL_COMMAND_PROTOCOL.md` + invariants | Git/recovery contract checks | نافذ؛ لا Migration |
 | ق-97 | Mandatory documentation completeness gate | `DOCUMENTATION_GATE.md` + governance protocol integration | documentation contract + Git closure | نافذ؛ لا Migration |
 | ق-98 | Operations records + farmers/farms + booking confirmation + shift handover consistency | 032/033/042/045/074/075 foundations موجودة؛ typed booking/history/handover/offline contracts ناقصة | `OPERATIONS_RECORDS_ARCHITECTURE.md` + م-28 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
+| ق-99 | Money + farmer accounts + expenses + partners + distributions + corrections | 035/044/047–053/056/061/068/073/074 foundations موجودة؛ financial reads/idempotency/corrections/rounding gaps باقية | `MONEY_PARTNERS_ARCHITECTURE.md` + م-27 + م-29 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 
@@ -236,3 +237,21 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | Cash handover | موجود/owner-confirmed | keep separate from operational transfer |
 | Shift report | 045 موجود | reuse where applicable |
 | M-28 | مفتوحة | must close |
+
+## Stage 7 — التزامات UX-14 / ق-99
+
+| المتطلب | الموجود | المتبقي قبل Production |
+| --- | --- | --- |
+| Farmer financial account | invoices/payments foundation | typed summary/read models |
+| Payment | 068 + api wrappers | offline idempotency/reconciliation |
+| Old advance | allocation foundation | explicit UX/read contract |
+| Receipt | record_payment summary | canonical UI/read handling |
+| Expenses | 044/056/074 | reads + skip reason + offline idempotency |
+| Partner model | 047/051 | typed partner financial projection |
+| Partner irrigation | 048/051 | UX/read contract |
+| Distribution | 052/053/068 | preview/read models + rounding audit |
+| Partner payout | 068 | UI + retry/permission tests |
+| Periods | 049/074 | read UX + closure/reopen tests |
+| Corrections | audit/accounting foundation | typed reversal/correction contracts |
+| Partner privacy | internal RLS foundation | least-privilege public projection |
+| M-29 | مفتوحة | must close |

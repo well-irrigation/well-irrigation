@@ -546,3 +546,93 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - Offline process death/retry tests.
 - permission tests.
 - no Direct DML verification.
+
+---
+
+## م-29 — Money, Partner Distribution and Financial Correction Consistency
+
+**الحالة:** مفتوحة — 2026-08-18
+**القرار الحاكم:** ق-99
+**UX:** UX-14
+**الأولوية:** حرجة قبل UX-14 الإنتاجية
+
+### الأساس الموجود
+
+- Payment/Allocation procedures موجودة.
+- Payment API wrappers موجودة.
+- Expense/Approval foundation موجودة.
+- Partner model موجود.
+- Historical ownership/profit shares موجودة.
+- Partner irrigation policy موجودة.
+- Profit distribution engine موجود.
+- Partial/full partner payout موجود.
+- Accounting periods/reopen flow موجود.
+
+### الفجوات
+
+1. Farmer financial Read Model المخصص للتطبيق ناقص.
+
+2. Invoice/Payment/Advance typed read contracts المطلوبة
+   للـUX غير مكتملة.
+
+3. Payment Offline Command ID/idempotency تعتمد على م-27
+   ولم تغلق بعد.
+
+4. عرض Pending Payment ومنع Duplicate collection يحتاج
+   عقد Reconciliation واضح.
+
+5. old Advance يجب أن يظل explicit allocation، وليس
+   silent netting.
+
+6. `finance.expenses.attachment_skip_reason` موجود،
+   لكن `api.record_expense` لا يمرر السبب حاليًا.
+
+7. Expense Offline idempotency غير مثبتة.
+
+8. Partner financial projection يحتاج Least-Privilege
+   Read Model.
+
+9. Distribution list/detail/preview typed read models ناقصة.
+
+10. استخدام `round()` في Maintenance Reserve النسبي
+    يحتاج مراجعة مقابل السياسة المالية الحاكمة قبل Production.
+
+11. Typed correction/reversal contracts المطلوبة لـFlutter
+    غير مكتملة أو تحتاج إثباتًا.
+
+12. Financial Audit Trail للمستخدم يحتاج Read Model.
+
+13. Unknown-delivery financial reconciliation يحتاج عقدًا
+    يمنع Retry أو Reversal الخاطئ.
+
+### الاعتماديات
+
+م-29 تعتمد جزئيًا على:
+
+- م-26 عند اتساق Final Session Amount.
+- م-27 عند Payment/Settlement idempotency.
+- ق-79 عند منع Direct DML.
+- ق-89 عند Offline Outbox.
+- ق-92 عند Session-linked settlement.
+
+### لا تغلق قبل
+
+- debt/advance separation tests.
+- explicit advance allocation tests.
+- payment idempotency tests.
+- no duplicate collection.
+- canonical receipt test.
+- attachment skip reason preservation.
+- expense approval/rejection tests.
+- partner-paid accounting test.
+- historical share-version tests.
+- partner privacy tests.
+- distribution exactness tests.
+- no duplicate receivable/deduction tests.
+- rounding-policy regression test.
+- partial/full partner payout tests.
+- closed-period tests.
+- correction/reversal audit tests.
+- Offline unknown-delivery reconciliation.
+- no Direct DML verification.
+- Android process-death/retry tests.

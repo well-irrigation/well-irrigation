@@ -452,3 +452,64 @@ Settlement تصبح Review/Conflict حتى الحسم المناسب.
 
 Sync لا يحذف Display Context لسجل قديم لمجرد أن
 Farmer/Farm/Operator أصبح Inactive.
+
+## ق-99 — Financial Offline and Reconciliation
+
+### Payment
+
+Local Payment Command قد يكون:
+
+- saved locally.
+- pending.
+- syncing.
+- reconciled.
+- conflict/review.
+
+لا يوصف Posted Canonical قبل ACK.
+
+### Duplicate protection
+
+Payment Command يحتاج Stable Command ID.
+
+Retry بعد Lost Response يجب أن يعيد نفس النتيجة
+Canonical لا Payment ثانية.
+
+### Unknown delivery
+
+إذا لم يعرف التطبيق هل وصل الأمر:
+
+    unknown delivery
+
+فالخطوة التالية:
+
+    reconcile
+
+وليست:
+
+    submit another payment
+
+ولا:
+
+    reverse immediately
+
+### Expenses
+
+المصروف يمكن أن يحفظ Local عند السياسة المسموحة.
+
+لكن:
+
+- approval finality خادمية.
+- posting finality خادمية.
+- skipped attachment reason يحفظ ضمن الحدث/الأمر.
+
+### Distribution and periods
+
+الأفعال النهائية التالية Online only:
+
+- distribution calculation.
+- distribution approval.
+- partner payout.
+- period close/reopen final action.
+- posted financial correction.
+
+يمكن عرض Cached State Offline مع بيان Last Sync.
