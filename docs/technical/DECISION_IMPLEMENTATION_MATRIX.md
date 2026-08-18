@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-08-17
+**آخر تحديث:** 2026-08-18
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -74,3 +74,40 @@
 | ق-82 | App Bootstrap Read Contract: المستخدم + الآبار + الأدوار الفعالة عبر `api` فقط | 077 مطبقة ومثبتة | 077 = 12 PASS؛ suite = 217 PASS؛ Data API = 33 RPC | مغلق — 2026-08-17 |
 
 | ق-83 | الهوية البصرية العامة وثوابت Stage 7 | `docs/design/VISUAL_IDENTITY.md`؛ التنفيذ المرئي في الشاشات القادمة | اعتماد المالك وتوثيق المصدر الحاكم | معتمد كمرجع؛ UI الإنتاجي لم يبدأ بعد |
+| ق-84 | هاتف هوية عالمي + حساب موحد + explicit profile↔person link | الأساس موثق؛ الربط والتفرد النهائي Pending | اختبارات Migration 078+ مطلوبة | معتمد؛ Backend غير مكتمل |
+| ق-85 | Super Admin عبر حدود خادم موثوقة | Auth Admin/service role trusted boundary مطلوب | اختبارات صلاحيات وتدقيق مطلوبة | معتمد؛ تنفيذ UI/backend التفصيلي Pending |
+| ق-86 | حق تفعيل بئر دائم لكل شراء واستهلاك ذري | Model/API غير منفذ بعد | اختبارات entitlement/double-spend مطلوبة | معتمد؛ Migration 078+ Pending |
+| ق-87 | التوجيه بعد الدخول حسب الدور | `api.app_bootstrap` أساس جزئي؛ UI routing Pending | UX-05 موثق | معتمد؛ Flutter Pending |
+| ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ عقود البحث/farm dedup/operator farm/payment orchestration Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md` | معتمد؛ Migration 078+ وFlutter Pending |
+
+## Stage 7 — التزامات UX-08 / ق-88
+
+| المتطلب | الموجود | المتبقي قبل وصفه منفذًا |
+| --- | --- | --- |
+| البحث العربي | normalize + pg_trgm موجودان | Read Contracts داخل api + ranking tests |
+| بحث الهاتف | normalize_phone موجود | ربطه بق-84 والهوية العالمية |
+| Farmer dedup | ق-76 + create_farmer موجود | منع suspect duplicate الصامت + concurrency test |
+| Farm ownership | ق-80/075 منفذ | لا تغيير |
+| Farm search | جدول العلاقة موجود | normalized search/index/read contract |
+| Farm dedup | غير مكتمل | scope + discriminator + DB/API enforcement |
+| Operator add farmer | موجود | ربط UX واختباره |
+| Operator add farm | Backend owner-only حاليًا | Migration 078+ لتفويض operator |
+| Inline return/select | غير منفذ | API/Flutter flow يحفظ السياق |
+| Live time counter | يمكن اشتقاقه من session times | Flutter display + reconciliation |
+| Live accrued amount | session pricing foundation موجود | read/calculation contract + Flutter display |
+| Pause/resume amount | session APIs موجودة | UI + acceptance test |
+| Energy change amount | segments موجودة | cumulative live display |
+| Advance payment at start | payment API منفصل | atomic/idempotent coordination |
+| Offline lookup | sync server foundation موجود | local cache merge by UUID |
+| Offline create | غير مكتمل | لا يفعل قبل idempotency/conflict UX |
+
+### قاعدة الإغلاق
+
+لا تحول أي خلية Pending إلى «منفذ» إلا بدليل:
+
+- Migration مطبقة عند الحاجة.
+- Permanent test.
+- API contract.
+- Flutter integration.
+- Permission test.
+- Offline behavior محسوم عند انطباقه.

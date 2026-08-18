@@ -1,6 +1,6 @@
 # Application API Architecture
 
-**آخر تحديث:** 2026-08-17
+**آخر تحديث:** 2026-08-18
 **القرارات الحاكمة:** ق-78، ق-79، ق-82
 **الحالة:** منفذة ومثبتة محليًا
 
@@ -186,3 +186,66 @@ Surface الحالي يبقى:
 الـbaseline المثبت بعد 077:
 
 `Data API RPC = 33`.
+
+## 10. ق-88 — عقود البحث الذكي
+
+ق-88 لا يغير حد Data API.
+
+المسار يبقى:
+
+    Flutter
+        ↓
+    Data API
+        ↓
+    api search/read contract
+        ↓
+    internal data
+
+المطلوب في Migration 078+ حسب الحاجة:
+
+- عقود Search محددة النوع.
+- لا Dynamic table/schema parameter.
+- SECURITY INVOKER.
+- anon محجوب.
+- auth scope مشتق من الجلسة.
+- result limits/pagination.
+- deterministic ranking.
+- عدم كشف بيانات من آبار غير مسموحة.
+- permanent tests للمنح والنتائج.
+
+`api.app_bootstrap()` وحده لا يغطي هذه المتطلبات.
+
+## 11. ق-88 — فجوات الكتابة المرتبطة بـUX-08
+
+### Create Farmer
+
+العقد موجود ويجب إعادة استخدامه.
+
+### Create Farm
+
+العقد موجود، لكن Business Procedure الحالية owner-only.
+
+UX-08 يسمح للمشغل بإضافة أرض.
+
+لا يغير Flutter هذا القيد مباشرة.
+
+يلزم Migration 078+ لتوسيع التفويض واختباره إذا بقي
+UX المعتمد كما هو.
+
+### Start Session + Advance Payment
+
+العقدان الحاليان منفصلان:
+
+- start irrigation session.
+- record payment.
+
+قبل تمكين «مبلغ مدفوع الآن» في شاشة بدء الجلسة يجب
+إنشاء orchestration آمن أو protocol idempotent مكافئ
+يمنع partial success والتكرار.
+
+## 12. قاعدة إغلاق شاشة تعتمد على ق-88
+
+لا تعتبر شاشة Flutter مكتملة إذا كانت تحتاج Search/Create
+Contract غير موجود داخل `api`.
+
+التوثيق لا يبرر Direct DML مؤقتًا.
