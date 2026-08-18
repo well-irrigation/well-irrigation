@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-90.
+آخر قرار مرقم حاليًا: ق-91.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -115,13 +115,15 @@
 - UX-08 / Operations Page: معتمد وموثق.
 - UX-09 / Session Start Form: معتمد وموثق.
 - UX-10 / Device Readiness & Sync Status: معتمد وموثق.
+- UX-11 / Active Irrigation Session: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
 - ق-90 / Device Readiness وSync Transparency: معتمد.
+- ق-91 / Active Session وBilling Consistency: معتمد.
 
 الخطوة التالية:
 
-UX-11 / Active Irrigation Session.
+UX-12 / Session Completion & Settlement.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -143,6 +145,26 @@ UX-11 / Active Irrigation Session.
 - فجوات Migration 078+ واختبارات القبول.
 
 لا تنشأ طبقة بحث أو هوية موازية لما هو موجود أصلًا.
+
+### الجلسة الجارية والتسعير اللحظي
+
+ق-17 وق-91 ثم:
+
+`technical/ACTIVE_SESSION_ARCHITECTURE.md`
+
+المصدر يحدد:
+
+- Active Session Read Model.
+- billable time.
+- live accrued amount.
+- payment display.
+- Pause/Resume.
+- Resume With New Energy.
+- Energy Segments.
+- Fuel Billing consistency.
+- Offline event ordering.
+- Completion consistency.
+- م-26.
 
 ### Android Offline والتشغيل الخلفي
 

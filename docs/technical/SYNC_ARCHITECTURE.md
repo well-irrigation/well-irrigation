@@ -1,7 +1,7 @@
 # Offline and Synchronization Architecture
 
 **آخر تحديث:** 2026-08-18
-**القرارات الحاكمة:** ق-75، ق-89، ق-90
+**القرارات الحاكمة:** ق-75، ق-89، ق-90، ق-91
 **الحالة:** الخادم منفذ جزئيًا؛ طبقة الهاتف ضمن Stage 7
 
 ## 1. لا تخلط بين Concurrency وSynchronization
@@ -315,3 +315,61 @@ Device Readiness حالة جهاز، وليست مصدر حقيقة للأعما
 تفاصيل Android:
 
 `technical/ANDROID_OFFLINE_BACKGROUND_SYNC.md`.
+
+## 24. ق-91 — Active Session Event Ordering
+
+داخل Session Aggregate يكون الترتيب إلزاميًا.
+
+مثال:
+
+    START
+    PAUSE
+    RESUME
+    CHANGE_ENERGY
+    PAYMENT
+    COMPLETE
+
+لا يرسل حدث تابع قبل حسم Dependency السابقة.
+
+Resume With New Energy يمثل Command ذريًا واحدًا
+منطقيًا، لا Resume ثم Change منفصلين إذا كان الفصل
+سينشئ وقت تشغيل وهميًا.
+
+## 25. Local Payment Visibility
+
+إذا استلم المشغل دفعة Offline وحفظت Durable:
+
+- يمكن عرضها في Active Session.
+- تحمل Pending Sync.
+- لا تصبح Server Posted حتى ACK.
+- Retry يستخدم Command ID نفسه.
+
+## 26. Complete While Pending
+
+يمكن أن تصبح الجلسة:
+
+    business_state = completed
+    sync_state = pending
+
+هذا صحيح.
+
+لا يعاد فتح الجلسة محليًا لمجرد أن Server ACK لم يصل.
+
+إذا ظهر Conflict عند Sync:
+
+- تبقى البيانات المحلية محفوظة.
+- تنتقل إلى Review.
+- لا يخترع Flutter تسوية نهائية.
+
+## 27. Active Session Recovery
+
+عند إعادة تشغيل التطبيق أو الجهاز يعاد تطبيق Event Journal
+بالترتيب لإعادة:
+
+- Running/Paused/Completed.
+- current source.
+- billable elapsed base.
+- local payments.
+- pending commands.
+
+لا يعتمد Recovery على Timer state في الذاكرة.

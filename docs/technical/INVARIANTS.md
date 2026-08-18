@@ -307,3 +307,59 @@ Background Work ويجب شرحهما للمستخدم.
 
 140. ق-90 لا يعتبر منفذًا قبل Android integration
 والاختبار الميداني.
+
+## ق-91 — ثوابت الجلسة الجارية والفوترة
+
+141. المزارع والأرض لا يعدلان مباشرة بعد بدء الجلسة.
+
+142. العداد المالي الرئيسي يعتمد `billable_seconds`.
+
+143. Pause time لا يدخل في billable time.
+
+144. Pricing Pending لا يعرض كمبلغ صفر.
+
+145. الدفع لا يغير قيمة accrued charge نفسها.
+
+146. المبلغ الزائد على accrued يعرض كرصيد مقدم، لا
+كمتبقي سالب.
+
+147. دفعة Offline لا تصبح Server Posted قبل ACK.
+
+148. Resume العادي يعيد مصدر وسعر التشغيل السابقين.
+
+149. Resume بمصدر جديد لا ينشئ تشغيلًا وهميًا بالمصدر
+القديم.
+
+150. تغيير مصدر الطاقة يغير Segment ولا ينشئ Session جديدة.
+
+151. ق-17 حاكم: Diesel Session Billing سعر ساعة شامل.
+
+152. الوقود تكلفة/رقابة ولا يضاف Fuel Charge منفصل إلى
+مستحق المزارع.
+
+153. تنفيذ Migration 066 الذي يضم Fuel Charge إلى Session
+Charge يعتبر Gap معروفة يجب تصحيحها في 078+.
+
+154. Migration 066 لا تعدل بأثر رجعي.
+
+155. إنهاء الجلسة أثناء Pause لا يحتاج Resume وهمي.
+
+156. Local Completed لا يساوي Server Settled.
+
+157. Business State وSync State مستقلان.
+
+158. كل Active Session Command Offline له Stable Command ID.
+
+159. Navigation أو إغلاق التطبيق لا ينهي الجلسة.
+
+160. Active Session تستعاد من Durable State لا RAM.
+
+161. Live amount وFinal charge وInvoice وFarmer balance
+يجب أن تتبع السياسة المالية نفسها.
+
+162. Flutter لا يستخدم float أو double لحساب المال.
+
+163. أي تغيير DB ناتج عن ق-91 يبدأ من Migration 078+.
+
+164. ق-91 لا يعتبر منفذًا قبل إغلاق م-26 باختبارات دائمة
+واختبارات Android المطلوبة.

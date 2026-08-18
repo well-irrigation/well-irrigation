@@ -326,3 +326,53 @@ Offline لا يغير API Boundary.
 
 Local pending count يبقى مشتقًا من Local Outbox ولا يحتاج
 نسخه إلى جدول خادمي فقط لأجل العرض.
+
+## 16. ق-91 — Active Session Contracts
+
+UX-11 يحتاج Active Session Read Model موحدًا.
+
+Flutter لا يجمع:
+
+- irrigation_sessions.
+- session_segments.
+- payments.
+- pricing.
+
+مباشرة من schemas الداخلية.
+
+إذا العقود الحالية لا تكفي، يضاف Typed Read Contract
+داخل `api.*`.
+
+يجب أن يوفر فقط ما يحتاجه المستخدم وفق صلاحياته.
+
+### Write gaps
+
+العقود الحالية يعاد استخدامها متى كانت مطابقة للقرار.
+
+الفجوات التي تحتاج Migration 078+ حسب الفحص:
+
+- Pause Detail Reason.
+- Resume With New Energy.
+- Offline-idempotent wrappers.
+- Active payment coordination.
+- Fuel Billing correction وفق ق-17.
+
+### Financial contract
+
+لا يجوز لعقد API جديد إرجاع Farmer Accrued Amount
+يتضمن Fuel Charge منفصلًا يخالف ق-17.
+
+Live/Complete/Invoice contracts يجب أن تتفق على نفس
+المبلغ والسياسة.
+
+### Security
+
+كل عقد جديد:
+
+- typed.
+- SECURITY INVOKER عند Read Contract المناسب.
+- write عبر Business Procedure موثوقة.
+- anon blocked.
+- no Direct DML.
+- deterministic authorization.
+- permanent tests.

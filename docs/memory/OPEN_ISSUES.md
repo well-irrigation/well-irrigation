@@ -394,3 +394,46 @@ Duplicate أو Data Loss.
 Force Stop / Restricted Mode يجب أن يكونا موثقين
 ومعروضين للمستخدم بوصفهما حدود منصة لا يمكن تجاوزها
 بصورة مضمونة.
+
+---
+
+## م-26 — Active Session Contract and Billing Consistency
+
+**الحالة:** مفتوحة — 2026-08-18
+**القرار الحاكم:** ق-91
+**UX:** UX-11
+**الأولوية:** حرجة قبل تنفيذ شاشة الجلسة الإنتاجية
+
+### التعارض المالي
+
+ق-17 يفرض:
+
+- Diesel inclusive hourly billing.
+- الوقود تكلفة/رقابة فقط.
+- لا Fuel Billing منفصل للمزارع.
+
+Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
+داخل إجمالي Session Charge.
+
+يجب تصحيح التنفيذ في Migration 078+ أو أحدث،
+ولا تعدل Migration 066 نفسها.
+
+### فجوات العقد
+
+- Active Session Read Contract.
+- Pause Detail Reason.
+- Atomic Resume With New Energy.
+- إثبات Complete While Paused.
+- Live Accrued Amount inputs.
+- Payment/Advance reconciliation.
+- Offline idempotent session actions.
+
+### لا تغلق قبل
+
+- اختبار أن الوقود لا يضاف فوق السعر الشامل.
+- اختبار Live Amount = Completion policy.
+- اختبار Completion = Invoice policy.
+- اختبار Pause/Resume/New Energy.
+- اختبار Complete From Pause.
+- اختبار Offline replay دون duplicate.
+- Android process death/reboot verification.

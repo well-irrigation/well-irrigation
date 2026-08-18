@@ -81,6 +81,7 @@
 | ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ عقود البحث/farm dedup/operator farm/payment orchestration Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md` | معتمد؛ Migration 078+ وFlutter Pending |
 | ق-89 | Offline field operations + Android persistent background sync | Server sync foundation موجود؛ Mobile DB/outbox/worker/idempotent offline contracts غير منفذة | `ANDROID_OFFLINE_BACKGROUND_SYNC.md` + permanent/backend/Android field tests مطلوبة | معتمد؛ Stage 7 implementation Pending |
 | ق-90 | Device Readiness + sync transparency + non-blocking field UX | UX-10 موثق؛ local evaluator/status UI/reminders غير منفذة | Android integration + readiness/sync acceptance tests مطلوبة | معتمد؛ Flutter/Android Pending |
+| ق-91 | Active session UX + live amount + fuel-billing consistency | Session/segments backend foundation موجود؛ Fuel billing conflict وactive read/pause detail/resume-new-energy Pending | `ACTIVE_SESSION_ARCHITECTURE.md` + م-26 + backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 
@@ -160,3 +161,28 @@ integration + field verification.
 
 ق-90 لا يغلق إذا كانت الشاشة شكلية ولا تعكس الحالة
 الفعلية للـLocal DB وOutbox وWorker.
+
+## Stage 7 — التزامات UX-11 / ق-91
+
+| المتطلب | الحالة الحالية | شرط الإغلاق |
+| --- | --- | --- |
+| Active Session Read Model | غير مكتمل | typed api read contract |
+| Billable timer | backend segments foundation موجود | Flutter + reconciliation test |
+| Live accrued amount | foundation موجود | same policy as completion |
+| Pricing Pending | موثق | no fake zero/estimate |
+| Active payment display | جزئي | local pending vs server posted |
+| Pause | موجود | UX + Offline integration |
+| Pause detail reason | غير موجود | Migration 078+ |
+| Resume | موجود | preserve previous source/rate |
+| Resume with new energy | غير موجود ذريًا | Migration 078+ |
+| Change energy | موجود | q17-consistent pricing |
+| Complete while paused | يحتاج إثبات | permanent test/fix |
+| Fuel billing | **متعارض مع ق-17 في 066** | correct in 078+ |
+| Offline actions | server foundation جزئي | mobile outbox + idempotent contracts |
+| Process death/reboot recovery | غير منفذ | Android acceptance |
+| Double-tap protection | غير منفذ end-to-end | local + server idempotency |
+| Financial chain consistency | غير مثبت | live=complete=invoice policy |
+| Open issue | م-26 | must close before production UX-11 |
+
+وجود Migration 066 لا يعني أن Fuel Billing الحالية
+مقبولة؛ DECISIONS.md وق-17 وق-91 هي السلطة الحاكمة.
