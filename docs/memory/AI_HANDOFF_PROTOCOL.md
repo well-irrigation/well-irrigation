@@ -1,6 +1,6 @@
 # AI Handoff Protocol — بروتوكول تسليم المشروع
 
-**القرار الحاكم:** ق-93
+**القرارات الحاكمة:** ق-93، ق-95، ق-96
 **آخر تحديث:** 2026-08-18
 **الحالة:** نافذ
 
@@ -27,16 +27,18 @@
 1. `docs/README.md`
 2. `docs/PROJECT_MAP.md`
 3. `docs/memory/AI_HANDOFF_PROTOCOL.md`
-4. `docs/memory/RESUME_POINT.md`
-5. `docs/memory/DECISIONS.md`
-6. `docs/technical/INVARIANTS.md`
-7. `docs/technical/API_ARCHITECTURE.md`
-8. `docs/technical/SYNC_ARCHITECTURE.md`
-9. `docs/technical/DECISION_IMPLEMENTATION_MATRIX.md`
-10. الوثيقة التقنية الخاصة بالموضوع الحالي
-11. القسم الحالي من `docs/design/UX_UI_SPEC.md`
-12. `docs/memory/OPEN_ISSUES.md`
-13. `docs/memory/REMINDERS.md`
+4. `docs/memory/AI_COLLABORATION_PROTOCOL.md`
+5. `docs/memory/TERMINAL_COMMAND_PROTOCOL.md`
+6. `docs/memory/RESUME_POINT.md`
+7. `docs/memory/DECISIONS.md`
+8. `docs/technical/INVARIANTS.md`
+9. `docs/technical/API_ARCHITECTURE.md`
+10. `docs/technical/SYNC_ARCHITECTURE.md`
+11. `docs/technical/DECISION_IMPLEMENTATION_MATRIX.md`
+12. الوثيقة التقنية الخاصة بالموضوع الحالي
+13. القسم الحالي من `docs/design/UX_UI_SPEC.md`
+14. `docs/memory/OPEN_ISSUES.md`
+15. `docs/memory/REMINDERS.md`
 
 بعد ذلك فقط تستخدم:
 
@@ -222,3 +224,27 @@
 كمصدر وحيد.
 
 هذه القاعدة هي الغرض الأساسي من ق-93.
+
+## 11. كيف يعمل النموذج بعد الاستلام
+
+بعد قراءة هذا الملف يجب قراءة:
+
+`AI_COLLABORATION_PROTOCOL.md`
+
+لفهم:
+
+- أسلوب الحوار.
+- منهج القرار.
+- طريقة عرض التوصيات.
+- Workflow الاعتماد والتوثيق.
+- طريقة التعامل مع التعارض والفجوات.
+- الفرق بين Adopted/Documented/Implemented/Verified.
+
+ثم يقرأ:
+
+`TERMINAL_COMMAND_PROTOCOL.md`
+
+قبل كتابة أي أمر للمالك.
+
+هذا يمنع أن يعرف النموذج «ماذا يفعل» لكنه يجهل
+«كيف نعمل».

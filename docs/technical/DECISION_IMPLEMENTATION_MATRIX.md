@@ -85,6 +85,8 @@
 | ق-92 | Session completion + invoice + payment settlement consistency | Complete/invoice/payment procedures موجودة منفصلة؛ orchestration وoffline settlement Pending | `SESSION_SETTLEMENT_ARCHITECTURE.md` + م-26 + م-27 | معتمد؛ Migration 078+ وFlutter Pending |
 | ق-93 | Documentation continuity + AI handoff protocol | `AI_HANDOFF_PROTOCOL.md` + تحديث مصادر الذاكرة | Git/doc consistency checks | نافذ؛ لا Migration |
 | ق-94 | Consolidated remaining UX discussions UX-13..UX-17 | UX roadmap + RESUME_POINT | اكتمال مناقشة كل حزمة قبل Production UI | معتمد؛ لا Migration بحد ذاته |
+| ق-95 | AI collaboration/work method protocol | `AI_COLLABORATION_PROTOCOL.md` + handoff/map updates | Documentation contract checks | نافذ؛ لا Migration |
+| ق-96 | Terminal command + recovery protocol | `TERMINAL_COMMAND_PROTOCOL.md` + invariants | Git/recovery contract checks | نافذ؛ لا Migration |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 

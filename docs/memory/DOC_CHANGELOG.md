@@ -451,3 +451,47 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 - دمج المناقشات المتبقية إلى UX-13..UX-17.
 
 **السبب:** ق-93 وق-94.
+
+## تحديث 2026-08-18 — ق-95 وق-96 / توثيق طريقة العمل
+
+**السبب:** المالك طلب ألا يقتصر تسليم المشروع على
+القرارات والملفات، بل يشمل طريقة التفكير القابلة
+للمراجعة، العرض، أسلوب الحوار، وطريقة كتابة الأوامر.
+
+**الملفات الجديدة:**
+
+- `memory/AI_COLLABORATION_PROTOCOL.md`
+- `memory/TERMINAL_COMMAND_PROTOCOL.md`
+
+**الملفات المحدثة:**
+
+- `README.md`
+- `PROJECT_MAP.md`
+- `memory/AI_HANDOFF_PROTOCOL.md`
+- `memory/DECISIONS.md`
+- `memory/PROGRESS.md`
+- `memory/RESUME_POINT.md`
+- `technical/INVARIANTS.md`
+- `technical/DECISION_IMPLEMENTATION_MATRIX.md`
+- `memory/DOC_CHANGELOG.md`
+
+**ما تم تثبيته:**
+
+- دور النموذج في المشروع.
+- مستوى الشرح واللغة.
+- منهج اتخاذ القرار.
+- تسجيل الأسباب والأدلة.
+- UX workflow.
+- دلالة «اعتمد».
+- الانتقال المباشر بعد الإغلاق.
+- الفصل بين UX numbers وQ decisions.
+- التعامل مع التعارضات والفجوات.
+- التعامل مع مخرجات الطرفية.
+- أسلوب كتابة الأوامر.
+- Subshell و`set -e`.
+- منع Base64 الافتراضي.
+- منع Nested Code Fences.
+- Recovery بعد الفشل.
+- Lessons Learned من الحوادث السابقة.
+
+**القرارات المبررة:** ق-95، ق-96.

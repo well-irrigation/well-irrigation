@@ -396,3 +396,26 @@ Migration 075 ولا أي هجرة مطبقة سابقة.
 
 الخطوة التالية:
 مناقشة الصفحات والأقسام ثم تنفيذ المعتمد منها.
+
+## 2026-08-18 — توثيق منهج العمل نفسه — ق-95 وق-96
+
+**تم وثبت:**
+
+- إضافة `AI_COLLABORATION_PROTOCOL.md`.
+- إضافة `TERMINAL_COMMAND_PROTOCOL.md`.
+- توثيق أسلوب الحوار والشرح.
+- توثيق منهج القرار القابل للمراجعة.
+- توثيق Workflow مناقشة/اعتماد/توثيق UX.
+- توثيق الفصل بين Adopted/Documented/Implemented/Verified.
+- توثيق طريقة قراءة Terminal Output.
+- توثيق Shell safety.
+- توثيق أسلوب كتابة Command Block.
+- توثيق منع Base64 افتراضيًا.
+- توثيق منع Nested Markdown Fences.
+- توثيق Expected HEAD وWorktree guards.
+- توثيق Recovery حسب مرحلة الفشل.
+- توثيق Lessons Learned من حوادث الطرفية السابقة.
+
+هذه دفعة توثيقية فقط.
+
+لم تغير أرقام Baseline الخاصة باختبارات قاعدة البيانات.

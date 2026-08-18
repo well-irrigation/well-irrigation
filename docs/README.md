@@ -43,13 +43,15 @@
 1. `README.md`
 2. `PROJECT_MAP.md`
 3. `memory/AI_HANDOFF_PROTOCOL.md`
-4. `memory/RESUME_POINT.md`
-5. `memory/DECISIONS.md`
-6. `technical/INVARIANTS.md`
-7. الوثائق التقنية التي يشير إليها `PROJECT_MAP.md`
-8. `design/UX_UI_SPEC.md` عند العمل على الواجهات
-9. `memory/OPEN_ISSUES.md`
-10. `memory/REMINDERS.md`
+4. `memory/AI_COLLABORATION_PROTOCOL.md`
+5. `memory/TERMINAL_COMMAND_PROTOCOL.md`
+6. `memory/RESUME_POINT.md`
+7. `memory/DECISIONS.md`
+8. `technical/INVARIANTS.md`
+9. الوثائق التقنية التي يشير إليها `PROJECT_MAP.md`
+10. `design/UX_UI_SPEC.md` عند العمل على الواجهات
+11. `memory/OPEN_ISSUES.md`
+12. `memory/REMINDERS.md`
 
 للتاريخ فقط:
 
@@ -94,6 +96,14 @@
 ### كيف يستلم نموذج ذكاء اصطناعي المشروع؟
 
 `memory/AI_HANDOFF_PROTOCOL.md`
+
+### كيف نتناقش ونتخذ القرارات؟
+
+`memory/AI_COLLABORATION_PROTOCOL.md`
+
+### كيف تكتب أوامر الطرفية؟
+
+`memory/TERMINAL_COMMAND_PROTOCOL.md`
 
 ## قاعدة مهمة
 
