@@ -546,3 +546,61 @@ Commit جديدًا.
 239. فشل Documentation Gate يبقي العمل في الموضوع الحالي.
 
 240. ق-97 يكمل ق-93 وق-95 وق-96 ولا ينسخها.
+
+## ق-98 — ثوابت سجلات التشغيل والحجوزات والتسليم
+
+241. تعطيل كيان لا يمحو ظهوره من السجل التاريخي.
+
+242. Closed Session لا تعدل مباشرة.
+
+243. Smart Lookup في UX-13 يعيد استخدام ق-88.
+
+244. Farm تتبع Farmer Well Account وفق ق-80.
+
+245. Hard Delete ليس مسار UX عاديًا لكيان له تاريخ.
+
+246. Booking محفوظ Offline لا يعني Booking مؤكدة.
+
+247. Backend هو السلطة النهائية لتعارض الموارد.
+
+248. Business Booking State وSync State مستقلان.
+
+249. Retry لا ينشئ Booking مكررًا.
+
+250. Retry لا ينشئ Resource Reservation مكررة.
+
+251. Booking mutation/history/reservation يجب أن تكون
+متسقة ذريًا أو بضمانات مكافئة.
+
+252. Session Start من Booking يحتاج فعلًا صريحًا.
+
+253. حلول الموعد لا يبدأ Session تلقائيًا.
+
+254. لا Normal Close Shift مع Active Session غير محسومة.
+
+255. اختيار المشغل المستلم لا ينقل المسؤولية وحده.
+
+256. Session Responsibility Transfer يحتاج Receiver Acceptance.
+
+257. Rejected Transfer يبقي المسؤولية على المرسل.
+
+258. Operational Transfer لا يساوي Cash Handover.
+
+259. Cash Handover الحالي وتأكيد المالك لا يستخدمان كبديل
+لقبول المسؤولية التشغيلية.
+
+260. Owner open-session close bypass الحالي لا يدخل Flutter
+العادي وفق ق-98.
+
+261. أي إصلاح لهذا التعارض يبدأ من Migration 078+.
+
+262. Flutter لا يجمع السجل التشغيلي من الجداول الداخلية
+مباشرة إذا كان يلزم Read Model موحد.
+
+263. كل Write جديد يمر عبر `api.*`.
+
+264. Offline shift/transfer actions تحتاج Stable Command IDs.
+
+265. UX-13 لا تعتبر Production Complete قبل إغلاق م-28.
+
+266. لا تتغير أرقام Baseline التقنية دون اختبار جديد.

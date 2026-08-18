@@ -677,3 +677,22 @@ Offline Start Session عند الحاجة.
 - Session dependent تبقى محفوظة ولا تضيع.
 
 كل Offline create يحتاج Command ID ثابتًا أيضًا.
+
+## ق-98 / UX-13 — إعادة استخدام Smart Lookup
+
+UX-13 لا تنشئ Search Engine جديدًا.
+
+نفس قواعد ق-88 تستخدم في:
+
+- farmer list/select.
+- farm select.
+- session history filters.
+- booking filters.
+- operator filters.
+
+قواعد إضافية:
+
+- inactive entities لا تظهر افتراضيًا للاختيار الجديد.
+- لكنها تبقى قابلة للعرض في التاريخ.
+- Search text لا ينشئ كيانًا.
+- Merge يحفظ جميع الروابط التاريخية.

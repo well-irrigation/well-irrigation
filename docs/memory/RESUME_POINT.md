@@ -96,6 +96,15 @@
 - ق-97: `DOCUMENTATION_GATE.md` بوابة إلزامية؛ لا انتقال
   لأي موضوع جديد قبل اكتمال القرار والسبب والفجوات والسجلات
   ونقطة الاستئناف وGit closure.
+- ق-98: UX-13 توحد سجل الجلسات والمزارعين والأراضي
+  والحجوزات والمناوبات والتسليم التشغيلي.
+- ق-98: Booking Offline يبقى «بانتظار تأكيد الموعد» حتى
+  قبول Backend؛ Local save لا يساوي Confirmed.
+- ق-98: لا Normal Close Shift مع جلسة جارية غير محسومة،
+  ونقل المسؤولية يحتاج قبول المشغل المستلم.
+- ق-98: Operational Transfer منفصل عن Cash Handover.
+- م-28: Booking/History/Reservation atomicity وOffline booking
+  وno-orphan shift contracts مفتوحة قبل UX-13 الإنتاجية.
 - م-25: تنفيذ Android Offline/Background Sync مفتوح وحرج.
 - م-26: Active Session Contract وFuel Billing consistency
   مفتوحة وحرجة قبل UX-11/UX-12 الإنتاجية.
@@ -189,8 +198,8 @@
   له بيانات مزارع مرتبطة بهويته صراحة.
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
-  UX-02/03/08/09/10/11/12
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92 غير منفذة؛
+  UX-02/03/08/09/10/11/12/13
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -217,35 +226,29 @@
 
 ## التالي
 
-**UX-13 — Operations, Records & Farmers / التشغيل والسجلات والمزارعون.**
+**UX-14 — Money & Partners / المال والشركاء.**
 
-هذه أول حزمة من خمس حزم متبقية وفق ق-94.
-
-تشمل دفعة واحدة:
-
-- تفاصيل وسجل جلسات السقي.
-- المزارعين.
-- الأراضي.
-- الحجوزات.
-- المشغلين.
-- المناوبات.
-- التسليم.
-- البحث والتصفية.
-- Timeline التشغيل.
-- حالات Sync وConflict المتعلقة بهذه المسارات.
-
-بعدها:
+هذه ثاني حزمة من الخمس وفق ق-94، وبعد إغلاق UX-13
+ببوابة ق-97 أصبح المتبقي أربع مناقشات:
 
 - UX-14: Money & Partners.
 - UX-15: Well Management & Reports.
 - UX-16: Account, Settings & Administration.
 - UX-17: Final Cross-Cutting Review.
 
-ق-92 وUX-12 موثقان.
-ق-93 وق-94 يحكمان التوثيق وخطة النقاش.
-ق-95 وق-96 يحكمان أسلوب التعاون وكتابة الأوامر.
-ق-97 يحكم بوابة اكتمال التوثيق قبل أي انتقال.
-م-25 وم-26 وم-27 والتنفيذ التقني المطلوب ما زال Pending.
+UX-13 معتمدة حتى القرار 407.
+
+ق-98 يحكم:
+
+- الحفاظ على السجل التاريخي.
+- Booking server confirmation.
+- Offline tentative booking.
+- Smart Lookup reuse.
+- no-orphan active session.
+- receiver-accepted session transfer.
+- فصل Operational Transfer عن Cash Handover.
+
+م-25 وم-26 وم-27 وم-28 والتنفيذ التقني المطلوب ما زال Pending.
 
 لا تُغيّر أرقام الـbaseline إلا بدليل تحقق جديد.
 

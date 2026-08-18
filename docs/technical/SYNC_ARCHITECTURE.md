@@ -413,3 +413,42 @@ Settlement تصبح Review/Conflict حتى الحسم المناسب.
 المصدر التفصيلي:
 
 `technical/SESSION_SETTLEMENT_ARCHITECTURE.md`.
+
+## ق-98 — Bookings, Shifts and Operational Records
+
+### Offline Booking
+
+حفظ طلب الحجز محليًا مسموح.
+
+لكن:
+
+    local saved
+        !=
+    server confirmed
+
+يظل المستخدم يرى «بانتظار تأكيد الموعد» حتى Server ACK.
+
+### Booking conflict
+
+إذا رفض الخادم المورد/الوقت عند Replay:
+
+- لا يحذف الطلب المحلي.
+- لا يضع Confirmed كاذبة.
+- ينتقل إلى Conflict/Review.
+- يسمح بإعادة الجدولة.
+
+### Shift/Transfer replay
+
+المناوبة ونقل مسؤولية الجلسة يحتاجان:
+
+- Stable Command ID.
+- ordered per-well/per-session replay.
+- idempotent server acceptance.
+- no duplicate transfer.
+- no duplicate shift.
+- no orphan active session.
+
+### Historical records
+
+Sync لا يحذف Display Context لسجل قديم لمجرد أن
+Farmer/Farm/Operator أصبح Inactive.

@@ -533,3 +533,45 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 
 **نوع الدفعة:** توثيقية فقط؛ لا تغيير في Baseline
 اختبارات قاعدة البيانات.
+
+## تحديث 2026-08-18 — UX-13 / ق-98
+
+**المجال:** التشغيل والسجلات والمزارعون والحجوزات والمناوبات.
+
+**السبب:**
+
+اعتماد UX-13 من القرار 373 إلى 407، مع الحاجة إلى حفظ
+الأسباب والتعارضات الحالية وفق Documentation Gate ق-97.
+
+**الملف الجديد:**
+
+- `technical/OPERATIONS_RECORDS_ARCHITECTURE.md`
+
+**الملفات المحدثة:**
+
+- `design/UX_UI_SPEC.md`
+- `memory/DECISIONS.md`
+- `memory/OPEN_ISSUES.md`
+- `memory/PROGRESS.md`
+- `memory/RESUME_POINT.md`
+- `PROJECT_MAP.md`
+- `technical/API_ARCHITECTURE.md`
+- `technical/SYNC_ARCHITECTURE.md`
+- `technical/SEARCH_DEDUP_ARCHITECTURE.md`
+- `technical/INVARIANTS.md`
+- `technical/DECISION_IMPLEMENTATION_MATRIX.md`
+
+**قرارات/قواعد مهمة موثقة:**
+
+- حفظ التاريخ وعدم Hard Delete للسجلات المستخدمة.
+- Booking Offline غير Confirmed حتى Backend.
+- Backend يحسم Resource Conflict.
+- Smart Lookup يعاد استخدامه.
+- Transfer يحتاج قبول المستلم.
+- Shift لا يغلق عاديًا مع Active Session غير محسومة.
+- Cash Handover منفصل عن Operational Responsibility.
+- تسجيل تعارض `p_allow_open_sessions` الحالي في م-28.
+
+**القرار المبرر:** ق-98.
+
+**نوع الدفعة:** توثيقية فقط؛ Baseline الاختبارات لم يتغير.

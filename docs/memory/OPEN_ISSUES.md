@@ -479,3 +479,70 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - Offline completion reaches same canonical result.
 - no data loss after Process Death/Reboot.
 - permanent Backend and Android tests.
+
+---
+
+## م-28 — Operations Records, Booking and Handover Consistency
+
+**الحالة:** مفتوحة — 2026-08-18
+**القرار الحاكم:** ق-98
+**UX:** UX-13
+**الأولوية:** حرجة قبل UX-13 الإنتاجية
+
+### الأساس الموجود
+
+- Booking tables/status history موجودة.
+- Resource reservation foundation موجودة.
+- Farmer/Farm consistency موجودة بق-80/075.
+- Shift/session transfer موجود.
+- Shift reports موجودة.
+- Critical shift API wrappers موجودة.
+
+### الفجوات
+
+1. لا يوجد حتى الفحص الحالي Booking Contract مكتمل
+   ومخصص لـFlutter داخل `api.*`.
+
+2. Booking mutation وStatus History وResource Reservation
+   ليست موثقة كعملية ذرية واحدة.
+
+3. Offline Booking Confirmation وConflict Reconciliation
+   غير منفذين.
+
+4. Stable Command ID للحجوزات والتغييرات غير مثبت.
+
+5. Session History Read Model المطلوب لـUX-13 غير موجود.
+
+6. Farmer/Farm list/detail typed read contracts المطلوبة
+   للواجهة غير مكتملة.
+
+7. Farmer deactivation/archive contract يحتاج فحصًا أو
+   تنفيذًا؛ Hard Delete مرفوض.
+
+8. Operational Handover Summary غير موجود كعقد واضح.
+
+9. Cash Handover الحالي يجب ألا يخلط مع Operational
+   Responsibility Transfer.
+
+10. `api.close_shift(..., p_allow_open_sessions=true)`
+    يسمح للمالك حاليًا بتجاوز الجلسات المفتوحة.
+
+11. هذا التجاوز يتعارض مع ق-98 للمسار العادي ويجب منعه
+    عن Flutter في Migration 078+.
+
+12. Shift/session transfer Offline idempotency غير مثبتة.
+
+### لا تغلق قبل
+
+- Booking API contract tests.
+- atomic booking/history/reservation tests.
+- two-device booking conflict test.
+- booking retry/idempotency test.
+- historical inactive entity visibility test.
+- no-hard-delete behavior.
+- no-orphan active session test.
+- receiver accept/reject transfer tests.
+- no normal owner bypass through app contract.
+- Offline process death/retry tests.
+- permission tests.
+- no Direct DML verification.

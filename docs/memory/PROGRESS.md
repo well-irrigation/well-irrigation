@@ -436,3 +436,25 @@ Migration 075 ولا أي هجرة مطبقة سابقة.
 
 لم تشغل اختبارات قاعدة البيانات في هذه الدفعة،
 لذلك لا تتغير أرقام Baseline التقنية المثبتة.
+
+## 2026-08-18 — اعتماد وتوثيق UX-13 / ق-98
+
+**المنجز المثبت في هذه الدفعة التوثيقية:**
+
+- اعتماد قرارات UX-13 من 373 إلى 407.
+- توثيق سجل جلسات السقي.
+- توثيق Farmer/Farm UX.
+- توثيق Booking UX.
+- توثيق Shift/Handover UX.
+- توثيق Offline booking pending confirmation.
+- توثيق no-orphan active session rule.
+- توثيق فصل Operational Transfer عن Cash Handover.
+- إنشاء `OPERATIONS_RECORDS_ARCHITECTURE.md`.
+- فتح م-28 للفجوات التنفيذية.
+- تحديث API/Sync/Search architecture references.
+- الانتقال المخطط إلى UX-14 بعد Documentation Gate.
+
+هذه دفعة توثيقية فقط.
+
+لم تنفذ Migration 078 ولم تشغل اختبارات قاعدة بيانات
+جديدة، لذلك يبقى Baseline التقني السابق دون تغيير.

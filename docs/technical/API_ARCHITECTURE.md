@@ -412,3 +412,29 @@ Flutter لا يستدعي سلسلة عمليات مالية مستقلة بطر
 - no Direct DML.
 - least privilege.
 - permanent acceptance tests.
+
+## ق-98 — Operations Records and Booking Contracts
+
+UX-13 يحتاج Typed Contracts إضافية داخل `api.*`.
+
+المطلوب حسب الحاجة:
+
+- session history read.
+- farmer list/detail.
+- farm list/detail.
+- booking list/detail.
+- create/reschedule/cancel booking.
+- booking reconciliation result.
+- operational handover summary.
+- shift/session-transfer retry-safe contracts.
+
+القواعد:
+
+1. Flutter لا يكتب `ops.irrigation_bookings` مباشرة.
+2. Flutter لا يكتب `booking_status_history` مباشرة.
+3. تأكيد الحجز النهائي خادمي.
+4. Booking + history + reservation يجب أن تتسق ذريًا.
+5. Shift Close العادي لا يتجاوز Active Session.
+6. Cash Handover وOperational Transfer عقدان مختلفان.
+7. كل write حساس يحتاج auth-derived actor وصلاحية.
+8. أي عقد جديد يبدأ من Migration 078+.

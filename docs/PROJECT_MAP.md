@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-97.
+آخر قرار مرقم حاليًا: ق-98.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -171,6 +171,7 @@
 - UX-10 / Device Readiness & Sync Status: معتمد وموثق.
 - UX-11 / Active Irrigation Session: معتمد وموثق.
 - UX-12 / Session Completion & Settlement: معتمد وموثق.
+- UX-13 / Operations, Records & Farmers: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
 - ق-90 / Device Readiness وSync Transparency: معتمد.
@@ -179,7 +180,7 @@
 
 الخطوة التالية:
 
-UX-13 / Operations, Records & Farmers.
+UX-14 / Money & Partners.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -439,3 +440,22 @@ UX-13 / Operations, Records & Farmers.
 - Git closure.
 - Meta-documentation.
 - Traceability.
+
+### سجلات التشغيل والحجوزات والمناوبات
+
+ق-98 ثم:
+
+`technical/OPERATIONS_RECORDS_ARCHITECTURE.md`
+
+المصدر يحدد:
+
+- Session history.
+- Farmer/Farm records.
+- Booking server confirmation.
+- Offline tentative booking.
+- Resource conflicts.
+- Shift lifecycle.
+- Session responsibility transfer.
+- Operational vs Cash Handover.
+- no-orphan active session.
+- م-28.

@@ -88,6 +88,7 @@
 | ق-95 | AI collaboration/work method protocol | `AI_COLLABORATION_PROTOCOL.md` + handoff/map updates | Documentation contract checks | نافذ؛ لا Migration |
 | ق-96 | Terminal command + recovery protocol | `TERMINAL_COMMAND_PROTOCOL.md` + invariants | Git/recovery contract checks | نافذ؛ لا Migration |
 | ق-97 | Mandatory documentation completeness gate | `DOCUMENTATION_GATE.md` + governance protocol integration | documentation contract + Git closure | نافذ؛ لا Migration |
+| ق-98 | Operations records + farmers/farms + booking confirmation + shift handover consistency | 032/033/042/045/074/075 foundations موجودة؛ typed booking/history/handover/offline contracts ناقصة | `OPERATIONS_RECORDS_ARCHITECTURE.md` + م-28 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 
@@ -215,3 +216,23 @@ integration + field verification.
 
 UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 `issue_session_invoice` كدالتين منفصلتين.
+
+## Stage 7 — التزامات UX-13 / ق-98
+
+| المتطلب | الموجود | المتبقي قبل Production |
+| --- | --- | --- |
+| Session history | session foundation موجود | typed history read model |
+| Farmer identity | ق-80/075 | list/detail UI contracts |
+| Farm archive | active/inactive موجود | API + UX behavior |
+| Farmer archive | يحتاج تحقق | explicit non-destructive contract |
+| Booking table/status | 032 | typed API |
+| Booking history | موجود منفصلًا | atomic transition contract |
+| Resource conflict | 033 | booking orchestration + concurrency tests |
+| Offline booking | غير منفذ | pending-confirmation + reconciliation |
+| Shift foundation | 042 | Mobile UX/read state |
+| Shift API | 074 موجود | retry/idempotency improvements |
+| Session transfer | accept/reject موجود | Offline idempotency |
+| Shift close bypass | owner override موجود | block from normal app contract |
+| Cash handover | موجود/owner-confirmed | keep separate from operational transfer |
+| Shift report | 045 موجود | reuse where applicable |
+| M-28 | مفتوحة | must close |
