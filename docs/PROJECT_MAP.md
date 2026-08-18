@@ -38,12 +38,22 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-92.
+آخر قرار مرقم حاليًا: ق-94.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
 
 لا تستخدم snapshot أقدم داخل PROGRESS أو DOC_CHANGELOG لتحديد الخطوة التالية.
+
+### استلام المشروع بواسطة نموذج ذكاء اصطناعي
+
+ابدأ بـ:
+
+`memory/AI_HANDOFF_PROTOCOL.md`
+
+هذا الملف يحدد ترتيب القراءة وعقد تحديث الوثائق.
+
+لا يحل محل مصادر الحقيقة في ترتيب السلطة.
 
 ### البيئة الفعلية
 `technical/ENVIRONMENT.md` فقط.
@@ -125,9 +135,19 @@
 
 الخطوة التالية:
 
-UX-13 / Irrigation Session Details & History.
+UX-13 / Operations, Records & Farmers.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
+
+### خارطة UX المتبقية — ق-94
+
+- UX-13: Operations, Records & Farmers.
+- UX-14: Money & Partners.
+- UX-15: Well Management & Reports.
+- UX-16: Account, Settings & Administration.
+- UX-17: Final Cross-Cutting Review.
+
+هذه الحزم تختصر النقاش ولا تختصر المتطلبات.
 
 ### البحث والاختيار الذكي ومنع التكرار
 

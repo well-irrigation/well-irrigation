@@ -1,6 +1,6 @@
 # سجل تغييرات الوثائق
 
-**آخر تحديث:** 2026-08-13
+**آخر تحديث:** 2026-08-18
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 
@@ -400,3 +400,54 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 لم يبدأ تنفيذ واجهات إنتاجية نتيجة هذا القرار.
 
 **القرار المبرر:** ق-83.
+
+## تحديث 2026-08-18 — Stage 7 UX وOffline والتسوية
+
+**المجال:** توثيق UX-00 إلى UX-12 والقرارات حتى ق-92.
+
+**ما تغير:**
+
+- اعتماد وتوثيق هوية Stage 7.
+- توثيق Splash/Login/Onboarding/Role routing/Home.
+- توثيق Operations وSmart Lookup ومنع التكرار.
+- توثيق Offline Field Operations وAndroid Background Sync.
+- توثيق Device Readiness وSync Status.
+- توثيق Active Irrigation Session.
+- توثيق Session Completion & Settlement.
+- إضافة معماريات تقنية منفصلة للبحث وOffline والجلسة
+  الجارية والتسوية.
+- فتح م-25 وم-26 وم-27 للفجوات التي لا يجوز نسيانها.
+- إبقاء Migration 078+ كنقطة أول تغيير DB جديد.
+
+**السبب:** القرارات ق-83 إلى ق-92 ومنهج
+مناقشة → اعتماد → توثيق → انتقال.
+
+**ملاحظة:** دفعات UX كانت توثيقية؛ لم تغير Baseline
+اختبارات قاعدة البيانات المثبت سابقًا.
+
+## تحديث 2026-08-18 — ق-93 وق-94
+
+**الملفات الرئيسية:**
+
+- `README.md`
+- `PROJECT_MAP.md`
+- `memory/AI_HANDOFF_PROTOCOL.md`
+- `memory/DECISIONS.md`
+- `memory/PROGRESS.md`
+- `memory/DOC_CHANGELOG.md`
+- `memory/RESUME_POINT.md`
+- `design/UX_UI_SPEC.md`
+- `technical/INVARIANTS.md`
+- `technical/DECISION_IMPLEMENTATION_MATRIX.md`
+
+**ما تغير:**
+
+- إنشاء بروتوكول رسمي لتسليم المشروع لأي نموذج AI.
+- إزالة Snapshot المتقادم من README وتحويله إلى مدخل ثابت.
+- تحديث سجل التقدم إلى 2026-08-18.
+- تسجيل الإنجازات التصميمية دون وصفها كتنفيذ.
+- تثبيت أن RESUME_POINT هو نقطة التوقف الوحيدة.
+- تثبيت Contract لتحديث ملفات الذاكرة في كل دفعة.
+- دمج المناقشات المتبقية إلى UX-13..UX-17.
+
+**السبب:** ق-93 وق-94.
