@@ -259,3 +259,51 @@ Background Work ويجب شرحهما للمستخدم.
 
 120. لا يعتبر ق-89 منفذًا قبل اختبارات Android الفعلية
 للشبكة والبطارية وإعادة التشغيل والـRetry.
+
+## ق-90 — ثوابت جاهزية الجهاز وشفافية المزامنة
+
+121. Offline Readiness وBackground Sync Readiness
+وNotification Readiness حالات مستقلة.
+
+122. رفض الإشعارات لا يمنع Sync.
+
+123. Background Restriction لا يمنع Local Offline Work.
+
+124. لا يمنع التشغيل بسبب Pending Sync عادي.
+
+125. لا يمنع التشغيل بسبب Battery Restriction وحده.
+
+126. التشغيل يمنع إذا تعذر Durable Local Commit للعملية
+الحرجة.
+
+127. التشغيل يمنع إذا تعذر حفظ Stable Command ID للعملية.
+
+128. كل Sync State يعرض للمستخدم بنص مفهوم، وليس اللون
+وحده.
+
+129. Manual Sync إجراء مساعد، وليس شرط تشغيل.
+
+130. transient sync error يعاد تلقائيًا.
+
+131. business conflict يحتاج Review ولا يعاد بلا نهاية.
+
+132. Conflict لا يحذف Pending Command.
+
+133. Notification Permission ليست شرطًا لحفظ أو مزامنة
+بيانات الأعمال.
+
+134. Device Readiness لا يطلب صلاحية غير مستخدمة فعليًا.
+
+135. Manufacturer-specific guidance لا تعرض دون تحقق
+واختبار موثق.
+
+136. Force Stop لا يسمح بفقد Outbox أو Active Local Data.
+
+137. Unknown critical readiness لا يسمى Ready.
+
+138. أي دعم خادمي جديد لـSync Status يبقى عبر `api.*`.
+
+139. أي DB change ناتج عن ق-90 يبدأ من Migration 078+.
+
+140. ق-90 لا يعتبر منفذًا قبل Android integration
+والاختبار الميداني.

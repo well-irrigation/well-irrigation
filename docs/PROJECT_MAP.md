@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-89.
+آخر قرار مرقم حاليًا: ق-90.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -114,12 +114,14 @@
 - UX-07 / Role Section Cards: معتمد وموثق.
 - UX-08 / Operations Page: معتمد وموثق.
 - UX-09 / Session Start Form: معتمد وموثق.
+- UX-10 / Device Readiness & Sync Status: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
+- ق-90 / Device Readiness وSync Transparency: معتمد.
 
 الخطوة التالية:
 
-UX-10 / Device Readiness & Sync Status.
+UX-11 / Active Irrigation Session.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -144,7 +146,7 @@ UX-10 / Device Readiness & Sync Status.
 
 ### Android Offline والتشغيل الخلفي
 
-ق-89 ثم:
+ق-89 وق-90 ثم:
 
 `technical/ANDROID_OFFLINE_BACKGROUND_SYNC.md`
 

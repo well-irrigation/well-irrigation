@@ -80,6 +80,7 @@
 | ق-87 | التوجيه بعد الدخول حسب الدور | `api.app_bootstrap` أساس جزئي؛ UI routing Pending | UX-05 موثق | معتمد؛ Flutter Pending |
 | ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ عقود البحث/farm dedup/operator farm/payment orchestration Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md` | معتمد؛ Migration 078+ وFlutter Pending |
 | ق-89 | Offline field operations + Android persistent background sync | Server sync foundation موجود؛ Mobile DB/outbox/worker/idempotent offline contracts غير منفذة | `ANDROID_OFFLINE_BACKGROUND_SYNC.md` + permanent/backend/Android field tests مطلوبة | معتمد؛ Stage 7 implementation Pending |
+| ق-90 | Device Readiness + sync transparency + non-blocking field UX | UX-10 موثق؛ local evaluator/status UI/reminders غير منفذة | Android integration + readiness/sync acceptance tests مطلوبة | معتمد؛ Flutter/Android Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 
@@ -136,3 +137,26 @@
 
 لا يغلق ق-89 بوحدة اختبار DB فقط؛ يلزم Android
 integration + field verification.
+
+## Stage 7 — التزامات UX-10 / ق-90
+
+| المتطلب | الحالة الحالية | شرط الإغلاق |
+| --- | --- | --- |
+| Offline readiness evaluator | غير منفذ | local DB/outbox/session health |
+| Background sync readiness | غير منفذ | restriction/worker state UX |
+| Notification readiness | غير منفذ | permission/channel state UX |
+| Sync summary | غير منفذ | last success + pending + oldest pending |
+| Pending operations list | غير منفذ | human-readable local queue |
+| Per-session sync badge | غير منفذ | local_only/pending/synced/conflict |
+| Manual sync | غير منفذ | safe enqueue without duplication |
+| Automatic retry classification | غير منفذ | transient vs review-required |
+| Conflict review | غير منفذ | no blind retry loop |
+| Device setup flow | غير منفذ | only necessary settings |
+| Reminder dedup | غير منفذ | default 24h per unresolved issue |
+| Manufacturer guidance | غير منفذ | only tested guidance |
+| Force Stop recovery UX | غير منفذ | preserved queue on reopen |
+| Accessibility | غير منفذ | text+icon+color |
+| Field test | م-21 | battery/background/OEM scenarios |
+
+ق-90 لا يغلق إذا كانت الشاشة شكلية ولا تعكس الحالة
+الفعلية للـLocal DB وOutbox وWorker.

@@ -298,3 +298,31 @@ Offline لا يغير API Boundary.
 التفاصيل في:
 
 `technical/ANDROID_OFFLINE_BACKGROUND_SYNC.md`
+
+## 15. ق-90 — Sync Status and Readiness Boundary
+
+معظم Device Readiness محلي داخل Android.
+
+لا ينشأ Backend API لقراءة إعدادات بطارية أو Permission
+خاصة بالهاتف.
+
+إذا احتاج UX-10 بيانات خادمية، مثل:
+
+- server acknowledgement.
+- canonical conflict result.
+- reconciliation result.
+- server-side last accepted command.
+
+فتقرأ عبر typed `api.*` Read Contract عند الحاجة.
+
+القواعد تبقى:
+
+- SECURITY INVOKER.
+- anon محجوب.
+- least privilege.
+- no internal schema exposure.
+- no Direct DML.
+- permanent acceptance test عند إضافة Contract جديد.
+
+Local pending count يبقى مشتقًا من Local Outbox ولا يحتاج
+نسخه إلى جدول خادمي فقط لأجل العرض.

@@ -543,3 +543,119 @@ UI تحتاج حالات:
 - notifications مدمجة.
 - tests دائمة ناجحة.
 - M-21 field tests تشمل مناطق ضعيفة التغطية.
+
+## 30. ق-90 — Device Readiness UI Contract
+
+Device Readiness لا يختصر في Boolean واحد.
+
+النموذج المنطقي يحتوي على الأقل:
+
+### Offline capability
+
+- local database writable.
+- outbox writable.
+- active session recoverable.
+- command ID persistence healthy.
+- required local master data availability.
+
+### Background sync capability
+
+- worker scheduling available.
+- app restriction state when detectable.
+- battery/background restriction state when detectable.
+- pending work age.
+- worker last result.
+
+### Notifications
+
+- permission state.
+- channel state where applicable.
+
+لا تستخدم Notification failure لتغيير Offline capability.
+
+## 31. Sync Summary Model
+
+واجهة UX-10 تحتاج Summary محليًا على الأقل:
+
+- last_successful_sync_at.
+- pending_count.
+- oldest_pending_at.
+- syncing_count.
+- failed_transient_count.
+- conflict_count.
+- local_only_count.
+- last_worker_attempt_at.
+- last_worker_result.
+- readiness severity.
+
+إذا احتاج بعضها Server Confirmation، يضاف عقد api
+محدد بدل قراءة جدول داخلي.
+
+## 32. Severity Priority
+
+الأولوية:
+
+1. Conflict يحتاج تدخلًا.
+2. Permanent/Actionable failure.
+3. Device setting يحتاج تدخلًا.
+4. Pending/Syncing طبيعي.
+5. Ready.
+
+Transient network retry لا يصعد إلى حالة حرجة بمجرد
+محاولة فاشلة واحدة.
+
+## 33. Blocking Policy
+
+### Warning only
+
+- no network.
+- notifications denied.
+- battery restriction.
+- background restriction.
+- ordinary pending commands.
+- delayed WorkManager execution.
+
+### Blocking
+
+- durable local DB write failed.
+- outbox write failed.
+- stable command identity cannot be persisted.
+- required local session data invalid.
+- operation would certainly corrupt local session state.
+- documented critical conflict affects the exact operation.
+
+كل Block يحتاج رسالة قابلة للإجراء.
+
+## 34. Reminder Deduplication
+
+Reminder record يحتاج منطقًا محليًا يضمن:
+
+- نفس المشكلة لا تظهر مرارًا خلال أقل من 24 ساعة
+  أثناء الاستخدام العادي.
+- critical pre-field warning يمكن أن يظهر قبل عملية
+  ميدانية حساسة عند الحاجة.
+- حل المشكلة يلغي حالة reminder.
+- رفض permission لا يسبب loop يفتح System Dialog
+  بصورة متكررة.
+
+## 35. UX-10 Acceptance Tests
+
+يجب اختبار:
+
+- notifications denied + Offline start still works.
+- notifications denied + data sync still works.
+- background restricted + local session still works.
+- battery restricted + local session still works.
+- local DB unwritable blocks Offline start.
+- outbox failure blocks unsafe command.
+- pending count survives process death.
+- oldest pending age remains correct.
+- manual sync does not duplicate automatic worker.
+- transient failure retries automatically.
+- conflict stops blind retry and appears as Review.
+- per-session sync badge reflects state.
+- Force Stop then reopen preserves pending commands.
+- reboot preserves pending commands.
+- 24-hour reminder deduplication.
+- manufacturer guidance absent when not validated.
+- status is understandable without color.

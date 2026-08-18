@@ -1,7 +1,7 @@
 # Offline and Synchronization Architecture
 
 **آخر تحديث:** 2026-08-18
-**القرارات الحاكمة:** ق-75، ق-89
+**القرارات الحاكمة:** ق-75، ق-89، ق-90
 **الحالة:** الخادم منفذ جزئيًا؛ طبقة الهاتف ضمن Stage 7
 
 ## 1. لا تخلط بين Concurrency وSynchronization
@@ -239,3 +239,79 @@ Time integrity metadata تحفظ محليًا، وأي انحراف مشبوه
 التفاصيل الحاكمة للطبقة الهاتفية:
 
 `technical/ANDROID_OFFLINE_BACKGROUND_SYNC.md`
+
+## 19. ق-90 — Sync UX states
+
+الحالات التي يحتاجها Flutter:
+
+- local_only.
+- pending.
+- syncing.
+- synced.
+- failed.
+- conflict.
+
+هذه حالات مزامنة وليست حالات أعمال بديلة للجلسة.
+
+مثال:
+
+جلسة يمكن أن تكون:
+
+    business status = running
+    sync status = pending
+
+ولا تخلط الحالتان في عمود واحد.
+
+## 20. Retry classification
+
+يجب تصنيف الخطأ قبل إعادة المحاولة.
+
+### Retryable
+
+- network unavailable.
+- timeout.
+- temporary server unavailable.
+- transport interruption.
+
+### Review required
+
+- duplicate ambiguity.
+- authorization conflict.
+- historical pricing ambiguity.
+- impossible session transition.
+- time integrity conflict.
+- canonical mapping ambiguity.
+
+Review required لا يدخل Retry Loop غير محدود.
+
+## 21. Manual Sync
+
+Manual Sync:
+
+- يوقظ/يجدول المزامنة.
+- لا يتجاوز Dependency Graph.
+- لا يغير Command IDs.
+- لا يكرر أوامر ناجحة.
+- لا يتجاوز Conflict دون قرار.
+
+## 22. Readiness does not change business history
+
+تغيير إعداد Android لا يغير:
+
+- وقت حدث سابق.
+- Command ID.
+- ترتيب الأحداث.
+- السعر التاريخي.
+- هوية الجلسة.
+
+Device Readiness حالة جهاز، وليست مصدر حقيقة للأعمال.
+
+## 23. UX source
+
+تفاصيل واجهة الحالة:
+
+`design/UX_UI_SPEC.md` / UX-10.
+
+تفاصيل Android:
+
+`technical/ANDROID_OFFLINE_BACKGROUND_SYNC.md`.

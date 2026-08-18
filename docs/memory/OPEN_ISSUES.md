@@ -352,7 +352,7 @@
 ## م-25 — Offline Android Background Sync
 
 **الحالة:** مفتوحة — 2026-08-18
-**القرار الحاكم:** ق-89
+**القرارات الحاكمة:** ق-89، ق-90
 **الأولوية:** حرجة لـStage 7 الميداني
 
 ### المطلوب
@@ -373,6 +373,14 @@
 - retry/backoff.
 - reboot recovery.
 - device readiness.
+- separate Offline/Background/Notification readiness.
+- sync summary and pending queue UX.
+- transient vs conflict classification.
+- per-session sync badge.
+- manual sync as secondary action.
+- reminder deduplication.
+- Force Stop recovery UX.
+- manufacturer guidance only after validation.
 - notification integration.
 - conflict UX.
 - field tests في مناطق ضعيفة أو معدومة التغطية.
