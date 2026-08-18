@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-96.
+آخر قرار مرقم حاليًا: ق-97.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -409,3 +409,33 @@ UX-13 / Operations, Records & Farmers.
 - governing visual identity source:
   `design/VISUAL_IDENTITY.md`.
 - next step: page-by-page discussion before production UI implementation.
+
+### بوابة اكتمال التوثيق
+
+القرار الحاكم:
+
+ق-97.
+
+المصدر:
+
+`memory/DOCUMENTATION_GATE.md`
+
+تطبق قبل الانتقال من أي موضوع معتمد إلى الموضوع التالي.
+
+تحدد:
+
+- شروط سجل القرار.
+- أسباب القرار.
+- شروط UX.
+- شروط التوثيق التقني.
+- Gap tracking.
+- Progress.
+- Changelog.
+- Resume Point.
+- Project Map.
+- Matrix.
+- Invariants.
+- Evidence.
+- Git closure.
+- Meta-documentation.
+- Traceability.

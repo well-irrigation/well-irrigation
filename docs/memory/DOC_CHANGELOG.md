@@ -495,3 +495,41 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 - Lessons Learned من الحوادث السابقة.
 
 **القرارات المبررة:** ق-95، ق-96.
+
+## تحديث 2026-08-18 — ق-97 / بوابة اكتمال التوثيق
+
+**السبب:** اشتراط ألا يضيع أي قرار أو سبب أو تحديث أو
+سجل أو إنجاز أو Gap أو طريقة عمل عند تسليم المشروع
+لنموذج ذكاء اصطناعي جديد.
+
+**الملف الجديد:**
+
+- `memory/DOCUMENTATION_GATE.md`
+
+**الملفات المحدثة:**
+
+- `README.md`
+- `PROJECT_MAP.md`
+- `memory/AI_HANDOFF_PROTOCOL.md`
+- `memory/AI_COLLABORATION_PROTOCOL.md`
+- `memory/TERMINAL_COMMAND_PROTOCOL.md`
+- `memory/DECISIONS.md`
+- `memory/PROGRESS.md`
+- `memory/RESUME_POINT.md`
+- `memory/DOC_CHANGELOG.md`
+- `technical/INVARIANTS.md`
+- `technical/DECISION_IMPLEMENTATION_MATRIX.md`
+
+**ما تغير:**
+
+- فرض Documentation Gate قبل الانتقال.
+- فرض توثيق أسباب القرار المهمة.
+- تحديد Checklist لكل نوع توثيق.
+- فرض Traceability.
+- إخضاع قواعد التوثيق نفسها لنفس البوابة.
+- ربط Gate بإغلاق Git.
+
+**القرار المبرر:** ق-97.
+
+**نوع الدفعة:** توثيقية فقط؛ لا تغيير في Baseline
+اختبارات قاعدة البيانات.

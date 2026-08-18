@@ -87,6 +87,7 @@
 | ق-94 | Consolidated remaining UX discussions UX-13..UX-17 | UX roadmap + RESUME_POINT | اكتمال مناقشة كل حزمة قبل Production UI | معتمد؛ لا Migration بحد ذاته |
 | ق-95 | AI collaboration/work method protocol | `AI_COLLABORATION_PROTOCOL.md` + handoff/map updates | Documentation contract checks | نافذ؛ لا Migration |
 | ق-96 | Terminal command + recovery protocol | `TERMINAL_COMMAND_PROTOCOL.md` + invariants | Git/recovery contract checks | نافذ؛ لا Migration |
+| ق-97 | Mandatory documentation completeness gate | `DOCUMENTATION_GATE.md` + governance protocol integration | documentation contract + Git closure | نافذ؛ لا Migration |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 
