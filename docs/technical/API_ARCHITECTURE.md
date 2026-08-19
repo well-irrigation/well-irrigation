@@ -794,3 +794,27 @@ API does not encode presentation assumptions tied to one
 screen size.
 
 Any DB change starts from Migration 078+.
+
+## ق-109 — API Implementation Sequencing
+
+API implementation follows dependency waves.
+
+### W1
+
+Identity/Auth/Entitlement/authorization foundations.
+
+### W3–W8
+
+Business APIs are implemented as vertical slices with
+their mobile/client consumers.
+
+### W9
+
+Trusted Platform Admin APIs before Admin Web.
+
+### Rule
+
+No production UI may depend on an imaginary/future API
+without a tracked implementation gap.
+
+New DB changes start Migration 078+.

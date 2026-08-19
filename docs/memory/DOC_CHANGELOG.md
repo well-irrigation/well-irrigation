@@ -958,3 +958,33 @@ IMPLEMENTATION-01.
 **نوع الدفعة:** توثيقية فقط.
 
 Baseline الاختبارات لم يتغير.
+
+## تحديث 2026-08-19 — IMPLEMENTATION-01 / ق-109
+
+**المجال:**
+
+V1 implementation sequencing and dependency planning.
+
+**الملف الجديد:**
+
+- `technical/V1_IMPLEMENTATION_SEQUENCE.md`
+
+**اعتمد:**
+
+- W1–W10.
+- backend foundations first.
+- Offline foundation second.
+- vertical slices.
+- domain-sized migrations.
+- permanent tests.
+- Trusted Admin Backend before Admin Web.
+- owner-run DB/Docker verification.
+- م-37.
+
+**التالي:**
+
+W1 — Backend Foundations.
+
+**نوع الدفعة:** توثيقية فقط.
+
+Baseline الاختبارات لم يتغير.

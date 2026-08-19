@@ -262,45 +262,44 @@
 
 ## التالي
 
-**IMPLEMENTATION-01 — V1 Implementation Sequencing &
-Dependency Plan / خطة ترتيب تنفيذ النسخة الأولى.**
+**W1 — Backend Foundations /
+الأساسات الخلفية للنسخة الأولى.**
 
-UX Design Gate:
+IMPLEMENTATION-01 معتمدة بق-109.
 
-**مغلقة تصميميًا بق-108.**
+المصدر:
 
-Platform Administration Design:
+`docs/technical/V1_IMPLEMENTATION_SEQUENCE.md`
 
-**مغلقة تصميميًا بق-107 وق-108.**
+الترتيب الحاكم:
 
-ق-108 يحكم:
+W1 → W2 → W3 → W4 → W5 → W6 → W7 → W8 → W9 → W10.
 
-- final terminology consistency.
-- Offline/Sync vocabulary.
-- honest local/server success states.
-- forms/errors/confirmation.
-- accessibility/RTL.
-- adaptive layouts.
-- financial/sensitive review.
-- Smart Lookup consistency.
-- notification/support/privacy.
-- back/context-switch safety.
+W1 تركز على:
 
-Research Gate:
+- Identity.
+- authorization.
+- Farmer RLS gap.
+- roles/permissions authority.
+- Auth/OTP trusted flows.
+- entitlement foundations.
+- atomic well activation prerequisites.
 
-UX-17 = PASS.
+Migration 071–077 immutable.
 
-المسائل المفتوحة التنفيذية تشمل م-16 وم-18 وم-21
-وم-23 وم-25..م-36 حسب مجال التنفيذ.
+أول DB change جديد:
 
-الخطوة التالية ليست UX جديدة.
+Migration 078+.
 
-الخطوة التالية:
+لا تنشئ Migration واحدة ضخمة لكل V1.
 
-ترتيب تنفيذ V1 حسب dependencies والحرجية، مع بقاء
-Migration 071–077 immutable وأي DB change جديد = 078+.
+كل change coherent لها Migration/Test مناسب.
 
-لا تغير Baseline الاختبارات دون دليل تحقق جديد.
+Assistant لا يشغل Project DB/Docker tests.
+
+المالك يشغل Verification ويرسل النتائج.
+
+لا تغير Baseline الاختبارات دون دليل جديد.
 
 ## قاعدة التنفيذ
 

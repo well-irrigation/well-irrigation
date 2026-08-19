@@ -99,6 +99,7 @@
 | ق-106 | Platform sales + per-well entitlements + operations/financial admin control | ق-86 foundation موثقة؛ sale/entitlement/admin-control contracts غير منفذة | `PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md` + م-34 + security/finance/idempotency tests | PA-03 معتمد؛ Migration 078+ / Trusted Backend Pending |
 | ق-107 | Platform monitoring + incidents + global audit + typed/versioned config + maintenance/version control | 057 Audit foundation موجودة؛ global monitoring/incidents/config/read models غير منفذة | `PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md` + م-35 + observability/security/web tests | PA-04 معتمد؛ Platform Administration design complete؛ Migration 078+ / Trusted Backend Pending |
 | ق-108 | Final cross-cutting UX consistency + design closure | all UX/PA design foundations documented؛ implementation remains distributed across open gaps | `FINAL_CROSS_CUTTING_UX_ARCHITECTURE.md` + م-36 + Android/Web acceptance | UX design complete؛ implementation sequencing next |
+| ق-109 | V1 dependency-based implementation sequence W1–W10 | Design complete؛ implementation gaps م-16..م-36 remain | `V1_IMPLEMENTATION_SEQUENCE.md` + م-37 | Implementation plan adopted؛ W1 Backend Foundations next |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 

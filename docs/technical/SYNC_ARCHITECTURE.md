@@ -783,3 +783,23 @@ Valid local data remains visible during background refresh.
 
 Back navigation/logout/context changes cannot silently
 destroy pending critical operations.
+
+## ق-109 — Offline Foundation Is W2
+
+Offline/Background Sync implementation is not postponed
+until after UI completion.
+
+W2 must establish:
+
+- durable local state.
+- Outbox.
+- stable operation identity.
+- retry.
+- reconciliation.
+- WorkManager/background execution.
+- user-visible canonical sync states.
+
+Critical field features in W4+ build on this foundation.
+
+This ordering prevents UI from being designed around
+always-online assumptions that contradict ق-89/ق-90.

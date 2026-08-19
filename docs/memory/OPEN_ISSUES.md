@@ -1105,3 +1105,37 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - financial/sensitive-action verification.
 - error/empty/loading/stale verification.
 - implementation evidence.
+
+---
+
+## م-37 — V1 Implementation Program & Dependency Tracking
+
+**الحالة:** مفتوحة — 2026-08-19
+**القرار الحاكم:** ق-109
+**الأولوية:** حاكمة لمرحلة التنفيذ
+
+### Waves
+
+- W1 Backend Foundations.
+- W2 Offline & Background Sync.
+- W3 Auth/Onboarding/Well Creation.
+- W4 Core Irrigation Session.
+- W5 Operations Records.
+- W6 Money & Partners.
+- W7 Well/Reports.
+- W8 Account/Settings/Notifications.
+- W9 Platform Administration.
+- W10 Final Acceptance.
+
+### وظيفة م-37
+
+لا تستبدل المسائل م-16..م-36.
+
+هي Program-level tracker يربط ترتيب إغلاقها.
+
+### لا تغلق قبل
+
+- W1..W10 complete.
+- dependent open issues closed or explicitly deferred.
+- field/security/UX acceptance complete.
+- release readiness established.

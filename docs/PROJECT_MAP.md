@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-108.
+آخر قرار مرقم حاليًا: ق-109.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -814,3 +814,40 @@ Dependency Plan.
 - testability.
 
 وليس حسب رقم UX فقط.
+
+### IMPLEMENTATION-01 — V1 Sequencing
+
+القرار:
+
+ق-109.
+
+المصدر:
+
+`technical/V1_IMPLEMENTATION_SEQUENCE.md`
+
+الترتيب:
+
+- W1 Backend Foundations.
+- W2 Offline & Background Sync.
+- W3 Auth/Onboarding/Well Creation.
+- W4 Core Irrigation Session.
+- W5 Operations Records.
+- W6 Money & Partners.
+- W7 Well Management & Reports.
+- W8 Account/Settings/Notifications.
+- W9 Platform Administration.
+- W10 Final Acceptance.
+
+المسألة الجامعة:
+
+م-37.
+
+### Current Implementation Point
+
+**W1 — Backend Foundations.**
+
+Migration 071–077 immutable.
+
+أول DB change جديد:
+
+**Migration 078+**.

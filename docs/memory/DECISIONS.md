@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-108
+**آخر قرار مرقّم:** ق-109
 **آخر تحديث:** 2026-08-19
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -4877,3 +4877,70 @@ critical open issues rather than UX numbering alone.
 
 ق-108 لا تعتبر Production Implemented حتى م-36 تغلق
 وتثبت Cross-cutting acceptance across implemented screens.
+
+---
+
+## ق-109 — ترتيب تنفيذ النسخة الأولى حسب الاعتماديات
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق.
+- **المرحلة:** IMPLEMENTATION-01.
+- **Research & Standards Gate:** PASS.
+- **المصدر:** `technical/V1_IMPLEMENTATION_SEQUENCE.md`.
+- **المسألة الجامعة:** م-37.
+
+### القرار
+
+لا ينفذ V1 حسب ترتيب UX numbers.
+
+الترتيب الحاكم:
+
+1. W1 Backend Foundations.
+2. W2 Offline & Background Sync.
+3. W3 Authentication/Onboarding/Well Creation.
+4. W4 Core Irrigation Session.
+5. W5 Operations Records/Bookings/Shifts.
+6. W6 Money & Partners.
+7. W7 Well Management & Reports.
+8. W8 Account/Settings/Notifications.
+9. W9 Platform Administration.
+10. W10 Final Acceptance/Release Readiness.
+
+### Migration rule
+
+- 071–077 immutable.
+- أول تغيير جديد 078.
+- لا Migration عملاقة للنسخة كلها.
+- كل Domain change coherent في Migration مستقلة عند الحاجة.
+- كل DB change معها Permanent Test مناسب.
+
+### Development style
+
+بعد Foundations:
+
+Vertical Slices هي الأصل.
+
+لا نفصل Backend عن UI لمسافات طويلة بطريقة تنتج
+واجهات بلا Contracts حقيقية.
+
+### Offline priority
+
+Offline/Sync foundation تسبق Critical Irrigation Screens.
+
+### Platform Admin priority
+
+Trusted Admin Backend يسبق Admin Web UI.
+
+### Verification
+
+AI لا يشغل Project DB/Docker tests.
+
+المالك يشغل Verification ويرسل النتائج.
+
+لا Wave closure بلا Evidence.
+
+### Next
+
+W1 — Backend Foundations.
+
+أي DB change جديد يبدأ Migration 078+.

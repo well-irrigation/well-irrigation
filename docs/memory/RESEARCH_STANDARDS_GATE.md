@@ -891,3 +891,48 @@ Therefore:
 Result:
 
     UX17_RESEARCH_STANDARDS_GATE=PASS
+
+## 21. IMPLEMENTATION-01 Evidence Review — 2026-08-19
+
+### Supabase Local Development / Migrations
+
+Current official guidance supports:
+
+- schema migration files.
+- version-controlled schema evolution.
+- ordered migration application.
+- local verification before deployment.
+- avoiding unmanaged production schema edits.
+
+Project decision:
+
+071–077 remain immutable.
+
+New work begins 078+ and continues in coherent
+domain-sized migrations.
+
+### Android Offline-first
+
+Current Android guidance supports:
+
+- local source for offline-first reads.
+- queued deferred writes/reads.
+- WorkManager for persistent work.
+
+Project decision:
+
+Offline/Background Sync foundations precede production
+critical irrigation flows.
+
+### Project dependency analysis
+
+Internal architecture shows:
+
+- Auth/Identity/Entitlement are prerequisites for onboarding.
+- Offline/Sync is prerequisite for field reliability.
+- Session core is prerequisite for records/finance/reports.
+- trusted Admin APIs are prerequisite for Admin Web.
+
+Result:
+
+    IMPLEMENTATION01_RESEARCH_STANDARDS_GATE=PASS

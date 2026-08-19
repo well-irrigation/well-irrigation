@@ -744,3 +744,25 @@ Baseline الاختبارات لم يتغير.
 لم تنفذ Production UI أو Migration جديدة.
 
 Baseline الاختبارات لم يتغير.
+
+## 2026-08-19 — اعتماد IMPLEMENTATION-01 / ق-109
+
+**دفعة تخطيط/توثيق فقط.**
+
+تم:
+
+- اعتماد W1–W10 implementation sequence.
+- اعتماد dependency-based ordering.
+- اعتماد coherent migrations بدل Migration عملاقة.
+- إعادة تأكيد 071–077 immutable.
+- اعتماد 078+ كبداية DB implementation الجديدة.
+- اعتماد Vertical Slices بعد Foundations.
+- وضع Offline/Background Sync في W2 قبل Critical Field UI.
+- وضع Trusted Admin Backend قبل Admin Web.
+- إنشاء `V1_IMPLEMENTATION_SEQUENCE.md`.
+- فتح م-37.
+- نقل Resume Point إلى W1 Backend Foundations.
+
+لم تنفذ Migration 078 بعد.
+
+Baseline الاختبارات لم يتغير.

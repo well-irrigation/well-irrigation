@@ -321,3 +321,29 @@ Dependency Plan`
 
 Research & Standards Gate وDocumentation Gate تبقيان
 نافذتين أثناء التنفيذ.
+
+## Implementation Program — ق-109
+
+UX/PA design is complete.
+
+The project is now in implementation.
+
+Governing sequence:
+
+`technical/V1_IMPLEMENTATION_SEQUENCE.md`
+
+Current point:
+
+**W1 — Backend Foundations.**
+
+Do not start arbitrary screens.
+
+Do not edit migrations 071–077.
+
+New DB changes begin 078+.
+
+Use coherent domain-sized migrations and permanent tests.
+
+After foundations, prefer vertical end-to-end slices.
+
+Project DB/Docker verification remains owner-run.
