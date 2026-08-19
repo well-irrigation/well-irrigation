@@ -216,7 +216,7 @@
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
   UX-02/03/08/09/10/11/12/13/14/15/16A
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101 غير منفذة؛
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -243,27 +243,29 @@
 
 ## التالي
 
-**PA-01 — Platform Administration / إدارة المنصة.**
+**PA-02 — Accounts, Wells & Support Control /
+إدارة الحسابات والآبار والدعم.**
 
-إدارة المنصة أصبحت سلسلة مستقلة عن UX-16A.
+PA-01 معتمدة وموثقة.
 
-UX-16A معتمدة.
+ق-102 يحكم:
 
-ق-101 يحكم:
+- Platform Admin مستقل عن Well Roles.
+- Global Business Administration Authority.
+- separate Web/Desktop Admin Console.
+- right RTL Sidebar.
+- broad numeric KPIs.
+- Near-real-time automatic updates.
+- Bar/Line charts.
+- global monitoring.
+- audit.
+- trusted backend.
+- password visibility requirement remains adopted but
+  technically unresolved.
 
-- unified account.
-- phone/recovery.
-- role lifecycle.
-- notifications.
-- account-scoped local storage.
-- logout with pending outbox.
-- English date/time display.
+UX-17 مؤجلة حتى إكمال سلسلة PA.
 
-المتبقي بعد سلسلة PA:
-
-**UX-17 — Final Cross-Cutting Review.**
-
-م-31 مفتوحة قبل UX-16A الإنتاجية.
+م-31 وم-32 والتنفيذ التقني المرتبط بهما ما زال Pending.
 
 لا تغير Baseline الاختبارات دون دليل تحقق جديد.
 

@@ -557,3 +557,54 @@ Mini Chart:
 الرئيسية = موجز حالة ومداخل عمل.
 
 التقارير هي المكان الأساسي للتحليل البصري.
+
+## ق-102 — Platform Administration Visual System
+
+Platform Administration تستخدم نفس Product Identity،
+لكن بتركيب Desktop/Admin مستقل.
+
+### Layout
+
+في RTL Desktop:
+
+- Persistent Sidebar على اليمين.
+- Main Workspace إلى اليسار.
+- Sidebar قابلة للطي.
+- Header يوضح أن السياق «إدارة المنصة».
+
+### Dashboard Priority
+
+الترتيب:
+
+1. Numeric KPI Cards.
+2. Simple Charts.
+3. Recent Issues / Activity.
+
+### Charts
+
+تستخدم سياسة ق-100:
+
+- Bar.
+- Line.
+
+ولا تستخدم Charts زخرفية.
+
+### Density
+
+Admin Console يمكن أن تكون أكثر كثافة من تطبيق الميدان،
+لكن:
+
+- Grouping واضح.
+- Typography واضحة.
+- لا Table ضخمة بلا Filters.
+- لا Color-only states.
+
+### Live State
+
+إذا كانت البيانات Live:
+
+يظهر Status مناسب.
+
+إذا أصبحت Stale:
+
+يظهر Last Update بصيغة Date/Time الإنجليزية المعتمدة.

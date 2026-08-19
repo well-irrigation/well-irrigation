@@ -816,3 +816,71 @@ Commit جديدًا.
 367. Any new DB change يبدأ من Migration 078+.
 
 368. UX-16A لا تعتبر Production Complete قبل إغلاق م-31.
+
+## ق-102 — ثوابت إدارة المنصة
+
+369. Platform Admin ليس Well Owner.
+
+370. Platform Admin ليس Operator أو Partner أو Farmer تلقائيًا.
+
+371. Platform Authority مستقلة عن Well Role Assignments.
+
+372. Admin لا يحتاج Impersonation لإدارة البئر.
+
+373. Admin Mutation تسجل Platform Admin كActor.
+
+374. Platform Admin Console مستقلة عن Owner Home.
+
+375. Platform Admin Console Web/Desktop-first في V1.
+
+376. RTL Desktop Sidebar الأساسية على اليمين.
+
+377. Admin Dashboard تبدأ بـNumeric KPIs.
+
+378. Dashboard تغطي Wells/Accounts/Operations/Sync/Activation/Finance.
+
+379. Dashboard Metrics تأتي Server Aggregated.
+
+380. Admin Dashboard تتحدث تلقائيًا عند توفر الاتصال.
+
+381. Near-real-time لا تعني ضمان 0ms.
+
+382. Stale Admin Data تعرض Last Update.
+
+383. KPI يدعم Drill-down عند وجود Source Records.
+
+384. Admin V1 Charts = Bar + Line.
+
+385. KPIs تسبق Charts بصريًا.
+
+386. Admin Charts لا تعتمد على اللون وحده.
+
+387. Platform Admin Global Business Authority لا تنشئ Owner Membership.
+
+388. Privileged Backend Secrets لا توضع في Admin Client.
+
+389. Cross-Tenant Admin Write تمر عبر Trusted Backend.
+
+390. Admin API Authorization مستقل عن Tenant Role Authorization.
+
+391. Admin actions الحساسة Audit mandatory.
+
+392. Admin correction يجب ألا يكسر Domain Historical Invariants.
+
+393. Platform Admin يرى Server-observable Sync Truth فقط.
+
+394. Offline-only device command لا يدعي Server أنه رآه.
+
+395. Password Visibility Requirement معتمد كهدف منتج.
+
+396. Password Visibility Requirement غير Implemented حاليًا.
+
+397. لا Plaintext Password Store قبل قرار أمني صريح.
+
+398. لا Reversible Password Vault قبل قرار أمني صريح.
+
+399. Infrastructure Secrets ليست Ordinary Platform Data في UI.
+
+400. PA-01 لا تعتبر Production Complete قبل إغلاق م-32.
+
+401. Any DB change جديد يبدأ من Migration 078+.

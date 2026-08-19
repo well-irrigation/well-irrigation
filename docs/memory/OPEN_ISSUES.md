@@ -756,3 +756,57 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - lost-phone recovery tests.
 - device/session invalidation tests.
 - Android rendering tests.
+
+---
+
+## م-32 — Platform Administration Control Plane & Observability
+
+**الحالة:** مفتوحة — 2026-08-19
+**القرار الحاكم:** ق-102
+**المناقشة:** PA-01
+**الأولوية:** حرجة قبل Platform Admin Production
+
+### الفجوات
+
+1. Platform Admin Authority ليست بعد Control Plane كاملة.
+
+2. Global Cross-Tenant Admin APIs ناقصة.
+
+3. Trusted Admin Backend يحتاج تنفيذًا صريحًا.
+
+4. Global Dashboard Aggregate APIs ناقصة.
+
+5. Near-real-time metric refresh غير منفذ.
+
+6. Realtime fallback/stale contract غير منفذ.
+
+7. Global account/well search needs admin read models.
+
+8. Support Case model غير مكتمل.
+
+9. Platform Audit projection يحتاج عقدًا مخصصًا.
+
+10. System Observability غير مكتملة.
+
+11. Activation Administration تحتاج UI/API كاملة.
+
+12. Financial Global Monitoring يحتاج typed projections.
+
+13. Password visibility requirement معتمد لكنه تقنيًا
+    unresolved في Auth الحالية.
+
+14. Platform Admin Security Tests غير موجودة بعد.
+
+### لا تغلق قبل
+
+- global authority tests.
+- non-admin denial tests.
+- trusted-backend tests.
+- dashboard reconciliation tests.
+- realtime/stale tests.
+- audit tests.
+- support tests.
+- entitlement tests.
+- finance/admin permission tests.
+- secrets-boundary tests.
+- password requirement resolution.

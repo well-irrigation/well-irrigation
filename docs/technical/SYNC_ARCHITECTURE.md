@@ -582,3 +582,27 @@ Reconciliation.
 
 Local Data Wipe لا يسمح بصمت إذا توجد Unacknowledged
 Commands.
+
+## ق-102 — Platform Sync Observability
+
+Platform Dashboard يمكنها مراقبة Server-visible Sync State:
+
+- pending acknowledged by server.
+- failed server applications.
+- conflicts.
+- reconciliation states.
+- device/app metadata التي وصلت للخادم.
+
+لكن:
+
+عملية محفوظة فقط على جهاز Offline ولم ترسل أي Telemetry
+لا يمكن للServer Dashboard معرفتها فورًا.
+
+Realtime Admin UI تستخدم:
+
+- server events/invalidation.
+- canonical aggregate refresh.
+- fallback refresh.
+- stale timestamp.
+
+لا تنشئ Admin Console Business Sync Engine موازية.

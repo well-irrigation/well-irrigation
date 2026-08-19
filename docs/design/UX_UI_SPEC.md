@@ -4722,7 +4722,8 @@ Migration 066.
 - UX-14: Money & Partners — معتمد وموثق.
 - UX-15: Well Management & Reports — معتمد وموثق.
 - UX-16A: Account & Settings — معتمد وموثق.
-- PA-01: Platform Administration — مناقشة مستقلة تالية.
+- PA-01: Platform Administration Foundation & Dashboard — معتمد وموثق.
+- PA-02: Accounts, Wells & Support Control — التالي.
 - UX-17: Final Cross-Cutting Review.
 
 ---
@@ -7330,13 +7331,558 @@ Backend/Sync هما نظام حفظ البيانات.
 
 ---
 
-## 16. نقطة المناقشة التالية
+# PA-01 — Platform Administration Foundation & Dashboard
+# إدارة المنصة — الأساس والرئيسية الإدارية
 
-**PA-01 — Platform Administration /
-إدارة المنصة.**
+**الحالة:** معتمدة — 2026-08-19
+**القرار الحاكم:** ق-102
+**المسألة المفتوحة:** م-32
 
-PA مناقشة مستقلة ولا تحسب جزءًا من UX-16A.
+## التعريف
 
-بعد سلسلة PA نعود إلى:
+Platform Super Admin هو:
 
-**UX-17 — Final Cross-Cutting Review.**
+**مسؤول ومدير المنصة كمنتج كامل.**
+
+ليس:
+
+- Owner لبئر.
+- Operator.
+- Partner.
+- Farmer.
+
+ولا يحتاج الانضمام إلى Well Roles ليقوم بالإدارة.
+
+---
+
+## PA-01-01 — Trust Domain مستقل
+
+Platform Administration هي Administrative Trust Domain
+مستقلة عن Well Tenant Roles.
+
+## PA-01-02 — لا Masquerading كمالك
+
+عند إدارة بئر لا يسجل النظام أن Platform Admin أصبح
+Owner.
+
+يظهر السياق:
+
+    إدارة المنصة — بئر الوادي
+
+وليس:
+
+    أنت مالك البئر
+
+## PA-01-03 — سلطة عالمية
+
+Platform Super Admin يملك سلطة إدارية عامة على بيانات
+المنصة التشغيلية والتجارية والحسابية لأغراض:
+
+- الإدارة.
+- الدعم.
+- المراقبة.
+- التصحيح.
+- حل المشكلات.
+
+يشمل ذلك جميع الآبار والحسابات والسجلات وفق العقود
+الإدارية المعتمدة.
+
+## PA-01-04 — Console مستقلة
+
+بعد Login إداري صالح:
+
+    Login
+      ↓
+    Platform Admin Authority
+      ↓
+    Platform Administration Console
+
+لا يوجه إلى Owner Home.
+
+## PA-01-05 — Web/Desktop First
+
+لوحة الإدارة في V1:
+
+**Web/Desktop-first.**
+
+السبب:
+
+- جداول.
+- بحث واسع.
+- مراقبة.
+- إحصاءات.
+- سجلات.
+- دعم.
+- تصحيح.
+
+يمكن جعلها Responsive للشاشات الأصغر.
+
+## PA-01-06 — Sidebar ثابتة
+
+في Desktop/RTL:
+
+القائمة الجانبية الأساسية على **اليمين**.
+
+الروابط:
+
+- الرئيسية.
+- الآبار.
+- الحسابات والأشخاص.
+- المبيعات والتفعيل.
+- مراقبة التشغيل.
+- المراقبة المالية.
+- المزامنة والأجهزة.
+- المشاكل والدعم.
+- سجل التدقيق.
+- مراقبة النظام.
+- إعدادات المنصة.
+
+يمكن Collapse دون فقد أسماء الأقسام.
+
+## PA-01-07 — الرئيسية الإدارية رقمية أولًا
+
+Dashboard تبدأ بـNumeric KPI Cards.
+
+لا تبدأ بالرسوم.
+
+الأرقام هي المصدر الأسرع لفهم حالة المنصة.
+
+## PA-01-08 — Well Statistics
+
+تعرض مجموعة الآبار مثل:
+
+- إجمالي الآبار.
+- الآبار النشطة.
+- الآبار غير النشطة.
+- الآبار قيد الإعداد.
+- الآبار المنشأة اليوم/هذا الشهر عند توفر Metric.
+
+## PA-01-09 — Account Statistics
+
+تعرض مثلًا:
+
+- إجمالي الحسابات.
+- الحسابات المفعلة.
+- الحسابات المعطلة.
+- الحسابات الجديدة.
+- Owner assignments.
+- Operator assignments.
+- Partner assignments.
+
+## PA-01-10 — Operational Statistics
+
+تعرض مثلًا:
+
+- Sessions الجارية الآن.
+- Sessions اليوم.
+- Bookings اليوم.
+- Upcoming Bookings.
+- Open Shifts.
+- العمليات التي تحتاج Intervention.
+
+## PA-01-11 — Business Entity Statistics
+
+تعرض حسب الحاجة:
+
+- Farmers.
+- Farms.
+- Pumps.
+- Fuel Tanks.
+- Active Partners.
+- Active Operators.
+
+## PA-01-12 — Sync & Health Statistics
+
+تعرض:
+
+- Pending Sync Commands.
+- Conflicts.
+- Failed Sync.
+- Items needing review.
+- Oldest Pending age.
+- recent system errors عند توفر Telemetry.
+
+## PA-01-13 — Activation Statistics
+
+تعرض:
+
+- Available Entitlements.
+- Consumed Entitlements.
+- Revoked Entitlements.
+- Activations today.
+- Activations in selected period.
+
+## PA-01-14 — Financial Overview
+
+لأن Platform Admin يملك Global Administration Visibility،
+يمكن أن تعرض Dashboard مؤشرات عالية المستوى مثل:
+
+- Collections today.
+- Expenses today.
+- Collections this month.
+- Expenses this month.
+- unpaid exposure عند وجود Contract موثوق.
+
+التفاصيل الكاملة تبقى في Financial Monitoring.
+
+## PA-01-15 — إحصاءات واسعة دون ازدحام
+
+المقصود بـ«إظهار كل شيء» هو تغطية كل المجالات المهمة
+بالأرقام.
+
+تنظم في Groups:
+
+    المنصة
+    الحسابات
+    التشغيل
+    المزامنة
+    التفعيل
+    المال
+
+لا توضع عشرات الأرقام في صف واحد.
+
+## PA-01-16 — تحديث تلقائي فوري
+
+عند توفر الاتصال:
+
+لا يحتاج المسؤول إلى Reload يدوي.
+
+الهدف:
+
+    backend change
+      ↓
+    dashboard refresh/invalidation
+      ↓
+    new value appears automatically
+
+Target UX:
+
+**Near-real-time خلال ثوانٍ قليلة** عند توفر الاتصال.
+
+لا نوثق ضمان 0ms.
+
+## PA-01-17 — Fallback للتحديث
+
+إذا تعذر Realtime:
+
+يستخدم Fallback Periodic Refresh آمن.
+
+وعند انقطاع الشبكة:
+
+يعرض:
+
+    آخر تحديث: 19/08/2026 05:25 PM
+
+ولا يدعي Live.
+
+## PA-01-18 — Drill-down من الإحصاء
+
+كل KPI قابل للفتح عندما توجد قائمة مصدر.
+
+مثال:
+
+    14 جلسة جارية
+       ↓
+    قائمة الجلسات الجارية
+
+## PA-01-19 — Simple Charts
+
+تستخدم نفس سياسة ق-100:
+
+- Bar Chart.
+- Line Chart.
+
+لا:
+
+- 3D.
+- Gauge معقد.
+- Radar.
+- Decorative Dashboard Charts.
+
+## PA-01-20 — Charts تأتي بعد KPIs
+
+الترتيب:
+
+    Header
+      ↓
+    KPI Groups
+      ↓
+    Charts
+      ↓
+    Live Issues / Recent Activity
+
+## PA-01-21 — Charts V1 الرئيسية
+
+الرسوم الأولية المقترحة:
+
+1. نمو عدد الآبار والحسابات خلال الفترة.
+2. Sessions اليومية على مستوى المنصة.
+3. Sync/Conflict/Error counts حسب اليوم أو الفئة.
+
+لا تعرض أكثر من عدد محدود من الرسوم الكبيرة في الوقت
+نفسه.
+
+## PA-01-22 — Exact Values
+
+Tap/Hover على Chart يعرض القيمة الدقيقة.
+
+## PA-01-23 — Chart Drill-down
+
+عند السماح:
+
+Chart Point أو Bar يمكن أن يقود إلى Source Records.
+
+## PA-01-24 — جميع الآبار
+
+قسم Wells يسمح بالبحث والوصول الإداري لكل بئر.
+
+لا يحتاج Platform Admin إلى Owner Assignment.
+
+## PA-01-25 — جميع الحسابات والأشخاص
+
+قسم Accounts & Persons يصبح Global Directory إداري.
+
+## PA-01-26 — المبيعات والتفعيل
+
+يعيد استخدام ق-86:
+
+- Available.
+- Consumed.
+- Revoked.
+- linked phone.
+- linked well.
+- audit history.
+
+## PA-01-27 — مراقبة التشغيل
+
+تعرض:
+
+- running sessions.
+- shifts.
+- bookings.
+- operators.
+- energy.
+- stuck operational states.
+
+## PA-01-28 — المراقبة المالية
+
+تعرض Administratively:
+
+- payments.
+- invoices.
+- expenses.
+- distributions.
+- accounting periods.
+- exceptional financial states.
+
+## PA-01-29 — المزامنة والأجهزة
+
+تعرض Server-observable state لـ:
+
+- pending.
+- failed.
+- conflict.
+- last sync.
+- command reconciliation.
+- app/device metadata عند توفرها.
+
+## PA-01-30 — المشاكل والدعم
+
+قسم مستقل يجمع:
+
+- login issues.
+- OTP issues.
+- activation issues.
+- sync issues.
+- reported errors.
+- support cases.
+- error reference.
+
+## PA-01-31 — Audit Log
+
+كل Platform Admin Action حساس يسجل:
+
+- administrator.
+- action.
+- target.
+- before/after عند الملاءمة.
+- time.
+- reason.
+- result.
+
+## PA-01-32 — Monitoring
+
+قسم Monitoring يمكن أن يجمع مستقبلًا:
+
+- API failures.
+- Auth failures.
+- notification failures.
+- background failures.
+- database/application errors.
+- app versions.
+- service health.
+
+## PA-01-33 — Platform Settings
+
+هذه إعدادات المنتج ككل.
+
+ليست Well Settings.
+
+## PA-01-34 — Admin Actor محفوظ
+
+عندما يعدل Platform Admin سجل بئر:
+
+Audit actor يبقى:
+
+    Platform Administrator
+
+ولا يتحول إلى Owner/Operator.
+
+## PA-01-35 — Trusted Backend
+
+Full Authority في UX لا تعني وضع:
+
+- service_role.
+- database secret.
+- infrastructure credentials.
+
+داخل Browser/App Client.
+
+العمليات الحساسة تمر عبر Trusted Backend.
+
+## PA-01-36 — Admin API Plane
+
+يلزم Contracts إدارية منفصلة مثل:
+
+- admin dashboard.
+- global wells.
+- global accounts.
+- global activation.
+- support.
+- audit.
+- monitoring.
+
+يمكن أن تبقى تحت exposed `api.*` مع Trusted Server
+Boundary بدل فتح Business Tables مباشرة.
+
+## PA-01-37 — Server Aggregation
+
+Dashboard KPIs وCharts لا تجمع ملايين Raw Rows في
+الواجهة.
+
+Backend يعيد Aggregated Canonical Metrics.
+
+## PA-01-38 — Password Visibility Requirement
+
+متطلب المنتج الذي طلبه مدير المنصة:
+
+**Platform Super Admin يريد القدرة على معرفة وعرض
+Current Password لأي حساب.**
+
+الحالة:
+
+**Adopted Product Requirement.**
+
+لكن الحالة التنفيذية الحالية:
+
+**Blocked / Unimplemented.**
+
+السبب:
+
+Current Auth Architecture لا توفر Current Password
+كنص قابل للقراءة من العقد الموجود.
+
+لذلك:
+
+- لا ندعي أنه Implemented.
+- لا نخزن Plaintext Password عشوائيًا.
+- لا ننشئ Reversible Password Store قبل قرار أمني
+  معماري صريح.
+- يناقش الحل ضمن PA-02.
+
+هذا البند هو النقل الرسمي للمقترح السابق رقم 542.
+
+## PA-01-39 — Secrets Boundary
+
+Full Platform Data Authority لا تعني إظهار Infrastructure
+Secrets في Dashboard.
+
+Secrets تبقى Server-side.
+
+## PA-01-40 — Sensitive Confirmation
+
+العمليات عالية الخطر تحتاج:
+
+- clear target.
+- explicit action.
+- reason عند الحاجة.
+- confirmation.
+- audit.
+
+---
+
+## الشكل العام للرئيسية
+
+    ┌───────────────────────────────────────────────┐
+    │ إدارة المنصة          آخر تحديث / حالة Live │
+    ├───────────────┬───────────────────────────────┤
+    │ Sidebar RTL   │ KPI Groups                    │
+    │               │                               │
+    │ الرئيسية      │ الآبار | الحسابات | التشغيل │
+    │ الآبار        │ Sync | Activation | Finance  │
+    │ الحسابات      │                               │
+    │ التفعيل       │ Charts                        │
+    │ التشغيل       │                               │
+    │ المال         │ Recent Problems / Activity    │
+    │ Sync          │                               │
+    │ الدعم         │                               │
+    │ Audit         │                               │
+    │ Monitoring    │                               │
+    │ Settings      │                               │
+    └───────────────┴───────────────────────────────┘
+
+---
+
+## فجوات PA-01
+
+قبل Production يلزم:
+
+- Platform Admin Authority model.
+- separate trusted admin auth path.
+- global admin read contracts.
+- global admin write contracts.
+- dashboard aggregate APIs.
+- near-real-time refresh mechanism.
+- realtime fallback.
+- global search.
+- support-case model.
+- audit contracts.
+- system telemetry.
+- entitlement administration.
+- cross-well finance projections.
+- password visibility architecture decision.
+- permanent platform-admin security tests.
+
+المسألة:
+
+**م-32 — Platform Administration Control Plane & Observability.**
+
+---
+
+## 17. نقطة المناقشة التالية
+
+**PA-02 — Accounts, Wells & Support Control /
+إدارة الحسابات والآبار والدعم.**
+
+سنناقش فيها تفصيليًا:
+
+- كل Account Action.
+- كل Well Action.
+- Password management.
+- identity recovery.
+- disable/restore.
+- support intervention.
+- global search.
+- exceptional corrections.
+
+بعد إكمال سلسلة PA نعود إلى UX-17.

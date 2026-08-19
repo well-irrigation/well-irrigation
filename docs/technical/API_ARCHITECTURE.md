@@ -531,3 +531,33 @@ UX-16A تحتاج Contracts لـ:
 4. Auth Admin operations الحساسة تستخدم Trusted Backend.
 5. Service secrets لا تدخل Flutter.
 6. Any DB change يبدأ من Migration 078+.
+
+## ق-102 — Platform Administration Control Plane
+
+Platform Admin يحتاج Admin Contracts مستقلة عن
+Well Roles.
+
+القواعد:
+
+1. Admin Authority ليست Owner Role.
+
+2. Global Reads/Writes تمر عبر Trusted Admin Boundary.
+
+3. Admin Client لا يحمل `service_role`.
+
+4. Admin APIs تستطيع Cross-Tenant فقط بعد إثبات
+   Platform Admin Authority.
+
+5. Admin Mutation تسجل Actor الحقيقي.
+
+6. Dashboard Metrics تأتي Server Aggregated.
+
+7. Realtime لا يتجاوز Authorization.
+
+8. Platform Admin APIs لا تبرر Direct Business Table DML
+   من Client.
+
+9. Exposed schemas تبقى وفق Source of Truth المعتمد ما
+   لم يعتمد تغيير جديد.
+
+10. DB change جديد يبدأ من Migration 078+.

@@ -704,3 +704,36 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 - فتح م-31.
 
 **نوع الدفعة:** توثيقية فقط.
+
+## تحديث 2026-08-19 — PA-01 / ق-102
+
+**المجال:** Platform Administration.
+
+**السبب:**
+
+تم تعريف مسؤول المنصة بأنه مدير المنتج العام وليس
+مستخدم بئر، ثم اعتماد Dashboard مستقلة بإحصاءات رقمية
+واسعة وتحديث تلقائي وقائمة جانبية ورسوم بسيطة.
+
+**الملف الجديد:**
+
+- `technical/PLATFORM_ADMINISTRATION_ARCHITECTURE.md`
+
+**أهم القرارات:**
+
+- Platform Admin مستقل عن Well Roles.
+- Global Administration Authority.
+- Admin Console مستقلة.
+- Web/Desktop-first.
+- RTL Sidebar يمين.
+- Numeric KPIs أولًا.
+- Near-real-time refresh.
+- Bar/Line charts فقط.
+- Drill-down.
+- Operations/Finance/Sync/System monitoring.
+- Audit mandatory.
+- Trusted Backend mandatory.
+- Password visibility requirement adopted but blocked.
+- فتح م-32.
+
+**نوع الدفعة:** توثيقية فقط.

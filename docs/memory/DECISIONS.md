@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-101
+**آخر قرار مرقّم:** ق-102
 **آخر تحديث:** 2026-08-18
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -3552,3 +3552,148 @@ Backend timestamps تبقى Canonical وفق العقود الزمنية.
 - notification preference separation.
 - Android account isolation.
 - permanent Auth tests.
+
+---
+
+## ق-102 — إدارة المنصة المستقلة ولوحة المراقبة الفورية
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق؛ التنفيذ Pending.
+- **المناقشة:** PA-01.
+- **المصدر التقني:** `technical/PLATFORM_ADMINISTRATION_ARCHITECTURE.md`.
+- **المسألة المفتوحة:** م-32.
+
+### التعريف
+
+Platform Super Admin هو مدير المنصة العامة.
+
+ليس:
+
+- Owner.
+- Operator.
+- Partner.
+- Farmer.
+
+ولا يكتسب Well Role لكي يدير بئرًا.
+
+### السلطة
+
+يمتلك Platform Admin Global Administrative Authority
+على Business/Operational/Account/Financial Data للمنصة
+بهدف:
+
+- الإدارة.
+- الدعم.
+- المراقبة.
+- حل المشكلات.
+- التصحيح الإداري.
+
+### UX
+
+Platform Admin له Console مستقلة.
+
+الوجهة الأساسية:
+
+    Platform Admin Login
+        ↓
+    Platform Administration Dashboard
+
+وليس Owner Home.
+
+### Dashboard
+
+الرئيسية تعرض Numeric KPIs واسعة ومقسمة إلى:
+
+- wells.
+- accounts.
+- roles/entities.
+- operations.
+- sync/health.
+- activation.
+- finance.
+
+### تحديث البيانات
+
+الهدف:
+
+Near-real-time auto refresh عند وجود الاتصال.
+
+لا يعتمد المسؤول على Manual Refresh.
+
+عند Stale/Offline يظهر Last Update.
+
+### Sidebar
+
+Desktop RTL Sidebar ثابتة على اليمين.
+
+الأقسام الأساسية:
+
+- الرئيسية.
+- الآبار.
+- الحسابات والأشخاص.
+- المبيعات والتفعيل.
+- التشغيل.
+- المال.
+- المزامنة والأجهزة.
+- المشاكل والدعم.
+- Audit.
+- Monitoring.
+- Platform Settings.
+
+### Charts
+
+PA-01 تستخدم نفس ق-100:
+
+- Bar.
+- Line.
+
+الإحصاءات الرقمية تأتي أولًا.
+
+الرسوم الأولية:
+
+- Wells/Accounts growth.
+- Daily Sessions.
+- Sync/Conflict/Error trend.
+
+### Full authority لا تعني Role impersonation
+
+Platform Admin action تحفظ بهوية Platform Admin.
+
+لا تسجل كOwner Action.
+
+### Trusted backend
+
+Platform Authority لا تبرر وضع Service Secrets في
+Client.
+
+Cross-tenant admin writes تمر عبر Trusted Backend.
+
+### Password requirement
+
+متطلب عرض Current Password بواسطة Platform Super Admin
+معتمد كProduct Requirement.
+
+لكن:
+
+- غير منفذ حاليًا.
+- Current Auth Contract لا يوفر نص Password قابلًا للقراءة.
+- يحتاج قرار Security Architecture مستقل قبل التنفيذ.
+- لا نخزن Plaintext/Reversible Password دون قرار جديد.
+
+### شرط الإغلاق
+
+لا يعتبر ق-102 منفذًا حتى يثبت:
+
+- platform admin authority.
+- global read access.
+- global write orchestration.
+- admin audit.
+- dashboard metrics.
+- near-real-time updates.
+- global search.
+- support tooling.
+- system monitoring.
+- activation administration.
+- financial monitoring.
+- password requirement resolution.
+- permanent security tests.

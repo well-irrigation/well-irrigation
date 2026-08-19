@@ -536,3 +536,29 @@ Migration 075 ولا أي هجرة مطبقة سابقة.
 دفعة توثيقية فقط.
 
 Baseline الاختبارات لم يتغير.
+
+## 2026-08-19 — اعتماد PA-01 / ق-102
+
+- تعريف Platform Super Admin كمسؤول منصة مستقل.
+- منع خلطه بOwner/Operator/Partner/Farmer.
+- اعتماد Console مستقلة Web/Desktop-first.
+- اعتماد Sidebar RTL ثابتة على اليمين.
+- اعتماد Dashboard رقمية واسعة.
+- اعتماد Wells/Accounts/Operations/Sync/Activation/Finance KPIs.
+- اعتماد Near-real-time auto refresh.
+- اعتماد Last Update عند Stale state.
+- اعتماد Drill-down من KPIs.
+- اعتماد Bar/Line Charts وفق ق-100.
+- اعتماد ثلاثة سياقات Charts أولية للرئيسية.
+- اعتماد Global Wells/Accounts/Finance/Operations monitoring.
+- اعتماد Support/Audit/System Monitoring sections.
+- اعتماد Trusted Backend boundary.
+- تسجيل Password Visibility كمتطلب منتج معتمد
+  لكنه غير منفذ ويحتاج قرارًا أمنيًا لاحقًا.
+- إنشاء `PLATFORM_ADMINISTRATION_ARCHITECTURE.md`.
+- فتح م-32.
+- تحديد PA-02 كنقطة العمل التالية.
+
+دفعة توثيقية فقط.
+
+Baseline الاختبارات لم يتغير.

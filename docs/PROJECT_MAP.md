@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-101.
+آخر قرار مرقم حاليًا: ق-102.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -175,6 +175,7 @@
 - UX-14 / Money & Partners: معتمد وموثق.
 - UX-15 / Well Management & Reports: معتمد وموثق.
 - UX-16A / Account & Settings: معتمد وموثق.
+- PA-01 / Platform Administration Foundation & Dashboard: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
 - ق-90 / Device Readiness وSync Transparency: معتمد.
@@ -183,9 +184,9 @@
 
 الخطوة التالية:
 
-PA-01 / Platform Administration.
+PA-02 / Accounts, Wells & Support Control.
 
-إدارة المنصة أصبحت سلسلة مستقلة عن UX-16A.
+UX-17 مؤجلة حتى إكمال سلسلة Platform Administration.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -543,3 +544,36 @@ PA-01 / Platform Administration.
 - م-31.
 
 Platform Administration ليست جزءًا من هذا المصدر.
+
+### Platform Administration
+
+القرار:
+
+ق-102.
+
+المصدر التقني:
+
+`technical/PLATFORM_ADMINISTRATION_ARCHITECTURE.md`
+
+هذه Control Plane مستقلة عن Well Roles.
+
+تغطي PA-01:
+
+- global platform authority.
+- separate Admin Console.
+- Web/Desktop-first layout.
+- right-side RTL navigation.
+- live numeric KPI dashboard.
+- wells/accounts/operations/sync/activation/finance metrics.
+- simple Bar/Line charts.
+- drill-down.
+- near-real-time refresh.
+- global monitoring.
+- audit.
+- trusted backend.
+- password visibility requirement status.
+- م-32.
+
+المناقشة التالية:
+
+PA-02.
