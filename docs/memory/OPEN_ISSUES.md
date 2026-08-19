@@ -792,8 +792,8 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 
 12. Financial Global Monitoring يحتاج typed projections.
 
-13. Password visibility requirement معتمد لكنه تقنيًا
-    unresolved في Auth الحالية.
+13. Password visibility architecture حسمت تصميميًا بق-103؛
+    التنفيذ والاختبارات التفصيلية انتقلت إلى م-33.
 
 14. Platform Admin Security Tests غير موجودة بعد.
 
@@ -810,3 +810,70 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - finance/admin permission tests.
 - secrets-boundary tests.
 - password requirement resolution.
+
+---
+
+## م-33 — Platform Account, Well, Support & Recoverable Password Control
+
+**الحالة:** مفتوحة — 2026-08-19
+**القرار الحاكم:** ق-103
+**المناقشة:** PA-02
+**الأولوية:** حرجة جدًا قبل Platform Admin Production
+
+### الفجوات
+
+1. Global Account Search/API غير منفذة.
+
+2. Global Well Admin Reads/Writes غير منفذة.
+
+3. Identity Resolution/Merge يحتاج Contracts واختبارات.
+
+4. Account Suspend/Restore يحتاج Trusted orchestration.
+
+5. Session Invalidation يحتاج عقدًا إداريًا.
+
+6. Support Case model غير منفذ.
+
+7. Error Reference/Correlation model غير مكتمل.
+
+8. Admin Correction APIs غير مكتملة.
+
+9. Recoverable Password Vault غير منفذة.
+
+10. Encryption Key Management غير منفذ.
+
+11. Password Orchestrator غير منفذ.
+
+12. Existing Password coverage تحتاج unavailable/managed state.
+
+13. Password Vault consistency مع Supabase Auth تحتاج إثباتًا.
+
+14. Direct/out-of-band password mutation risk يحتاج إغلاقًا.
+
+15. Reveal Password endpoint غير منفذ.
+
+16. Password Reveal Audit غير منفذ.
+
+17. No-plaintext logging guarantees تحتاج اختبارات.
+
+18. Browser/local secret persistence prevention يحتاج اختبارات.
+
+19. Migration 078+ مطلوبة لأي DB schema جديد.
+
+### لا تغلق قبل
+
+- non-admin denial.
+- admin cross-tenant account/well access.
+- identity safety tests.
+- suspend/restore tests.
+- support-case tests.
+- correction/audit tests.
+- password encryption tests.
+- key rotation tests.
+- orchestration failure tests.
+- stale/unavailable tests.
+- reveal authorization tests.
+- no-plaintext-at-rest verification.
+- no plaintext logs.
+- no local/browser persistent password cache.
+- complete security review.

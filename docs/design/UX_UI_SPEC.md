@@ -4723,7 +4723,8 @@ Migration 066.
 - UX-15: Well Management & Reports — معتمد وموثق.
 - UX-16A: Account & Settings — معتمد وموثق.
 - PA-01: Platform Administration Foundation & Dashboard — معتمد وموثق.
-- PA-02: Accounts, Wells & Support Control — التالي.
+- PA-02: Accounts, Wells & Support Control — معتمد وموثق.
+- PA-03: Sales, Activation, Operations & Financial Control — التالي.
 - UX-17: Final Cross-Cutting Review.
 
 ---
@@ -7869,20 +7870,731 @@ Secrets تبقى Server-side.
 
 ---
 
-## 17. نقطة المناقشة التالية
+# PA-02 — Accounts, Wells & Support Control
+# إدارة الحسابات والآبار والدعم
 
-**PA-02 — Accounts, Wells & Support Control /
-إدارة الحسابات والآبار والدعم.**
+**الحالة:** معتمدة — 2026-08-19
+**القرار الحاكم:** ق-103
+**المسألة المفتوحة:** م-33
+**القرارات:** PA-02-01 إلى PA-02-57
 
-سنناقش فيها تفصيليًا:
+---
 
-- كل Account Action.
-- كل Well Action.
-- Password management.
-- identity recovery.
-- disable/restore.
-- support intervention.
-- global search.
-- exceptional corrections.
+## أ — البحث العالمي
 
-بعد إكمال سلسلة PA نعود إلى UX-17.
+### PA-02-01 — Global Search
+
+يوجد بحث عالمي ثابت في لوحة الإدارة.
+
+يبحث حسب:
+
+- الهاتف.
+- الاسم.
+- Account ID.
+- Person ID عند الحاجة.
+- اسم البئر.
+- Well Public Code.
+- Farmer.
+- Invoice/Payment reference عند توفر العقد.
+- Error Reference.
+- Support Case.
+
+### PA-02-02 — نتائج مصنفة
+
+النتائج تقسم حسب النوع:
+
+- الحسابات.
+- الأشخاص.
+- الآبار.
+- المزارعون.
+- العمليات.
+- المشاكل.
+
+### PA-02-03 — لا ربط بالاسم وحده
+
+تشابه الاسم يسمح بالعثور على النتائج فقط.
+
+لا يسمح بربط أو دمج هويتين تلقائيًا.
+
+---
+
+## ب — الحسابات والأشخاص
+
+### PA-02-04 — Global Accounts Table
+
+تعرض القائمة:
+
+- الاسم.
+- الهاتف.
+- الحالة.
+- Platform Admin flag.
+- عدد الآبار.
+- الأدوار.
+- آخر نشاط عند توفره.
+- تاريخ إنشاء الحساب.
+
+### PA-02-05 — Account Header
+
+يعرض:
+
+- الاسم.
+- الهاتف.
+- الحالة.
+- Last Login.
+- Admin warnings.
+
+### PA-02-06 — Account Tabs
+
+- نظرة عامة.
+- الهوية.
+- الآبار والأدوار.
+- الأجهزة والجلسات.
+- المزامنة.
+- الدعم.
+- سجل التغييرات.
+
+### PA-02-07 — Account Overview
+
+تعرض:
+
+- Login Profile.
+- Canonical Person عند وجود ربط مؤكد.
+- الهاتف.
+- الآبار.
+- الأدوار.
+- Farmer identities المرتبطة.
+- الأجهزة.
+- المشاكل المفتوحة.
+
+### PA-02-08 — Profile ≠ Person
+
+`iam.profiles` هو Login Account.
+
+`core.persons` هو Business Person.
+
+الإدارة تعرض العلاقة دون دمج المفهومين تقنيًا.
+
+---
+
+## ج — تعديل الهوية
+
+### PA-02-09 — تعديل الاسم
+
+Platform Admin يستطيع تعديل الاسم.
+
+يلزم:
+
+- القيمة الحالية.
+- الجديدة.
+- السبب.
+- Audit.
+
+### PA-02-10 — تغيير الهاتف
+
+Platform Admin يستطيع تغيير الهاتف عبر Trusted Backend.
+
+قبل التنفيذ:
+
+- uniqueness check.
+- target confirmation.
+- reason.
+- audit.
+
+### PA-02-11 — Phone Conflict
+
+إذا الرقم مرتبط بحساب آخر:
+
+لا يحدث استبدال تلقائي.
+
+ينتقل إلى Identity Resolution.
+
+---
+
+## د — الهوية المكررة
+
+### PA-02-12 — Identity Resolution
+
+يوجد تدفق إداري لحل Duplicate Identity.
+
+### PA-02-13 — المقارنة
+
+قبل الدمج تعرض:
+
+- Account A.
+- Account B.
+- Persons.
+- Phones.
+- Wells.
+- Roles.
+- Farmers.
+- Partnerships.
+- Sessions.
+- Finance references.
+
+### PA-02-14 — No Automatic Merge
+
+حتى Platform Admin لا يستخدم Auto Merge مبنيًا على الاسم.
+
+### PA-02-15 — Audited Merge
+
+عند الدمج:
+
+- يحدد Canonical Person.
+- تنقل العلاقات المسموح بها.
+- يحفظ التاريخ.
+- تسجل الأسباب.
+- لا يفقد Financial/Operational History.
+
+---
+
+## هـ — تعطيل واستعادة الحساب
+
+### PA-02-16 — Suspend Account
+
+Platform Admin يستطيع تعطيل أي حساب.
+
+### PA-02-17 — Pre-suspend Review
+
+قبل التعطيل تعرض:
+
+- Active Session.
+- Open Shift.
+- Pending Commands.
+- sole owner/admin responsibilities.
+- unresolved transfers.
+
+### PA-02-18 — Preserve History
+
+التعطيل لا يمحو:
+
+- Sessions.
+- Payments.
+- Roles.
+- Partnerships.
+- Audit.
+
+### PA-02-19 — Restore Account
+
+إعادة التفعيل فعل إداري مستقل ومدقق.
+
+---
+
+## و — الأجهزة والجلسات
+
+### PA-02-20 — Devices
+
+تعرض عند توفر البيانات:
+
+- Device ID.
+- App Version.
+- Last Seen.
+- Last Sync.
+- Pending Count.
+- Conflict Count.
+
+### PA-02-21 — Session Invalidation
+
+Platform Admin يستطيع:
+
+- Logout device.
+- Logout all devices.
+
+### PA-02-22 — No Outbox Destruction
+
+Session invalidation لا تمحو Business Commands
+المحفوظة أو التاريخ الخادمي.
+
+---
+
+## ز — إدارة الآبار
+
+### PA-02-23 — Global Wells Table
+
+تعرض:
+
+- Well Name.
+- Public Code.
+- Status.
+- owners.
+- users count.
+- active session.
+- last activity.
+- activation state.
+- open problems.
+
+### PA-02-24 — Well Filters
+
+تشمل:
+
+- Active.
+- Inactive.
+- Setup.
+- Problem.
+- Live Session.
+- Sync Problem.
+- Activation Problem.
+- Recently Created.
+
+### PA-02-25 — Admin Well Context
+
+رأس الصفحة:
+
+    إدارة المنصة — اسم البئر
+
+ولا يظهر Platform Admin كOwner.
+
+### PA-02-26 — Well Admin Tabs
+
+- نظرة عامة.
+- الأشخاص.
+- التشغيل.
+- الحجوزات.
+- المال.
+- الوقود.
+- الشراكة.
+- الإعدادات.
+- المزامنة.
+- المشاكل.
+- Audit.
+
+### PA-02-27 — Correct Well Metadata
+
+Platform Admin يستطيع تصحيح البيانات الأساسية
+وفق Trusted Admin Contract.
+
+### PA-02-28 — Suspend Well
+
+يمكن تعليق البئر بسبب إداري واضح ومدقق.
+
+### PA-02-29 — Active Session Warning
+
+تعليق البئر لا ينهي Session جارية بصمت.
+
+تظهر الحالة قبل التنفيذ.
+
+### PA-02-30 — Restore Well
+
+إعادة البئر فعل منفصل ومدقق.
+
+---
+
+## ح — فتح بيانات البئر
+
+### PA-02-31 — Open Well Data
+
+Platform Admin يستطيع فتح جميع مجالات بيانات البئر.
+
+### PA-02-32 — No Default Impersonation
+
+لا يستخدم «ادخل كمالك» لتنفيذ العمل العادي.
+
+Admin Authority تبقى مستقلة.
+
+### PA-02-33 — User Preview
+
+يمكن توفير:
+
+    معاينة ما يراه المستخدم
+
+Read-only حسب:
+
+- Owner.
+- Operator.
+- Partner.
+
+ولا تنفذ Actions باسم ذلك المستخدم.
+
+---
+
+## ط — التدخل التشغيلي والمالي
+
+### PA-02-34 — Open Any Record
+
+Platform Admin يستطيع فتح أي:
+
+- Session.
+- Booking.
+- Shift.
+- Payment.
+- Expense.
+- Farmer.
+- Farm.
+- Partner record.
+
+### PA-02-35 — No Direct Historical Edit
+
+السلطة الكاملة لا تعني تعديل التاريخ المالي أو التشغيلي
+بـDirect Update من الواجهة.
+
+### PA-02-36 — Administrative Correction
+
+التصحيح يعرض:
+
+- Current Value.
+- New Value.
+- reason.
+- expected effect.
+- confirmation.
+
+ثم Audit.
+
+---
+
+## ي — مركز الدعم
+
+### PA-02-37 — Support Cases
+
+الدعم يستخدم Cases حقيقية.
+
+### PA-02-38 — Case Fields
+
+- Case Number.
+- category.
+- user.
+- well.
+- phone.
+- description.
+- priority.
+- status.
+- assigned admin.
+- created time.
+- updated time.
+
+### PA-02-39 — Case Statuses
+
+V1:
+
+- جديدة.
+- قيد المعالجة.
+- بانتظار العميل.
+- بانتظار النظام/الفريق التقني.
+- تم الحل.
+- مغلقة.
+
+### PA-02-40 — Categories
+
+- Login.
+- OTP.
+- Password.
+- Activation.
+- Well Creation.
+- Session.
+- Payment.
+- Sync.
+- Incorrect Data.
+- Account.
+- App Error.
+- Other.
+
+### PA-02-41 — Case Timeline
+
+كل Case تعرض Timeline واضحًا للأحداث.
+
+### PA-02-42 — Direct References
+
+Case يمكن ربطها بـ:
+
+- Account.
+- Well.
+- Session.
+- Payment.
+- Sync Command.
+- Error Reference.
+
+### PA-02-43 — Internal Notes
+
+Platform Admin يستطيع إضافة Internal Notes.
+
+### PA-02-44 — No Secrets in Notes
+
+لا تخزن في Support Notes:
+
+- Auth Tokens.
+- service_role.
+- Database passwords.
+- encryption keys.
+
+---
+
+## ك — Error Reference
+
+### PA-02-45 — User Error Reference
+
+الأخطاء المهمة تحصل على Reference قابل للبحث.
+
+### PA-02-46 — Admin Error Detail
+
+يستطيع Admin رؤية:
+
+- Account.
+- Well.
+- Action.
+- App Version.
+- Time.
+- Error Class.
+- Sync Context.
+- Correlation ID.
+
+---
+
+## ل — إجراءات الدعم
+
+### PA-02-47 — Safe Admin Actions
+
+توفر Actions واضحة مثل:
+
+- Change Phone.
+- Password Actions.
+- Suspend.
+- Restore.
+- Invalidate Sessions.
+- Resolve Identity.
+- Reconcile Sync Command.
+- Correct Activation.
+- Administrative Correction.
+
+### PA-02-48 — No SQL Console in V1
+
+لا يوجد زر عام لتعديل Database أو SQL Console في V1.
+
+الحالات غير المغطاة:
+
+    يتطلب تدخلًا تقنيًا
+
+وتربط بـSupport Case.
+
+---
+
+## م — الحذف والتاريخ
+
+### PA-02-49 — No General Hard Delete
+
+لا Hard Delete عام للحسابات أو الآبار ذات التاريخ.
+
+### PA-02-50 — Administrative Alternatives
+
+تستخدم:
+
+- Suspend.
+- Archive.
+- Disable.
+- Merge.
+- Correction.
+
+بحسب المجال.
+
+---
+
+## ن — Audit
+
+### PA-02-51 — Admin Audit Fields
+
+كل فعل حساس يسجل:
+
+- Platform Admin.
+- Date/Time.
+- target.
+- before.
+- after.
+- reason.
+- Support Case عند وجودها.
+- result.
+
+### PA-02-52 — Append-only Audit
+
+Admin Audit لا يعدل أو يحذف بعد إنشائه.
+
+---
+
+# س — كلمات المرور / Option B
+
+### PA-02-53 — Recoverable Current Password Vault
+
+تم اعتماد **Option B**.
+
+الهدف المنتج:
+
+**Platform Super Admin يستطيع عرض Current Password
+الحالية لأي حساب عندما تكون النسخة الموثوقة متاحة
+في Password Vault.**
+
+Supabase Auth يبقى مسؤول Authentication الأساسي.
+
+لكن النظام يضيف مخزنًا منفصلًا:
+
+**Recoverable Password Vault**
+
+يحفظ نسخة مشفرة قابلة لفك التشفير من كلمة المرور.
+
+لا تخزن Plaintext Password في Database.
+
+### PA-02-54 — Coverage and Existing Passwords
+
+كلمات المرور الموجودة قبل تشغيل Vault:
+
+لا يمكن استرجاعها بأثر رجعي من Supabase Hash.
+
+تتحول إلى Vault-managed عند أول:
+
+- Account Creation.
+- Password Change.
+- Password Reset.
+- Admin Password Reset.
+
+يمر عبر Password Orchestrator الجديد.
+
+إلى ذلك الوقت تعرض الإدارة:
+
+    كلمة المرور الحالية غير متاحة في المخزن
+
+ولا تعرض Guess.
+
+### PA-02-55 — Reveal Password UX
+
+داخل Account Security:
+
+    كلمة المرور
+    ••••••••••••
+    [ عرض كلمة المرور ]
+
+Reveal:
+
+- Platform Admin only.
+- masked by default.
+- explicit action.
+- short-lived display.
+- audited.
+- password نفسها لا تدخل Audit Payload.
+
+إذا Vault غير موثوقة أو Stale:
+
+لا يظهر Password قديمة بوصفها الحالية.
+
+### PA-02-56 — Password Mutation Orchestration
+
+كل Supported Password Mutation يجب أن تمر عبر
+Trusted Password Orchestrator.
+
+يشمل:
+
+- user creation.
+- first password.
+- self password change.
+- forgot-password reset.
+- platform-admin reset.
+
+Target sequence:
+
+    authenticated/authorized request
+        ↓
+    validate password policy
+        ↓
+    encrypt candidate into pending vault version
+        ↓
+    update Supabase Auth password
+        ↓
+    promote vault version to active
+        ↓
+    audit metadata only
+
+إذا فشل Auth update:
+
+تلغى Pending Vault version.
+
+إذا نجح Auth update ثم تعطل Finalization:
+
+تبقى encrypted candidate قابلة للمصالحة بواسطة
+Operation ID بدل فقد Password الجديدة.
+
+### PA-02-57 — Password Vault Security Contract
+
+Password Vault تحتاج:
+
+- encryption in transit.
+- authenticated encryption at rest.
+- per-record random nonce.
+- versioned encryption format.
+- Envelope Encryption.
+- Data Encryption Key.
+- Master/Key Encryption Key خارج Database.
+- key rotation.
+- Platform Admin authorization.
+- reveal audit.
+- no plaintext logs.
+- no analytics capture.
+- no local/mobile cache.
+- no sync outbox.
+- no browser persistent storage.
+- no password inside support notes.
+- stale-state detection.
+- no stale password shown as Current.
+- permanent security tests.
+
+التصميم المستهدف يستخدم خوارزمية Authenticated
+Encryption قوية مثل AES-256-GCM أو ما يعتمد رسميًا
+في بيئة التنفيذ لاحقًا.
+
+---
+
+## أثر ق-103 على القرارات السابقة
+
+ق-103 ينسخ فقط الجزء من ق-85 الذي منع Platform Admin
+من قراءة Current Password.
+
+تبقى من ق-85:
+
+- Trusted Auth Admin.
+- لا service_role داخل Flutter.
+- لا privileged secret داخل Client.
+
+ق-103 يحسم أيضًا حالة ق-102 السابقة التي وصفت Password
+Visibility بأنها Blocked design decision.
+
+أصبحت الآن:
+
+    Architecture Adopted
+    Implementation Pending
+
+---
+
+## فجوات PA-02
+
+قبل Production يلزم:
+
+- global search APIs.
+- account admin reads.
+- account admin writes.
+- phone correction.
+- identity resolution.
+- account suspend/restore.
+- session invalidation.
+- well admin reads/writes.
+- well suspend/restore.
+- user-preview projection.
+- support case model.
+- error-reference model.
+- admin correction contracts.
+- password vault schema/service.
+- encryption/key management.
+- password orchestration.
+- vault migration/coverage state.
+- stale-vault detection.
+- admin password reveal endpoint.
+- audit projection.
+- permanent security tests.
+
+المسألة:
+
+**م-33 — Platform Account, Well, Support & Recoverable
+Password Control.**
+
+أي DB change جديد يبدأ من Migration 078+.
+
+---
+
+## 18. نقطة المناقشة التالية
+
+**PA-03 — Sales, Activation, Operations & Financial Control /
+المبيعات والتفعيل والتحكم التشغيلي والمالي.**
+
+بعد إكمال سلسلة Platform Administration نعود إلى UX-17.

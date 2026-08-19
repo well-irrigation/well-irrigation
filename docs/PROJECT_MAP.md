@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-102.
+آخر قرار مرقم حاليًا: ق-103.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -176,6 +176,7 @@
 - UX-15 / Well Management & Reports: معتمد وموثق.
 - UX-16A / Account & Settings: معتمد وموثق.
 - PA-01 / Platform Administration Foundation & Dashboard: معتمد وموثق.
+- PA-02 / Accounts, Wells & Support Control: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
 - ق-90 / Device Readiness وSync Transparency: معتمد.
@@ -184,7 +185,7 @@
 
 الخطوة التالية:
 
-PA-02 / Accounts, Wells & Support Control.
+PA-03 / Sales, Activation, Operations & Financial Control.
 
 UX-17 مؤجلة حتى إكمال سلسلة Platform Administration.
 
@@ -577,3 +578,38 @@ Platform Administration ليست جزءًا من هذا المصدر.
 المناقشة التالية:
 
 PA-02.
+
+### PA-02 — الحسابات والآبار والدعم وكلمات المرور
+
+القرار:
+
+ق-103.
+
+المصدر:
+
+`technical/PLATFORM_ADMIN_ACCOUNTS_WELLS_SUPPORT_ARCHITECTURE.md`
+
+يغطي:
+
+- global search.
+- global accounts.
+- identity resolution.
+- account suspend/restore.
+- sessions/devices.
+- global wells.
+- well suspend/restore.
+- support cases.
+- error references.
+- admin corrections.
+- audit.
+- Recoverable Encrypted Password Vault.
+- Option B.
+- legacy password coverage.
+- password reveal.
+- password orchestration.
+- key management.
+- م-33.
+
+ق-103 ينسخ فقط Password Non-Readability من ق-85.
+
+Trusted Auth Admin Boundary من ق-85 تبقى نافذة.

@@ -606,3 +606,32 @@ Realtime Admin UI تستخدم:
 - stale timestamp.
 
 لا تنشئ Admin Console Business Sync Engine موازية.
+
+## ق-103 — Password Secrets Never Enter Sync
+
+Recoverable Password Vault خارج Offline/Sync Data Plane.
+
+Password plaintext لا تدخل:
+
+- Local Durable DB.
+- Outbox.
+- WorkManager payload.
+- Cached API responses.
+- generic retry queues.
+- Offline snapshots.
+- analytics.
+- support diagnostics.
+
+Password Reveal Online-only.
+
+Password Mutation Online-only.
+
+أي retry لخدمة Password يستخدم Operation ID وEncrypted
+Pending Vault Version على Server بدل تخزين plaintext
+في Mobile Queue.
+
+إذا Vault state غير مؤكدة:
+
+تظهر `stale` أو `unavailable`.
+
+لا تعرض Password قديمة بوصفها Current.

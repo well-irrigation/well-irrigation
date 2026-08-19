@@ -875,12 +875,102 @@ Commit جديدًا.
 
 396. Password Visibility Requirement غير Implemented حاليًا.
 
-397. لا Plaintext Password Store قبل قرار أمني صريح.
+397. Plaintext Password Store ممنوع؛ ق-103 تعتمد Vault مشفرة فقط.
 
-398. لا Reversible Password Vault قبل قرار أمني صريح.
+398. Recoverable Encrypted Password Vault معتمدة بق-103؛ التنفيذ Pending.
 
 399. Infrastructure Secrets ليست Ordinary Platform Data في UI.
 
 400. PA-01 لا تعتبر Production Complete قبل إغلاق م-32.
 
 401. Any DB change جديد يبدأ من Migration 078+.
+
+## ق-103 — ثوابت الحسابات والآبار والدعم وكلمات المرور
+
+402. Platform Admin يستطيع إدارة أي Account عبر Admin Contracts.
+
+403. Platform Admin يستطيع إدارة أي Well دون Owner Role.
+
+404. Global Search لا ينشئ Identity Relationship بالتخمين.
+
+405. Name Similarity لا يكفي للMerge.
+
+406. Identity Merge يحتاج Canonical Target واضحًا.
+
+407. Merge لا يمحو Financial/Operational History.
+
+408. Account Suspension لا يمحو التاريخ.
+
+409. Well Suspension لا يمحو التاريخ.
+
+410. Active Session لا تنهى بصمت عند Suspend Well.
+
+411. Admin Preview للمستخدم Read-only.
+
+412. Admin Full Authority لا تعني Direct Historical Rewrite.
+
+413. Posted Financial Record يصحح عبر Correction/Reversal.
+
+414. Admin Support Cases لها Timeline ومراجع ثابتة.
+
+415. Support Notes لا تحتوي Infrastructure Secrets.
+
+416. Error Reference قابلة للبحث إداريًا.
+
+417. Admin Audit Append-only.
+
+418. Password Option B معتمدة.
+
+419. Supabase Hash ليست Recoverable Password Vault.
+
+420. Password Vault الإضافية لا تستبدل Supabase Auth Hash.
+
+421. Plaintext Password at Rest ممنوعة.
+
+422. Password Vault ciphertext فقط في Database.
+
+423. Decryption Key Authority خارج Client.
+
+424. KEK لا تخزن مع Ciphertext في نفس Trust Boundary.
+
+425. Password Reveal = Platform Admin only.
+
+426. Password Reveal masked by default.
+
+427. Password Reveal action audited.
+
+428. Audit لا يحتوي Password plaintext.
+
+429. Password لا تدخل Logs أو Analytics.
+
+430. Password لا تدخل Local DB أو Outbox.
+
+431. Password Reveal Online-only.
+
+432. Password Mutation Online-only.
+
+433. Legacy Password قبل Vault لا تدعى Recoverable.
+
+434. Legacy Account يبقى Vault Unavailable حتى Rotation.
+
+435. Pending Vault Version لا تصبح Active قبل نجاح Auth Update.
+
+436. Failed Auth Update لا يغير Current Active Vault Secret.
+
+437. Crash after Auth Update يحتاج Reconciliation لا Guess.
+
+438. Stale Vault لا تعرض بوصفها Current Password.
+
+439. كل Supported Password Mutation تمر عبر Orchestrator.
+
+440. Password Vault لا تكون exposed Data API relation.
+
+441. service_role لا يدخل Admin Browser أو Flutter.
+
+442. Key Rotation جزء إلزامي من Production Design.
+
+443. Password Security Tests إلزامية قبل إغلاق م-33.
+
+444. أي DB change جديد يبدأ من Migration 078+.
+
+445. PA-02 لا تعتبر Production Complete قبل إغلاق م-33.

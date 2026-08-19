@@ -561,3 +561,59 @@ Well Roles.
    لم يعتمد تغيير جديد.
 
 10. DB change جديد يبدأ من Migration 078+.
+
+## ق-103 — Platform Account/Well/Support/Password APIs
+
+يلزم Trusted Admin Contracts لـ:
+
+- global search.
+- account detail.
+- account change phone.
+- account suspend.
+- account restore.
+- session invalidation.
+- identity resolution.
+- well detail.
+- well suspend.
+- well restore.
+- user preview.
+- support case lifecycle.
+- error reference lookup.
+- admin correction.
+- password reset.
+- password reveal.
+
+### Password API boundary
+
+Password Vault ليست Data API table.
+
+لا Direct Client Select.
+
+Reveal flow:
+
+    authenticated Platform Admin
+        ↓
+    Trusted Admin Backend
+        ↓
+    authorization
+        ↓
+    vault state validation
+        ↓
+    server-side decryption
+        ↓
+    short-lived response
+
+Password Mutation flow ينسق:
+
+- encrypted pending vault version.
+- Supabase Auth update.
+- vault activation.
+- audit metadata.
+
+### Security
+
+- service_role server-side only.
+- KEK/decryption permission server-side only.
+- no password in audit/logging.
+- no Direct DML from Browser.
+- Migration 078+ لأي DB objects جديدة.

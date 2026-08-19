@@ -562,3 +562,38 @@ Baseline الاختبارات لم يتغير.
 دفعة توثيقية فقط.
 
 Baseline الاختبارات لم يتغير.
+
+## 2026-08-19 — اعتماد PA-02 / ق-103
+
+- اعتماد PA-02-01 إلى PA-02-57.
+- اعتماد Global Search.
+- اعتماد Global Account Administration.
+- اعتماد Identity Resolution.
+- اعتماد Account Suspend/Restore.
+- اعتماد Session Invalidation.
+- اعتماد Global Well Administration.
+- اعتماد User Preview Read-only.
+- اعتماد Support Case model.
+- اعتماد Error References.
+- اعتماد Administrative Correction flow.
+- إعادة تأكيد Append-only Audit.
+- اعتماد Password Option B.
+- اعتماد Recoverable Encrypted Password Vault.
+- اعتماد Platform Admin Current Password Reveal.
+- توثيق أن Supabase Hash الحالية لا تسترجع Legacy Password.
+- اعتماد Vault unavailable للحساب القديم حتى Password Rotation.
+- اعتماد no plaintext at rest.
+- اعتماد no local/outbox password cache.
+- اعتماد Trusted Password Orchestrator.
+- اعتماد Pending Vault Version قبل Auth Update.
+- اعتماد stale/unavailable safety.
+- توثيق أن ق-103 ينسخ فقط Password Non-Readability من ق-85.
+- إنشاء `PLATFORM_ADMIN_ACCOUNTS_WELLS_SUPPORT_ARCHITECTURE.md`.
+- فتح م-33.
+- تحديد PA-03 كنقطة العمل التالية.
+
+دفعة توثيقية فقط.
+
+لم تنفذ Password Vault أو Migration 078+ بعد.
+
+Baseline الاختبارات لم يتغير.

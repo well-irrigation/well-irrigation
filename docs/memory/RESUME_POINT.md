@@ -216,7 +216,7 @@
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
   UX-02/03/08/09/10/11/12/13/14/15/16A
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102 غير منفذة؛
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -243,29 +243,36 @@
 
 ## التالي
 
-**PA-02 — Accounts, Wells & Support Control /
-إدارة الحسابات والآبار والدعم.**
+**PA-03 — Sales, Activation, Operations & Financial Control /
+المبيعات والتفعيل والتحكم التشغيلي والمالي.**
 
-PA-01 معتمدة وموثقة.
+PA-02 معتمدة وموثقة.
 
-ق-102 يحكم:
+ق-103 يحكم:
 
-- Platform Admin مستقل عن Well Roles.
-- Global Business Administration Authority.
-- separate Web/Desktop Admin Console.
-- right RTL Sidebar.
-- broad numeric KPIs.
-- Near-real-time automatic updates.
-- Bar/Line charts.
-- global monitoring.
-- audit.
-- trusted backend.
-- password visibility requirement remains adopted but
-  technically unresolved.
+- global account/well administration.
+- identity resolution.
+- suspend/restore.
+- session invalidation.
+- support cases.
+- error references.
+- administrative corrections.
+- Password Option B.
+- Recoverable Encrypted Password Vault.
+- Platform Admin Password Reveal.
+- no plaintext at rest.
+- no local password cache.
+- trusted password orchestration.
+- legacy password unavailable until rotation.
+- stale vault never shown as current.
+
+ق-103 ينسخ فقط Password Non-Readability من ق-85.
+
+Trusted Backend وNo Client service_role يبقيان نافذين.
+
+م-32 وم-33 والتنفيذ التقني ما زالا Pending.
 
 UX-17 مؤجلة حتى إكمال سلسلة PA.
-
-م-31 وم-32 والتنفيذ التقني المرتبط بهما ما زال Pending.
 
 لا تغير Baseline الاختبارات دون دليل تحقق جديد.
 

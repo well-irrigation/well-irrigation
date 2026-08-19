@@ -219,3 +219,39 @@ UX-16A لا تعتبر Production Complete حتى:
 - notification settings مثبتة.
 - Backend tests ناجحة.
 - Android tests ناجحة.
+
+## 24. ق-103 — أثر Password Vault على Account Settings
+
+ق-103 لا تعيد Platform Administration إلى UX-16A.
+
+لكن Password lifecycle للمستخدم يتأثر تقنيًا.
+
+بعد تنفيذ ق-103:
+
+Supported Password flows في User App لا تغير Password
+مباشرة خارج Trusted Password Orchestrator.
+
+يشمل:
+
+- first password.
+- change password.
+- forgot-password reset.
+
+الهدف:
+
+إبقاء:
+
+    Supabase Auth Password
+    =
+    Active Vault Version
+
+في المسارات المدعومة.
+
+Flutter لا:
+
+- تخزن Recoverable Password.
+- تقرأ Vault.
+- تملك decryption key.
+- ترسل Password إلى Sync Outbox.
+
+Platform Password Reveal تبقى PA-only.

@@ -372,3 +372,57 @@ PA-01 لا تعتبر Production Complete حتى:
 - Audit implemented.
 - monitoring implemented.
 - security tests successful.
+
+## 32. ق-103 / PA-02 — Accounts, Wells, Support & Password Vault
+
+ق-103 تعتمد PA-02 بالكامل.
+
+### Supersession of section 28
+
+Section 28 السابقة سجلت Password Visibility كRequirement
+غير محسومة التصميم.
+
+ق-103 تحسمها:
+
+**Option B معتمد.**
+
+Target:
+
+**Recoverable Encrypted Current Password Vault.**
+
+Current status:
+
+- Architecture adopted.
+- Implementation Pending.
+- م-33 مفتوحة.
+
+### Important boundaries
+
+ق-103 لا يغير:
+
+- Platform Admin مستقل عن Well Roles.
+- Trusted Backend.
+- لا service_role في Client.
+- Audit إلزامي.
+- لا Direct Client DML.
+
+### Password boundary
+
+Supabase Auth Hash تبقى Authentication Source.
+
+Vault الإضافية مسؤولة فقط عن Recoverable Secret Copy
+المطلوبة من Platform Admin.
+
+Plaintext Password at Rest ممنوعة.
+
+### PA-02 source
+
+المصدر التفصيلي:
+
+`PLATFORM_ADMIN_ACCOUNTS_WELLS_SUPPORT_ARCHITECTURE.md`
+
+### Next
+
+PA-03:
+
+Sales, Activation, Operations & Financial Control.

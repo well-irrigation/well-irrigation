@@ -737,3 +737,44 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 - فتح م-32.
 
 **نوع الدفعة:** توثيقية فقط.
+
+## تحديث 2026-08-19 — PA-02 / ق-103
+
+**المجال:**
+
+Platform Admin Accounts, Wells, Support and Password Control.
+
+**السبب:**
+
+اعتماد PA-02 بالكامل، واختيار المالك Option B لكلمات المرور:
+Platform Super Admin يستطيع عرض Current Password عبر
+Recoverable Encrypted Password Vault.
+
+**الملف الجديد:**
+
+- `technical/PLATFORM_ADMIN_ACCOUNTS_WELLS_SUPPORT_ARCHITECTURE.md`
+
+**أهم التحديثات:**
+
+- Global Search.
+- Account/Person Administration.
+- Identity Resolution.
+- Account Suspend/Restore.
+- Well Administration.
+- Support Cases.
+- Error References.
+- Admin Correction.
+- Append-only Audit.
+- Password Option B.
+- Encrypted Recoverable Vault.
+- Vault lifecycle.
+- legacy unavailable state.
+- Password Reveal.
+- Password Orchestrator.
+- no plaintext at rest.
+- no password in local sync/cache/logs.
+- key management requirements.
+- ق-103 supersedes Password Non-Readability portion of ق-85.
+- فتح م-33.
+
+**نوع الدفعة:** توثيقية فقط.

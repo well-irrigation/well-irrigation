@@ -1,7 +1,7 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-102
-**آخر تحديث:** 2026-08-18
+**آخر قرار مرقّم:** ق-103
+**آخر تحديث:** 2026-08-19
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
 ---
@@ -27,6 +27,11 @@
 - ق-78 هو الحاكم لحد Data API.
 - ق-79 هو الحاكم لمسارات الكتابة من التطبيق.
 - النص التاريخي للقرارات المنسوخة يبقى محفوظًا ولا يحذف.
+- ق-103 ينسخ فقط جزء ق-85 الذي منع Platform Admin من
+  قراءة Current Password؛ Trusted Backend وعدم كشف
+  service_role يبقيان نافذين.
+- ق-103 يحسم Password Visibility التي كانت Pending في ق-102:
+  Option B / Recoverable Encrypted Password Vault معتمد.
 
 # الجولة الأولى — 2026-08-12
 
@@ -3697,3 +3702,217 @@ Cross-tenant admin writes تمر عبر Trusted Backend.
 - financial monitoring.
 - password requirement resolution.
 - permanent security tests.
+
+---
+
+## ق-103 — إدارة الحسابات والآبار والدعم وكلمات المرور
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق؛ التنفيذ Pending.
+- **المناقشة:** PA-02 / PA-02-01 إلى PA-02-57.
+- **المصدر التقني:**
+  `technical/PLATFORM_ADMIN_ACCOUNTS_WELLS_SUPPORT_ARCHITECTURE.md`.
+- **المسألة المفتوحة:** م-33.
+
+### النطاق
+
+يعتمد ق-103 إدارة Platform Super Admin لـ:
+
+- Global Search.
+- Accounts.
+- Persons.
+- Identity Resolution.
+- Devices/Sessions.
+- Wells.
+- Operational records.
+- Financial records.
+- Support Cases.
+- Error References.
+- Administrative Corrections.
+- Audit.
+- Recoverable Password Vault.
+
+### الحسابات
+
+Platform Admin يستطيع:
+
+- فتح أي حساب.
+- تعديل البيانات المسموحة إداريًا.
+- تغيير الهاتف.
+- تعطيل الحساب.
+- استعادته.
+- إبطال Sessions.
+- حل Duplicate Identity.
+- رؤية جميع علاقات الحساب بالآبار والأدوار.
+
+### الآبار
+
+Platform Admin يستطيع:
+
+- فتح أي بئر.
+- رؤية جميع مجالات بياناته.
+- تصحيح البيانات.
+- تعليق البئر.
+- استعادته.
+- فتح العمليات والمال والوقود والشراكة والمزامنة.
+- تنفيذ Administrative Corrections عبر Contracts آمنة.
+
+لا يحتاج Owner Role.
+
+### الدعم
+
+يعتمد Support Case model مع:
+
+- case number.
+- category.
+- user.
+- well.
+- references.
+- timeline.
+- status.
+- internal notes.
+- admin actions.
+
+### التاريخ
+
+لا Hard Delete عام للسجلات التاريخية.
+
+التصحيحات تستخدم:
+
+- correction.
+- reversal.
+- merge.
+- archive.
+- suspend.
+
+وفق Domain Invariants.
+
+### Password Option B
+
+اعتمد المالك صراحة:
+
+**Platform Super Admin يستطيع معرفة وعرض Current Password
+لأي Account عندما تكون النسخة الموثوقة موجودة في
+Recoverable Password Vault.**
+
+### الواقع التقني
+
+Supabase Auth لا يوفر Current Plaintext Password من
+النموذج الحالي.
+
+لذلك يضاف System-owned Vault مستقل.
+
+### Vault Contract
+
+لا Plaintext at Rest.
+
+تخزن نسخة:
+
+- encrypted.
+- authenticated.
+- versioned.
+- recoverable only inside Trusted Backend.
+
+المستهدف:
+
+- Envelope Encryption.
+- per-record encryption material.
+- Master/KEK خارج Database.
+- rotation support.
+
+### Password lifecycle
+
+كل Supported Password Creation/Change/Reset يجب أن يمر
+عبر Trusted Password Orchestrator.
+
+الهدف منع اختلاف:
+
+    Supabase Current Password
+    vs
+    Vault Current Password
+
+### Existing Passwords
+
+Password الموجودة قبل إطلاق Vault لا يمكن تحويلها من
+Hash إلى Plaintext.
+
+لذلك حالة المستخدم تكون:
+
+    vault_unavailable
+
+حتى أول Password Set/Change/Reset يمر عبر النظام الجديد.
+
+### Reveal
+
+Reveal Password:
+
+- Platform Admin only.
+- masked by default.
+- explicit.
+- audited.
+- no password value in Audit.
+- no persistent browser cache.
+- no mobile cache.
+- no logs.
+- no analytics.
+
+### Stale safety
+
+إذا لم يثبت أن Vault Version تمثل Current Auth Password:
+
+لا تعرض على أنها Current.
+
+تتحول إلى:
+
+    stale / unavailable
+
+حتى المصالحة أو Password Reset.
+
+### Supersession
+
+ق-103 ينسخ **فقط** منع قراءة كلمة المرور في ق-85.
+
+تبقى نافذة من ق-85:
+
+- Auth Admin operations من Trusted Backend.
+- service_role لا يدخل Flutter.
+- secrets لا تدخل Client.
+
+ق-103 يحسم أيضًا Pending Password Architecture من ق-102.
+
+### المخاطر المعترف بها
+
+Recoverable Password Vault يزيد أثر أي اختراق لخدمة
+الإدارة مقارنة بنظام Hash-only.
+
+لذلك يلزم قبل Production:
+
+- strict admin authentication.
+- key separation.
+- key rotation.
+- audit.
+- no plaintext persistence.
+- reveal controls.
+- vault/auth consistency.
+- security tests.
+- incident recovery design.
+
+### شرط الإغلاق
+
+لا يعتبر ق-103 منفذًا حتى:
+
+- Admin Search contracts منفذة.
+- Account/Well admin contracts منفذة.
+- Support Case model منفذ.
+- Audit projection منفذة.
+- Identity merge/correction مثبتة.
+- suspend/restore مثبتة.
+- session invalidation مثبتة.
+- Password Vault منفذة.
+- encryption/key management مثبت.
+- all password mutations orchestrated.
+- existing-password state handled.
+- stale detection مثبتة.
+- reveal endpoint مثبت.
+- non-admin denial مثبت.
+- permanent security tests ناجحة.
