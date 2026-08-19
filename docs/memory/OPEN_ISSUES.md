@@ -792,8 +792,8 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 
 12. Financial Global Monitoring يحتاج typed projections.
 
-13. Password visibility architecture حسمت تصميميًا بق-103؛
-    التنفيذ والاختبارات التفصيلية انتقلت إلى م-33.
+13. Password Option B التي حسمت بق-103 نُسخت بق-105؛
+    Password Recovery/Admin MFA الحالية تتبع م-33.
 
 14. Platform Admin Security Tests غير موجودة بعد.
 
@@ -813,14 +813,37 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 
 ---
 
-## م-33 — Platform Account, Well, Support & Recoverable Password Control
+## م-33 — Platform Account, Well, Support & Password Recovery Control
 
 **الحالة:** مفتوحة — 2026-08-19
-**القرار الحاكم:** ق-103
+**القرار الحاكم الحالي:** ق-105
+**قرارات مرتبطة:** ق-103، ق-104
 **المناقشة:** PA-02
 **الأولوية:** حرجة جدًا قبل Platform Admin Production
 
-### الفجوات
+### ما بقي نافذًا من ق-103
+
+- Global Search.
+- Account administration.
+- Well administration.
+- Identity Resolution.
+- Suspend/Restore.
+- Session invalidation.
+- Support Cases.
+- Error References.
+- Administrative Corrections.
+- Append-only Audit.
+
+### ما نُسخ بق-105
+
+- Recoverable Password Vault.
+- Current Password Reveal.
+- Reversible encrypted password copy.
+- Vault key management.
+- Password reveal endpoint.
+- Password-vault synchronization/orchestration requirements.
+
+### الفجوات الحالية
 
 1. Global Account Search/API غير منفذة.
 
@@ -838,27 +861,31 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 
 8. Admin Correction APIs غير مكتملة.
 
-9. Recoverable Password Vault غير منفذة.
+9. Force Password Reset contract غير منفذ.
 
-10. Encryption Key Management غير منفذ.
+10. Reset-required state غير منفذة.
 
-11. Password Orchestrator غير منفذ.
+11. OTP Password Recovery flow غير منفذ.
 
-12. Existing Password coverage تحتاج unavailable/managed state.
+12. Lost-phone Identity Recovery غير منفذ.
 
-13. Password Vault consistency مع Supabase Auth تحتاج إثباتًا.
+13. Password Policy enforcement يحتاج تنفيذًا.
 
-14. Direct/out-of-band password mutation risk يحتاج إغلاقًا.
+14. Common/compromised Password blocking يحتاج تنفيذًا
+    عند اعتماد capability النهائية.
 
-15. Reveal Password endpoint غير منفذ.
+15. Platform Admin MFA غير منفذة.
 
-16. Password Reveal Audit غير منفذ.
+16. Admin AAL/assurance enforcement غير منفذ.
 
-17. No-plaintext logging guarantees تحتاج اختبارات.
+17. Step-up rules للأفعال عالية الخطورة غير منفذة.
 
-18. Browser/local secret persistence prevention يحتاج اختبارات.
+18. Sensitive transaction confirmation integrity تحتاج
+    Contracts واختبارات.
 
-19. Migration 078+ مطلوبة لأي DB schema جديد.
+19. Admin table pagination/filter/sort APIs تحتاج تنفيذًا.
+
+20. WCAG 2.2 AA verification للAdmin Web Pending.
 
 ### لا تغلق قبل
 
@@ -868,12 +895,16 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - suspend/restore tests.
 - support-case tests.
 - correction/audit tests.
-- password encryption tests.
-- key rotation tests.
-- orchestration failure tests.
-- stale/unavailable tests.
-- reveal authorization tests.
-- no-plaintext-at-rest verification.
-- no plaintext logs.
-- no local/browser persistent password cache.
+- no recoverable password storage.
+- no current-password reveal.
+- force-reset tests.
+- OTP recovery tests.
+- lost-phone recovery tests.
+- password policy tests.
+- MFA/AAL tests.
+- step-up tests.
+- transaction-confirmation integrity tests.
+- no passwords/tokens/keys in logs.
+- pagination/filter/sort tests.
+- accessibility tests.
 - complete security review.

@@ -220,38 +220,43 @@ UX-16A لا تعتبر Production Complete حتى:
 - Backend tests ناجحة.
 - Android tests ناجحة.
 
-## 24. ق-103 — أثر Password Vault على Account Settings
+## 24. ق-105 — Password Recovery Current Rule
 
-ق-103 لا تعيد Platform Administration إلى UX-16A.
+القسم السابق الخاص بتكامل Password Vault بق-103
+منسوخ في جانب Vault بق-105.
 
-لكن Password lifecycle للمستخدم يتأثر تقنيًا.
+User Account V1:
 
-بعد تنفيذ ق-103:
+- password remains inside Supabase Auth verifier model.
+- no recoverable password copy.
+- no Platform Admin reveal.
+- no password in Local Data.
+- no password in Outbox.
 
-Supported Password flows في User App لا تغير Password
-مباشرة خارج Trusted Password Orchestrator.
+Self password change:
 
-يشمل:
+- requires appropriate reauthentication.
+- updates Auth password.
+- does not create recoverable copy.
 
-- first password.
-- change password.
-- forgot-password reset.
+Forgot Password:
 
-الهدف:
+    OTP
+      ↓
+    verified identity
+      ↓
+    user chooses new password
 
-إبقاء:
+Admin-triggered reset:
 
-    Supabase Auth Password
-    =
-    Active Vault Version
+    reset-required
+      ↓
+    OTP
+      ↓
+    user chooses new password
 
-في المسارات المدعومة.
+Lost phone:
 
-Flutter لا:
+Identity Recovery first, then verified new phone and OTP.
 
-- تخزن Recoverable Password.
-- تقرأ Vault.
-- تملك decryption key.
-- ترسل Password إلى Sync Outbox.
-
-Platform Password Reveal تبقى PA-only.
+Password policy follows ق-105.

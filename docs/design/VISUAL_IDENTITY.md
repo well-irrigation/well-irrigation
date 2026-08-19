@@ -608,3 +608,59 @@ Admin Console يمكن أن تكون أكثر كثافة من تطبيق الم�
 إذا أصبحت Stale:
 
 يظهر Last Update بصيغة Date/Time الإنجليزية المعتمدة.
+
+## ق-104 — Admin Console Accessibility & Density
+
+Platform Admin Web تستهدف WCAG 2.2 AA.
+
+### Controls
+
+للأفعال الإدارية المهمة يكون Target Design Goal:
+
+تقريبًا 44×44 CSS px أو أكبر عندما يسمح التركيب.
+
+هذا Target داخلي للمشروع أعلى من حد WCAG AA الأدنى
+في كثير من الحالات.
+
+### Keyboard
+
+كل الوظائف الأساسية يجب أن تكون قابلة للتنقل بالKeyboard.
+
+Focus Indicator:
+
+- واضح.
+- عالي التباين.
+- لا تخفيه Sticky Header/Sidebar.
+
+### Sticky Admin Toolbar
+
+عند طول الصفحة يمكن تثبيت:
+
+- Global Search.
+- period.
+- critical filters.
+- live/stale status.
+
+بما يمنع تكرار Scroll up/down.
+
+### Dynamic Status
+
+Success/Error/Loading/Live/Stale messages:
+
+- لها نص واضح.
+- لا تعتمد على اللون فقط.
+- تدعم semantic status announcement في Web.
+
+### Dashboard Density
+
+تظهر KPIs في Groups.
+
+Charts محدودة وموجهة لسؤال.
+
+لا Wall of Charts.
+
+### Tables
+
+Admin tables طويلة تستخدم Pagination واضحة.
+
+لا Infinite Scroll كآلية أساسية في V1.

@@ -426,3 +426,88 @@ Plaintext Password at Rest ممنوعة.
 PA-03:
 
 Sales, Activation, Operations & Financial Control.
+
+## 33. ق-104 — Standards Hardening
+
+PA-01/PA-02 تخضع الآن لـResearch & Standards Gate.
+
+### Admin navigation
+
+- right RTL Sidebar remains.
+- Global Search remains easy to reach.
+- long pages may use Sticky Filter/Search Toolbar.
+- reduce unnecessary context switching.
+
+### Admin tables
+
+Large datasets use:
+
+- server-side query.
+- filtering.
+- sorting.
+- pagination.
+
+No Infinite Scroll as the primary V1 admin-table pattern.
+
+### Dashboard refresh
+
+Do not poll every KPI every second.
+
+Use:
+
+- event/realtime invalidation for important changing state.
+- refresh affected aggregates.
+- slower refresh for large trend/report aggregates.
+- stale timestamp when realtime is not healthy.
+
+### Monitoring hierarchy
+
+Admin operational view shows:
+
+    symptom
+      ↓
+    impacted entity
+      ↓
+    diagnostic cause
+
+Technical internals belong in Monitoring/Drill-down.
+
+### Accessibility
+
+Admin Console targets WCAG 2.2 AA.
+
+Critical controls target large interaction areas.
+
+Keyboard focus and semantic status messages are required.
+
+### Authentication
+
+Platform Admin MFA mandatory.
+
+High-risk action requires additional recent verification
+when defined by policy.
+
+## 34. ق-105 — Password Supersession
+
+ق-105 تنسخ Password Option B من ق-103.
+
+Current:
+
+- no Password Vault.
+- no Current Password Reveal.
+- no recoverable password copy.
+
+Admin support uses:
+
+    Force Password Reset
+        ↓
+    OTP identity proof
+        ↓
+    user chooses new password
+
+Lost phone uses audited Identity Recovery first.
+
+Section 32's Option B description is historical and must not
+be implemented.
+
+The non-password PA-02 architecture remains active.

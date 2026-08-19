@@ -597,3 +597,40 @@ Baseline الاختبارات لم يتغير.
 لم تنفذ Password Vault أو Migration 078+ بعد.
 
 Baseline الاختبارات لم يتغير.
+
+## 2026-08-19 — اعتماد ق-104 وق-105
+
+**دفعة Governance + Security Documentation فقط.**
+
+المنجز التوثيقي المثبت:
+
+- اعتماد Research & Standards Gate.
+- إنشاء `RESEARCH_STANDARDS_GATE.md`.
+- إدخال البوابة في README/Handoff/Collaboration/Documentation Gate.
+- اعتماد تصنيف Standards-aligned / Adapted / Exception.
+- اعتماد Source of Truth → Standards → Platform → User Feedback → Project Fit.
+- اعتماد Sticky Admin Search/Filters عند الحاجة.
+- اعتماد Server-side Pagination/Filter/Sort للجداول الإدارية.
+- اعتماد عدم استخدام Infinite Scroll كAdmin-table pattern أساسي.
+- اعتماد Near-real-time hybrid بدل blind rapid polling.
+- اعتماد Symptom-first Monitoring.
+- اعتماد WCAG 2.2 AA للAdmin Web.
+- اعتماد Platform Admin MFA.
+- اعتماد Step-up للأفعال عالية الخطورة.
+- اعتماد Secret-safe Audit/Logging.
+- نسخ Password Option B من ق-103.
+- إلغاء Recoverable Password Vault قبل التنفيذ.
+- إلغاء Current Password Reveal.
+- اعتماد Admin-triggered Force Reset.
+- اعتماد OTP + user-chosen new password.
+- تحديث م-33 إلى Password Recovery model.
+- PA-03 ما زالت الخطوة التالية.
+
+لم تنفذ:
+
+- Migration 078+.
+- Admin MFA.
+- Password Recovery API.
+- Flutter/Web production changes.
+
+Baseline الاختبارات لم يتغير.

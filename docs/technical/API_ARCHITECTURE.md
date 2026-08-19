@@ -617,3 +617,47 @@ Password Mutation flow ينسق:
 - no password in audit/logging.
 - no Direct DML from Browser.
 - Migration 078+ لأي DB objects جديدة.
+
+## ق-104 — Admin API Research/Standards Rules
+
+Admin API design must apply:
+
+- server-side pagination for large lists.
+- server-side filter/sort.
+- explicit typed aggregates for dashboard KPIs.
+- event-driven/realtime invalidation where useful.
+- no high-frequency blind polling requirement.
+- privileged-action audit.
+- assurance-level checks for Platform Admin.
+
+## ق-105 — Password Recovery API Boundary
+
+ق-105 تنسخ Password Reveal endpoint requirement من ق-103.
+
+لا يوجد Target API من نوع:
+
+    admin_reveal_current_password
+
+ولا Password Vault relation.
+
+Target Trusted Admin/Auth contracts تشمل مثلًا:
+
+- force password reset.
+- read reset/security state.
+- change/recover phone.
+- invalidate sessions.
+- verify recovery state.
+
+Password creation after recovery belongs to the verified
+user flow.
+
+Platform Admin لا يحصل على Password plaintext.
+
+Supabase Auth Admin operations:
+
+- server-side only.
+- elevated secret never in Browser/Flutter.
+
+No Direct DML.
+
+أي DB change يبدأ من Migration 078+.

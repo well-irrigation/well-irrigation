@@ -3,7 +3,7 @@
 **المشروع:** إدارة البئر والسقي
 **الاسم التقني:** well-irrigation
 **معرّف الحزمة:** com.wellirrigation.app
-**آخر تحديث توثيقي:** 2026-08-18
+**آخر تحديث توثيقي:** 2026-08-19
 
 ## ما هذا المشروع؟
 
@@ -44,14 +44,16 @@
 2. `PROJECT_MAP.md`
 3. `memory/AI_HANDOFF_PROTOCOL.md`
 4. `memory/AI_COLLABORATION_PROTOCOL.md`
-5. `memory/TERMINAL_COMMAND_PROTOCOL.md`
-6. `memory/RESUME_POINT.md`
-7. `memory/DECISIONS.md`
-8. `technical/INVARIANTS.md`
-9. الوثائق التقنية التي يشير إليها `PROJECT_MAP.md`
-10. `design/UX_UI_SPEC.md` عند العمل على الواجهات
-11. `memory/OPEN_ISSUES.md`
-12. `memory/REMINDERS.md`
+5. `memory/RESEARCH_STANDARDS_GATE.md`
+6. `memory/TERMINAL_COMMAND_PROTOCOL.md`
+7. `memory/DOCUMENTATION_GATE.md`
+8. `memory/RESUME_POINT.md`
+9. `memory/DECISIONS.md`
+10. `technical/INVARIANTS.md`
+11. الوثائق التقنية التي يشير إليها `PROJECT_MAP.md`
+12. `design/UX_UI_SPEC.md` عند العمل على الواجهات
+13. `memory/OPEN_ISSUES.md`
+14. `memory/REMINDERS.md`
 
 للتاريخ فقط:
 
@@ -100,6 +102,21 @@
 ### كيف نتناقش ونتخذ القرارات؟
 
 `memory/AI_COLLABORATION_PROTOCOL.md`
+
+### كيف نتحقق من المعايير وأفضل الممارسات؟
+
+`memory/RESEARCH_STANDARDS_GATE.md`
+
+هي البوابة الإلزامية للقرارات الجوهرية التي تحتاج:
+
+- معيارًا أمنيًا.
+- Platform guidance.
+- Accessibility guidance.
+- mature-product evidence.
+- real-user feedback.
+- Project Fit.
+
+تطبق قبل الاعتماد عندما ينطبق البحث.
 
 ### كيف تكتب أوامر الطرفية؟
 

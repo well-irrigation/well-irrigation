@@ -93,7 +93,9 @@
 | ق-100 | Well/Pump/Fuel/Pricing/Reports + V1 charts | 031/046/058/060/064/065/073/076 foundations موجودة؛ typed management/report/chart contracts ناقصة | `WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md` + م-30 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
 | ق-101 | Account + identity + settings + local account isolation | Q84/Q85/Q89/Q90 foundations موجودة؛ phone recovery/role lifecycle/account-scoped local state gaps باقية | `ACCOUNT_SETTINGS_ARCHITECTURE.md` + م-18 + م-31 + Auth/Android tests | معتمد؛ Platform Administration مفصولة إلى PA |
 | ق-102 | Independent Platform Admin + live global dashboard + control plane | activation/admin foundations متفرقة؛ global admin APIs/metrics/realtime/audit/observability ناقصة | `PLATFORM_ADMINISTRATION_ARCHITECTURE.md` + م-32 + trusted backend/security tests | PA-01 معتمد؛ PA-02 التالي |
-| ق-103 | Global accounts/wells/support + recoverable encrypted current-password vault | `is_platform_admin` + Auth/Audit foundations موجودة؛ admin control/password vault غير منفذة | `PLATFORM_ADMIN_ACCOUNTS_WELLS_SUPPORT_ARCHITECTURE.md` + م-32 + م-33 + security tests | PA-02 معتمد؛ Option B معتمد؛ Migration 078+ وTrusted Backend Pending |
+| ق-103 | Global accounts/wells/support؛ Password Vault portion historical | `is_platform_admin` + Auth/Audit foundations موجودة؛ admin control غير مكتمل | `PLATFORM_ADMIN_ACCOUNTS_WELLS_SUPPORT_ARCHITECTURE.md` + م-32 + م-33 | PA-02 core معتمد؛ Password Option B منسوخة بق-105 |
+| ق-104 | Mandatory Research & Standards Gate + admin UX/security hardening | Governance documented؛ implementation requirements موزعة على PA gaps | `RESEARCH_STANDARDS_GATE.md` + Collaboration/Documentation/Handoff updates | نافذ كGovernance Rule؛ implementation items Pending |
+| ق-105 | Hash-only passwords + admin-triggered reset + OTP/user-chosen password + Admin MFA | Supabase Auth foundation موجودة؛ reset/admin MFA/recovery orchestration Pending | PA-02 architecture + م-33 + Auth/security tests | معتمد؛ ق-103 Password Vault منسوخة؛ Migration 078+ / Trusted Backend Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 

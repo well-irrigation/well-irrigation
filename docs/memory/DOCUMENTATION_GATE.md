@@ -1,7 +1,7 @@
 # Documentation Gate — بوابة اكتمال التوثيق
 
-**القرار الحاكم:** ق-97
-**آخر تحديث:** 2026-08-18
+**القرارات الحاكمة:** ق-97، ق-104
+**آخر تحديث:** 2026-08-19
 **الحالة:** إلزامية ونافذة
 
 ## 1. الهدف
@@ -489,3 +489,32 @@
 - معرفة آخر دليل مثبت.
 - معرفة الخطوة التالية.
 - متابعة العمل دون سؤال المالك لإعادة شرح التاريخ السابق.
+
+## ق-104 — Research & Standards Evidence Gate
+
+قبل Documentation Gate، إذا كانت الدفعة من النوع الذي
+ينطبق عليه البحث، يجب إثبات أن:
+
+- `RESEARCH_STANDARDS_GATE.md` طبقت.
+- Source of Truth الداخلي قرئ أولًا.
+- Standards الرسمية ذات الصلة روجعت.
+- Official Platform Documentation روجعت عند الانطباق.
+- User Feedback فصل عن Standards Authority.
+- Project Fit وثق.
+- Recommendation صنفت عند الحاجة.
+- أي Standards Conflict ذكر صراحة.
+- أي Supersession سجل في `DECISIONS.md`.
+
+لا يجوز أن يمر Documentation Gate لقرار أمني جوهري
+موصوف Best Practice إذا كان البحث الفعلي يظهر أنه
+Exception ولم يوثق ذلك.
+
+الترتيب:
+
+    RESEARCH_STANDARDS_GATE=PASS
+        ↓
+    Adoption
+        ↓
+    Documentation Gate
+        ↓
+    Git closure

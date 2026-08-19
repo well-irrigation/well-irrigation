@@ -1,7 +1,7 @@
 # AI Handoff Protocol — بروتوكول تسليم المشروع
 
-**القرارات الحاكمة:** ق-93، ق-95، ق-96، ق-97
-**آخر تحديث:** 2026-08-18
+**القرارات الحاكمة:** ق-93، ق-95، ق-96، ق-97، ق-104
+**آخر تحديث:** 2026-08-19
 **الحالة:** نافذ
 
 ## 1. الهدف
@@ -28,17 +28,19 @@
 2. `docs/PROJECT_MAP.md`
 3. `docs/memory/AI_HANDOFF_PROTOCOL.md`
 4. `docs/memory/AI_COLLABORATION_PROTOCOL.md`
-5. `docs/memory/TERMINAL_COMMAND_PROTOCOL.md`
-6. `docs/memory/RESUME_POINT.md`
-7. `docs/memory/DECISIONS.md`
-8. `docs/technical/INVARIANTS.md`
-9. `docs/technical/API_ARCHITECTURE.md`
-10. `docs/technical/SYNC_ARCHITECTURE.md`
-11. `docs/technical/DECISION_IMPLEMENTATION_MATRIX.md`
-12. الوثيقة التقنية الخاصة بالموضوع الحالي
-13. القسم الحالي من `docs/design/UX_UI_SPEC.md`
-14. `docs/memory/OPEN_ISSUES.md`
-15. `docs/memory/REMINDERS.md`
+5. `docs/memory/RESEARCH_STANDARDS_GATE.md`
+6. `docs/memory/TERMINAL_COMMAND_PROTOCOL.md`
+7. `docs/memory/DOCUMENTATION_GATE.md`
+8. `docs/memory/RESUME_POINT.md`
+9. `docs/memory/DECISIONS.md`
+10. `docs/technical/INVARIANTS.md`
+11. `docs/technical/API_ARCHITECTURE.md`
+12. `docs/technical/SYNC_ARCHITECTURE.md`
+13. `docs/technical/DECISION_IMPLEMENTATION_MATRIX.md`
+14. الوثيقة التقنية الخاصة بالموضوع الحالي
+15. القسم الحالي من `docs/design/UX_UI_SPEC.md`
+16. `docs/memory/OPEN_ISSUES.md`
+17. `docs/memory/REMINDERS.md`
 
 بعد ذلك فقط تستخدم:
 
@@ -262,3 +264,30 @@
 
 وتطبق البوابة أيضًا إذا كانت الدفعة تعدل طريقة التوثيق
 أو بروتوكول AI نفسه.
+
+## 13. Research & Standards Gate قبل القرار
+
+ق-104 تضيف بوابة إلزامية:
+
+`RESEARCH_STANDARDS_GATE.md`
+
+إذا كان القرار جوهريًا ويحتاج External Evidence:
+
+    Source of Truth
+        ↓
+    Research & Standards Gate
+        ↓
+    Recommendation
+        ↓
+    Adoption
+        ↓
+    Documentation Gate
+
+أي AI جديد يجب ألا يفترض أن:
+
+    ممكن تقنيًا = أفضل ممارسة
+
+وعندما يفوض المالك AI باختيار «الأفضل للمشروع»:
+
+يطبق ق-104 ويختار Standards-aligned أو Adapted بصورة
+موثقة دون إعادة سؤال غير ضروري.

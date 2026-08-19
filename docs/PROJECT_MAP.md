@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-103.
+آخر قرار مرقم حاليًا: ق-105.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -613,3 +613,58 @@ PA-02.
 ق-103 ينسخ فقط Password Non-Readability من ق-85.
 
 Trusted Auth Admin Boundary من ق-85 تبقى نافذة.
+
+### Research & Standards Governance
+
+القرار:
+
+ق-104.
+
+المصدر الحاكم:
+
+`memory/RESEARCH_STANDARDS_GATE.md`
+
+تطبق قبل القرارات الجوهرية ذات الأثر:
+
+- security.
+- authentication.
+- accessibility.
+- admin UX.
+- monitoring.
+- platform behavior.
+- architecture.
+
+التصنيف:
+
+- Standards-aligned.
+- Adapted.
+- Exception.
+
+أي نموذج جديد يجب أن يقرأ هذا المصدر قبل اتخاذ قرار
+معياري جديد.
+
+### Password Current Authority
+
+القرار الحالي:
+
+ق-105.
+
+ينسخ Password Option B فقط من ق-103.
+
+Current rule:
+
+- Supabase/Auth Hash only.
+- no Recoverable Password Vault.
+- no Current Password Reveal.
+- Platform Admin can force reset.
+- OTP proves identity.
+- user chooses new password.
+- Platform Admin MFA mandatory before Production.
+
+PA-02 non-password decisions remain active.
+
+المناقشة التالية تبقى:
+
+PA-03 / Sales, Activation, Operations & Financial Control.
+
+PA-03 تخضع لق-104 قبل اعتماد قراراتها.

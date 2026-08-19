@@ -128,6 +128,16 @@
 - م-27: Session Completion/Settlement Orchestration مفتوحة
   وحرجة قبل UX-12 الإنتاجية.
 
+- ق-104: Research & Standards Gate إلزامية قبل القرارات
+  الجوهرية المنطبقة على الأمن/UX/Platform/Accessibility.
+- ق-104: Admin Tables = Server-side Filter/Sort/Pagination،
+  وAdmin MFA/Step-up/WCAG 2.2 AA متطلبات معتمدة.
+- ق-105: Password Option B من ق-103 منسوخة.
+- ق-105: لا Recoverable Password Vault ولا Current Password Reveal.
+- ق-105: Platform Admin يفرض Reset؛ المستخدم يتحقق بـOTP
+  ويختار Password الجديدة بنفسه.
+- ق-105: Password الجديدة لا يعرفها Platform Admin.
+
 ## المسائل المفتوحة المعروفة بعد بوابة الجاهزية
 
 - م-16: Farmer RLS well-wide.
@@ -216,7 +226,7 @@
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
   UX-02/03/08/09/10/11/12/13/14/15/16A
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103 غير منفذة؛
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103/ق-104/ق-105 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -246,33 +256,38 @@
 **PA-03 — Sales, Activation, Operations & Financial Control /
 المبيعات والتفعيل والتحكم التشغيلي والمالي.**
 
-PA-02 معتمدة وموثقة.
+ق-103 / PA-02 core معتمدة وموثقة.
 
-ق-103 يحكم:
+ق-104 أصبحت Governance Rule إلزامية:
 
-- global account/well administration.
-- identity resolution.
-- suspend/restore.
-- session invalidation.
-- support cases.
-- error references.
-- administrative corrections.
-- Password Option B.
-- Recoverable Encrypted Password Vault.
-- Platform Admin Password Reveal.
-- no plaintext at rest.
-- no local password cache.
-- trusted password orchestration.
-- legacy password unavailable until rotation.
-- stale vault never shown as current.
+- Source of Truth first.
+- official standards.
+- official platform docs.
+- mature products.
+- real user feedback.
+- project fit.
+- Standards-aligned / Adapted / Exception.
 
-ق-103 ينسخ فقط Password Non-Readability من ق-85.
+ق-105 هي Password Authority الحالية:
 
-Trusted Backend وNo Client service_role يبقيان نافذين.
+- no Recoverable Password Vault.
+- no Current Password Reveal.
+- admin-triggered force reset.
+- OTP identity verification.
+- user chooses new password.
+- Platform Admin MFA required.
+- sensitive actions need Step-up policy.
+
+ق-105 تنسخ فقط Password Option B من ق-103.
+
+بقية PA-02 تبقى معتمدة.
 
 م-32 وم-33 والتنفيذ التقني ما زالا Pending.
 
 UX-17 مؤجلة حتى إكمال سلسلة PA.
+
+PA-03 يجب أن تمر بـResearch & Standards Gate قبل
+اعتماد قراراتها.
 
 لا تغير Baseline الاختبارات دون دليل تحقق جديد.
 

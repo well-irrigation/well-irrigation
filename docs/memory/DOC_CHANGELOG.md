@@ -778,3 +778,50 @@ Recoverable Encrypted Password Vault.
 - فتح م-33.
 
 **نوع الدفعة:** توثيقية فقط.
+
+## تحديث 2026-08-19 — ق-104 / ق-105
+
+**المجال:**
+
+Research Governance + Platform Admin Security + Password Recovery.
+
+**السبب:**
+
+طلب المالك تثبيت قاعدة تمنع اتخاذ القرارات المهمة دون
+مراجعة المعايير العالمية وتجارب المنتجات والمستخدمين،
+وفوض النموذج باختيار أفضل Password Architecture للمشروع.
+
+**الملف الجديد:**
+
+- `memory/RESEARCH_STANDARDS_GATE.md`
+
+**أهم التغييرات:**
+
+- Research & Standards Gate أصبحت إلزامية.
+- README/Handoff/Collaboration/Documentation Gate حدثت.
+- External Evidence hierarchy وثقت.
+- Standards-aligned/Adapted/Exception ثبتت.
+- Admin Dashboard usability hardening وثق.
+- Pagination بدل Infinite Scroll للجداول الكبيرة.
+- Sticky Search/Filters عند الحاجة.
+- Hybrid Near-real-time.
+- Symptom-first Monitoring.
+- WCAG 2.2 AA.
+- Platform Admin MFA.
+- Step-up high-risk actions.
+- Secret-safe logging.
+- Password Vault Option B نُسخت.
+- Current Password Reveal نُسخت.
+- Password reset أصبح Admin-triggered + OTP +
+  User-chosen new password.
+- م-33 أعيدت صياغتها وفق ق-105.
+
+**Supersession:**
+
+ق-105 تنسخ فقط Password/Vault portion من ق-103.
+
+PA-02 core تبقى معتمدة.
+
+**نوع الدفعة:** توثيقية فقط.
+
+Baseline الاختبارات لم يتغير.

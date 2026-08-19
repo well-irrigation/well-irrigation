@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-103
+**آخر قرار مرقّم:** ق-105
 **آخر تحديث:** 2026-08-19
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -32,6 +32,12 @@
   service_role يبقيان نافذين.
 - ق-103 يحسم Password Visibility التي كانت Pending في ق-102:
   Option B / Recoverable Encrypted Password Vault معتمد.
+- ق-104 يفرض Research & Standards Gate قبل القرارات الجوهرية
+  التي تحتاج معيارًا أو بحثًا خارجيًا.
+- ق-105 ينسخ الجزء الخاص بـPassword Vault/Current Password
+  Reveal من ق-103؛ بقية PA-02 وق-103 تبقى نافذة.
+- ق-105 يعيد Password Storage إلى Hash-only ويعتمد
+  Admin-triggered Reset + OTP + user-chosen new password.
 
 # الجولة الأولى — 2026-08-12
 
@@ -3916,3 +3922,319 @@ Recoverable Password Vault يزيد أثر أي اختراق لخدمة
 - reveal endpoint مثبت.
 - non-admin denial مثبت.
 - permanent security tests ناجحة.
+
+---
+
+## ق-104 — بوابة البحث والمعايير وجودة القرار
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** نافذ وملزم.
+- **النوع:** Documentation/Decision Governance.
+- **المصدر الحاكم:** `memory/RESEARCH_STANDARDS_GATE.md`.
+
+### المشكلة
+
+أصبح المشروع يدخل في قرارات:
+
+- Security.
+- Platform Administration.
+- Authentication.
+- Monitoring.
+- Accessibility.
+- Financial control.
+
+وهذه لا يكفي فيها أن يكون الحل ممكنًا تقنيًا.
+
+### القرار
+
+قبل اعتماد قرار جوهري منطبق عليه البحث يجب المرور بـ:
+
+1. Project Source of Truth.
+2. Official Standards.
+3. Official Platform Documentation.
+4. Mature Product Guidance.
+5. Real User Feedback.
+6. Project Fit.
+7. Recommendation.
+
+### التصنيف
+
+عند الحاجة تصنف التوصية:
+
+- Standards-aligned.
+- Adapted.
+- Exception.
+
+Exception لا تسمى Best Practice.
+
+### تفويض المالك
+
+إذا فوض المالك النموذج باختيار الأفضل دون الرجوع إليه:
+
+- يختار الحل الأفضل وفق ق-104.
+- لا يسأل سؤال اختيار شكلي.
+- يستطيع نسخ قرار سابق بقرار جديد إذا ثبت أن البديل
+  أكثر أمانًا وملاءمة.
+- يوثق سبب النسخ ومصادره.
+
+### ما اعتمد نتيجة البحث الحالي للوحة الإدارة
+
+1. Platform Admin Console تبقى مستقلة.
+2. Numeric KPIs تسبق Charts.
+3. Charts بسيطة وتجيب عن سؤال محدد.
+4. Bar/Line هما الأصل في V1.
+5. Global Search والفلاتر المهمة تبقى سهلة الوصول.
+6. Desktop Admin تستخدم Sticky Toolbar عند طول الصفحة.
+7. الجداول الكبيرة تستخدم Server-side Search/Filter/Sort/Pagination.
+8. Infinite Scroll لا يستخدم للقوائم الإدارية الكبيرة في V1.
+9. Near-real-time يستخدم Event/Invalidation عندما يفيد،
+   وليس Polling سريعًا لكل الأرقام بلا حاجة.
+10. Trend/large-report metrics يمكن تحديثها بوتيرة أبطأ.
+11. Monitoring تعرض Symptom أولًا ثم Cause في التفاصيل.
+12. Platform Admin MFA إلزامية.
+13. High-risk actions تحتاج Step-up/Re-authentication.
+14. High-risk confirmation تعرض Target/Current/New/Impact.
+15. تغير Significant Transaction Data يبطل التأكيد السابق.
+16. Admin Console تستهدف WCAG 2.2 AA.
+17. Critical Admin Action Targets تستهدف تقريبًا 44×44 CSS px
+    عندما يسمح التصميم.
+18. Keyboard Focus يجب أن يكون واضحًا وغير مخفي.
+19. Dynamic Status Messages يجب أن تكون قابلة للإدراك
+    بتقنيات المساعدة.
+20. Admin privileged actions تسجل في Audit.
+21. Passwords/Tokens/Keys لا تسجل في Logs.
+22. User feedback مصدر خبرة لا Authority أعلى من Standard.
+
+### المصادر الأساسية
+
+- NIST SP 800-63B.
+- OWASP Authentication/Password Storage/MFA/Logging/
+  Transaction Authorization.
+- W3C WCAG 2.2.
+- Supabase official Auth/API/MFA documentation.
+- Grafana Dashboard guidance.
+- GOV.UK Design System.
+- Google SRE.
+- Grafana user-navigation feedback كتجربة استخدام.
+
+التفاصيل والروابط:
+
+`memory/RESEARCH_STANDARDS_GATE.md`
+
+### أثر التنفيذ
+
+هذه القاعدة لا تعني أن الميزات المذكورة Implemented.
+
+هي:
+
+**Adopted/Documented Requirements.**
+
+أي تنفيذ يحتاج Migration/API/UI/tests الخاصة به.
+
+### شرط الإغلاق
+
+ق-104 نفسها Governance Rule نافذة بعد:
+
+- تحديث مصادر التسليم.
+- تحديث Documentation Gate.
+- تحديث Collaboration Protocol.
+- تحديث Project Map.
+- توثيق Baseline المصادر.
+
+
+---
+
+## ق-105 — معيار كلمات المرور والاسترداد الإداري
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق؛ التنفيذ Pending.
+- **ينسخ:** الجزء الخاص بـOption B / Recoverable Password
+  Vault / Current Password Reveal في ق-103.
+- **لا ينسخ:** بقية PA-02 أو Global Admin Authority.
+- **المسألة التنفيذية:** م-33.
+
+### سبب إعادة القرار
+
+ق-103 اعتمد Option B قبل تثبيت Research & Standards Gate.
+
+مراجعة:
+
+- NIST SP 800-63B.
+- OWASP Password Storage.
+- OWASP Authentication.
+- Supabase Auth.
+
+أظهرت أن نظام Authentication طبيعيًا يجب أن يحتفظ
+Password Verifier أحادي الاتجاه بدل Secret قابل للاسترجاع.
+
+Recoverable Password Vault توسع Impact of Compromise
+ولا تحتاجها أعمال المنصة الفعلية.
+
+### القرار الحالي
+
+**لا Recoverable Password Vault.**
+
+**لا Current Password Reveal.**
+
+Platform Admin لا يستطيع قراءة Password الحالية أو القديمة.
+
+Supabase Auth/Hash يبقى مصدر Password Verification.
+
+### ما يستطيع Platform Admin فعله
+
+يوجد Action:
+
+    فرض إعادة تعيين كلمة المرور
+
+لكن Admin لا يختار Password النهائية ولا يراها.
+
+### التدفق المستهدف
+
+    Platform Admin triggers reset
+        ↓
+    account marked reset-required
+        ↓
+    risky existing sessions invalidated
+        ↓
+    user proves verified phone by OTP
+        ↓
+    user chooses new password
+        ↓
+    Auth updates password
+        ↓
+    reset-required cleared
+        ↓
+    fresh session
+        ↓
+    audit metadata
+
+### فقدان الهاتف
+
+إذا لا يملك المستخدم الهاتف القديم:
+
+    Support Case
+        ↓
+    Identity Recovery
+        ↓
+    Platform Admin verifies/corrects phone through
+    Trusted Admin Flow
+        ↓
+    new phone verification by OTP
+        ↓
+    user chooses new password
+
+لا يوجد Password Reveal كطريق مختصر.
+
+### Password Policy
+
+للـV1 Password-based user login:
+
+- minimum target = 15 characters.
+- long passphrases encouraged.
+- support at least 64 characters where platform allows.
+- spaces and Unicode allowed.
+- لا mandatory uppercase/lowercase/number/symbol composition.
+- block common/compromised passwords عندما تنفذ
+  Server-side capability المناسبة.
+- no arbitrary periodic password change.
+- forced reset عند compromise/risk/recovery.
+
+### Platform Admin Security
+
+Platform Admin account:
+
+- MFA mandatory.
+- TOTP مناسب لـV1 لأن Supabase يدعمه حاليًا.
+- Admin session يجب أن تصل AAL2 قبل privileged console
+  access وفق العقد النهائي.
+- high-risk action may require recent reauthentication.
+
+### High-risk actions
+
+تشمل عند الانطباق:
+
+- Change User Phone.
+- Force Password Reset.
+- Suspend Account.
+- Suspend Well.
+- Revoke/Correct Entitlement.
+- High-impact Identity Merge.
+- Financial Correction.
+- Accounting Period exceptional action.
+- Security/session invalidation.
+
+### What You See Is What You Authorize
+
+قبل العملية الحساسة تعرض:
+
+- Target.
+- Current State.
+- Requested Change.
+- Important Impact.
+- Reason.
+- Authentication/confirmation state.
+
+إذا تغيرت Significant Data بعد Confirmation:
+
+يجب إعادة التأكيد.
+
+### Supersession
+
+ق-105 ينسخ من ق-103 تحديدًا:
+
+- PA-02-53 القديمة الخاصة بالVault.
+- PA-02-54 القديمة الخاصة بتغطية Vault.
+- PA-02-55 القديمة الخاصة بـReveal.
+- PA-02-56 Password Vault Orchestrator.
+- PA-02-57 Vault Security Contract.
+- أي Technical Requirement يطلب تخزين نسخة Password
+  قابلة لفك التشفير.
+- أي Invariant يطلب Current Password Reveal.
+
+تبقى من ق-103:
+
+- Global Search.
+- Global Account/Well Administration.
+- Support Cases.
+- Identity Resolution.
+- Suspend/Restore.
+- Admin Corrections.
+- Error References.
+- Append-only Audit.
+
+### لا أسرار في Logs
+
+لا تسجل:
+
+- Password.
+- OTP Secret.
+- Access Token.
+- Refresh Token.
+- service/secret key.
+- encryption key.
+
+### Trusted Backend
+
+Admin-triggered recovery وAuth Admin actions تمر عبر
+Trusted Backend.
+
+لا Elevated Secret داخل Browser/Flutter.
+
+### شرط الإغلاق
+
+لا يعتبر ق-105 Implemented حتى يثبت:
+
+- admin MFA.
+- AAL policy.
+- force-reset contract.
+- reset-required state.
+- session invalidation.
+- OTP recovery.
+- lost-phone recovery.
+- password policy enforcement.
+- compromised-password blocking عندما يعتمد.
+- no current-password reveal endpoint.
+- no recoverable password store.
+- non-admin denial.
+- audit without secrets.
+- permanent Auth/security tests.

@@ -8406,134 +8406,85 @@ Admin Audit لا يعدل أو يحذف بعد إنشائه.
 
 ---
 
-# س — كلمات المرور / Option B
+# س — كلمات المرور — ق-105 / Current Standard
 
-### PA-02-53 — Recoverable Current Password Vault
+ق-105 تنسخ Option B السابقة.
 
-تم اعتماد **Option B**.
+### PA-02-53 — لا Current Password Reveal
 
-الهدف المنتج:
+لا يظهر في Platform Admin Console زر:
 
-**Platform Super Admin يستطيع عرض Current Password
-الحالية لأي حساب عندما تكون النسخة الموثوقة متاحة
-في Password Vault.**
+    عرض كلمة المرور الحالية
 
-Supabase Auth يبقى مسؤول Authentication الأساسي.
+ولا توجد Vault قابلة لاسترجاع Password.
 
-لكن النظام يضيف مخزنًا منفصلًا:
+حالة Account Security تعرض فقط:
 
-**Recoverable Password Vault**
+- Password configured.
+- Reset required.
+- Last password change metadata عند توفرها.
+- Auth/session security state.
 
-يحفظ نسخة مشفرة قابلة لفك التشفير من كلمة المرور.
+لا تعرض Secret نفسها.
 
-لا تخزن Plaintext Password في Database.
+### PA-02-54 — Force Password Reset
 
-### PA-02-54 — Coverage and Existing Passwords
+Platform Admin يستطيع:
 
-كلمات المرور الموجودة قبل تشغيل Vault:
+    فرض إعادة تعيين كلمة المرور
 
-لا يمكن استرجاعها بأثر رجعي من Supabase Hash.
+العملية:
 
-تتحول إلى Vault-managed عند أول:
+- لا تولد Password يقرأها Admin.
+- لا ترسل Password في Support Case.
+- تسجل Admin Action.
+- تحدد الحساب المستهدف بوضوح.
 
-- Account Creation.
-- Password Change.
-- Password Reset.
-- Admin Password Reset.
+### PA-02-55 — User-owned New Password
 
-يمر عبر Password Orchestrator الجديد.
+بعد Admin-triggered Reset:
 
-إلى ذلك الوقت تعرض الإدارة:
-
-    كلمة المرور الحالية غير متاحة في المخزن
-
-ولا تعرض Guess.
-
-### PA-02-55 — Reveal Password UX
-
-داخل Account Security:
-
-    كلمة المرور
-    ••••••••••••
-    [ عرض كلمة المرور ]
-
-Reveal:
-
-- Platform Admin only.
-- masked by default.
-- explicit action.
-- short-lived display.
-- audited.
-- password نفسها لا تدخل Audit Payload.
-
-إذا Vault غير موثوقة أو Stale:
-
-لا يظهر Password قديمة بوصفها الحالية.
-
-### PA-02-56 — Password Mutation Orchestration
-
-كل Supported Password Mutation يجب أن تمر عبر
-Trusted Password Orchestrator.
-
-يشمل:
-
-- user creation.
-- first password.
-- self password change.
-- forgot-password reset.
-- platform-admin reset.
-
-Target sequence:
-
-    authenticated/authorized request
+    OTP إلى الهاتف الموثق
         ↓
-    validate password policy
+    Verify
         ↓
-    encrypt candidate into pending vault version
+    المستخدم يختار Password الجديدة بنفسه
         ↓
-    update Supabase Auth password
+    Auth update
         ↓
-    promote vault version to active
+    Login/session recovery
+
+Platform Admin يرى نجاح العملية وحالتها فقط.
+
+لا يرى Password الجديدة.
+
+### PA-02-56 — Lost Phone Recovery
+
+إذا الهاتف القديم غير متاح:
+
+    Support / Identity Recovery
         ↓
-    audit metadata only
+    Trusted Admin phone correction
+        ↓
+    verify new phone
+        ↓
+    OTP
+        ↓
+    user chooses new password
 
-إذا فشل Auth update:
+لا يوجد Password Reveal لتجاوز Identity Recovery.
 
-تلغى Pending Vault version.
+### PA-02-57 — Password Security Status
 
-إذا نجح Auth update ثم تعطل Finalization:
+Admin يمكن أن يرى Security Metadata مثل:
 
-تبقى encrypted candidate قابلة للمصالحة بواسطة
-Operation ID بدل فقد Password الجديدة.
+- reset required.
+- last reset time.
+- active sessions count.
+- MFA state.
+- recovery/support case.
 
-### PA-02-57 — Password Vault Security Contract
-
-Password Vault تحتاج:
-
-- encryption in transit.
-- authenticated encryption at rest.
-- per-record random nonce.
-- versioned encryption format.
-- Envelope Encryption.
-- Data Encryption Key.
-- Master/Key Encryption Key خارج Database.
-- key rotation.
-- Platform Admin authorization.
-- reveal audit.
-- no plaintext logs.
-- no analytics capture.
-- no local/mobile cache.
-- no sync outbox.
-- no browser persistent storage.
-- no password inside support notes.
-- stale-state detection.
-- no stale password shown as Current.
-- permanent security tests.
-
-التصميم المستهدف يستخدم خوارزمية Authenticated
-Encryption قوية مثل AES-256-GCM أو ما يعتمد رسميًا
-في بيئة التنفيذ لاحقًا.
-
+لكن لا يرى Password أو Hash أو Auth Secret.
 ---
 
 ## أثر ق-103 على القرارات السابقة
@@ -8556,6 +8507,23 @@ Visibility بأنها Blocked design decision.
     Implementation Pending
 
 ---
+
+## أثر ق-105 على ق-103
+
+ق-105 هي Password Rule الحالية.
+
+تنسخ فقط تصميم Recoverable Password Vault وCurrent
+Password Reveal من PA-02.
+
+لا تعيد فتح:
+
+- Global Search.
+- Accounts.
+- Wells.
+- Support.
+- Audit.
+- Identity Resolution.
+- Admin Corrections.
 
 ## فجوات PA-02
 
@@ -8591,6 +8559,103 @@ Password Control.**
 أي DB change جديد يبدأ من Migration 078+.
 
 ---
+
+## ق-104 — Admin UX Standards Hardening
+
+تطبق على PA-01 وما بعدها:
+
+### Navigation
+
+Desktop RTL:
+
+- Sidebar ثابتة على اليمين.
+- Global Search سهل الوصول.
+- Filters الأساسية تبقى Sticky عندما تطول الصفحة.
+- Current section واضح.
+- لا Navigation تضيف Context Switching بلا حاجة.
+
+### Large Tables
+
+Accounts/Wells/Sessions/Payments/Support/Audit:
+
+- Server-side Search.
+- Server-side Filter.
+- Server-side Sort.
+- Pagination.
+
+لا Infinite Scroll في الجداول الإدارية الرئيسية في V1.
+
+### Dashboard
+
+الترتيب:
+
+    Numeric KPIs
+        ↓
+    focused Charts
+        ↓
+    Problems / Recent Activity
+
+كل Chart تجيب عن سؤال إداري واضح.
+
+### Refresh
+
+Critical/event-driven state:
+
+Near-real-time عند الحاجة.
+
+Large Trend Reports:
+
+تحدث بوتيرة مناسبة.
+
+لا polling سريع لكل Metric لمجرد إظهار كلمة Live.
+
+### Monitoring
+
+Dashboard اليومية تبدأ بـSymptom:
+
+- sessions stuck.
+- sync failed.
+- OTP failed.
+- activation problem.
+
+Technical Cause تظهر بعد Drill-down.
+
+### Accessibility
+
+Admin Web تستهدف WCAG 2.2 AA.
+
+Critical action buttons تستهدف مساحة تفاعل كبيرة
+تقريبًا 44×44 CSS px عندما يسمح Layout.
+
+Keyboard Focus:
+
+- واضح.
+- غير مخفي.
+
+Status updates:
+
+- لا تعتمد على اللون فقط.
+- قابلة لتقنيات المساعدة.
+
+### Admin Authentication
+
+Platform Admin MFA إلزامية.
+
+Sensitive Actions قد تتطلب Recent Step-up Authentication.
+
+### Sensitive Confirmation
+
+قبل التنفيذ تعرض:
+
+- Target.
+- Current State.
+- New State.
+- Impact.
+- Reason.
+
+إذا تغيرت Significant Transaction Data بعد التأكيد:
+
+يعاد Confirmation.
 
 ## 18. نقطة المناقشة التالية
 

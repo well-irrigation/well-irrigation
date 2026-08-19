@@ -919,58 +919,121 @@ Commit جديدًا.
 
 417. Admin Audit Append-only.
 
-418. Password Option B معتمدة.
+418–443. ثوابت Password Vault السابقة من ق-103
+منسوخة في جانب Password Vault بق-105.
 
-419. Supabase Hash ليست Recoverable Password Vault.
-
-420. Password Vault الإضافية لا تستبدل Supabase Auth Hash.
-
-421. Plaintext Password at Rest ممنوعة.
-
-422. Password Vault ciphertext فقط في Database.
-
-423. Decryption Key Authority خارج Client.
-
-424. KEK لا تخزن مع Ciphertext في نفس Trust Boundary.
-
-425. Password Reveal = Platform Admin only.
-
-426. Password Reveal masked by default.
-
-427. Password Reveal action audited.
-
-428. Audit لا يحتوي Password plaintext.
-
-429. Password لا تدخل Logs أو Analytics.
-
-430. Password لا تدخل Local DB أو Outbox.
-
-431. Password Reveal Online-only.
-
-432. Password Mutation Online-only.
-
-433. Legacy Password قبل Vault لا تدعى Recoverable.
-
-434. Legacy Account يبقى Vault Unavailable حتى Rotation.
-
-435. Pending Vault Version لا تصبح Active قبل نجاح Auth Update.
-
-436. Failed Auth Update لا يغير Current Active Vault Secret.
-
-437. Crash after Auth Update يحتاج Reconciliation لا Guess.
-
-438. Stale Vault لا تعرض بوصفها Current Password.
-
-439. كل Supported Password Mutation تمر عبر Orchestrator.
-
-440. Password Vault لا تكون exposed Data API relation.
-
-441. service_role لا يدخل Admin Browser أو Flutter.
-
-442. Key Rotation جزء إلزامي من Production Design.
-
-443. Password Security Tests إلزامية قبل إغلاق م-33.
+القواعد الحالية تبدأ في قسم ق-105 أدناه.
 
 444. أي DB change جديد يبدأ من Migration 078+.
 
 445. PA-02 لا تعتبر Production Complete قبل إغلاق م-33.
+
+## ق-104 — ثوابت البحث والمعايير وإدارة المنصة
+
+446. القرار الجوهري المنطبق عليه البحث يمر بـResearch & Standards Gate.
+
+447. Project Source of Truth يقرأ قبل External Guidance.
+
+448. Official Standard أعلى من Forum feedback عند التعارض العادي.
+
+449. User Feedback مصدر Experience وليس Security Authority.
+
+450. Exception لا توصف Best Practice.
+
+451. إذا فوض المالك اختيار الأفضل، يختار AI الحل الأعلى
+معياريًا وملاءمة وفق ق-104 دون سؤال شكلي.
+
+452. Admin Dashboard KPIs تسبق Charts.
+
+453. كل Admin Chart يجب أن تجيب عن سؤال واضح.
+
+454. Large Admin Tables تستخدم Server-side Pagination.
+
+455. Infinite Scroll ليس نمط Admin Tables الأساسي في V1.
+
+456. Long Admin pages تحافظ على Search/critical filters سهلة الوصول.
+
+457. Near-real-time لا يعني blind high-frequency polling.
+
+458. Monitoring تعرض Symptom قبل Cause في الواجهة التشغيلية.
+
+459. Admin Web تستهدف WCAG 2.2 AA.
+
+460. Critical Admin Controls تستهدف interaction area كبيرة
+تقريبًا 44×44 CSS px عندما يسمح التصميم.
+
+461. Keyboard Focus لا يخفى خلف Sticky UI.
+
+462. Dynamic Status لا يعتمد على اللون وحده.
+
+463. Platform Admin MFA إلزامية قبل Production.
+
+464. High-risk admin actions تحتاج Step-up عندما تحددها السياسة.
+
+465. Privileged Admin Actions تدخل Audit.
+
+466. Passwords/Tokens/Keys لا تدخل Logs.
+
+## ق-105 — ثوابت كلمات المرور الحالية
+
+467. ق-105 تنسخ Option B الخاصة بكلمات المرور من ق-103.
+
+468. لا Recoverable Password Vault.
+
+469. لا Current Password Reveal لمسؤول المنصة.
+
+470. لا Old Password Reveal.
+
+471. Password Verifier يبقى One-way Auth Hash.
+
+472. Platform Admin يستطيع Force Password Reset لا Reveal.
+
+473. Password الجديدة يختارها المستخدم بعد Identity Verification.
+
+474. Platform Admin لا يرى Password الجديدة.
+
+475. Password Recovery يحتاج Verified Phone OTP.
+
+476. Lost-phone recovery يحل Identity/Phone أولًا.
+
+477. No Password Reveal bypass لـIdentity Recovery.
+
+478. Admin-triggered security reset يمكن أن يبطل Sessions
+وفق العقد الأمني.
+
+479. Password minimum target في V1 = 15 characters.
+
+480. Long passphrases مسموحة ومفضلة.
+
+481. Spaces وUnicode مسموحة.
+
+482. لا Composition Rules إلزامية من نوع uppercase+digit+symbol.
+
+483. لا Periodic Password Rotation بلا Risk/Compromise.
+
+484. Common/Compromised Password blocking مطلوب قبل
+Production عندما تنفذ capability.
+
+485. Password لا تدخل Audit.
+
+486. Password لا تدخل Logs.
+
+487. Password لا تدخل Analytics.
+
+488. Password لا تدخل Local DB.
+
+489. Password لا تدخل Sync Outbox.
+
+490. Password Recovery Online-only.
+
+491. Platform Admin Auth Admin operations Trusted Backend only.
+
+492. Elevated Supabase Secret لا تدخل Browser/Flutter.
+
+493. Significant High-risk Transaction Data إذا تغيرت
+بعد Confirmation تبطل Authorization السابق.
+
+494. PA-02 لا تعتبر Production Complete قبل إغلاق م-33
+وفق ق-105 الحالية.
+
+495. أي DB change جديد يبدأ من Migration 078+.

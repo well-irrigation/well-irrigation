@@ -218,320 +218,239 @@ Admin lookup يعيد:
 
 Password plaintext لا تدخل Audit.
 
-## 18. Password architecture reality
+## 18. Password standard — ق-105
 
-Supabase Auth يبقى Authentication provider.
+ق-105 تنسخ Recoverable Password Vault التي كانت موثقة
+في ق-103.
 
-Supabase Current Password نفسها ليست مسترجعة من Hash.
+Current architecture:
 
-ق-103 لذلك يضيف Vault منفصلة.
+- Supabase Auth remains Password Verifier.
+- no recoverable password copy.
+- no current-password reveal.
+- no reversible password encryption store.
 
-## 19. Recoverable Password Vault
+## 19. Why no recoverable vault
 
-Target internal model يمكن أن يحتوي:
+المشروع لا يحتاج Current Password plaintext لتحقيق
+Support.
 
-- user_id.
-- vault_version.
-- state.
-- ciphertext.
-- nonce/iv.
-- wrapped_data_key.
-- algorithm_version.
-- source_operation_id.
-- created_at.
-- activated_at.
-- retired_at.
-- stale_reason.
+الحاجة الحقيقية هي:
 
-لا exposed table للClient.
+- recover account.
+- verify identity.
+- reset password.
+- invalidate compromised sessions.
 
-## 20. Vault states
+هذه تحقق دون Secret Recovery Store.
 
-الحالات الأساسية:
-
-- unavailable.
-- pending.
-- active.
-- stale.
-- retired.
-
-`active` فقط يمكن عرضه بوصفه Current Password.
-
-## 21. Existing users
-
-عند إطلاق Vault:
-
-الحسابات الحالية تبدأ:
-
-    unavailable
-
-إلا إذا مرت Password حديثًا عبر Orchestrator الجديد.
-
-لا توجد محاولة لفك bcrypt hash.
-
-## 22. Encryption
-
-لا Plaintext Password at Rest.
-
-Target:
-
-Authenticated Encryption.
-
-الاختيار المبدئي:
-
-AES-256-GCM أو Primitive رسمي مكافئ معتمد في
-بيئة التنفيذ.
-
-## 23. Envelope Encryption
-
-لكل Password Version:
-
-- Data Encryption Key منفصل أو derivation آمن.
-- ciphertext في Database.
-- wrapped data key في Database.
-- Key Encryption Key خارج Database.
-
-KEK لا تحفظ في نفس جدول Vault.
-
-## 24. Key Management
-
-يلزم:
-
-- secret manager/KMS suitable to deployment.
-- key identifiers.
-- rotation.
-- access control.
-- backup/recovery policy.
-- compromise rotation procedure.
-
-## 25. Password Set Orchestrator
-
-كل إنشاء أو تغيير Password supported يمر:
-
-    authorize
-      ↓
-    validate policy
-      ↓
-    encrypt candidate
-      ↓
-    save pending vault version
-      ↓
-    update Supabase Auth
-      ↓
-    promote vault version
-      ↓
-    retire previous version
-      ↓
-    audit metadata
-
-## 26. Why pending-before-auth
-
-إذا خزنا Vault بعد Auth فقط وانهارت العملية بين الخطوتين:
-
-قد تصبح Supabase Password جديدة بينما Vault قديمة.
-
-لذلك encrypted candidate تحفظ أولًا كPending.
-
-## 27. Failure before Auth update
-
-إذا فشل Supabase Auth Update:
-
-- pending version لا تصبح active.
-- يمكن إلغاؤها/retire.
-- current vault version تبقى كما كانت.
-
-## 28. Failure after Auth update
-
-إذا نجح Auth update ثم انقطع الطلب:
-
-pending encrypted candidate موجودة بالفعل.
-
-يستخدم Operation ID للمصالحة والترقية إلى Active.
-
-لا نحتاج إعادة plaintext من المستخدم بسبب crash.
-
-## 29. Supported mutation paths
-
-يجب دمج Vault مع:
-
-- account creation.
-- first password creation.
-- user password change.
-- forgot-password reset.
-- admin reset.
-
-## 30. Direct client password mutation
-
-Flutter/Web user UI لا تستخدم Direct Password Mutation
-كـSupported Product Path بعد تطبيق ق-103.
-
-كل تغيير معتمد يذهب إلى Trusted Password Orchestrator.
-
-## 31. Bypass consistency risk
-
-Production closure تتطلب إثبات أن Password لا يمكن
-تغييرها ضمن المسارات المدعومة دون تحديث Vault.
-
-إذا وقع External/Out-of-band change ولا نستطيع إثبات
-التطابق:
-
-Vault تتحول Stale/Unavailable.
-
-لا تعرض النسخة السابقة بوصفها Current.
-
-## 32. Reveal endpoint
-
-Admin Reveal endpoint:
-
-- authenticates Platform Admin.
-- checks active vault state.
-- decrypts server-side.
-- returns secret for short-lived display.
-- audits reveal event without secret value.
-
-## 33. Reveal UI
-
-Default:
-
-    ••••••••••••
-
-Action:
-
-    عرض كلمة المرور
-
-بعد العرض:
-
-- لا تحفظ في Local Storage.
-- لا تحفظ في IndexedDB.
-- لا تحفظ في Service Worker cache.
-- لا تدخل analytics.
-- لا تدخل support notes.
-
-## 34. Reauthentication
-
-قبل Reveal يمكن أن يطلب النظام إعادة تحقق حديثة من
-Platform Admin أو MFA عند اعتمادها أثناء التنفيذ.
-
-هذا لا يقلل Authority؛ هو حماية لعملية كشف Secret.
-
-## 35. Password logs
-
-Forbidden:
-
-- request-body logging.
-- debug logging.
-- audit plaintext.
-- tracing plaintext.
-- exception plaintext.
-- analytics plaintext.
-
-## 36. Password transport
-
-Password لا تنتقل إلا عبر TLS إلى Trusted Backend.
-
-لا ترسل عبر notification أو support message.
-
-## 37. Supabase password
-
-Supabase Auth تظل تملك Hash اللازمة لتسجيل الدخول.
-
-Vault لا تستبدل Auth Hash.
-
-هي Secret Recovery Store موازية لأغراض Platform Admin.
-
-## 38. Password reset by admin
+## 20. Admin password action
 
 Platform Admin يستطيع:
 
-- reveal current vault password when active.
-- set a new password.
-- see the new password.
+    force password reset
 
-Admin Reset يمر عبر نفس Orchestrator.
+لا يستطيع:
 
-## 39. Vault deletion/history
+    reveal current password
 
-لا نحتاج الاحتفاظ بنصوص Password قديمة قابلة للاسترجاع
-بعد Rotation العادية لأغراض المنتج.
+ولا:
 
-عند تفعيل Version جديدة:
+    retrieve old password
 
-القديمة تصبح Retired وتخضع لسياسة إزالة Secret Material
-المعتمدة.
+## 21. Reset-required state
 
-Audit يحتفظ بالحدث دون Password.
+Target Account Security Model يحتاج حالة واضحة مثل:
 
-## 40. Database exposure
+- normal.
+- reset_required.
+- disabled/locked حسب العقد النهائي.
 
-Vault internal schema لا تدخل Exposed Schemas.
+Admin-triggered Reset يضع الحساب في Reset Required
+ويولد Audit event.
 
-لا Direct Select للAuthenticated role.
+## 22. Session handling
 
-لا Direct Client DML.
+في Security Recovery عالي الخطورة:
 
-## 41. Trusted backend
+- existing risky sessions invalidate.
+- refresh/session policy تطبق خادميًا.
+- new trusted session تصدر بعد إكمال Recovery.
 
-فقط Trusted Backend يمتلك:
+التفصيل النهائي يعتمد Supabase Session Contracts وقت التنفيذ.
 
-- Auth Admin credential.
-- decryption capability.
-- KEK/KMS permission.
-- admin orchestration.
+## 23. OTP recovery
 
-## 42. Support access
+المسار المستهدف:
 
-Support Case يمكن أن تسجل أن Password Reveal حدث.
+    reset requested
+      ↓
+    OTP to verified phone
+      ↓
+    OTP verification
+      ↓
+    user chooses new password
+      ↓
+    Auth password update
+      ↓
+    reset flag cleared
 
-لا تسجل Password نفسها.
+Admin لا يقرأ New Password.
 
-## 43. Tests — accounts
+## 24. Lost-phone flow
 
-- global account read requires Platform Admin.
+إذا الهاتف غير متاح:
+
+- Support Case.
+- human identity verification policy.
+- Admin changes phone through Trusted Backend.
+- new phone verification.
+- OTP.
+- user chooses password.
+
+No password reveal bypass.
+
+## 25. Password policy
+
+Target V1 policy:
+
+- minimum 15 characters for normal single-factor password use.
+- allow long passphrases.
+- support at least 64 characters where platform allows.
+- spaces allowed.
+- Unicode allowed.
+- no required mixture of uppercase/lowercase/numbers/symbols.
+- common/compromised passwords blocked when capability is implemented.
+- no arbitrary periodic password expiration.
+- reset on compromise/recovery/security event.
+
+## 26. Platform Admin MFA
+
+Platform Admin authentication requires MFA.
+
+V1 preferred available factor:
+
+TOTP.
+
+Trusted Admin APIs must validate the required assurance level
+before privileged operations.
+
+## 27. Step-up authentication
+
+High-risk actions can require recent verification.
+
+Examples:
+
+- phone correction.
+- force password reset.
+- account suspend.
+- well suspend.
+- identity merge.
+- entitlement revoke/correction.
+- financial correction.
+- exceptional accounting action.
+- session invalidation.
+
+## 28. Sensitive transaction confirmation
+
+Before executing a high-risk mutation:
+
+- identify target.
+- show current state.
+- show requested state.
+- show important impact.
+- collect reason when required.
+- perform required reauthentication.
+- confirm.
+- execute.
+- audit.
+
+If significant transaction data changes between
+confirmation and execution:
+
+authorization must restart.
+
+## 29. No password secrets in platform data
+
+Forbidden:
+
+- password plaintext in Database.
+- recoverable password ciphertext.
+- password in audit.
+- password in logs.
+- password in analytics.
+- password in Support Notes.
+- password in Local Storage.
+- password in IndexedDB.
+- password in Offline DB.
+- password in Outbox.
+
+## 30. Auth Admin boundary
+
+Auth Admin operations execute from Trusted Backend.
+
+Elevated Supabase credentials remain server-side.
+
+Browser/Admin Console never receives:
+
+- service_role.
+- secret API key.
+- database credentials.
+
+## 31. Account administration tests
+
+Required:
+
 - non-admin denied.
+- global account read requires Platform Admin.
 - phone correction unique.
-- duplicate merge no history loss.
-- suspension blockers.
+- duplicate merge preserves history.
+- suspend blockers.
 - restore audit.
-- session invalidation behavior.
+- session invalidation.
+- force reset authorization.
+- reset-required lifecycle.
+- OTP recovery.
+- lost-phone recovery.
+- admin cannot retrieve password.
+- no recoverable password storage.
 
-## 44. Tests — wells
+## 32. Well administration tests
+
+Required:
 
 - global well read requires Platform Admin.
 - admin not inserted as owner.
 - suspend warns on active session.
 - history preserved.
 - correction audited.
-- preview is read-only.
+- preview read-only.
 
-## 45. Tests — support
+## 33. Support tests
+
+Required:
 
 - case lifecycle.
 - direct references.
 - error lookup.
 - internal notes.
-- no secrets accepted/logged where prohibited.
+- no secrets in support payloads.
 - audit linking.
 
-## 46. Tests — password vault
+## 34. Platform Admin security tests
 
-- plaintext absent at rest.
-- ciphertext decrypts only through trusted service.
-- wrong key fails.
-- tamper detection works.
-- nonce uniqueness.
-- key rotation.
-- pending-before-auth.
-- failed auth does not activate vault version.
-- crash-after-auth reconciliation.
-- previous secret retirement.
-- unavailable legacy user.
-- stale vault never shown as current.
-- non-admin reveal denied.
-- reveal audited without plaintext.
-- no browser persistent cache.
-- no logs/analytics plaintext.
+Required:
 
-## 47. Definition of Done
+- MFA enforced.
+- assurance level checked.
+- step-up enforced for selected actions.
+- authorization cannot be bypassed.
+- changed transaction data invalidates old confirmation.
+- audit does not contain secrets.
+- elevated key absent from frontend.
+- session invalidation works.
+
+## 35. Definition of Done
 
 PA-02 لا تعتبر Production Complete حتى:
 
@@ -540,11 +459,13 @@ PA-02 لا تعتبر Production Complete حتى:
 - support model موجود.
 - error references موجودة.
 - admin corrections موجودة.
-- Password Vault موجودة.
-- key management موجود.
-- password orchestration موجود.
-- vault consistency مثبتة.
-- legacy coverage state مثبتة.
-- reveal flow مثبت.
+- force-password-reset موجود.
+- OTP recovery موجود.
+- lost-phone recovery موجود.
+- Platform Admin MFA موجودة.
+- step-up rules موجودة.
+- current-password reveal غير موجود.
+- recoverable password vault غير موجودة.
+- password policy مثبتة.
 - audit مثبت.
 - permanent security tests ناجحة.

@@ -635,3 +635,29 @@ Pending Vault Version على Server بدل تخزين plaintext
 تظهر `stale` أو `unavailable`.
 
 لا تعرض Password قديمة بوصفها Current.
+
+## ق-105 — Password Recovery Outside Sync
+
+ق-105 تنسخ أي Vault-specific Sync wording من ق-103.
+
+Password plaintext أو Password Reset Secret لا تدخل:
+
+- Offline Database.
+- Outbox.
+- WorkManager payload.
+- Cached Reports.
+- Support diagnostics.
+- generic sync queue.
+
+Force Password Reset وPassword Recovery:
+
+**Online-only.**
+
+Sync subsystem يمكن أن يعرف فقط Business-safe state مثل:
+
+- account reset required.
+- session revoked.
+
+ولا يحمل Password نفسها.
+
+No Recoverable Password Vault exists.
