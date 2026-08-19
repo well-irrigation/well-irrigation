@@ -4950,7 +4950,7 @@ W1 — Backend Foundations.
 ## ق-110 — الربط الصريح بين حساب الدخول والشخص التجاري
 
 - **التاريخ:** 2026-08-19.
-- **الحالة:** معتمد؛ Migration 078 منفذة ومتحقق منها محليًا؛ نشر Supabase Cloud ما زال معلقًا.
+- **الحالة:** معتمد ومنفذ؛ Migration 078 متحقق منها محليًا ومتحقق من بنيتها وأمانها على Supabase Cloud.
 - **المرحلة:** W1-01 / Backend Foundations.
 - **Research & Standards Gate:** PASS.
 - **المسائل:** م-16 prerequisite؛ م-18 تبقى مفتوحة.
@@ -5023,5 +5023,8 @@ Permanent Test:
 - `db:reset` طبق Migration 078 فعليًا.
 - Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR.
 - Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
-- Migration 078 لم تُنشر بعد إلى Supabase Cloud.
-- Cloud verification يتم منفصلًا بعد Commit/Push.
+- Cloud migration history = 77 migrations through 078.
+- `iam.profile_person_links` موجودة على Cloud مع RLS مفعلة ولا Direct Client DML.
+- `iam.current_person_id(uuid)` مطابق للعقد المعتمد.
+- Data API بقي 33 authenticated RPC / 0 anon / 0 SECURITY DEFINER.
+- الاختبار السلوكي الكامل مثبت محليًا بـ18 PASS.

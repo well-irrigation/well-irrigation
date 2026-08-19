@@ -414,13 +414,15 @@ Backend أي Person تخص الحساب الحالي.
 - Entitlements.
 - OTP.
 
-### التالي بعد Local Verification
+### حالة W1-01
 
-1. اجتياز Documentation Gate وحفظ W1-01 في Git.
-2. نشر Migration 078 إلى Supabase Cloud والتحقق منها.
-3. بدء W1-02:
+مكتملة ضمن نطاقها المعتمد: Local verification + Cloud structure/security verification.
+
+### التالي — W1-02
 
 Farmer self-scope authorization / م-16 باستخدام الرابط
 المثبت في 078.
+
+أي DB change جديد يبدأ Migration 079+.
 
 م-18 تراجع منفردة بعد تثبيت Identity Foundation.

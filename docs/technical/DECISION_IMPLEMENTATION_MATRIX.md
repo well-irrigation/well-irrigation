@@ -100,7 +100,7 @@
 | ق-107 | Platform monitoring + incidents + global audit + typed/versioned config + maintenance/version control | 057 Audit foundation موجودة؛ global monitoring/incidents/config/read models غير منفذة | `PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md` + م-35 + observability/security/web tests | PA-04 معتمد؛ Platform Administration design complete؛ Migration 078+ / Trusted Backend Pending |
 | ق-108 | Final cross-cutting UX consistency + design closure | all UX/PA design foundations documented؛ implementation remains distributed across open gaps | `FINAL_CROSS_CUTTING_UX_ARCHITECTURE.md` + م-36 + Android/Web acceptance | UX design complete؛ implementation sequencing next |
 | ق-109 | V1 dependency-based implementation sequence W1–W10 | Design complete؛ implementation gaps م-16..م-36 remain | `V1_IMPLEMENTATION_SEQUENCE.md` + م-37 | Implementation plan adopted؛ W1 Backend Foundations next |
-| ق-110 | Explicit Tenant-aware Profile↔Person identity link | Migration 078 + permanent test implemented؛ local verification 18/235 PASS | Cloud deploy/verify ثم W1-02 Farmer RLS | Local Verified; Cloud pending |
+| ق-110 | Explicit Tenant-aware Profile↔Person identity link | Migration 078 implemented؛ local 18/235 PASS؛ Cloud structure/security verified | W1-02 Farmer RLS / م-16 | Implemented + Local Verified + Cloud Verified |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 

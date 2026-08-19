@@ -9,7 +9,7 @@
 ## الحالة الحالية الحاكمة — 2026-08-19
 
 - Local: 77 migration file مطبقة حتى 078؛ الترقيم التاريخي لا يحتوي Migration 067.
-- Cloud: 76 migration مطبقة حتى 077؛ Migration 078 لم تُنشر بعد.
+- Cloud: 77 migration مطبقة حتى 078؛ Cloud structure/security verification مكتمل.
 - 18 ملف اختبار دائم.
 - 235 PASS / 0 FAIL / 0 ERROR محليًا.
 - 071: ق-78 — Data API boundary.
@@ -344,7 +344,7 @@ Data API:
 ## 078 — W1-01 / Explicit Profile ↔ Person Identity Link
 
 **الحالة الحالية:** منفذة ومتحقق منها محليًا؛
-دخلت Local Applied Baseline، ولم تُنشر بعد إلى Supabase Cloud.
+دخلت Local Applied Baseline وCloud Applied Baseline حتى 078.
 
 الملف:
 
@@ -373,3 +373,14 @@ Data API:
 **دليل التحقق المحلي:** `db:reset` طبق 078 فعليًا؛
 Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR؛
 Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
+
+**دليل التحقق السحابي لـ078:**
+
+- Remote migration history = 77 migrations؛ last = `20260819200401`.
+- `iam.profile_person_links` موجودة وRLS مفعلة.
+- لا Direct SELECT/INSERT/UPDATE/DELETE لأدوار التطبيق.
+- `iam.current_person_id(uuid)` متاحة لـauthenticated وليست لـanon.
+- الفهارس الفعالة مطابقة ولا يوجد الفهرس الزائد المحذوف.
+- `api` بقي 33 authenticated RPC؛ anon = 0؛ SECURITY DEFINER = 0.
+- عدد روابط الأشخاص أثناء التحقق السحابي = 0.
+- Permanent Test 078 المحلي = 18 PASS / 0 FAIL / 0 ERROR.

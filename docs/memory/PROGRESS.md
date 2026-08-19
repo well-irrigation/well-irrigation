@@ -819,3 +819,20 @@ Owner Verification:
 التالي:
 
 Documentation Gate → Commit/Push → Cloud deploy/verify 078 → W1-02.
+
+---
+
+## 2026-08-19 — W1-01 / ق-110 Cloud verified
+
+- Remote migration history = 77 migrations through 078.
+- `iam.profile_person_links` موجودة وRLS enabled.
+- Direct client table privileges = none.
+- `iam.current_person_id(uuid)` مطابق لق-110.
+- API surface = 33 authenticated RPC / 0 anon / 0 SECURITY DEFINER.
+- صفوف روابط الهوية أثناء التحقق = 0.
+- Local Permanent Test 078 = 18 PASS.
+- Full DB Suite = 235 PASS / 0 FAIL / 0 ERROR.
+
+W1-01 مكتملة ضمن نطاقها المعتمد.
+التالي: W1-02 / م-16.
+Migration 071–078 immutable؛ أي DB change جديد = 079+.

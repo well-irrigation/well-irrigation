@@ -262,7 +262,7 @@
 
 ## التالي
 
-**W1-01 — نشر Migration 078 إلى Supabase Cloud والتحقق منها.**
+**W1-02 — Farmer self-scope authorization / م-16.**
 
 تمت كتابة:
 
@@ -277,19 +277,21 @@ Local Verification مكتمل:
 - Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR.
 - Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
 
-الحالة السحابية:
+W1-01 مكتملة ضمن النطاق المعتمد:
 
-- 001–077 منشورة ومتحقق منها على Supabase Cloud.
-- 078 لم تُنشر بعد.
+- Migration 078 متحققة محليًا.
+- Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
+- Cloud migration history = 77 migrations through 078.
+- Cloud structure/security verification مكتمل.
 
-الترتيب التالي:
+التالي:
 
-1. Documentation Gate + Commit/Push لنتيجة W1-01.
-2. نشر Migration 078 إلى Supabase Cloud.
-3. Cloud verification.
-4. ثم W1-02 / Farmer Self-scope RLS.
+W1-02 / Farmer Self-scope authorization / م-16.
 
-Migration 071–077 immutable.
+Migration 071–078 immutable.
+
+أول DB change جديد بعد W1-01: Migration 079+.
 
 م-16 ما زالت مفتوحة.
 

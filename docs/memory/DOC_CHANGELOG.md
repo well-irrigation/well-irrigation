@@ -1024,3 +1024,13 @@ Prepared / Pending Owner Verification.
 - سجلت Owner Verification الحقيقي لـMigration 078.
 - Local baseline: 77 migration files / 18 tests / 235 PASS.
 - Cloud baseline: through 077؛ Migration 078 pending cloud deployment.
+
+---
+
+## 2026-08-19 — W1-01 Cloud verification closure
+
+- صححت Cloud baseline إلى applied-through-078.
+- سجلت Cloud structural/security verification لق-110.
+- ثبتت Migration 071–078 immutable.
+- نقلت RESUME_POINT إلى W1-02 / م-16.
+- أي DB change جديد يبدأ Migration 079+.
