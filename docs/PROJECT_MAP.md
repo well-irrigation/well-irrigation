@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-109.
+آخر قرار مرقم حاليًا: ق-110.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -851,3 +851,30 @@ Migration 071–077 immutable.
 أول DB change جديد:
 
 **Migration 078+**.
+
+### W1-01 — Profile ↔ Person Identity Foundation
+
+القرار:
+
+ق-110.
+
+Migration:
+
+078.
+
+الحالة:
+
+**Prepared / Pending Owner Verification.**
+
+الهدف:
+
+إنشاء Explicit Tenant-aware link بين Login Account
+وBusiness Person دون Name/Phone guessing.
+
+لا تحل م-16 بعد.
+
+لا تغير م-18.
+
+بعد نجاح Verification:
+
+W1-02 — Farmer Self-scope Authorization.

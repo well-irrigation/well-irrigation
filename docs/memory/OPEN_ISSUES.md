@@ -1139,3 +1139,46 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - dependent open issues closed or explicitly deferred.
 - field/security/UX acceptance complete.
 - release readiness established.
+
+## W1-01 status — ق-110
+
+### م-16
+
+تبقى **مفتوحة**.
+
+Migration 078 توفر فقط prerequisite:
+
+Explicit Profile↔Person identity.
+
+الإغلاق الفعلي لـFarmer self-scope يأتي في Migration
+لاحقة بعد نجاح 078.
+
+### م-18
+
+تبقى **مفتوحة وغير معدلة**.
+
+لا Role Catalog wiring في 078.
+
+السبب:
+
+Current operative roles وCatalog vocabulary ليستا نموذجًا
+واحدًا بعد، والربط يؤثر على عدد كبير من RLS policies.
+
+### تنبيه تشغيلي — Supabase config push
+
+الحالة: مفتوح كحماية Workflow ضمن م-37.
+
+أثناء مزامنة Cloud baseline ثبت أن `supabase config push`
+يمكن أن يعرض تغييرات Auth المحلية بجانب API config.
+
+حدث دفع Auth غير مقصود ثم أُعيدت القيم السحابية السابقة
+بنجاح دون وجود مستخدمين حقيقيين.
+
+القاعدة من الآن:
+
+- لا يستخدم `config push` كأمر اعتيادي لنشر DB migrations.
+- DB migrations تستخدم مسار `db push`.
+- أي `config push` مستقبلي يجب أن يراجع service-by-service.
+- إعدادات Auth المحلية لا تعتبر تلقائيًا إعدادات Cloud معتمدة.
+
+هذا التنبيه لا يمنع نشر Migration 078 عبر `db push`.

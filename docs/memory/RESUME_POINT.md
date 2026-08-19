@@ -262,44 +262,38 @@
 
 ## التالي
 
-**W1 — Backend Foundations /
-الأساسات الخلفية للنسخة الأولى.**
+**W1-01 — نشر Migration 078 إلى Supabase Cloud والتحقق منها.**
 
-IMPLEMENTATION-01 معتمدة بق-109.
+تمت كتابة:
 
-المصدر:
+- `20260819200401_078_profile_person_identity_links.sql`
+- `20260819_078_profile_person_identity_links.test.sql`
 
-`docs/technical/V1_IMPLEMENTATION_SEQUENCE.md`
+ق-110 معتمدة.
 
-الترتيب الحاكم:
+Local Verification مكتمل:
 
-W1 → W2 → W3 → W4 → W5 → W6 → W7 → W8 → W9 → W10.
+- Migration 078 طُبقت فعليًا في `db:reset`.
+- Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
 
-W1 تركز على:
+الحالة السحابية:
 
-- Identity.
-- authorization.
-- Farmer RLS gap.
-- roles/permissions authority.
-- Auth/OTP trusted flows.
-- entitlement foundations.
-- atomic well activation prerequisites.
+- 001–077 منشورة ومتحقق منها على Supabase Cloud.
+- 078 لم تُنشر بعد.
+
+الترتيب التالي:
+
+1. Documentation Gate + Commit/Push لنتيجة W1-01.
+2. نشر Migration 078 إلى Supabase Cloud.
+3. Cloud verification.
+4. ثم W1-02 / Farmer Self-scope RLS.
 
 Migration 071–077 immutable.
 
-أول DB change جديد:
+م-16 ما زالت مفتوحة.
 
-Migration 078+.
-
-لا تنشئ Migration واحدة ضخمة لكل V1.
-
-كل change coherent لها Migration/Test مناسب.
-
-Assistant لا يشغل Project DB/Docker tests.
-
-المالك يشغل Verification ويرسل النتائج.
-
-لا تغير Baseline الاختبارات دون دليل جديد.
+م-18 ما زالت مفتوحة.
 
 ## قاعدة التنفيذ
 

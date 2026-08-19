@@ -1383,3 +1383,37 @@ Production عندما تنفذ capability.
 664. UX-17 is not Production Complete before م-36 closure.
 
 665. Any new DB change starts Migration 078+.
+
+## ق-110 — ثوابت Account ↔ Person Identity
+
+666. Login Profile وBusiness Person مفهومان منفصلان.
+
+667. الربط بينهما Explicit وليس مستنتجًا.
+
+668. Name similarity لا تنشئ Profile↔Person link.
+
+669. Phone equality لا تنشئ Profile↔Person link تلقائيًا.
+
+670. لا Backfill تخميني لعلاقة Login/Person.
+
+671. Login Account يمكن أن تملك Person فعالة واحدة لكل Tenant.
+
+672. Person واحدة لا تملك أكثر من Login Account فعالة.
+
+673. Tenant/Person mismatch مرفوض بقاعدة البيانات.
+
+674. Existing identity link لا يعاد Retarget.
+
+675. Identity-link history لا Hard Delete.
+
+676. Identity correction = revoke + explicit new link.
+
+677. `iam.current_person_id` تفشل مغلقة عند غياب الرابط.
+
+678. Migration 078 لا تحل Farmer RLS بمفردها.
+
+679. Migration 078 لا تربط Role Catalog.
+
+680. Migration 078 لا توسع `api` surface.
+
+681. Migration 071–077 تبقى immutable.

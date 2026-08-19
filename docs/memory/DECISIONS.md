@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-109
+**آخر قرار مرقّم:** ق-110
 **آخر تحديث:** 2026-08-19
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -4944,3 +4944,84 @@ AI لا يشغل Project DB/Docker tests.
 W1 — Backend Foundations.
 
 أي DB change جديد يبدأ Migration 078+.
+
+---
+
+## ق-110 — الربط الصريح بين حساب الدخول والشخص التجاري
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد؛ Migration 078 منفذة ومتحقق منها محليًا؛ نشر Supabase Cloud ما زال معلقًا.
+- **المرحلة:** W1-01 / Backend Foundations.
+- **Research & Standards Gate:** PASS.
+- **المسائل:** م-16 prerequisite؛ م-18 تبقى مفتوحة.
+
+### القرار
+
+ينشأ رابط Identity صريح:
+
+`iam.profile_person_links`
+
+بين:
+
+- `iam.profiles` = Login Account.
+- `core.persons` = Business Person داخل Tenant.
+
+### السبب
+
+لا توجد حاليًا علاقة Canonical صريحة تسمح لـRLS بمعرفة
+أي Farmer/Person يخص حساب الدخول.
+
+### القواعد
+
+1. لا Name Guessing.
+
+2. لا Phone Guessing.
+
+3. لا Backfill تخميني.
+
+4. Profile عالمية يمكن أن ترتبط بـPerson واحدة فعالة
+   لكل Tenant.
+
+5. Person واحدة لا ترتبط بأكثر من Login Profile فعالة.
+
+6. Tenant/Person consistency تفرضها قاعدة البيانات.
+
+7. الرابط Historical؛ لا Retarget ولا Hard Delete.
+
+8. التصحيح المستقبلي يكون Revoke + Explicit New Link.
+
+9. `iam.current_person_id(tenant_id)` هي Helper داخلية
+   Fail-closed.
+
+10. Migration 078 لا تغير `api.*` surface.
+
+11. Migration 078 لا تحل م-16 بمفردها.
+
+12. Migration 079 أو أحدث تستخدم العلاقة الجديدة لتضييق
+    Farmer RLS.
+
+13. م-18 لا تربط في 078.
+
+### حدود القرار
+
+لا Entitlements.
+
+لا OTP implementation.
+
+لا Role Catalog wiring.
+
+لا Farmer RLS rewrite في نفس Migration.
+
+### التحقق
+
+Permanent Test:
+
+`20260819_078_profile_person_identity_links.test.sql`
+
+تحقق المالك محليًا بنجاح:
+
+- `db:reset` طبق Migration 078 فعليًا.
+- Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
+- Migration 078 لم تُنشر بعد إلى Supabase Cloud.
+- Cloud verification يتم منفصلًا بعد Commit/Push.

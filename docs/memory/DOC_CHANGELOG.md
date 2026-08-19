@@ -988,3 +988,39 @@ W1 — Backend Foundations.
 **نوع الدفعة:** توثيقية فقط.
 
 Baseline الاختبارات لم يتغير.
+
+## تحديث 2026-08-19 — W1-01 / ق-110
+
+**المجال:**
+
+Canonical Login Profile ↔ Business Person identity.
+
+**التنفيذ المحضر:**
+
+- Migration 078.
+- Permanent Test 078.
+- Internal identity resolver.
+
+**لا يشمل:**
+
+- Farmer RLS rewrite.
+- Role Catalog wiring.
+- Entitlements.
+- OTP.
+
+**الحالة:**
+
+Prepared / Pending Owner Verification.
+
+لا Commit/Push قبل دليل الاختبار.
+
+---
+
+## 2026-08-19 — W1-01 local verification + Cloud baseline sync
+
+- سجلت مزامنة Supabase Cloud baseline حتى Migration 077.
+- سجلت Data API boundary السحابية: `api` + `graphql_public`.
+- سجلت استعادة Auth config بعد التغيير غير المقصود.
+- سجلت Owner Verification الحقيقي لـMigration 078.
+- Local baseline: 77 migration files / 18 tests / 235 PASS.
+- Cloud baseline: through 077؛ Migration 078 pending cloud deployment.

@@ -936,3 +936,65 @@ Internal architecture shows:
 Result:
 
     IMPLEMENTATION01_RESEARCH_STANDARDS_GATE=PASS
+
+## 22. W1-01 Identity Authorization Evidence — 2026-08-19
+
+### Project Source of Truth
+
+Migration 075 تمنع تخمين Profile↔Person.
+
+Migration 030 تثبت Farmer business identity.
+
+Migration 016 تكشف أن Farmer RLS الحالية Well-wide.
+
+Migration 028 Role Catalog غير مربوطة.
+
+Migration 077 تبقي م-18 مفتوحة صراحة.
+
+### Supabase RLS
+
+Reviewed:
+
+https://supabase.com/docs/guides/database/postgres/row-level-security
+
+Applied:
+
+- explicit RLS authorization data.
+- helper function for complex policy lookup.
+- Security Definer helper outside exposed API schema.
+
+### Supabase Auth
+
+Reviewed:
+
+https://supabase.com/docs/guides/auth
+
+Applied:
+
+Auth user identity may be related explicitly to application
+tables rather than inferred from display data.
+
+### PostgreSQL Function Security
+
+Reviewed:
+
+https://www.postgresql.org/docs/current/sql-createfunction.html
+
+Applied:
+
+- SECURITY DEFINER requires secure search_path.
+- trusted schemas precede pg_temp.
+- default PUBLIC execute is revoked explicitly.
+
+### Decision
+
+Standards-aligned + Project-adapted:
+
+Create explicit Tenant-aware Profile↔Person mapping first.
+
+Do not rewrite Farmer RLS or Role Catalog in the same
+Migration.
+
+Result:
+
+    W1_01_RESEARCH_STANDARDS_GATE=PASS

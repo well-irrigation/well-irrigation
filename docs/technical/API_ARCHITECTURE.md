@@ -818,3 +818,26 @@ No production UI may depend on an imaginary/future API
 without a tracked implementation gap.
 
 New DB changes start Migration 078+.
+
+## ق-110 — Identity Link Foundation
+
+Migration 078 لا تضيف `api.*` endpoint.
+
+الهدف هو Internal Authorization Foundation فقط.
+
+تضيف:
+
+`iam.current_person_id(p_tenant_id uuid)`
+
+كدالة داخلية لـRLS/Domain Authorization المستقبلية.
+
+القواعد:
+
+- SECURITY DEFINER داخل schema غير مكشوفة.
+- fixed trusted search_path.
+- anon لا EXECUTE.
+- لا Direct Client Table Access.
+- لا تغير Data API function count.
+
+أي Link Mutation خارج Migration/Tests ستحتاج لاحقًا
+Trusted Contract صريح؛ لا يفتح Direct DML للعميل.

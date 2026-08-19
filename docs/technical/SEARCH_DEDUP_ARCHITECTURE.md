@@ -696,3 +696,25 @@ UX-13 لا تنشئ Search Engine جديدًا.
 - لكنها تبقى قابلة للعرض في التاريخ.
 - Search text لا ينشئ كيانًا.
 - Merge يحفظ جميع الروابط التاريخية.
+
+## ق-110 — Explicit Profile ↔ Person Foundation
+
+W1-01 تنشئ Migration 078 لتطبيق prerequisite المذكورة
+سابقًا في هذه الوثيقة:
+
+`explicit profile↔person link`.
+
+الرابط:
+
+- Tenant-aware.
+- explicit.
+- fail-closed.
+- لا يستخدم Name/Phone guessing.
+- لا يعيد استخدام Search result كIdentity تلقائيًا.
+
+الحالة:
+
+Migration مكتوبة وتنتظر Owner Verification.
+
+م-16 تبقى مفتوحة حتى Migration لاحقة تستخدم الرابط في
+Farmer self-scope RLS.

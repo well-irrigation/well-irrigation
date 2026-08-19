@@ -1,17 +1,17 @@
 # الهجرات
 
-**آخر تحديث:** 2026-08-17
+**آخر تحديث:** 2026-08-19
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
 ---
 
-## الحالة الحالية الحاكمة — 2026-08-17
+## الحالة الحالية الحاكمة — 2026-08-19
 
-- 76 migration مطبقة محليًا.
-- آخر migration: 077.
-- 17 ملف اختبار دائم.
-- 217 PASS / 0 FAIL / 0 ERROR.
+- Local: 77 migration file مطبقة حتى 078؛ الترقيم التاريخي لا يحتوي Migration 067.
+- Cloud: 76 migration مطبقة حتى 077؛ Migration 078 لم تُنشر بعد.
+- 18 ملف اختبار دائم.
+- 235 PASS / 0 FAIL / 0 ERROR محليًا.
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
 - 073: عقد الكتابة الأساسي داخل api.
@@ -27,7 +27,7 @@ milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القا�
 
 حُذف ملفا الترحيل القديمان (001 و002، بتاريخ 2026-08-05) بالكامل، لأنهما سبقا استقرار القرارات الخمسين. استُبدلا بـ 25 ملف ترحيل جديدة، مبنية ومختبرة تباعًا في نفس اليوم، تعكس كل القرارات النافذة حتى ق-66.
 
-**حالة التطبيق الحالية لكل الملفات أدناه:** مُطبّقة ومُختبرة محليًا (بيئة تطوير) عبر تكرار `npx supabase db reset`، مع فحص مباشر بعد كل ملف. **لم تُطبّق بعد على أي بيئة إنتاج أو نشر فعلي.**
+**ملاحظة تاريخية:** هذا القسم كُتب أولًا عندما كان التطبيق محليًا فقط. الحالة الحالية الحاكمة هي الملخص أعلى الملف: 001–077 منشورة على Supabase Cloud، بينما 078 متحققة محليًا ولم تُنشر إلى Cloud بعد.
 
 ---
 
@@ -338,3 +338,38 @@ milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القا�
 Data API:
 
 `RPC=33`.
+
+---
+
+## 078 — W1-01 / Explicit Profile ↔ Person Identity Link
+
+**الحالة الحالية:** منفذة ومتحقق منها محليًا؛
+دخلت Local Applied Baseline، ولم تُنشر بعد إلى Supabase Cloud.
+
+الملف:
+
+`20260819200401_078_profile_person_identity_links.sql`
+
+الاختبار:
+
+`20260819_078_profile_person_identity_links.test.sql`
+
+تضيف:
+
+- `iam.profile_person_links`.
+- Tenant-aware explicit identity mapping.
+- active uniqueness.
+- historical link protection.
+- `iam.current_person_id(uuid)`.
+
+لا تضيف:
+
+- `api.*` RPC.
+- Farmer RLS rewrite.
+- Role Catalog wiring.
+- Entitlement model.
+- Backfill تخميني.
+
+**دليل التحقق المحلي:** `db:reset` طبق 078 فعليًا؛
+Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR؛
+Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.

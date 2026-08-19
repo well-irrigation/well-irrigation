@@ -766,3 +766,56 @@ Baseline الاختبارات لم يتغير.
 لم تنفذ Migration 078 بعد.
 
 Baseline الاختبارات لم يتغير.
+
+## 2026-08-19 — W1-01 / ق-110 prepared
+
+تمت كتابة:
+
+- Migration 078 Profile↔Person identity foundation.
+- Permanent Test 078.
+- ق-110.
+- وثائق W1-01.
+
+الحالة:
+
+**Pending Owner Verification.**
+
+لم يشغل AI:
+
+- db:reset.
+- db:test.
+- Docker verification.
+
+لم يتغير Baseline الرسمي بعد.
+
+التالي:
+
+Owner runs Migration/Test verification.
+
+---
+
+## 2026-08-19 — Supabase Cloud baseline synchronized
+
+ثبت بالدليل:
+
+- المشروع المحلي مرتبط بالمشروع السحابي الصحيح.
+- Migrations 001–077 نُشرت إلى Supabase Cloud.
+- Remote migration history = 76 migrations through 077.
+- Data API exposed schemas صارت `api` + `graphql_public`.
+- `public` لم يعد Exposed Schema.
+- تغيير Auth غير المقصود أثناء `config push` أُعيد إلى قيم Cloud السابقة بنجاح.
+- Migration 078 لم تُنشر ضمن هذه المزامنة.
+
+## 2026-08-19 — W1-01 / ق-110 locally verified
+
+Owner Verification:
+
+- `db:reset` طبق `20260819200401_078_profile_person_identity_links.sql`.
+- Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
+- Local Applied Baseline صار حتى 078.
+- Cloud Applied Baseline بقي حتى 077.
+
+التالي:
+
+Documentation Gate → Commit/Push → Cloud deploy/verify 078 → W1-02.

@@ -390,3 +390,37 @@ IMPLEMENTATION-01 is complete when:
 Next:
 
 **W1 — Backend Foundations / Migration 078+ planning and implementation.**
+
+## 19. W1-01 — Explicit Account/Person Identity Foundation
+
+أول Slice في W1:
+
+**Migration 078.**
+
+تنشئ Tenant-aware explicit link بين:
+
+- Login Profile.
+- Business Person.
+
+سبب ترتيبها أولًا:
+
+Farmer self-scope RLS لا يمكن أن تكون صحيحة إذا لم يعرف
+Backend أي Person تخص الحساب الحالي.
+
+### لا يدخل W1-01
+
+- Farmer RLS rewrite.
+- Role Catalog wiring.
+- Entitlements.
+- OTP.
+
+### التالي بعد Local Verification
+
+1. اجتياز Documentation Gate وحفظ W1-01 في Git.
+2. نشر Migration 078 إلى Supabase Cloud والتحقق منها.
+3. بدء W1-02:
+
+Farmer self-scope authorization / م-16 باستخدام الرابط
+المثبت في 078.
+
+م-18 تراجع منفردة بعد تثبيت Identity Foundation.
