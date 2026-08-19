@@ -664,3 +664,58 @@ Charts محدودة وموجهة لسؤال.
 Admin tables طويلة تستخدم Pagination واضحة.
 
 لا Infinite Scroll كآلية أساسية في V1.
+
+## ق-107 — Monitoring & Incident Visual Rules
+
+### Health states
+
+Health/Alert/Incident state تعرض دائمًا:
+
+- text.
+- icon.
+- severity.
+- color as secondary cue.
+
+لا Color-only meaning.
+
+### Monitoring hierarchy
+
+الواجهة تعرض:
+
+1. impact/symptom.
+2. affected scope.
+3. status.
+4. diagnosis/details.
+
+### Alert density
+
+لا Wall of Alerts.
+
+المكرر يجمع ويعرض occurrence count.
+
+### Incident badge
+
+Critical/Open incident يمكن أن يظهر Badge واضحًا
+في Sidebar.
+
+### Audit diff
+
+Before/After يعرض Human-readable change summary.
+
+Raw JSON Secondary/Advanced فقط.
+
+### Configuration danger
+
+Dangerous Setting تستخدم:
+
+- clear target.
+- impact.
+- confirmation.
+- reason.
+- step-up when required.
+
+### Accessibility
+
+Monitoring/Admin Settings تستمر تحت WCAG 2.2 AA.
+
+No blinking/flashing critical states كوسيلة أساسية.

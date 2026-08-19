@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-106
+**آخر قرار مرقّم:** ق-107
 **آخر تحديث:** 2026-08-19
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -44,6 +44,9 @@
   من ق-10؛ تأجيل الاشتراكات الدورية يبقى نافذًا.
 - ق-106 يحكم PA-03: المبيعات والتفعيل والتدخل التشغيلي
   والمالي لمنصة الإدارة.
+- ق-107 يحكم PA-04 ويغلق سلسلة Platform Administration
+  تصميميًا؛ التنفيذ يبقى Pending.
+- بعد ق-107 تصبح UX-17 هي المناقشة التالية.
 
 # الجولة الأولى — 2026-08-12
 
@@ -4512,4 +4515,242 @@ Retry يستخدم نفس Command/Idempotency ID.
 - export.
 - server pagination.
 - Online-only write enforcement.
+- permanent tests.
+
+---
+
+## ق-107 — مراقبة المنصة وسجل التدقيق والإعدادات والحوادث
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق؛ التنفيذ Pending.
+- **المناقشة:** PA-04 / PA-04-01 إلى PA-04-86.
+- **Research & Standards Gate:** PASS.
+- **المصدر التقني:**
+  `technical/PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md`.
+- **المسألة المفتوحة:** م-35.
+
+### Monitoring Philosophy
+
+Platform Admin اليومية تبدأ بـ:
+
+    ماذا تعطّل؟
+      ↓
+    من تأثر؟
+      ↓
+    أين المشكلة؟
+      ↓
+    ما السبب التقني؟
+
+لا تبدأ بRaw infrastructure metrics.
+
+### Monitoring domains
+
+تشمل:
+
+- API.
+- Auth/OTP.
+- Database.
+- Realtime.
+- Sync.
+- Notifications.
+- Application stability.
+- External dependencies.
+
+### Alerts
+
+V1 Severity:
+
+- Critical.
+- High.
+- Warning.
+- Info.
+
+Alert المهمة يجب أن تكون Actionable.
+
+Deduplication وGrouping إلزاميان لتقليل Noise.
+
+### Incidents
+
+Incident مستقلة عن Support Case.
+
+V1 statuses:
+
+- Investigating.
+- Identified.
+- Monitoring.
+- Resolved.
+
+Major Incident يمكن أن تحصل على Postmortem مبسط.
+
+### Correlation
+
+الطلبات والأوامر المهمة تستخدم Correlation/Operation IDs
+لربط:
+
+- user-visible error.
+- API.
+- backend.
+- database/auth/sync telemetry.
+
+Full OpenTelemetry مؤجل، لكن التصميم لا يمنعه.
+
+### Audit
+
+نبني فوق `audit.audit_logs` الحالية.
+
+لا Audit موازية.
+
+يلزم Admin Global Projection مع:
+
+- filters.
+- human-readable diff.
+- sensitive-field redaction.
+- access/export audit when required.
+
+### Retention
+
+لا مدة Audit اعتباطية.
+
+Business/Admin Audit تختلف عن Technical Telemetry.
+
+المدة النهائية ترتبط بالاحتياج القانوني والتشغيلي.
+
+### Platform Configuration
+
+V1 Configuration:
+
+- typed.
+- validated.
+- versioned.
+- audited.
+- rollback-capable عندما ينطبق.
+
+لا Generic JSON Editor.
+
+### V1 Configuration Groups
+
+- app versions.
+- maintenance.
+- support contacts.
+- terms/privacy URLs.
+- limited safe feature flags.
+
+### Secrets
+
+Infrastructure Secrets لا تدخل Platform Settings.
+
+Feature Flag لا تمنح Authorization.
+
+### Maintenance
+
+Maintenance Mode scoped.
+
+لا Global Kill Switch يمنع Offline field work المعتمد.
+
+Online-only operation تعرض Maintenance State بوضوح.
+
+Emergency Maintenance يمكن أن تحمل Expiry.
+
+### App Versions
+
+لدينا:
+
+- recommended version.
+- minimum supported version.
+- required update only for security/compatibility/data risk.
+
+Offline user لا يقفل عن Local Safe Work بصورة عمياء.
+
+### Release/change tracking
+
+يربط Monitoring بـ:
+
+- App Version.
+- Build.
+- Backend Release.
+- Migration.
+- Config Version.
+
+### Privacy
+
+Telemetry تقلل PII/financial payload.
+
+Internal Account ID مفضل على Phone كDiagnostic Identity.
+
+أي Provider مستخدم يجب أن ينعكس في Privacy documentation.
+
+### Backups
+
+يمكن عرض Backup Health عند توفر مصدر موثوق.
+
+لا يوجد ordinary DB Download أو one-click Production Restore.
+
+### Final Platform Admin Navigation
+
+V1:
+
+1. الرئيسية.
+2. الآبار.
+3. الحسابات والأشخاص.
+4. المبيعات والتفعيل.
+5. مراقبة التشغيل.
+6. المراقبة المالية.
+7. المزامنة والأجهزة.
+8. المشاكل والدعم.
+9. الحوادث.
+10. سجل التدقيق.
+11. مراقبة النظام.
+12. إعدادات المنصة.
+
+### Deferred
+
+- public status page.
+- custom SIEM.
+- full OpenTelemetry.
+- advanced A/B experimentation.
+- custom admin-role hierarchy.
+
+### Completion
+
+ق-107 تغلق **تصميم** Platform Administration:
+
+- PA-01.
+- PA-02.
+- PA-03.
+- PA-04.
+
+لكن لا تصف أيًا منها Implemented دون أدلة التنفيذ.
+
+### Research evidence
+
+تمت مراجعة مبادئ من:
+
+- Google SRE Monitoring.
+- Google SRE Incident/Postmortem practices.
+- Google SRE Configuration Design.
+- OWASP Logging.
+- OpenTelemetry specifications.
+- Supabase Monitoring/Metrics guidance.
+- Firebase Crashlytics/Remote Config patterns.
+- Android In-App Updates guidance.
+
+الاعتماد هو للمبادئ الملائمة فقط.
+
+لا Dependency جديدة تعتمد بمجرد التوثيق.
+
+### شرط الإغلاق التنفيذي
+
+لا يعتبر ق-107 Implemented حتى يثبت:
+
+- monitoring read models.
+- alert lifecycle/dedup.
+- incident management.
+- correlation.
+- global audit projection.
+- redaction.
+- configuration versioning/rollback.
+- scoped maintenance.
+- app-version policies.
+- telemetry privacy.
+- security monitoring.
 - permanent tests.

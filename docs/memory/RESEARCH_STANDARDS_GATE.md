@@ -648,3 +648,123 @@ Rejected V1:
 Result:
 
     PA03_RESEARCH_STANDARDS_GATE=PASS
+
+## 19. PA-04 Evidence Review — 2026-08-19
+
+### Google SRE — Monitoring Distributed Systems
+
+يدعم:
+
+- symptom versus cause.
+- latency/errors/saturation/traffic-style health signals.
+- actionable high-signal monitoring.
+
+### Google SRE — On-call / Alerting
+
+يدعم:
+
+- actionable alerts.
+- reducing alert noise.
+- avoiding repeated unactionable paging.
+
+### Google SRE — Postmortem Culture
+
+يدعم:
+
+- impact/timeline/root-cause/follow-up learning.
+
+### Google SRE — Configuration Design
+
+يدعم:
+
+- limited configuration complexity.
+- validation.
+- versioning.
+- rollback.
+- change traceability.
+
+### OWASP Logging
+
+يدعم:
+
+- privileged action logging.
+- secret-safe logs.
+- log-access protection.
+- appropriate retention.
+
+### OpenTelemetry
+
+يدعم:
+
+- correlation across logs/traces/metrics.
+- Trace/Span-compatible context.
+
+Project adaptation:
+
+Full OTel rollout deferred.
+Correlation readiness adopted.
+
+### Supabase Monitoring
+
+يدعم:
+
+- Logs/Reports/Metrics as available platform signals.
+
+Project rule:
+
+لا نعتمد Provider-specific Metrics API كشرط معماري وحيد.
+
+### Firebase Crashlytics
+
+Reviewed as optional mature crash-reporting capability.
+
+No dependency adopted merely by documentation.
+
+### Firebase Remote Config
+
+Reviewed as evidence for safe defaults/remote overrides.
+
+Project decision:
+
+Business Configuration remains Backend-owned in V1.
+
+### Android In-App Updates
+
+يدعم:
+
+- Flexible.
+- Immediate.
+
+Project adaptation:
+
+Immediate only for high-risk compatibility/security cases.
+
+### PA-04 classification
+
+Standards-aligned:
+
+- actionable monitoring.
+- alert dedup/grouping.
+- incidents.
+- postmortems.
+- secret-safe audit.
+- configuration versioning/rollback.
+
+Adapted:
+
+- scoped maintenance.
+- Offline-safe version behavior.
+- Backend-owned config.
+- OTel-ready IDs without full rollout.
+
+Deferred/rejected V1:
+
+- custom SIEM.
+- generic JSON config editor.
+- global field-work kill switch.
+- public status page.
+- full OTel rollout.
+
+Result:
+
+    PA04_RESEARCH_STANDARDS_GATE=PASS

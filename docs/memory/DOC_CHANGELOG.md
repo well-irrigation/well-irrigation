@@ -876,3 +876,45 @@ Subscription deferral remains.
 **نوع الدفعة:** توثيقية فقط.
 
 Baseline الاختبارات لم يتغير.
+
+## تحديث 2026-08-19 — PA-04 / ق-107
+
+**المجال:**
+
+Platform Monitoring, Audit, Configuration and Incidents.
+
+**الملف الجديد:**
+
+- `technical/PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md`
+
+**أهم القرارات:**
+
+- symptom-first monitoring.
+- actionable/deduplicated alerts.
+- incident lifecycle.
+- postmortems.
+- correlation/error references.
+- reuse existing append-only audit foundation.
+- global admin audit projection.
+- secret redaction.
+- typed/versioned config.
+- validation/rollback.
+- scoped maintenance.
+- Offline field continuity.
+- version policies.
+- release tracking.
+- telemetry privacy.
+- final admin navigation.
+- م-35 opened.
+
+**الحالة:**
+
+Platform Administration PA-01..PA-04 مكتملة تصميميًا.
+
+**التالي:**
+
+UX-17.
+
+**نوع الدفعة:** توثيقية فقط.
+
+Baseline الاختبارات لم يتغير.

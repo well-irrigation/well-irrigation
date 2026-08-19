@@ -704,3 +704,42 @@ PA-03 تحتاج Trusted Admin Contracts لـ:
 11. service_role/secret key never enters Browser/Flutter.
 
 12. New DB objects start Migration 078+.
+
+## ق-107 — Monitoring, Audit & Configuration APIs
+
+PA-04 تحتاج Trusted Contracts مثل:
+
+- platform health summary.
+- alert list/detail/acknowledge.
+- incident list/detail/update.
+- correlation/error lookup.
+- global audit list/detail.
+- platform configuration read/update.
+- configuration rollback.
+- maintenance state.
+- application version policy.
+- release/change history.
+- dependency-health summary.
+
+### Rules
+
+1. Platform Admin authority verified server-side.
+
+2. Audit internal tables لا تعرض مباشرة للBrowser.
+
+3. Sensitive values redacted before response/logging.
+
+4. Config writes versioned and audited.
+
+5. Rollback creates new version/history event.
+
+6. Feature Flags cannot grant authorization.
+
+7. Maintenance is scoped.
+
+8. Monitoring may integrate provider signals but must not
+   depend on one Beta/provider API as sole truth.
+
+9. Large lists use server-side pagination/filter/sort.
+
+10. New DB objects begin Migration 078+.

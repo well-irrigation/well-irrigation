@@ -97,6 +97,7 @@
 | ق-104 | Mandatory Research & Standards Gate + admin UX/security hardening | Governance documented؛ implementation requirements موزعة على PA gaps | `RESEARCH_STANDARDS_GATE.md` + Collaboration/Documentation/Handoff updates | نافذ كGovernance Rule؛ implementation items Pending |
 | ق-105 | Hash-only passwords + admin-triggered reset + OTP/user-chosen password + Admin MFA | Supabase Auth foundation موجودة؛ reset/admin MFA/recovery orchestration Pending | PA-02 architecture + م-33 + Auth/security tests | معتمد؛ ق-103 Password Vault منسوخة؛ Migration 078+ / Trusted Backend Pending |
 | ق-106 | Platform sales + per-well entitlements + operations/financial admin control | ق-86 foundation موثقة؛ sale/entitlement/admin-control contracts غير منفذة | `PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md` + م-34 + security/finance/idempotency tests | PA-03 معتمد؛ Migration 078+ / Trusted Backend Pending |
+| ق-107 | Platform monitoring + incidents + global audit + typed/versioned config + maintenance/version control | 057 Audit foundation موجودة؛ global monitoring/incidents/config/read models غير منفذة | `PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md` + م-35 + observability/security/web tests | PA-04 معتمد؛ Platform Administration design complete؛ Migration 078+ / Trusted Backend Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 

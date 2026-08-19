@@ -1147,3 +1147,117 @@ Production عندما تنفذ capability.
 548. PA-03 لا تعتبر Production Complete قبل إغلاق م-34.
 
 549. Any DB change جديد يبدأ Migration 078+.
+
+## ق-107 — ثوابت Monitoring/Audit/Configuration
+
+550. Business Dashboard وSystem Monitoring منفصلتان.
+
+551. Monitoring تعرض Symptom قبل Cause.
+
+552. Monitoring لا تعتمد على Color فقط.
+
+553. Alert لا يلزم أن تنشأ لكل Error.
+
+554. Critical/High Alerts يجب أن تكون Actionable.
+
+555. Repeated Alert Events deduplicated/grouped.
+
+556. Incident مستقلة عن Support Case.
+
+557. Major Incident يمكن أن تحصل على Postmortem.
+
+558. Correlation ID تربط User Error بالBackend Context.
+
+559. Full OpenTelemetry ليست Requirement في V1.
+
+560. Existing `audit.audit_logs` هي Audit Foundation.
+
+561. لا Parallel Audit System بلا قرار جديد.
+
+562. Platform Audit access عبر Trusted Admin Projection.
+
+563. Audit payload لا تخزن Secrets عمدًا.
+
+564. Audit sensitive access/export قد يسجل.
+
+565. Audit Retention لا تحدد اعتباطيًا.
+
+566. Technical Telemetry وBusiness Audit يمكن أن تختلف Retention.
+
+567. Platform Config Typed وليست Generic JSON Editor.
+
+568. Sensitive Config Versioned.
+
+569. Config Change Audited.
+
+570. Rollback لا يمحو Config History.
+
+571. Config validated before apply.
+
+572. Infrastructure Secrets لا تدخل Platform Settings.
+
+573. Feature Flag ليست Authorization.
+
+574. Client Config لها Safe Defaults.
+
+575. Business/Platform Config Backend-owned في V1.
+
+576. Maintenance Mode Scoped.
+
+577. Maintenance لا تكسر Offline-safe field work.
+
+578. Online-only operation تعرض Maintenance State واضحًا.
+
+579. Emergency Maintenance يمكن أن تحمل Expiry.
+
+580. App Version Policy تفرق Recommended/Minimum/Required.
+
+581. Required Update تستخدم فقط لخطر حقيقي موثق.
+
+582. Offline user لا يقفل عن Local Safe Work بصورة عمياء.
+
+583. Monitoring تربط errors بالإصدار والتغيير عند الإمكان.
+
+584. Provider Down لا يستنتج من Error محلي واحد.
+
+585. Telemetry تقلل PII.
+
+586. Internal Account ID مفضل على الهاتف للتشخيص.
+
+587. Crash/Error Telemetry لا تخزن Password/Token.
+
+588. Admin Security View لا تعرض Secrets.
+
+589. Infrastructure Secrets تدار خارج Business Settings UI.
+
+590. Backup Status read-only عند توفر Truth موثوق.
+
+591. لا ordinary Database Dump button في V1.
+
+592. لا one-click Production Restore في V1.
+
+593. Final Admin Sidebar محدودة بـ12 قسمًا رئيسيًا.
+
+594. Technical internals لا تتوسع كSidebar sections مستقلة.
+
+595. Global Search تبقى Toolbar capability.
+
+596. Public Status Page مؤجلة.
+
+597. Custom SIEM مؤجل.
+
+598. Full OpenTelemetry rollout مؤجل.
+
+599. Advanced experimentation مؤجل.
+
+600. Custom Admin Roles مؤجلة حتى الحاجة الفعلية.
+
+601. Shared Platform Admin Accounts غير مقبولة عند تعدد المسؤولين.
+
+602. PA-01..PA-04 مكتملة تصميميًا بعد ق-107.
+
+603. Design Complete لا تعني Implemented.
+
+604. PA-04 لا تعتبر Production Complete قبل إغلاق م-35.
+
+605. Any new DB change يبدأ Migration 078+.

@@ -235,7 +235,7 @@
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
   UX-02/03/08/09/10/11/12/13/14/15/16A
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103/ق-104/ق-105/ق-106 غير منفذة؛
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103/ق-104/ق-105/ق-106 غير منفذة؛/ق-107
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -262,43 +262,48 @@
 
 ## التالي
 
-**PA-04 — Monitoring, Audit, Platform Settings & Final Admin Review /
-المراقبة وسجل التدقيق وإعدادات المنصة والمراجعة الإدارية النهائية.**
+**UX-17 — Final Cross-Cutting Review /
+المراجعة الشاملة النهائية.**
 
-PA-03 معتمدة وموثقة بق-106.
+Platform Administration مكتملة تصميميًا:
 
-ق-106 يحكم:
+- PA-01 / ق-102.
+- PA-02 / ق-103 مع Password correction بق-105.
+- PA-03 / ق-106.
+- PA-04 / ق-107.
 
-- Platform Sales منفصلة عن Well Finance.
-- permanent manual V1 sale.
-- no recurring subscription.
-- one entitlement per purchased well.
-- atomic/idempotent grant and consumption.
-- sale/activation correction without history rewrite.
-- global operations monitoring.
-- administrative session closure/correction.
-- Read-first global finance.
-- ق-99 financial correction rules remain authoritative.
-- no Force Reopen bypass.
-- Step-up + explicit confirmation.
-- audit.
-- filtered export.
-- server-side pagination.
-- privileged writes Online-only.
+ق-107 يحكم:
+
+- symptom-first monitoring.
+- actionable/deduplicated alerts.
+- incident management.
+- postmortems.
+- correlation IDs.
+- global Audit projection.
+- secret redaction.
+- typed/versioned config.
+- rollback.
+- scoped maintenance.
+- version compatibility.
+- release/change tracking.
+- telemetry privacy.
+- final 12-section Admin navigation.
 
 Research Gate:
 
-PA-03 = PASS.
+PA-04 = PASS.
 
 المسائل المفتوحة تشمل:
 
 - م-32.
 - م-33.
 - م-34.
+- م-35.
 
-UX-17 مؤجلة حتى إكمال PA-04.
+Platform Administration Design Complete لا تعني Implemented.
 
-PA-04 يجب أن تمر بق-104 قبل اعتمادها.
+UX-17 يجب أن تراجع كل القرارات عبر الشاشات والأدوار
+والـOffline والأمن والمال والإدارة قبل إغلاق مرحلة التصميم.
 
 لا تغير Baseline الاختبارات دون دليل تحقق جديد.
 

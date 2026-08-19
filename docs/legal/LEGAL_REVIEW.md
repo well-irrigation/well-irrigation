@@ -145,3 +145,24 @@
 
 ق-106 لا تحدد بذاتها سياسة Refund تجارية نهائية؛
 هذه تحتاج نصًا قانونيًا وتجاريًا واضحًا قبل البيع العام.
+
+## تحديث ق-107 — Monitoring / Telemetry Privacy
+
+قبل Production، أي Monitoring/Crash/Telemetry فعلي يجب أن
+يطابق Privacy Policy ونموذج Data Safety.
+
+القواعد الحالية:
+
+- لا Passwords في telemetry.
+- لا Auth Tokens.
+- لا Infrastructure Secrets.
+- تقليل البيانات المالية داخل crash/error payload.
+- Internal Account ID مفضل على رقم الهاتف.
+- أي Provider فعلي جديد يجب تسميته عند انطباق
+  متطلبات الإفصاح.
+- Retention للTelemetry يجب أن تحدد ولا تبقى بلا حدود.
+
+هذه المواءمة تبقى ضمن م-11/م-12 والمتطلبات القانونية
+قبل النشر.
+
+ق-107 لا تعتمد Provider جديدًا تلقائيًا.

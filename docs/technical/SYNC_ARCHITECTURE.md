@@ -689,3 +689,28 @@ No recent server update does not automatically mean
 field operation failed.
 
 Cached Admin Reads must show Last Update/Stale state.
+
+## ق-107 — Monitoring/Maintenance Interaction with Offline Sync
+
+Platform Monitoring ترى Server-observable Truth فقط.
+
+Maintenance لا تلغي Offline architecture.
+
+إذا كانت العملية Offline-safe حسب ق-89/ق-90:
+
+- يمكن حفظها محليًا.
+- تبقى في Outbox.
+- تنتظر عودة Server capability.
+
+Online-only operations:
+
+تعرض Maintenance reason/state بوضوح.
+
+Required App Update لا يسمح بأن يمحو أو يحجب
+Local Pending Business Data.
+
+Version/maintenance state يجب أن تدخل Reconciliation
+بطريقة لا تسبب loss أو duplicate commands.
+
+Technical monitoring لا يدعي معرفة command لم تصل
+إلى الخادم.

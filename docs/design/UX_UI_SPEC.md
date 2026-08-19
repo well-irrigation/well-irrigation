@@ -9293,11 +9293,865 @@ Control Consistency.**
 
 ---
 
-## 19. نقطة المناقشة التالية
+# PA-04 — Monitoring, Audit, Platform Settings & Final Admin Review
+# المراقبة وسجل التدقيق وإعدادات المنصة والمراجعة الإدارية النهائية
 
-**PA-04 — Monitoring, Audit, Platform Settings & Final Admin Review /
-المراقبة وسجل التدقيق وإعدادات المنصة والمراجعة الإدارية النهائية.**
+**الحالة:** معتمدة — 2026-08-19
+**القرار الحاكم:** ق-107
+**المسألة المفتوحة:** م-35
+**Research & Standards Gate:** PASS
+**القرارات:** PA-04-01 إلى PA-04-86
 
-بعد PA-04 نعود إلى:
+---
 
-**UX-17 — Final Cross-Cutting Review.**
+## أ — مراقبة النظام
+
+### PA-04-01 — Business Dashboard ≠ System Monitoring
+
+الرئيسية الإدارية تعرض Business/Operational KPIs.
+
+قسم «مراقبة النظام» يعرض صحة البنية التقنية.
+
+لا تخلط المؤشرات التقنية الخام مع Dashboard اليومية.
+
+### PA-04-02 — Overall Health
+
+أعلى Monitoring تعرض حالة عامة مفهومة:
+
+- النظام يعمل طبيعيًا.
+- مشكلة جزئية.
+- مشكلة مؤثرة.
+
+مع Last Update.
+
+### PA-04-03 — No Color-only Status
+
+الحالة تستخدم:
+
+- نص.
+- رمز.
+- Severity.
+- لون.
+
+ولا تعتمد على اللون وحده.
+
+### PA-04-04 — Golden Signals Adaptation
+
+Monitoring تعتمد بصورة مبسطة:
+
+- availability/success.
+- latency.
+- errors.
+- saturation.
+
+مع إضافة مؤشرات المشروع الأكثر أهمية مثل Sync.
+
+### PA-04-05 — API Health
+
+تعرض مؤشرات مختصرة مثل:
+
+- request count.
+- success rate.
+- 4xx.
+- 5xx.
+- p50 latency.
+- p95 latency.
+
+### PA-04-06 — Auth Health
+
+تعرض:
+
+- login attempts.
+- login success/failure.
+- OTP requests.
+- OTP success/failure.
+- unusual spikes.
+
+لا تعرض Password أو OTP Secret.
+
+### PA-04-07 — Database Health
+
+تعرض Summary مناسبًا مثل:
+
+- connection health.
+- storage health.
+- saturation.
+- error/slow-query indicators.
+
+التفاصيل الخام تبقى في أدوات البنية المتخصصة.
+
+### PA-04-08 — Realtime Health
+
+تعرض:
+
+- connections.
+- failures.
+- degraded delivery/subscription states.
+
+### PA-04-09 — Sync Health
+
+تعرض:
+
+- server-known pending.
+- failed commands.
+- conflicts.
+- reconciliation failures.
+- oldest known pending.
+- devices without recent server sync.
+
+ولا تدعي معرفة Offline-only commands.
+
+### PA-04-10 — Notification Health
+
+تعرض:
+
+- queued.
+- sent.
+- failed.
+- retrying.
+
+Notification Health مستقلة عن Offline Readiness.
+
+### PA-04-11 — Application Stability
+
+عند توفر Crash Reporting:
+
+- crashes.
+- ANRs.
+- non-fatal errors.
+- affected versions.
+- crash-free indicators.
+
+---
+
+## ب — Symptom First
+
+### PA-04-12 — User Impact First
+
+تظهر المشكلة أولًا بصيغة أثر على المستخدم.
+
+مثال:
+
+    مستخدمون لا يستطيعون تسجيل الدخول
+
+قبل عرض التفاصيل الداخلية.
+
+### PA-04-13 — Drill-down to Cause
+
+التدفق:
+
+    symptom
+      ↓
+    affected entity/service
+      ↓
+    technical cause
+      ↓
+    logs / correlation context
+
+---
+
+## ج — Alerts
+
+### PA-04-14 — Error ≠ Alert
+
+ليس كل Error يستحق Alert لمسؤول المنصة.
+
+### PA-04-15 — Severity Levels
+
+V1:
+
+- Critical.
+- High.
+- Warning.
+- Info.
+
+### PA-04-16 — Actionable Alerts
+
+Critical/High Alert يجب أن تكون ذات فائدة عملية واضحة.
+
+لا Noise لمجرد وجود Metric مرتفع.
+
+### PA-04-17 — Deduplication
+
+الأحداث المكررة من السبب نفسه تجمع.
+
+### PA-04-18 — Alert Grouping
+
+يمكن التجميع حسب:
+
+- service.
+- error class.
+- app version.
+- release.
+- time window.
+
+### PA-04-19 — Alert Lifecycle
+
+- Open.
+- Acknowledged.
+- Investigating.
+- Resolved.
+
+### PA-04-20 — No Alert Spam
+
+لا إشعار جديد كل دقيقة للمشكلة نفسها أثناء التحقيق.
+
+---
+
+## د — Incident Center
+
+### PA-04-21 — Incident Center مستقل
+
+Support Case تخص عميلًا أو حالة دعم.
+
+Incident يمثل خللًا في المنصة أو خدمة واسعة.
+
+### PA-04-22 — Incident Fields
+
+يشمل:
+
+- Incident ID.
+- Severity.
+- Status.
+- Started At.
+- Detected At.
+- Resolved At.
+- affected services.
+- impact estimate.
+- owner.
+- timeline.
+
+### PA-04-23 — Incident Statuses
+
+V1:
+
+- Investigating.
+- Identified.
+- Monitoring.
+- Resolved.
+
+### PA-04-24 — Incident Timeline
+
+يسجل Timeline للأحداث والتشخيص والإصلاح.
+
+### PA-04-25 — Alerts link to Incident
+
+عدة Alerts يمكن ربطها بحادث واحد.
+
+---
+
+## هـ — Postmortem
+
+### PA-04-26 — Major Incident Postmortem
+
+الحوادث المهمة يمكن أن تحصل على تقرير ما بعد الحادث.
+
+### PA-04-27 — Simple V1 Postmortem
+
+يشمل:
+
+- ماذا حدث؟
+- ما الأثر؟
+- Timeline.
+- كيف اكتشف؟
+- السبب.
+- كيف أصلح؟
+- كيف نمنع التكرار؟
+
+لا نبني ITSM ضخمًا في V1.
+
+---
+
+## و — Correlation
+
+### PA-04-28 — Correlation ID
+
+الطلبات والأوامر المهمة تستخدم Correlation/Operation ID
+يمكن تتبعه بين الطبقات.
+
+### PA-04-29 — Error Reference Mapping
+
+يمكن الربط:
+
+    User Error Reference
+        ↓
+    Correlation ID
+        ↓
+    API request
+        ↓
+    backend operation
+        ↓
+    DB/Auth/Sync event
+
+### PA-04-30 — OpenTelemetry-ready
+
+لا يلزم Full OpenTelemetry في V1.
+
+لكن Naming/IDs لا تمنع تبنيه لاحقًا.
+
+---
+
+## ز — Audit Console
+
+### PA-04-31 — Extend Existing Audit
+
+لا ننشئ Audit ثانية.
+
+نبني فوق `audit.audit_logs` الحالي.
+
+### PA-04-32 — Global Admin Projection
+
+Platform Admin تحتاج Read Model عالميًا لسجل التدقيق.
+
+لا Direct Browser Select على Internal Audit Table.
+
+### PA-04-33 — Audit Filters
+
+تشمل:
+
+- date.
+- actor/admin.
+- well.
+- account.
+- entity.
+- action.
+- result.
+- support case.
+- incident.
+- IP.
+- app version.
+
+### PA-04-34 — Human-readable Audit Row
+
+الملخص يعرض:
+
+- من؟
+- ماذا؟
+- على ماذا؟
+- متى؟
+- النتيجة؟
+
+### PA-04-35 — Before/After Diff
+
+تفاصيل التغيير تعرض Difference واضحًا.
+
+لا Raw JSON افتراضيًا.
+
+### PA-04-36 — Sensitive Redaction
+
+يجب منع ظهور:
+
+- password.
+- token.
+- secret.
+- credential.
+
+داخل old/new values أو أي Audit payload.
+
+### PA-04-37 — Audit Sensitive Audit Access
+
+الوصول الحساس إلى Audit أو Export منها يمكن تسجيله
+كحدث إداري مستقل.
+
+### PA-04-38 — No Arbitrary Retention Number
+
+لا نثبت مدة Retention اعتباطية بلا أساس قانوني/تشغيلي.
+
+### PA-04-39 — Separate Retention Classes
+
+- Business/Admin Audit تتبع سياسة السجلات الحاكمة.
+- Technical Telemetry يمكن أن تكون مدة أقصر.
+
+---
+
+## ح — Platform Settings
+
+### PA-04-40 — Typed Settings
+
+كل Setting لها:
+
+- type.
+- meaning.
+- validation.
+
+لا Generic JSON Editor.
+
+### PA-04-41 — V1 Setting Groups
+
+المجموعات الأساسية:
+
+#### التطبيق والإصدارات
+
+- minimum supported version.
+- recommended version.
+
+#### الصيانة
+
+- maintenance state.
+- maintenance message.
+
+#### الدعم
+
+- support phone.
+- WhatsApp.
+- support message.
+
+#### الروابط
+
+- privacy URL.
+- terms URL.
+
+#### Feature Flags محدودة
+
+للخصائص الآمنة فقط.
+
+### PA-04-42 — Settings ≠ Secrets
+
+Platform Settings لا تعرض Infrastructure Secrets.
+
+### PA-04-43 — Provider Configuration Status
+
+يمكن عرض:
+
+    SMS Provider: Configured
+
+دون عرض Secret نفسها.
+
+---
+
+## ط — Versioned Configuration
+
+### PA-04-44 — Config Version
+
+التعديل الحساس ينتج Config Version ثابتة.
+
+### PA-04-45 — Config Audit
+
+يسجل:
+
+- before.
+- after.
+- actor.
+- reason.
+- time.
+
+### PA-04-46 — Rollback
+
+التغيير القابل للتراجع يمكن Rollback إلى نسخة سابقة.
+
+### PA-04-47 — Validate Before Apply
+
+قبل Apply:
+
+- type validation.
+- range validation.
+- compatibility checks.
+
+---
+
+## ي — Feature Flags
+
+### PA-04-48 — Feature Flag ≠ Authorization
+
+Feature Flag لا تمنح Role أو Permission.
+
+Backend Authorization مستقلة.
+
+### PA-04-49 — Few Flags V1
+
+لا نحول كل Setting إلى Feature Flag.
+
+### PA-04-50 — Safe Defaults
+
+إذا تعذر تحميل Remote/Backend Config:
+
+Client تستخدم Defaults آمنة معروفة.
+
+### PA-04-51 — Backend-owned Business Config
+
+V1 تعتمد Trusted Backend كمصدر Business/Platform Config.
+
+Firebase Remote Config ليست Dependency إلزامية.
+
+---
+
+## ك — Maintenance Mode
+
+### PA-04-52 — No Global Kill Switch for Field Work
+
+لا Maintenance Mode توقف التطبيق الميداني بالكامل.
+
+### PA-04-53 — Scoped Maintenance
+
+يمكن أن تكون الحالات مثل:
+
+- Normal.
+- Server Maintenance.
+- Admin Writes Disabled.
+- Activation Disabled.
+- Financial Finalization Disabled.
+
+### PA-04-54 — Offline Field Work Continues
+
+العمليات المعتمدة Offline-safe تستمر محليًا
+وفق ق-89 وق-90.
+
+### PA-04-55 — Clear Online Maintenance UX
+
+Online-only operation تعرض رسالة صريحة عند الصيانة.
+
+### PA-04-56 — Emergency Maintenance Expiry
+
+Emergency Maintenance تحتاج:
+
+- reason.
+- start.
+- optional expiry.
+
+حتى لا تبقى مفعلة بلا قصد.
+
+---
+
+## ل — App Version Management
+
+### PA-04-57 — Version Dashboard
+
+تعرض:
+
+- app version.
+- build.
+- adoption.
+- affected users/devices.
+- error/crash rate عند توفره.
+
+### PA-04-58 — Minimum Supported Version
+
+يوجد Minimum Supported Version.
+
+### PA-04-59 — Recommended Version
+
+يمكن التوصية بالتحديث دون إجبار المستخدم.
+
+### PA-04-60 — Required Version
+
+الإجبار يستخدم فقط عند:
+
+- security risk.
+- backend incompatibility.
+- data-integrity risk.
+- unsupported contract.
+
+### PA-04-61 — Offline User Not Locked Out Blindly
+
+المستخدم Offline لا يفقد الوصول إلى Local Safe Work
+فقط لأنه لا يستطيع تنزيل Update.
+
+### PA-04-62 — Online Compatibility Enforcement
+
+عند عودة الاتصال يمكن منع Online Operation غير المتوافقة
+مع شرح واضح.
+
+### PA-04-63 — Android Update Severity
+
+عند Google Play:
+
+- Flexible Update للعادي.
+- Immediate Update للحرج فقط.
+
+---
+
+## م — Release Tracking
+
+### PA-04-64 — Release Identity
+
+نتتبع:
+
+- App Version.
+- Build.
+- Backend Release.
+- Latest Migration.
+- Config Version.
+
+### PA-04-65 — Recent Changes
+
+Monitoring تعرض:
+
+- last deploy.
+- last migration.
+- last config change.
+- last feature-flag change.
+
+لتسهيل ربط Incident بالتغيير السابق لها.
+
+---
+
+## ن — Dependencies
+
+### PA-04-66 — External Dependencies
+
+يمكن مراقبة:
+
+- Supabase.
+- SMS/OTP provider.
+- Firebase/FCM عند استخدامه.
+- crash reporting provider.
+
+### PA-04-67 — Evidence Before Provider Down Claim
+
+لا ندعي تعطل Provider بسبب خطأ محلي واحد.
+
+نعرض صيغة:
+
+    توجد مؤشرات لمشكلة اتصال بالخدمة
+
+حتى يتوفر دليل موثوق.
+
+---
+
+## س — Telemetry Privacy
+
+### PA-04-68 — Minimize Sensitive Telemetry
+
+Crash/Error telemetry لا ترسل بلا حاجة:
+
+- passwords.
+- tokens.
+- full financial payloads.
+- full phone numbers.
+
+### PA-04-69 — Internal Identifier Preferred
+
+عند الحاجة إلى User ID في Crash Reporting:
+
+نستخدم Internal Account ID بدل الهاتف قدر الإمكان.
+
+### PA-04-70 — Privacy Alignment Required
+
+أي Crash/Telemetry provider مستخدم فعليًا يجب أن ينعكس
+في Privacy/Legal documentation قبل Production.
+
+---
+
+## ع — Platform Admin Security View
+
+### PA-04-71 — Security Panel
+
+يمكن أن يعرض:
+
+- MFA state.
+- active admin sessions.
+- failed admin logins.
+- recent privileged actions.
+- unusual security events.
+
+### PA-04-72 — No Secret Values
+
+Security Panel لا تعرض Secret نفسها.
+
+### PA-04-73 — Infrastructure Secret Management External
+
+Infrastructure Credentials تدار في الأدوات الموثوقة
+الخاصة بالخدمة/Secret Manager.
+
+لا تنسخ إلى Business Admin UI.
+
+---
+
+## ف — Backup Visibility
+
+### PA-04-74 — Backup Status Read
+
+يمكن عرض Backup status عندما يتوفر مصدر موثوق.
+
+### PA-04-75 — No Ordinary Database Download
+
+لا يوجد زر يومي:
+
+    Download Entire Database
+
+### PA-04-76 — No One-click Production Restore
+
+Production Restore عملية Disaster Recovery مستقلة
+وليست زرًا عاديًا في Admin Console.
+
+---
+
+## ص — Final Admin Navigation
+
+### PA-04-77 — Final V1 Sidebar
+
+الترتيب النهائي:
+
+1. الرئيسية.
+2. الآبار.
+3. الحسابات والأشخاص.
+4. المبيعات والتفعيل.
+5. مراقبة التشغيل.
+6. المراقبة المالية.
+7. المزامنة والأجهزة.
+8. المشاكل والدعم.
+9. الحوادث.
+10. سجل التدقيق.
+11. مراقبة النظام.
+12. إعدادات المنصة.
+
+### PA-04-78 — No Technical Sidebar Sprawl
+
+لا نضيف:
+
+- Database.
+- Postgres.
+- Auth.
+- Edge Functions.
+
+كأقسام Sidebar مستقلة.
+
+تظهر داخل Monitoring عند الحاجة.
+
+### PA-04-79 — Global Search Remains Toolbar
+
+Global Search ليست Section مستقلة.
+
+### PA-04-80 — Incident Badge
+
+وجود Incident حرج يمكن أن يظهر Badge عند «الحوادث».
+
+---
+
+## ق — Deferred
+
+### PA-04-81 — Public Status Page
+
+مؤجلة حتى توجد حاجة عملية.
+
+### PA-04-82 — No Custom SIEM
+
+لا نبني SIEM خاصًا بنا في V1.
+
+### PA-04-83 — Full OpenTelemetry Deferred
+
+Full rollout مؤجل.
+
+Correlation readiness معتمدة.
+
+### PA-04-84 — Advanced Experimentation Deferred
+
+A/B Testing وPersonalization ليست أولوية V1.
+
+### PA-04-85 — Custom Admin Roles Deferred
+
+Support Admin/Finance Admin/Security Admin تؤجل
+حتى يوجد أكثر من مسؤول فعلي يحتاج فصل المهام.
+
+عند تعدد المسؤولين:
+
+لا Shared Admin Accounts.
+
+كل مسؤول له Identity مستقلة قابلة للتدقيق.
+
+---
+
+## ر — Platform Administration Completion
+
+### PA-04-86 — PA Design Complete
+
+بعد اعتماد PA-04:
+
+- PA-01 مكتملة تصميميًا.
+- PA-02 مكتملة تصميميًا.
+- PA-03 مكتملة تصميميًا.
+- PA-04 مكتملة تصميميًا.
+
+هذا لا يعني أنها Implemented.
+
+التنفيذ ما زال مرتبطًا بم-32/م-33/م-34/م-35.
+
+---
+
+## Research & Standards Classification
+
+### Standards-aligned
+
+- symptom-first monitoring.
+- actionable alerts.
+- alert deduplication/grouping.
+- incident management.
+- major-incident postmortem.
+- correlation IDs.
+- secret-safe logging/audit.
+- typed/versioned configuration.
+- validation + rollback.
+- MFA/security event visibility.
+- provider-independent observability.
+
+### Adapted for this project
+
+- Sync Health higher priority than raw infrastructure metrics.
+- scoped maintenance preserving Offline field work.
+- backend-owned Business Config.
+- force-update behavior that does not blindly lock an
+  Offline field operator.
+- OpenTelemetry readiness without full V1 rollout.
+
+### Rejected or deferred in V1
+
+- generic JSON config editor.
+- feature flags as authorization.
+- global maintenance kill switch.
+- forced update for every old client.
+- full custom SIEM.
+- full OpenTelemetry rollout.
+- public status page.
+- one-click production DB restore.
+- custom admin-role hierarchy before actual need.
+
+---
+
+## فجوات PA-04
+
+قبل Production يلزم:
+
+- platform health read model.
+- alert model/dedup/grouping.
+- incident model.
+- postmortem storage or linked documentation.
+- correlation/error-reference contract.
+- global Audit Admin projection.
+- audit redaction.
+- audit-access auditing where required.
+- retention policy.
+- typed platform configuration.
+- config versioning.
+- config rollback.
+- feature-flag safety.
+- scoped maintenance contract.
+- app-version compatibility contract.
+- release/change tracking.
+- dependency-health integration.
+- telemetry privacy controls.
+- security dashboard.
+- backup-status integration when available.
+- permanent security/observability/configuration tests.
+
+المسألة:
+
+**م-35 — Platform Monitoring, Audit, Configuration &
+Incident Consistency.**
+
+أي DB change جديد يبدأ من Migration 078+.
+
+---
+
+## 20. نقطة المناقشة التالية
+
+**UX-17 — Final Cross-Cutting Review /
+المراجعة الشاملة النهائية لتجربة المستخدم والمعمارية.**
+
+Platform Administration أصبحت مكتملة تصميميًا:
+
+- PA-01.
+- PA-02.
+- PA-03.
+- PA-04.
+
+لكن تنفيذها ما زال Pending وفق المسائل المفتوحة.

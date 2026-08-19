@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-106.
+آخر قرار مرقم حاليًا: ق-107.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -710,3 +710,53 @@ Current V1 commerce:
 - sale history preserved.
 - entitlement history preserved.
 - corrections are audited.
+
+### PA-04 — Monitoring, Audit, Settings & Incidents
+
+القرار:
+
+ق-107.
+
+المصدر:
+
+`technical/PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md`
+
+يغطي:
+
+- monitoring.
+- alerting.
+- incidents.
+- postmortems.
+- correlation.
+- global audit projection.
+- typed/versioned configuration.
+- rollback.
+- scoped maintenance.
+- app version policy.
+- release tracking.
+- dependency health.
+- telemetry privacy.
+- security view.
+- م-35.
+
+### Platform Administration Design Status
+
+- PA-01: معتمدة وموثقة.
+- PA-02: معتمدة وموثقة.
+- PA-03: معتمدة وموثقة.
+- PA-04: معتمدة وموثقة.
+
+**Platform Administration مكتملة تصميميًا.**
+
+التنفيذ ما زال Pending وفق:
+
+- م-32.
+- م-33.
+- م-34.
+- م-35.
+
+### Next
+
+UX-17 / Final Cross-Cutting Review.
+
+UX-17 تخضع لق-104 قبل اعتمادها.

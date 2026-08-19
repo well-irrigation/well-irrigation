@@ -990,3 +990,71 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - pagination/filter/sort tests.
 - Online-only tests.
 - no-secret logging tests.
+
+---
+
+## م-35 — Platform Monitoring, Audit, Configuration & Incident Consistency
+
+**الحالة:** مفتوحة — 2026-08-19
+**القرار الحاكم:** ق-107
+**المناقشة:** PA-04
+**الأولوية:** حرجة قبل Platform Admin Production
+
+### الفجوات
+
+1. Platform Health Read Models غير منفذة.
+
+2. Alert model/dedup/grouping غير منفذ.
+
+3. Incident Center غير منفذ.
+
+4. Postmortem workflow غير منفذ.
+
+5. Correlation/Error Reference contract يحتاج توحيدًا.
+
+6. Global Platform Audit Projection غير منفذة.
+
+7. Sensitive Audit redaction تحتاج ضمانًا.
+
+8. Audit access/export auditing يحتاج قرار تنفيذ تفصيلي.
+
+9. Audit/Telemetry retention policy غير محسومة.
+
+10. Typed Platform Configuration غير منفذة.
+
+11. Configuration Versioning غير منفذ.
+
+12. Rollback غير منفذ.
+
+13. Feature Flag safety contract غير منفذ.
+
+14. Scoped Maintenance غير منفذ.
+
+15. App Version compatibility contract غير منفذ.
+
+16. Release/change timeline غير منفذ.
+
+17. Dependency-health integration غير منفذ.
+
+18. Crash/Telemetry privacy controls غير مكتملة.
+
+19. Admin Security Panel غير منفذة.
+
+20. Backup-status integration تعتمد على Provider capability.
+
+21. Migration 078+ مطلوبة لأي DB schema changes.
+
+### لا تغلق قبل
+
+- non-admin denial.
+- monitoring reconciliation tests.
+- alert dedup/grouping tests.
+- incident lifecycle tests.
+- audit projection/redaction tests.
+- configuration version/rollback tests.
+- maintenance/offline tests.
+- app-version compatibility tests.
+- telemetry privacy tests.
+- security monitoring tests.
+- no-secret logging tests.
+- permanent backend/web tests.

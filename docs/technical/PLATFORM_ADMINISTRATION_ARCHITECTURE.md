@@ -558,3 +558,61 @@ No Force Reopen bypass in V1.
 PA-04:
 
 Monitoring, Audit, Platform Settings & Final Admin Review.
+
+## 36. ق-107 / PA-04 — Monitoring, Audit, Settings & Incidents
+
+ق-107 تعتمد PA-04 وتغلق سلسلة Platform Administration
+تصميميًا.
+
+المصدر:
+
+`PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md`
+
+### Monitoring
+
+- symptom-first.
+- actionable alerts.
+- incident management.
+- correlation.
+- release/change visibility.
+
+### Audit
+
+نوسع `audit.audit_logs` الحالية عبر Admin Projection.
+
+لا Audit موازية.
+
+### Configuration
+
+- typed.
+- versioned.
+- validated.
+- rollback-capable.
+- secret-free.
+
+### Maintenance
+
+Scoped.
+
+لا تكسر Offline-safe field work.
+
+### Versions
+
+Recommended/Minimum/Required policies.
+
+Required تستخدم فقط لمخاطر أمن/توافق/نزاهة.
+
+### Deferred
+
+- public status page.
+- full SIEM.
+- full OpenTelemetry.
+- custom admin role hierarchy.
+
+### Next
+
+Platform Administration design is complete.
+
+Next discussion:
+
+UX-17 — Final Cross-Cutting Review.

@@ -670,3 +670,43 @@ Baseline الاختبارات لم يتغير.
 لم تنفذ Migration 078+ أو Admin APIs جديدة.
 
 Baseline الاختبارات لم يتغير.
+
+## 2026-08-19 — اعتماد PA-04 / ق-107
+
+**دفعة توثيقية فقط.**
+
+تم:
+
+- اعتماد PA-04-01 إلى PA-04-86.
+- اجتياز Research & Standards Gate.
+- اعتماد Symptom-first Monitoring.
+- اعتماد Actionable Alerting.
+- اعتماد Alert dedup/grouping.
+- اعتماد Incident Center.
+- اعتماد Major Incident Postmortem.
+- اعتماد Correlation IDs.
+- اعتماد OpenTelemetry readiness دون Full rollout.
+- إعادة استخدام `audit.audit_logs`.
+- اعتماد Global Audit Admin Projection.
+- اعتماد Secret Redaction.
+- اعتماد Typed/Versioned Platform Configuration.
+- اعتماد Validation + Rollback.
+- اعتماد Feature Flags كUX/release لا Authorization.
+- اعتماد Scoped Maintenance.
+- حماية Offline Field Work أثناء Maintenance.
+- اعتماد Recommended/Minimum/Required App Versions.
+- اعتماد Release/Config/Migration change tracking.
+- اعتماد Dependency Health.
+- اعتماد Telemetry Privacy.
+- اعتماد Admin Security View.
+- رفض ordinary DB dump/one-click restore.
+- اعتماد Final 12-section Platform Admin Sidebar.
+- تأجيل SIEM/Public Status/Full OTel/Custom Admin Roles.
+- إنشاء `PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md`.
+- فتح م-35.
+- إغلاق PA-01..PA-04 تصميميًا.
+- تحديد UX-17 كالمناقشة التالية.
+
+لم تنفذ Migration 078+ أو Monitoring/Admin APIs جديدة.
+
+Baseline الاختبارات لم يتغير.
