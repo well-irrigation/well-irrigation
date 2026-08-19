@@ -510,3 +510,24 @@ UX-15 تحتاج Typed Contracts داخل `api.*` لـ:
 9. لا Direct DML.
 
 10. أي DB change جديد يبدأ من Migration 078+.
+
+## ق-101 — Account & Settings Boundary
+
+UX-16A تحتاج Contracts لـ:
+
+- account summary.
+- change phone.
+- recover identity.
+- reset password.
+- role assignment lifecycle.
+- notification preferences.
+- session invalidation.
+
+القواعد:
+
+1. Phone uniqueness تتحقق خادميًا.
+2. Role assignment لا ينشئ Person جديدة.
+3. Platform Admin APIs ليست جزءًا من هذه العقود.
+4. Auth Admin operations الحساسة تستخدم Trusted Backend.
+5. Service secrets لا تدخل Flutter.
+6. Any DB change يبدأ من Migration 078+.

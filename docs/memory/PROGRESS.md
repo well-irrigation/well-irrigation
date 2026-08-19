@@ -517,3 +517,22 @@ Migration 075 ولا أي هجرة مطبقة سابقة.
 
 لم تنفذ Migration 078 ولم تشغل اختبارات قاعدة بيانات
 جديدة، لذلك يبقى Baseline التقني السابق دون تغيير.
+
+## 2026-08-19 — اعتماد UX-16A / ق-101
+
+- فصل Account & Settings عن Platform Administration.
+- اعتماد البنود 527–541 و543–583 و595–598.
+- نقل البند 542 إلى PA.
+- نقل كل Platform Administration إلى سلسلة مستقلة.
+- اعتماد English digits.
+- اعتماد English Date/Time display الثابت.
+- اعتماد Forgot Password عبر OTP في V1.
+- اعتماد Account-scoped Local State.
+- اعتماد Logout دون حذف Pending Outbox.
+- إنشاء `ACCOUNT_SETTINGS_ARCHITECTURE.md`.
+- فتح م-31.
+- تحديد PA-01 كنقطة العمل التالية.
+
+دفعة توثيقية فقط.
+
+Baseline الاختبارات لم يتغير.

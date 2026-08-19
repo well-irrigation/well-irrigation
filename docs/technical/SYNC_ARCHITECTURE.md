@@ -558,3 +558,27 @@ Chart Cached لا توصف Live.
 
 Chart Data يعاد رسمها من Canonical Cached Report Series
 ولا يعاد حساب Business Total بصورة منفصلة.
+
+## ق-101 — Account-scoped Local State
+
+Local durable state يجب أن تربط كل Private Record بـ:
+
+- authenticated account identity.
+- well context عند انطباقه.
+- command identity.
+
+Logout:
+
+لا يحذف Pending Outbox.
+
+Login بحساب آخر:
+
+لا يكشف Outbox أو Cache الخاصة بالحساب السابق.
+
+Login بالحساب الأصلي:
+
+يعيد ربط Pending State المسموحة بالحساب ثم يستأنف
+Reconciliation.
+
+Local Data Wipe لا يسمح بصمت إذا توجد Unacknowledged
+Commands.

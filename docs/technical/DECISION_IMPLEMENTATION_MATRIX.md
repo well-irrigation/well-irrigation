@@ -91,6 +91,7 @@
 | ق-98 | Operations records + farmers/farms + booking confirmation + shift handover consistency | 032/033/042/045/074/075 foundations موجودة؛ typed booking/history/handover/offline contracts ناقصة | `OPERATIONS_RECORDS_ARCHITECTURE.md` + م-28 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
 | ق-99 | Money + farmer accounts + expenses + partners + distributions + corrections | 035/044/047–053/056/061/068/073/074 foundations موجودة؛ financial reads/idempotency/corrections/rounding gaps باقية | `MONEY_PARTNERS_ARCHITECTURE.md` + م-27 + م-29 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
 | ق-100 | Well/Pump/Fuel/Pricing/Reports + V1 charts | 031/046/058/060/064/065/073/076 foundations موجودة؛ typed management/report/chart contracts ناقصة | `WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md` + م-30 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
+| ق-101 | Account + identity + settings + local account isolation | Q84/Q85/Q89/Q90 foundations موجودة؛ phone recovery/role lifecycle/account-scoped local state gaps باقية | `ACCOUNT_SETTINGS_ARCHITECTURE.md` + م-18 + م-31 + Auth/Android tests | معتمد؛ Platform Administration مفصولة إلى PA |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 

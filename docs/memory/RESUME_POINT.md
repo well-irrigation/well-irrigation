@@ -215,8 +215,8 @@
   له بيانات مزارع مرتبطة بهويته صراحة.
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
-  UX-02/03/08/09/10/11/12/13/14/15
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100 غير منفذة؛
+  UX-02/03/08/09/10/11/12/13/14/15/16A
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -243,33 +243,29 @@
 
 ## التالي
 
-**UX-16 — Account, Settings & Administration /
-الحساب والإعدادات والإدارة.**
+**PA-01 — Platform Administration / إدارة المنصة.**
 
-بعد إغلاق UX-15 ببوابة ق-97 أصبح المتبقي مناقشتان:
+إدارة المنصة أصبحت سلسلة مستقلة عن UX-16A.
 
-- UX-16: Account, Settings & Administration.
-- UX-17: Final Cross-Cutting Review.
+UX-16A معتمدة.
 
-UX-15 معتمدة حتى القرار 526.
+ق-101 يحكم:
 
-ق-100 يحكم:
+- unified account.
+- phone/recovery.
+- role lifecycle.
+- notifications.
+- account-scoped local storage.
+- logout with pending outbox.
+- English date/time display.
 
-- Well/Pump management.
-- modern Session Energy truth.
-- Fuel inventory/reconciliation.
-- historical Pricing.
-- inclusive diesel pricing.
-- Reporting Read Models.
-- Simple V1 Bar/Line Charts.
-- no Chart on Owner Home V1.
-- Chart drill-down.
-- Offline/Stale reporting.
+المتبقي بعد سلسلة PA:
 
-م-25 وم-26 وم-27 وم-28 وم-29 وم-30 والتنفيذ التقني
-المطلوب ما زال Pending.
+**UX-17 — Final Cross-Cutting Review.**
 
-لا تغير أرقام Baseline إلا بدليل تحقق جديد.
+م-31 مفتوحة قبل UX-16A الإنتاجية.
+
+لا تغير Baseline الاختبارات دون دليل تحقق جديد.
 
 ## قاعدة التنفيذ
 

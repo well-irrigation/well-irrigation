@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-100.
+آخر قرار مرقم حاليًا: ق-101.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -174,6 +174,7 @@
 - UX-13 / Operations, Records & Farmers: معتمد وموثق.
 - UX-14 / Money & Partners: معتمد وموثق.
 - UX-15 / Well Management & Reports: معتمد وموثق.
+- UX-16A / Account & Settings: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
 - ق-90 / Device Readiness وSync Transparency: معتمد.
@@ -182,7 +183,9 @@
 
 الخطوة التالية:
 
-UX-16 / Account, Settings & Administration.
+PA-01 / Platform Administration.
+
+إدارة المنصة أصبحت سلسلة مستقلة عن UX-16A.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -515,3 +518,28 @@ UX-16 / Account, Settings & Administration.
 المصدر البصري للرسوم:
 
 `design/VISUAL_IDENTITY.md`.
+
+### الحساب والإعدادات
+
+القرار:
+
+ق-101.
+
+المصدر التقني:
+
+`technical/ACCOUNT_SETTINGS_ARCHITECTURE.md`
+
+يغطي:
+
+- unified account.
+- phone change/recovery.
+- password recovery.
+- team access lifecycle.
+- notifications.
+- device/sync entry.
+- account-scoped local state.
+- logout with pending outbox.
+- English date/time display.
+- م-31.
+
+Platform Administration ليست جزءًا من هذا المصدر.

@@ -678,3 +678,29 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 **القرار المبرر:** ق-100.
 
 **نوع الدفعة:** توثيقية فقط؛ Baseline الاختبارات لم يتغير.
+
+## تحديث 2026-08-19 — UX-16A / ق-101
+
+**المجال:** الحساب والإعدادات.
+
+**التغيير الأساسي:**
+
+فصل Platform Administration عن UX-16A بصورة رسمية.
+
+**الملف الجديد:**
+
+- `technical/ACCOUNT_SETTINGS_ARCHITECTURE.md`
+
+**أهم القرارات:**
+
+- Account موحد.
+- Phone Change حساس.
+- Forgot Password عبر OTP في V1.
+- Role lifecycle لا يكرر الهوية.
+- Platform Admin خارج UX-16A.
+- Local State مرتبطة بالحساب.
+- Logout لا يحذف Pending.
+- Date/Time تظهر بالإنجليزية دائمًا.
+- فتح م-31.
+
+**نوع الدفعة:** توثيقية فقط.

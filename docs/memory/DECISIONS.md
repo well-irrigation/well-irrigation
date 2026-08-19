@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-100
+**آخر قرار مرقّم:** ق-101
 **آخر تحديث:** 2026-08-18
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -3420,3 +3420,135 @@ UX-06 حسم أن الرئيسية:
 - chart accessibility.
 - Backend permanent tests.
 - Android field tests.
+
+---
+
+## ق-101 — فصل الحساب والإعدادات عن إدارة المنصة
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق؛ التنفيذ Pending.
+- **UX:** UX-16A.
+- **المصدر التقني:** `technical/ACCOUNT_SETTINGS_ARCHITECTURE.md`.
+- **المسألة المفتوحة:** م-31.
+
+### القرار التنظيمي
+
+المناقشة القديمة:
+
+`UX-16 — Account, Settings & Administration`
+
+تقسم رسميًا إلى:
+
+1. `UX-16A — Account & Settings`.
+2. سلسلة مستقلة `PA — Platform Administration`.
+
+Platform Administration ليست Well Role ولا جزءًا من
+إعدادات مالك البئر.
+
+### قرارات UX-16A المعتمدة
+
+تشمل البنود:
+
+- 527–541.
+- 543–583.
+- 595–598.
+
+مع التعديلات التالية:
+
+- البند 542 نقل إلى PA لأنه يخص Platform Admin.
+- البنود 584–594 أخرجت من UX-16A بالكامل.
+- البند 573: Date/Time display إنجليزي ثابت.
+- English digits قاعدة دائمة.
+
+### الحدود
+
+UX-16A تدير:
+
+- account.
+- identity.
+- phone.
+- password recovery.
+- well-team access.
+- notifications.
+- device readiness.
+- sync.
+- appearance.
+- support.
+- logout.
+- local account data.
+
+ولا تدير:
+
+- global wells.
+- global accounts.
+- platform sales.
+- platform monitoring.
+- platform-wide financial control.
+- global support console.
+- platform audit console.
+
+### أسباب الفصل
+
+1. Owner هو مستخدم بئر.
+
+2. Platform Administrator هو مسؤول منتج/منصة.
+
+3. خلطهما ينتج صلاحيات غير مفهومة.
+
+4. Platform Admin لا يحتاج Owner Membership في كل بئر.
+
+5. الحساب والإعدادات يجب أن تبقى بسيطة لمستخدم البئر.
+
+### Auth
+
+Daily Login يبقى Phone + Password.
+
+Forgot Password في V1:
+
+    phone
+      ↓
+    OTP
+      ↓
+    verification
+      ↓
+    new password
+
+Phone Change فعل Online حساس.
+
+### Local Data
+
+Local Data يجب أن تكون Account-scoped.
+
+Logout لا يمحو Pending Commands.
+
+حساب ثانٍ لا يرى Cache أو Outbox للحساب الأول.
+
+### Date and Time
+
+كل User-facing Date/Time في V1:
+
+- English digits.
+- English-style formatting.
+- ثابت بصريًا عبر الواجهة.
+
+مثال:
+
+    19/08/2026 05:25 PM
+
+Backend timestamps تبقى Canonical وفق العقود الزمنية.
+
+### شرط الإغلاق
+
+لا يعتبر ق-101 منفذًا حتى يثبت:
+
+- phone-change flow.
+- recovery flow.
+- forgot password.
+- correct role lifecycle.
+- no identity duplication.
+- account-scoped local storage.
+- pending outbox preservation.
+- session invalidation.
+- notification preference separation.
+- Android account isolation.
+- permanent Auth tests.

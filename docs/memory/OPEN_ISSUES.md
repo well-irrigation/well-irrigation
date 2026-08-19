@@ -714,3 +714,45 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - Offline/Stale tests.
 - no Direct DML verification.
 - Android rendering/field tests.
+
+---
+
+## م-31 — Identity, Access, Settings & Local Account Consistency
+
+**الحالة:** مفتوحة — 2026-08-19
+**القرار الحاكم:** ق-101
+**UX:** UX-16A
+**الأولوية:** حرجة قبل UX-16A الإنتاجية
+
+### الفجوات
+
+1. Phone Change contract يحتاج Trusted orchestration.
+
+2. Lost-phone recovery يحتاج Admin/Support flow.
+
+3. Forgot Password V1 يحتاج عقدًا كاملًا.
+
+4. م-18 Role Authority لم تغلق بعد.
+
+5. Operator/Partner access lifecycle يحتاج typed contracts.
+
+6. Local storage يحتاج Account Scope مثبتًا.
+
+7. Logout with Pending Outbox يحتاج Android tests.
+
+8. Global session invalidation يحتاج عقدًا واضحًا.
+
+9. Notification preferences تحتاج persistent contract.
+
+10. English Date/Time formatting يحتاج UI consistency tests.
+
+### لا تغلق قبل
+
+- Auth security tests.
+- unique phone tests.
+- account isolation tests.
+- pending outbox persistence.
+- role lifecycle tests.
+- lost-phone recovery tests.
+- device/session invalidation tests.
+- Android rendering tests.

@@ -766,3 +766,53 @@ Commit جديدًا.
 343. UX-15 لا تعتبر Production Complete قبل إغلاق م-30.
 
 344. عدم تشغيل اختبارات جديدة لا يغير Baseline المثبت.
+
+## ق-101 — ثوابت الحساب والإعدادات
+
+345. UX-16A لا تشمل Platform Administration.
+
+346. Phone واحد لا ينشئ أكثر من Canonical Person.
+
+347. Phone Change ليست Direct Edit.
+
+348. Phone Change النهائية Online وموثوقة.
+
+349. Lost-phone recovery لا تعتمد على Name Guessing.
+
+350. Forgot Password في V1 يستخدم Verified Recovery.
+
+351. Well Role لا ينشئ Account جديدًا للشخص نفسه.
+
+352. Role Catalog ليس Authorization وحده.
+
+353. Operator deactivation لا تترك Active Responsibility.
+
+354. Removing Partner Access لا يمحو Partnership History.
+
+355. App Notification Preference تختلف عن Android Permission.
+
+356. Notification denial لا يمنع Offline Work.
+
+357. Local Private Data هي Account-scoped.
+
+358. Logout لا يمحو Pending Business Commands.
+
+359. Account B لا يرى Local Private Data للحساب A.
+
+360. Returning Account A يستطيع استعادة Pending State التابعة له.
+
+361. Local Wipe لا يدمر Pending State بصمت.
+
+362. V1 UI عربية RTL.
+
+363. Digits المعروضة English دائمًا.
+
+364. User-facing Date/Time formatting إنجليزي ثابت.
+
+365. Backend Time Semantics لا تحددها Formatter Flutter.
+
+366. Platform Admin Password Requirement لا يحكمها ق-101.
+
+367. Any new DB change يبدأ من Migration 078+.
+
+368. UX-16A لا تعتبر Production Complete قبل إغلاق م-31.
