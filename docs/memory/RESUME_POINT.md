@@ -262,40 +262,28 @@
 
 ## التالي
 
-**W1-02 — نشر Migration 079 إلى Supabase Cloud والتحقق منها.**
+**W1-03 — Role/Permission authority wiring / م-18.**
 
-ق-111 معتمدة ومنفذة ومتحقق منها محليًا.
+W1-02 / ق-111 مكتملة:
 
-تمت كتابة:
-
-- `20260819224401_079_farmer_self_scope_rls.sql`
-- `20260819_079_farmer_self_scope_rls.test.sql`
-
-Local Verification:
-
-- Migration 079 طُبقت ضمن `db:reset`.
+- Migration 079 = Local + Cloud applied.
 - Permanent Test 079 = 20 PASS / 0 FAIL / 0 ERROR.
 - Full DB Suite = 19 files / 255 PASS / 0 FAIL / 0 ERROR.
-- Data API surface بقيت 33 authenticated / 0 anon / 0 SECURITY DEFINER.
-- Direct DML بقي صفرًا.
-- Owner/Staff regression = PASS.
+- Cloud migration history = 78 through 079.
+- Farmer self-scope policies = 19.
+- Legacy Farmer broad policies في نطاق W1-02 = 0.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+- م-16 مغلقة.
 
-Cloud:
+Migration 071–079 immutable.
 
-- Applied baseline الحالي حتى 078.
-- Migration 079 لم تُنشر بعد.
+أي DB change جديد يبدأ Migration 080+.
 
-الترتيب التالي:
+المسألة التالية:
 
-1. Documentation Gate + Commit/Push.
-2. `db push` لـ079 فقط.
-3. Cloud structure/security verification.
-4. عند النجاح: إغلاق م-16 والانتقال إلى W1 item التالي.
-
-Migration 071–078 immutable.
-Migration 079 pending Cloud acceptance.
-م-16 مفتوحة حتى Cloud verification.
-م-18 ما زالت مفتوحة.
+م-18 — ربط `iam.roles` / `iam.permissions` / `iam.role_permissions`
+بمصدر الصلاحية التشغيلي بدل بقاء الكتالوج تأسيسيًا فقط.
 
 ## قاعدة التنفيذ
 

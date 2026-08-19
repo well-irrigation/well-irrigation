@@ -21,9 +21,9 @@
 
 ## 2. قواعد التنفيذ
 
-1. Migration 071–078 immutable.
+1. Migration 071–079 immutable.
 
-2. W1-02 يستخدم Migration 079؛ أي DB change لاحق يبدأ 080+ بعد قبول 079.
+2. W1-02 مغلقة؛ أي DB change جديد يبدأ Migration 080+.
 
 3. Migration 078 ليست Migration عملاقة تجمع V1 كلها.
 
@@ -89,6 +89,29 @@
 - م-18.
 - أجزاء م-33.
 - أجزاء م-34.
+
+### W1-02 — Farmer self-scope
+
+مكتملة ومغلقة:
+
+- Migration 079 Local + Cloud applied.
+- Permanent Test 079 = 20 PASS.
+- Full DB Suite = 255 PASS.
+- Farmer private operational data = Self-only.
+- owner/manager/operator regression = PASS.
+- Cloud structure/security verification = PASS.
+- م-16 مغلقة.
+
+### W1-03 — Role/Permission authority wiring
+
+التالي: م-18.
+
+الكتالوج الحالي `iam.roles` / `iam.permissions` /
+`iam.role_permissions` تأسيسي فقط منذ Migration 028،
+بينما السلطة التشغيلية ما زالت تعتمد
+`core.well_assignments.role`.
+
+أي DB change جديد يبدأ Migration 080+.
 
 ### سبب W1
 

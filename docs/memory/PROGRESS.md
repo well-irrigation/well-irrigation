@@ -853,3 +853,26 @@ Migration 071–078 immutable؛ أي DB change جديد = 079+.
 - Direct DML بقي صفرًا.
 
 الحالة: Implemented + Local Verified؛ Cloud pending.
+
+---
+
+## 2026-08-19 — W1-02 / ق-111 Cloud verified
+
+Cloud verification بعد نشر Migration 079:
+
+- Remote migration history = 78 through 079.
+- Farmer self-scope policies = 19.
+- legacy Farmer broad policies في نطاق W1-02 = 0.
+- Target tables with RLS disabled = 0.
+- Supporting RLS indexes = 9.
+- Farmer self helpers تحمل security mode والمنح والـsearch_path المعتمد.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER / 0 relations.
+- Direct DML = 0.
+- لا Security Advisor warning جديد من Migration 079.
+
+النتيجة:
+
+W1-02 مكتملة.
+م-16 مغلقة.
+Migration 071–079 immutable.
+التالي W1-03 / م-18.

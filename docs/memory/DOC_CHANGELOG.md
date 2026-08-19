@@ -1046,3 +1046,15 @@ Prepared / Pending Owner Verification.
 - Full DB Suite = 255 PASS / 0 FAIL / 0 ERROR.
 - Cloud baseline بقي through 078؛ 079 pending.
 - RESUME_POINT انتقل إلى Cloud deploy/verify لـ079.
+
+---
+
+## 2026-08-19 — W1-02 Cloud verification closure
+
+- ثبتت Cloud baseline = 78 migrations through 079.
+- سجلت 19 Farmer self-scope policies وغياب legacy broad Farmer policies.
+- سجلت API/Direct DML invariants بعد 079.
+- أغلقت م-16.
+- ثبتت Migration 071–079 immutable.
+- نقلت RESUME_POINT إلى W1-03 / م-18.
+- أي DB change جديد يبدأ 080+.

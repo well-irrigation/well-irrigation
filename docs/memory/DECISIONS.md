@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-110
+**آخر قرار مرقّم:** ق-111
 **آخر تحديث:** 2026-08-19
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -5034,7 +5034,7 @@ Permanent Test:
 ## ق-111 — Farmer self-scope authorization
 
 - **التاريخ:** 2026-08-19.
-- **الحالة:** معتمد ومنفذ ومتحقق منه محليًا؛ Cloud pending.
+- **الحالة:** معتمد ومنفذ ومتحقق منه محليًا وسحابيًا؛ م-16 مغلقة.
 - **المرحلة:** W1-02 / Backend Foundations.
 - **المسألة:** م-16.
 - **التنفيذ:** Migration 079.
@@ -5074,8 +5074,30 @@ Farmer self access لا يعتمد على `role='farmer'` وحده.
 - Data API surface بقي 33 authenticated RPC / 0 anon / 0 SECURITY DEFINER.
 - Direct DML بقي صفرًا.
 
-### المتبقي
+### دليل التحقق السحابي
 
-- Commit/Push.
-- Cloud deployment/verification.
-- بعدها تُغلق م-16.
+تحقق Cloud read-only بعد نشر Migration 079:
+
+- migration history = 78 migrations through `20260819224401`.
+- Farmer self-scope SELECT policies = 19.
+- legacy Farmer well-wide SELECT policies في نطاق W1-02 = 0.
+- Target tables with RLS disabled = 0.
+- RLS supporting indexes = 9.
+- `iam.current_farmer_well_account_id(uuid)` = STABLE + SECURITY DEFINER + fixed `search_path`.
+- `iam.has_farmer_self_access(uuid)` = STABLE + SECURITY INVOKER + fixed `search_path`.
+- `iam.can_staff_read_profile(uuid)` = STABLE + SECURITY DEFINER + fixed `search_path`.
+- authenticated EXECUTE على الدوال الثلاث = yes؛ anon = no.
+- Data API = 33 authenticated RPC / 0 anon / 0 SECURITY DEFINER / 0 relations.
+- Direct DML لأدوار التطبيق = 0.
+- Security Advisor لم يسجل تحذيرًا جديدًا من Migration 079.
+- `iam.profile_person_links` بلا RLS Policy يبقى INFO مقصودًا لأنه Internal Identity State بلا Direct Client Access.
+
+### الإغلاق
+
+م-16 مغلقة بق-111 / Migration 079.
+
+Migration 071–079 immutable.
+
+الخطوة التالية في W1:
+
+W1-03 — Role/Permission authority wiring / م-18.

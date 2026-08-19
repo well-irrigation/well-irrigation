@@ -9,7 +9,7 @@
 ## الحالة الحالية الحاكمة — 2026-08-19
 
 - Local: 78 migration file مطبقة حتى 079؛ الترقيم التاريخي لا يحتوي Migration 067.
-- Cloud: 77 migration مطبقة حتى 078؛ Migration 079 pending Cloud deployment.
+- Cloud: 78 migration مطبقة حتى 079؛ Cloud structure/security verification مكتمل.
 - 19 ملف اختبار دائم.
 - 255 PASS / 0 FAIL / 0 ERROR محليًا.
 - 071: ق-78 — Data API boundary.
@@ -27,7 +27,7 @@ milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القا�
 
 حُذف ملفا الترحيل القديمان (001 و002، بتاريخ 2026-08-05) بالكامل، لأنهما سبقا استقرار القرارات الخمسين. استُبدلا بـ 25 ملف ترحيل جديدة، مبنية ومختبرة تباعًا في نفس اليوم، تعكس كل القرارات النافذة حتى ق-66.
 
-**ملاحظة تاريخية:** هذا القسم كُتب أولًا عندما كان التطبيق محليًا فقط. الحالة الحالية الحاكمة هي الملخص أعلى الملف: 001–078 موجودة على Supabase Cloud، بينما 079 متحققة محليًا وتنتظر Cloud deployment/verification.
+**ملاحظة تاريخية:** هذا القسم كُتب أولًا عندما كان التطبيق محليًا فقط. الحالة الحالية الحاكمة هي الملخص أعلى الملف: 001–079 موجودة على Supabase Cloud، و079 متحققة محليًا وسحابيًا.
 
 ---
 
@@ -393,7 +393,7 @@ Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
 
 **المرحلة:** W1-02 / م-16 / ق-111.
 
-**الحالة:** مطبقة ومتحقق منها محليًا؛ Cloud pending.
+**الحالة:** مطبقة ومتحقق منها محليًا وسحابيًا؛ م-16 مغلقة.
 
 ### ما تغير
 
@@ -409,3 +409,17 @@ Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
 
 - Permanent Test 079 = 20 PASS / 0 FAIL / 0 ERROR.
 - Full DB Suite = 19 files / 255 PASS / 0 FAIL / 0 ERROR.
+
+**دليل Cloud لـ079:**
+
+- Remote migration history = 78 migrations through `20260819224401`.
+- Farmer self-scope policies = 19.
+- Legacy Farmer broad policies in W1-02 scope = 0.
+- Target tables with RLS disabled = 0.
+- Supporting indexes = 9.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER / 0 relations.
+- Direct DML = 0.
+- لا Security Advisor warning جديد من 079.
+
+Migration 071–079 immutable.
+أي DB change جديد يبدأ Migration 080+.

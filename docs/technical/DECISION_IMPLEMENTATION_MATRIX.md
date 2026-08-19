@@ -285,4 +285,4 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | Pump/operator charts | underlying records exist | aggregated API series |
 | Partner chart | distribution data exists | private partner projection |
 | M-30 | مفتوحة | must close |
-| ق-111 | Farmer self-scope authorization / م-16 | Migration 079 + Permanent Test؛ 20 PASS؛ full suite 255 PASS | Commit/Push + Cloud deploy/verify | Implemented + Local Verified; Cloud pending |
+| ق-111 | Farmer self-scope authorization / م-16 | Migration 079؛ local 20 PASS؛ full suite 255 PASS؛ Cloud verified | W1-03 / م-18 | Implemented + Local Verified + Cloud Verified; م-16 closed |
