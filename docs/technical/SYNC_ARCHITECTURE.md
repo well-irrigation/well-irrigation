@@ -661,3 +661,31 @@ Sync subsystem يمكن أن يعرف فقط Business-safe state مثل:
 ولا يحمل Password نفسها.
 
 No Recoverable Password Vault exists.
+
+## ق-106 — Platform Admin Privileged Writes Are Online-only
+
+PA-03 privileged commands do not enter Mobile/Offline Outbox.
+
+Includes:
+
+- sale.
+- entitlement grant.
+- entitlement revoke.
+- activation correction.
+- administrative session closure.
+- financial correction.
+- accounting-period admin decision.
+
+Retry safety is Server-side through Stable Operation ID.
+
+If connection fails after submission:
+
+Admin Console reconciles by Operation ID before creating
+another command.
+
+Monitoring only reports Server-observable Sync Truth.
+
+No recent server update does not automatically mean
+field operation failed.
+
+Cached Admin Reads must show Last Update/Stale state.

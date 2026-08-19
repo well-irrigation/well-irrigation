@@ -138,6 +138,15 @@
   ويختار Password الجديدة بنفسه.
 - ق-105: Password الجديدة لا يعرفها Platform Admin.
 
+- ق-106: PA-03 معتمدة؛ Platform Sale وWell Finance منفصلتان.
+- ق-106: V1 بيع دائم يدوي؛ عبارة «مجانية بالكامل» من ق-10
+  منسوخة، بينما Subscription الدورية تبقى مؤجلة.
+- ق-106: كل Well مشتراة لها Entitlement مستقلة.
+- ق-106: Sale/Grant/Consumption تحتاج Atomicity + Idempotency.
+- ق-106: Platform Admin financial control لا يتجاوز ق-99.
+- ق-106: Privileged PA-03 writes Online-only.
+- م-34: Platform Sales/Entitlement/Admin Control Pending.
+
 ## المسائل المفتوحة المعروفة بعد بوابة الجاهزية
 
 - م-16: Farmer RLS well-wide.
@@ -226,7 +235,7 @@
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
   UX-02/03/08/09/10/11/12/13/14/15/16A
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103/ق-104/ق-105 غير منفذة؛
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103/ق-104/ق-105/ق-106 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -253,41 +262,43 @@
 
 ## التالي
 
-**PA-03 — Sales, Activation, Operations & Financial Control /
-المبيعات والتفعيل والتحكم التشغيلي والمالي.**
+**PA-04 — Monitoring, Audit, Platform Settings & Final Admin Review /
+المراقبة وسجل التدقيق وإعدادات المنصة والمراجعة الإدارية النهائية.**
 
-ق-103 / PA-02 core معتمدة وموثقة.
+PA-03 معتمدة وموثقة بق-106.
 
-ق-104 أصبحت Governance Rule إلزامية:
+ق-106 يحكم:
 
-- Source of Truth first.
-- official standards.
-- official platform docs.
-- mature products.
-- real user feedback.
-- project fit.
-- Standards-aligned / Adapted / Exception.
+- Platform Sales منفصلة عن Well Finance.
+- permanent manual V1 sale.
+- no recurring subscription.
+- one entitlement per purchased well.
+- atomic/idempotent grant and consumption.
+- sale/activation correction without history rewrite.
+- global operations monitoring.
+- administrative session closure/correction.
+- Read-first global finance.
+- ق-99 financial correction rules remain authoritative.
+- no Force Reopen bypass.
+- Step-up + explicit confirmation.
+- audit.
+- filtered export.
+- server-side pagination.
+- privileged writes Online-only.
 
-ق-105 هي Password Authority الحالية:
+Research Gate:
 
-- no Recoverable Password Vault.
-- no Current Password Reveal.
-- admin-triggered force reset.
-- OTP identity verification.
-- user chooses new password.
-- Platform Admin MFA required.
-- sensitive actions need Step-up policy.
+PA-03 = PASS.
 
-ق-105 تنسخ فقط Password Option B من ق-103.
+المسائل المفتوحة تشمل:
 
-بقية PA-02 تبقى معتمدة.
+- م-32.
+- م-33.
+- م-34.
 
-م-32 وم-33 والتنفيذ التقني ما زالا Pending.
+UX-17 مؤجلة حتى إكمال PA-04.
 
-UX-17 مؤجلة حتى إكمال سلسلة PA.
-
-PA-03 يجب أن تمر بـResearch & Standards Gate قبل
-اعتماد قراراتها.
+PA-04 يجب أن تمر بق-104 قبل اعتمادها.
 
 لا تغير Baseline الاختبارات دون دليل تحقق جديد.
 

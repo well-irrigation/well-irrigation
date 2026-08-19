@@ -634,3 +634,39 @@ Baseline الاختبارات لم يتغير.
 - Flutter/Web production changes.
 
 Baseline الاختبارات لم يتغير.
+
+## 2026-08-19 — اعتماد PA-03 / ق-106
+
+**دفعة توثيقية فقط.**
+
+تم:
+
+- اعتماد PA-03-01 إلى PA-03-64.
+- اجتياز Research & Standards Gate للمقترحات.
+- اعتماد الفصل بين Platform Commerce وWell Finance.
+- اعتماد Sale مستقلة عن Entitlement.
+- اعتماد Entitlement مستقلة لكل Well مشتراة.
+- اعتماد Atomic Sale + Grant.
+- اعتماد Idempotent Admin Commands.
+- إعادة تأكيد Atomic Well + Entitlement Consumption.
+- اعتماد Sale/Activation Correction دون History Rewrite.
+- اعتماد Exceptional Consumed Entitlement intervention.
+- اعتماد Global Operations Monitoring.
+- اعتماد Offline-aware server visibility.
+- اعتماد Administrative Session Closure.
+- اعتماد Global Finance Read-first.
+- إعادة تأكيد ق-99 للتصحيحات المالية.
+- رفض Force Reopen bypass في V1.
+- اعتماد Step-up وConfirmation integrity.
+- اعتماد audited filtered exports.
+- اعتماد Server-side Pagination/Filter/Sort.
+- اعتماد PA-03 writes Online-only.
+- تصحيح تعارض ق-10 مع ق-86/ق-106.
+- تصحيح مواضع Password Vault الوثائقية القديمة.
+- إنشاء `PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md`.
+- فتح م-34.
+- تحديد PA-04 كالمناقشة التالية.
+
+لم تنفذ Migration 078+ أو Admin APIs جديدة.
+
+Baseline الاختبارات لم يتغير.

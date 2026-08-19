@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-105
+**آخر قرار مرقّم:** ق-106
 **آخر تحديث:** 2026-08-19
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -38,6 +38,12 @@
   Reveal من ق-103؛ بقية PA-02 وق-103 تبقى نافذة.
 - ق-105 يعيد Password Storage إلى Hash-only ويعتمد
   Admin-triggered Reset + OTP + user-chosen new password.
+- ق-106 يثبت ق-86 كنموذج البيع الحاكم للنسخة الأولى:
+  بيع دائم يدوي، وكل شراء يمنح حق تفعيل Well مستقل.
+- ق-106 ينسخ فقط عبارة «النسخة الأولى مجانية بالكامل»
+  من ق-10؛ تأجيل الاشتراكات الدورية يبقى نافذًا.
+- ق-106 يحكم PA-03: المبيعات والتفعيل والتدخل التشغيلي
+  والمالي لمنصة الإدارة.
 
 # الجولة الأولى — 2026-08-12
 
@@ -90,7 +96,12 @@
 ## ق-10 — تأجيل الاشتراكات
 **القرار:** النسخة الأولى **مجانية بالكامل**. تُؤجّل الاشتراكات والأسعار إلى قرار لاحق.
 **ما أُلغي:** بند «الاشتراك التجريبي والمدفوع» من نطاق النسخة الأولى، ومعيار القبول المرتبط به.
-**الحالة:** نافذ. انظر ق-26.
+**الحالة:** منسوخ جزئيًا بق-86 وق-106؛
+تبقى الاشتراكات الدورية مؤجلة، لكن عبارة
+«النسخة الأولى مجانية بالكامل» لم تعد حاكمة.
+
+- 2026-08-19: V1 تعتمد البيع الدائم اليدوي لكل بئر
+  عبر Entitlement منفصلة؛ لا Subscription دورية.
 
 ## ق-11 — الاسم الموحّد
 **القرار:** اسم المنتج هو **«إدارة البئر والسقي»** في كل مكان.
@@ -4238,3 +4249,267 @@ Trusted Backend.
 - non-admin denial.
 - audit without secrets.
 - permanent Auth/security tests.
+
+---
+
+## ق-106 — مبيعات المنصة وحقوق التفعيل والتحكم التشغيلي والمالي
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق؛ التنفيذ Pending.
+- **المناقشة:** PA-03 / PA-03-01 إلى PA-03-64.
+- **Research & Standards Gate:** PASS.
+- **المصدر التقني:**
+  `technical/PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md`.
+- **المسألة المفتوحة:** م-34.
+
+### نموذج النسخة الأولى التجاري
+
+القواعد الحالية:
+
+1. V1 ليست Subscription دورية.
+
+2. V1 ليست مجانية بالكامل.
+
+3. البيع يدوي ودائم لكل Well.
+
+4. كل Well مشتراة تحتاج Entitlement مستقلة.
+
+5. نفس المشتري يمكن أن يملك عدة Entitlements.
+
+6. Entitlement بعد الاستهلاك ترتبط بالبئر.
+
+7. نقل ملكية البئر لا يحرر الحق لبئر آخر.
+
+### Supersession
+
+ق-106 تثبت ق-86 وتنسخ من ق-10 فقط:
+
+    النسخة الأولى مجانية بالكامل
+
+ويبقى من ق-10/ق-26:
+
+    الاشتراكات الدورية مؤجلة
+
+### Sale versus Entitlement
+
+Sale وEntitlement مفهومان منفصلان.
+
+Sale واحدة تستطيع إنشاء عدة حقوق مستقلة.
+
+Sale + Rights Grant يجب أن تكون:
+
+- atomic.
+- retry-safe.
+- idempotent.
+- audited.
+
+### Entitlement states
+
+V1:
+
+- available.
+- consumed.
+- revoked.
+
+لا Expiration دوري.
+
+Consumed لا يعود Available بتعديل State عادي.
+
+### Consumption
+
+لا يستهلك الحق عند:
+
+- APK download.
+- app launch.
+- OTP.
+- account creation.
+- setup wizard start.
+
+يستهلك فقط عند نجاح Well Creation.
+
+Well Creation + Entitlement Consumption عملية ذرية.
+
+### Corrections
+
+Sale خاطئة:
+
+- لا تحذف.
+- تستخدم Void/Correction.
+
+Entitlement consumed خاطئة:
+
+- لا يعاد التاريخ.
+- تستخدم Activation Correction.
+
+عند الحاجة إلى Replacement:
+
+ينشأ Entitlement جديد.
+
+### Revocation
+
+Available Right Revocation تحتاج:
+
+- reason.
+- impact preview.
+- confirmation.
+- Step-up.
+- audit.
+
+Consumed Right intervention:
+
+- exceptional.
+- no ordinary toggle.
+- no Well deletion.
+- may produce Administrative Hold/Suspension.
+
+### Operations Monitoring
+
+Platform Admin يرى:
+
+- live sessions.
+- server-visible sync state.
+- conflicts.
+- booking conflicts.
+- open shifts.
+- conditions needing review.
+
+غياب Server Update وحده لا يعني Stuck Session؛
+Offline reality تحترم.
+
+### Session corrections
+
+لا يوجد General Edit Session.
+
+تستخدم Domain Actions معرفة مثل:
+
+- reconcile.
+- conflict resolution.
+- admin correction.
+- duplicate command invalidation.
+- settlement review.
+- exceptional administrative closure.
+
+Administrative Closure لا تمحو Timeline.
+
+### Financial monitoring
+
+Global Well Finance:
+
+**Read-first.**
+
+لا Inline Edit.
+
+Posted Financial Records تبقى خاضعة لق-99:
+
+- reversal.
+- correction.
+- adjustment.
+
+ولا Direct Rewrite.
+
+### Accounting reopen
+
+قاعدة إعادة فتح الفترة الحالية تبقى:
+
+    request + reason
+      ↓
+    partner approvals حسب القرار الحاكم
+      ↓
+    Platform Admin final decision
+
+لا Force Reopen bypass في V1.
+
+### High-risk authorization
+
+Confirmation تعرض:
+
+- target.
+- current state.
+- requested state.
+- amount when relevant.
+- impact.
+- reason.
+
+تغير Significant Data بعد Confirmation يبطل التأكيد.
+
+### Audit
+
+كل Admin Mutation الحساسة تسجل Actor الحقيقي.
+
+لا تدخل Secrets إلى Audit أو Logs.
+
+### Export
+
+Filtered CSV Export مسموح للأغراض الإدارية المناسبة.
+
+لا Database Dump عام من UI.
+
+Export الحساسة تسجل.
+
+### Admin tables
+
+Large Lists:
+
+- server-side search.
+- filter.
+- sort.
+- pagination.
+
+لا Infinite Scroll كالنمط الأساسي في V1.
+
+### Admin mutation lifecycle
+
+    Ready
+      ↓
+    Confirming
+      ↓
+    Processing
+      ↓
+    Succeeded / Failed / Needs Review
+
+Success لا تعلن قبل Server ACK.
+
+Retry يستخدم نفس Command/Idempotency ID.
+
+### Offline
+
+كل Privileged PA-03 Writes:
+
+**Online-only.**
+
+### Research evidence
+
+المبادئ اعتمدت بعد مراجعة:
+
+- Stripe Entitlements كPattern مرجعي للفصل بين Product/Sale
+  وبين Active Entitlement.
+- Stripe Idempotency لإعادة المحاولة دون تكرار أثر مالي.
+- Stripe Refund model كدليل Product Pattern على التصحيح
+  بسجل مستقل بدل إعادة كتابة الأصل.
+- OWASP Transaction Authorization.
+- OWASP Logging.
+- GitHub Sudo Mode.
+- GitHub Audit Log.
+
+لا يعتمد المشروع Stripe كDependency نتيجة هذا القرار.
+
+### شرط الإغلاق
+
+ق-106 لا تعتبر Implemented حتى يثبت:
+
+- sale/entitlement schema or service model.
+- atomic grant.
+- idempotency.
+- double-consumption prevention.
+- corrections.
+- exceptional entitlement hold.
+- global operation reads.
+- admin session correction.
+- financial correction contracts.
+- accounting reopen approval.
+- step-up.
+- audit.
+- export.
+- server pagination.
+- Online-only write enforcement.
+- permanent tests.

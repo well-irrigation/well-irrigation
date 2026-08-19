@@ -8487,25 +8487,20 @@ Admin يمكن أن يرى Security Metadata مثل:
 لكن لا يرى Password أو Hash أو Auth Secret.
 ---
 
-## أثر ق-103 على القرارات السابقة
+## أثر ق-103 التاريخي
 
-ق-103 ينسخ فقط الجزء من ق-85 الذي منع Platform Admin
-من قراءة Current Password.
+ق-103 كانت قد اعتمدت Option B لكلمات المرور.
 
-تبقى من ق-85:
+هذا الجزء أصبح **تاريخيًا ومنسوخًا بق-105**.
+
+تبقى من ق-103 جميع قرارات PA-02 غير المتعلقة
+باسترجاع كلمة المرور.
+
+وتبقى من ق-85:
 
 - Trusted Auth Admin.
-- لا service_role داخل Flutter.
+- لا service_role داخل Flutter/Browser.
 - لا privileged secret داخل Client.
-
-ق-103 يحسم أيضًا حالة ق-102 السابقة التي وصفت Password
-Visibility بأنها Blocked design decision.
-
-أصبحت الآن:
-
-    Architecture Adopted
-    Implementation Pending
-
 ---
 
 ## أثر ق-105 على ق-103
@@ -8530,8 +8525,7 @@ Password Reveal من PA-02.
 قبل Production يلزم:
 
 - global search APIs.
-- account admin reads.
-- account admin writes.
+- account admin reads/writes.
 - phone correction.
 - identity resolution.
 - account suspend/restore.
@@ -8542,19 +8536,19 @@ Password Reveal من PA-02.
 - support case model.
 - error-reference model.
 - admin correction contracts.
-- password vault schema/service.
-- encryption/key management.
-- password orchestration.
-- vault migration/coverage state.
-- stale-vault detection.
-- admin password reveal endpoint.
+- force password reset contract.
+- reset-required state.
+- OTP password recovery.
+- lost-phone recovery.
+- Platform Admin MFA.
+- Step-up rules for high-risk actions.
 - audit projection.
 - permanent security tests.
 
 المسألة:
 
-**م-33 — Platform Account, Well, Support & Recoverable
-Password Control.**
+**م-33 — Platform Account, Well, Support & Password
+Recovery Control.**
 
 أي DB change جديد يبدأ من Migration 078+.
 
@@ -8657,9 +8651,653 @@ Sensitive Actions قد تتطلب Recent Step-up Authentication.
 
 يعاد Confirmation.
 
-## 18. نقطة المناقشة التالية
+# PA-03 — Sales, Activation, Operations & Financial Control
+# المبيعات والتفعيل والتحكم التشغيلي والمالي
 
-**PA-03 — Sales, Activation, Operations & Financial Control /
-المبيعات والتفعيل والتحكم التشغيلي والمالي.**
+**الحالة:** معتمدة — 2026-08-19
+**القرار الحاكم:** ق-106
+**المسألة المفتوحة:** م-34
+**Research Gate:** PASS
+**القرارات:** PA-03-01 إلى PA-03-64
 
-بعد إكمال سلسلة Platform Administration نعود إلى UX-17.
+---
+
+## أ — الفصل بين مال المنصة ومال الآبار
+
+### PA-03-01 — Platform Commerce ≠ Well Finance
+
+يوجد فصل صريح بين:
+
+- مبيعات المنصة وحقوق التفعيل.
+- أموال العملاء داخل الآبار.
+
+لا يدمجان في Financial Total واحد.
+
+### PA-03-02 — مبيعات المنصة
+
+قسم مستقل في Platform Administration.
+
+### PA-03-03 — مراقبة مالية للآبار
+
+قسم مستقل لمراقبة:
+
+- invoices.
+- payments.
+- expenses.
+- distributions.
+- accounting periods.
+
+---
+
+## ب — سجل المبيعات
+
+### PA-03-04 — Sale ID
+
+كل عملية بيع لها Identifier ثابت وقابل للبحث.
+
+### PA-03-05 — Sale Fields
+
+V1 يمكن أن تسجل:
+
+- هاتف المشتري.
+- الاسم عند توفره.
+- عدد حقوق التفعيل.
+- المبلغ بالريال اليمني.
+- تاريخ ووقت الدفع.
+- طريقة الدفع الإدارية عند الحاجة.
+- الملاحظة.
+- Platform Admin الذي سجل البيع.
+
+### PA-03-06 — Sale واحدة تنتج حقوقًا مستقلة
+
+شراء عدة آبار ينتج عدة Entitlements مستقلة.
+
+مثال:
+
+    Sale = 3 wells
+
+ينتج:
+
+    entitlement A
+    entitlement B
+    entitlement C
+
+كل واحد يتتبع مستقلًا.
+
+### PA-03-07 — Atomic Sale Grant
+
+تسجيل Sale وإنشاء كل Entitlements المطلوبة:
+
+عملية ذرية واحدة أو Orchestration بضمان مكافئ.
+
+إما كلها تنجح أو لا يعتمد البيع.
+
+### PA-03-08 — Idempotent Sale
+
+إعادة Request نفسها لا تنشئ:
+
+- Sale مكررة.
+- Entitlements إضافية.
+
+كل أمر حساس يحتاج Stable Command/Idempotency ID.
+
+---
+
+## ج — حالات حقوق التفعيل
+
+### PA-03-09 — Available
+
+الحق صالح وغير مستخدم.
+
+### PA-03-10 — Consumed
+
+الحق استهلكه Well محدد.
+
+### PA-03-11 — Revoked
+
+إلغاء إداري موثق.
+
+ليس Subscription Expiration.
+
+### PA-03-12 — No Expiration V1
+
+حق الشراء في V1 دائم.
+
+لا انتهاء شهري/سنوي.
+
+### PA-03-13 — Consumed ليس Dropdown عاديًا
+
+لا يعاد Consumed إلى Available بمجرد تعديل State يدويًا.
+
+أي تصحيح يستخدم Administrative Correction.
+
+---
+
+## د — منح عدة حقوق
+
+### PA-03-14 — Quantity Input
+
+Admin يستطيع إدخال عدد الحقوق مرة واحدة.
+
+### PA-03-15 — Confirmation Preview
+
+قبل البيع يعرض:
+
+- المشتري.
+- الهاتف.
+- المبلغ.
+- عدد الحقوق.
+- عدد Entitlements التي ستنشأ.
+
+### PA-03-16 — Result
+
+بعد Server ACK تظهر النتيجة الفعلية والمعرفات.
+
+لا يكفي Toast عام «تم».
+
+---
+
+## هـ — استهلاك حق التفعيل
+
+### PA-03-17 — OTP لا يستهلك الحق
+
+OTP وحدها لا تغير Entitlement إلى Consumed.
+
+### PA-03-18 — Account Creation لا يستهلك الحق
+
+إنشاء الحساب وحده لا يستهلكه.
+
+### PA-03-19 — Setup Wizard لا يستهلك الحق
+
+فتح أو بدء Wizard لا يستهلك الحق.
+
+### PA-03-20 — Well Creation هو نقطة الاستهلاك
+
+الاستهلاك يحدث فقط عند نجاح إنشاء Well.
+
+### PA-03-21 — Atomic Well + Consumption
+
+إنشاء البئر واستهلاك الحق عملية ذرية.
+
+### PA-03-22 — Double Consumption ممنوع
+
+Retry أو طلبان متزامنان لا يستطيعان استهلاك الحق مرتين.
+
+---
+
+## و — الحق بعد الاستهلاك
+
+### PA-03-23 — Entitlement يتبع البئر
+
+بعد Consumed:
+
+يرتبط الحق بالبئر نفسه.
+
+### PA-03-24 — Ownership Transfer لا ينقل الحق لبئر آخر
+
+تغير مالك البئر لا يحرر الترخيص لاستخدامه في Well أخرى.
+
+---
+
+## ز — تصحيح البيع
+
+### PA-03-25 — Sale Correction/Void
+
+إذا حدث خطأ ولم يستهلك أي حق:
+
+يمكن تصحيح/إلغاء العملية إداريًا.
+
+### PA-03-26 — No Sale Deletion
+
+لا تحذف Sale الأصلية لإخفاء الخطأ.
+
+يبقى History واضحًا.
+
+### PA-03-27 — Available Rights from Voided Sale
+
+يمكن إلغاء الحقوق غير المستخدمة الناتجة عن Sale الملغاة
+ضمن عملية تصحيح مدققة.
+
+### PA-03-28 — Consumed Activation Correction
+
+إذا استهلك الحق بالفعل:
+
+لا نعيد كتابة التاريخ كأنه لم يحدث.
+
+ينشأ Activation Correction يربط:
+
+- Original Entitlement.
+- Original Well.
+- السبب.
+- نتيجة التصحيح.
+
+### PA-03-29 — Replacement Right
+
+إذا استحق العميل حقًا بديلًا:
+
+ينشأ Entitlement جديد مرتبط بالتصحيح.
+
+لا يعاد تدوير Identifier القديم.
+
+---
+
+## ح — Revocation
+
+### PA-03-30 — Reason Required
+
+Revocation تحتاج سببًا واضحًا.
+
+### PA-03-31 — Impact Preview
+
+قبل Revocation يعرض النظام أثرها.
+
+### PA-03-32 — Step-up for Available Revocation
+
+إلغاء حق صالح وغير مستخدم يحتاج تحققًا إضافيًا
+وفق ق-104/ق-105.
+
+### PA-03-33 — No Ordinary Consumed Revoke
+
+لا يظهر زر إلغاء عادي للحق المستهلك.
+
+### PA-03-34 — Consumed Revocation Exceptional
+
+إلغاء/تعليق حق مستهلك عملية استثنائية تعرض:
+
+- Well.
+- owner context.
+- activation state.
+- active operation state.
+- reason.
+- impact.
+
+ثم Step-up + Confirmation + Audit.
+
+### PA-03-35 — Revocation لا تحذف Well
+
+يمكن فرض Administrative Hold أو Activation Suspension.
+
+لكن بيانات Well وتاريخها لا تمحى.
+
+---
+
+## ط — المراقبة التشغيلية
+
+### PA-03-36 — Global Operations Monitoring
+
+تعرض:
+
+- live sessions.
+- recent server updates.
+- conflicts.
+- known pending sync.
+- booking conflicts.
+- open shifts.
+- operational conditions needing review.
+
+### PA-03-37 — Offline-aware Language
+
+غياب تحديث Server لا يعني تلقائيًا أن Session «عالقة».
+
+تعرض:
+
+    آخر تحديث للخادم: ...
+
+ثم تستخدم «يحتاج مراجعة» فقط عند تحقق شروط محددة.
+
+### PA-03-38 — Session Timeline
+
+Admin Session Detail تعرض Timeline موحدًا:
+
+- start.
+- pause.
+- resume.
+- energy change.
+- payment.
+- complete.
+- sync.
+- settlement.
+- admin correction.
+
+### PA-03-39 — Server/Sync State
+
+تعرض Last Server Update وCanonical Sync State.
+
+### PA-03-40 — Source Context
+
+تعرض Device/Operator/Command context عندما يتوفر
+من Source of Truth الموثوق.
+
+---
+
+## ي — إجراءات Session الإدارية
+
+### PA-03-41 — Domain Actions فقط
+
+لا يوجد زر عام:
+
+    Edit Session
+
+الإجراءات معرفة مسبقًا مثل:
+
+- Reconcile.
+- Resolve Conflict.
+- Administrative Correction.
+- Review Settlement.
+- Invalidate duplicate command.
+
+### PA-03-42 — No SQL/Raw Update UI
+
+لا SQL Console أو Raw Business Table Edit في V1.
+
+### PA-03-43 — No Fake Remote Pump Control
+
+لا يظهر «إيقاف المضخة» كتحكم Hardware ما لم يوجد
+Hardware Integration حقيقي ومثبت.
+
+### PA-03-44 — Administrative Session Closure
+
+يمكن لمسؤول المنصة بدء إغلاق إداري استثنائي
+لجلسة بقيت مفتوحة بسبب مشكلة مثبتة.
+
+يحدد:
+
+- Session.
+- آخر حدث معروف.
+- Actual End Time.
+- السبب.
+- Support Case/evidence.
+- expected billing impact.
+
+ثم Step-up + Confirmation.
+
+### PA-03-45 — Closure Preserves Timeline
+
+Administrative Closure تضيف Correction/Event.
+
+لا تحذف التاريخ السابق.
+
+---
+
+## ك — المراقبة المالية
+
+### PA-03-46 — Read-first Financial Monitoring
+
+Global Financial Monitoring مصممة للمراجعة والفهم أولًا.
+
+لا Inline Editing.
+
+### PA-03-47 — Typed Financial Corrections
+
+Platform Admin يستطيع تنفيذ أنواع Correction معرفة مسبقًا
+مثل:
+
+- Payment Reversal.
+- Expense Correction.
+- Distribution Adjustment.
+
+وفق قواعد ق-99.
+
+### PA-03-48 — Posted Payment Immutable
+
+Amount المرحل لا يعدل مباشرة.
+
+### PA-03-49 — Posted Expense Immutable
+
+Expense المرحلة لا تعدل مباشرة.
+
+### PA-03-50 — Approved Distribution Immutable
+
+Distribution المعتمدة لا تعدل مباشرة.
+
+التغيير يستخدم:
+
+    Original
+      ↓
+    Correction / Reversal
+      ↓
+    Resulting State
+
+---
+
+## ل — الفترات المحاسبية
+
+### PA-03-51 — Reopen Rule Remains
+
+إعادة فتح الفترة تبقى:
+
+    request + reason
+      ↓
+    partner approvals required by current rule
+      ↓
+    Platform Admin final decision
+      ↓
+    reopened
+
+لا يوجد Force Reopen يتجاوز هذا المسار في V1.
+
+---
+
+## م — تأكيد الأفعال الحساسة
+
+### PA-03-52 — What You Authorize
+
+Confirmation تعرض:
+
+- target.
+- current state.
+- requested state.
+- amount when financial.
+- important impact.
+- reason.
+
+### PA-03-53 — Changed Data Invalidates Confirmation
+
+إذا تغيرت Significant Transaction Data بعد Confirmation:
+
+يبطل التأكيد السابق ويعاد.
+
+---
+
+## ن — Audit
+
+### PA-03-54 — Audit Every Sensitive Mutation
+
+Sale/Entitlement/Operational/Financial Admin Mutation تسجل:
+
+- actor.
+- target.
+- action.
+- before.
+- after.
+- reason.
+- support case.
+- server time.
+- result.
+
+### PA-03-55 — No Secrets in Audit
+
+Audit لا تخزن:
+
+- password.
+- OTP secret.
+- access token.
+- refresh token.
+- service key.
+- encryption key.
+
+---
+
+## س — التصدير
+
+### PA-03-56 — CSV Export
+
+يسمح بالتصدير الإداري عند الحاجة مثل:
+
+- sales.
+- entitlements.
+- wells.
+- accounts.
+- support cases.
+- financial reports.
+
+### PA-03-57 — Filtered Export
+
+Export يحترم Filters الحالية.
+
+ولا يكون Database Dump عامًا.
+
+Export نفسها تسجل في Audit عند احتوائها بيانات حساسة.
+
+---
+
+## ع — الجداول
+
+### PA-03-58 — Server-side Tables
+
+القوائم الكبيرة تستخدم:
+
+- Search.
+- Filter.
+- Sort.
+- Pagination.
+
+من Server.
+
+### PA-03-59 — Sticky Toolbar
+
+يمكن تثبيت:
+
+- Search.
+- Status.
+- Date.
+- Well.
+- Reset Filters.
+
+في الصفحات الطويلة.
+
+### PA-03-60 — No Infinite Scroll
+
+Infinite Scroll ليست آلية الجداول الإدارية الأساسية في V1.
+
+---
+
+## ف — حالات العملية
+
+### PA-03-61 — Admin Action State
+
+كل عملية حساسة تعرض حالة واضحة:
+
+    Ready
+      ↓
+    Confirming
+      ↓
+    Processing
+      ↓
+    Succeeded / Failed / Needs Review
+
+### PA-03-62 — Server ACK
+
+لا تعلن Success قبل قبول Server النهائي.
+
+### PA-03-63 — Retry-safe Admin Commands
+
+Retry يستخدم نفس Stable Command/Idempotency ID.
+
+لا ينشأ أثر جديد بسبب Retry.
+
+---
+
+## ص — Offline
+
+### PA-03-64 — Platform Admin Writes Online-only
+
+كل PA-03 Mutations الحساسة Online-only.
+
+يشمل:
+
+- Sale.
+- Grant.
+- Revoke.
+- Activation Correction.
+- Session Administrative Correction.
+- Financial Correction.
+- Period Approval/Reopen decision.
+
+يمكن عرض Cached/Stale Read فقط إذا وثقت حالتها.
+
+---
+
+## Research & Standards classification
+
+### Standards-aligned
+
+- idempotent sensitive commands.
+- audit.
+- explicit confirmation.
+- correction instead of history rewrite.
+- step-up for high-risk actions.
+- server-side pagination/filter/sort.
+- Online-only admin mutation.
+- no secret logging.
+
+### Adapted
+
+- Sale مستقلة عن Entitlement.
+- one entitlement per purchased well.
+- permanent one-time V1 activation.
+- Platform Admin final accounting reopen decision after
+  partner approval rule.
+
+هذه ملائمة لنموذج المشروع وليست نسخًا حرفيًا من منتج آخر.
+
+### Rejected in V1
+
+- Raw SQL console.
+- Direct posted-finance editing.
+- Infinite Scroll for major admin tables.
+- Force Reopen bypass.
+- blind high-frequency polling.
+- offline privileged writes.
+- fake remote pump-control button.
+
+---
+
+## فجوات PA-03
+
+قبل Production يلزم:
+
+- Platform Sale model/contracts.
+- independent Entitlement model.
+- atomic Sale + Entitlement grant.
+- idempotent Admin Command IDs.
+- Sale Correction/Void.
+- Activation Correction.
+- Consumed entitlement exceptional hold/revocation.
+- global operations read models.
+- administrative session closure.
+- financial monitoring read models.
+- typed financial correction APIs.
+- accounting reopen admin approval contract.
+- audited exports.
+- server-side pagination/filter/sort.
+- Step-up enforcement.
+- permanent security/finance/idempotency tests.
+
+المسألة:
+
+**م-34 — Platform Sales, Entitlement & Administrative
+Control Consistency.**
+
+أي DB change جديد يبدأ من Migration 078+.
+
+---
+
+## 19. نقطة المناقشة التالية
+
+**PA-04 — Monitoring, Audit, Platform Settings & Final Admin Review /
+المراقبة وسجل التدقيق وإعدادات المنصة والمراجعة الإدارية النهائية.**
+
+بعد PA-04 نعود إلى:
+
+**UX-17 — Final Cross-Cutting Review.**

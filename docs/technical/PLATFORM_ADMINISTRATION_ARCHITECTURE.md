@@ -511,3 +511,50 @@ Section 32's Option B description is historical and must not
 be implemented.
 
 The non-password PA-02 architecture remains active.
+
+## 35. ق-106 / PA-03 — Sales, Entitlements, Operations & Finance
+
+ق-106 تعتمد PA-03.
+
+المصدر التفصيلي:
+
+`PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md`
+
+### Platform Commerce
+
+Platform Sale منفصلة عن Well Finance.
+
+كل Purchased Well لها Entitlement مستقلة.
+
+### Safety
+
+Privileged PA-03 mutation:
+
+- Online-only.
+- Step-up when high-risk.
+- explicit confirmation.
+- idempotent.
+- server-acknowledged.
+- audited.
+
+### Operations
+
+Admin monitoring تحترم Offline uncertainty.
+
+No generic Session Editor.
+
+### Finance
+
+Global finance is Read-first.
+
+Posted records follow ق-99 correction/reversal rules.
+
+### Accounting
+
+No Force Reopen bypass in V1.
+
+### Next
+
+PA-04:
+
+Monitoring, Audit, Platform Settings & Final Admin Review.

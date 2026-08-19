@@ -825,3 +825,54 @@ PA-02 core تبقى معتمدة.
 **نوع الدفعة:** توثيقية فقط.
 
 Baseline الاختبارات لم يتغير.
+
+## تحديث 2026-08-19 — PA-03 / ق-106
+
+**المجال:**
+
+Platform Sales, Entitlements, Operations and Financial Control.
+
+**السبب:**
+
+اعتماد PA-03 بعد تطبيق Research & Standards Gate.
+
+**الملف الجديد:**
+
+- `technical/PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md`
+
+**أهم القرارات:**
+
+- Platform Commerce ≠ Well Finance.
+- permanent manual V1 sale.
+- one entitlement per purchased well.
+- atomic/idempotent sale and grant.
+- atomic entitlement consumption.
+- no double consumption.
+- sale/activation correction preserves history.
+- operations monitoring respects Offline uncertainty.
+- no generic session editor.
+- admin session closure is audited correction.
+- financial monitoring Read-first.
+- posted finance correction follows ق-99.
+- no Force Reopen bypass.
+- Step-up and transaction confirmation integrity.
+- filtered audited export.
+- server-side pagination/filter/sort.
+- privileged writes Online-only.
+- م-34 opened.
+- PA-04 next.
+
+**Supersession:**
+
+ق-106 تنسخ من ق-10 فقط مجانية V1.
+
+Subscription deferral remains.
+
+**Documentation repairs:**
+
+- stale Password Vault references corrected in active UX/Map.
+- legal review updated for permanent manual sale model.
+
+**نوع الدفعة:** توثيقية فقط.
+
+Baseline الاختبارات لم يتغير.

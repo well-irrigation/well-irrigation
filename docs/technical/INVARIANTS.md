@@ -1037,3 +1037,113 @@ Production عندما تنفذ capability.
 وفق ق-105 الحالية.
 
 495. أي DB change جديد يبدأ من Migration 078+.
+
+## ق-106 — ثوابت مبيعات المنصة والتفعيل والتحكم الإداري
+
+496. Platform Commerce وWell Finance مجالان منفصلان.
+
+497. V1 بيع دائم يدوي وليست مجانية بالكامل.
+
+498. V1 لا تستخدم Subscription دورية.
+
+499. كل Purchased Well تحتاج Entitlement مستقلة.
+
+500. Sale واحدة يمكن أن تنتج عدة Entitlements.
+
+501. Sale + Entitlement Grant يجب أن تكون Atomic.
+
+502. Sensitive Admin Commands يجب أن تكون Idempotent.
+
+503. Retry لا ينشئ Sale مكررة.
+
+504. Retry لا ينشئ Entitlement إضافية.
+
+505. OTP لا تستهلك Entitlement.
+
+506. Account Creation لا تستهلك Entitlement.
+
+507. Well Creation الناجحة هي نقطة الاستهلاك.
+
+508. Well + Entitlement Consumption Atomic.
+
+509. Entitlement واحدة لا تستهلك لبئرين.
+
+510. Consumed Entitlement تتبع Well.
+
+511. Ownership Transfer لا يحرر Entitlement.
+
+512. Sale الأصلية لا Hard Delete عند التصحيح.
+
+513. Consumed Entitlement لا تعاد Available بتعديل مباشر.
+
+514. Replacement Entitlement لها Identifier جديد.
+
+515. Available Revocation تحتاج Reason + Confirmation + Audit.
+
+516. High-risk Revocation تحتاج Step-up.
+
+517. Consumed Revocation ليست Toggle عادية.
+
+518. Revocation لا تحذف Well History.
+
+519. Admin monitoring لا تدعي معرفة Offline-only Commands.
+
+520. No recent server update لا يساوي Stuck تلقائيًا.
+
+521. لا Generic Edit Session.
+
+522. لا Raw SQL Business Editor في PA V1.
+
+523. لا Fake Remote Pump Control.
+
+524. Administrative Closure تحفظ Timeline.
+
+525. Global Finance Monitoring = Read-first.
+
+526. Posted Payment لا Direct Edit.
+
+527. Posted Expense لا Direct Edit.
+
+528. Approved Distribution لا Direct Edit.
+
+529. Financial Correction تتبع ق-99.
+
+530. لا Force Reopen bypass في V1.
+
+531. Sensitive Confirmation تعرض Significant Data.
+
+532. Changed Significant Data invalidates old confirmation.
+
+533. Every sensitive PA-03 mutation is audited.
+
+534. Audit لا تخزن Password/Token/Key.
+
+535. Sensitive Export audited.
+
+536. Export تحترم Filters.
+
+537. Large Admin Tables = Server-side pagination/filter/sort.
+
+538. Infinite Scroll ليست Admin Table pattern الأساسية.
+
+539. Final Success يحتاج Server ACK.
+
+540. Retry uses same Stable Operation ID.
+
+541. Unknown result reconciles before new command.
+
+542. PA-03 privileged writes Online-only.
+
+543. Privileged Admin writes لا تدخل Offline Outbox.
+
+544. Client لا يحمل service_role أو privileged secret.
+
+545. ق-106 تنسخ فقط «V1 مجانية بالكامل» من ق-10.
+
+546. Subscription deferral from ق-10/ق-26 remains active.
+
+547. ق-86 entitlement-per-purchase model remains governing.
+
+548. PA-03 لا تعتبر Production Complete قبل إغلاق م-34.
+
+549. Any DB change جديد يبدأ Migration 078+.

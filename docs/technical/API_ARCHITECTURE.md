@@ -661,3 +661,46 @@ Supabase Auth Admin operations:
 No Direct DML.
 
 أي DB change يبدأ من Migration 078+.
+
+## ق-106 — Platform Sales/Operations/Finance Admin APIs
+
+PA-03 تحتاج Trusted Admin Contracts لـ:
+
+- sales list/detail/create.
+- sale correction/void.
+- entitlement list/detail.
+- entitlement grant/revoke/correct.
+- activation reconciliation.
+- global operations monitoring.
+- admin session detail.
+- administrative session closure.
+- global finance monitoring.
+- financial corrections.
+- accounting reopen decision.
+- filtered export.
+
+### Rules
+
+1. Cross-tenant Admin authority verified server-side.
+
+2. Sensitive write requires Stable Operation/Idempotency ID.
+
+3. Sale + Entitlement Grant atomic.
+
+4. Well + Entitlement Consumption atomic.
+
+5. Final UI success requires Server ACK.
+
+6. High-risk operation checks Step-up/AAL policy.
+
+7. Large admin lists use Server-side pagination/filter/sort.
+
+8. No raw business-table editor.
+
+9. Posted financial history follows correction/reversal.
+
+10. All PA-03 privileged writes Online-only.
+
+11. service_role/secret key never enters Browser/Flutter.
+
+12. New DB objects start Migration 078+.

@@ -541,3 +541,110 @@ Mature operations guidance.
 - AI Collaboration Protocol يطبقها.
 - القرارات الجوهرية المستقبلية تسجل Evidence عند الانطباق.
 - Exceptions لا تختبئ تحت اسم Best Practice.
+
+## 18. PA-03 Evidence Review — 2026-08-19
+
+### Stripe Entitlements
+
+Reviewed as a mature-product pattern for separating:
+
+- commercial product/sale context.
+- access/entitlement context.
+
+Project adaptation:
+
+Sale واحدة يمكن أن تنتج عدة Well Entitlements مستقلة.
+
+لا Stripe dependency adopted.
+
+### Stripe Idempotency
+
+Reviewed for:
+
+- retry-safe financial/admin API commands.
+- avoiding duplicate effects after network uncertainty.
+
+Project decision:
+
+Sensitive PA-03 mutation تحتاج Stable Idempotency ID.
+
+### Stripe Refund Object Pattern
+
+Reviewed as evidence that financial correction can be
+modeled as a linked new record rather than rewriting the
+original transaction.
+
+Project mapping:
+
+ق-99 remains authoritative for reversal/correction.
+
+### OWASP Transaction Authorization
+
+Supports:
+
+- clear significant transaction data.
+- explicit authorization.
+- invalidating authorization when protected values change.
+
+Applied to:
+
+- entitlement revoke.
+- admin session correction.
+- financial correction.
+- accounting exceptional approval.
+
+### OWASP Logging
+
+Supports:
+
+- logging privileged administrative actions.
+- avoiding passwords/tokens/keys in logs.
+
+### GitHub Sudo Mode
+
+Reviewed as mature-product evidence for:
+
+- recent reauthentication before sensitive actions.
+
+Project mapping:
+
+ق-104/ق-105 Step-up.
+
+### GitHub Audit Log
+
+Reviewed as mature-product evidence for:
+
+- actor.
+- action.
+- target/context.
+- event time.
+- searchable privileged history.
+
+### PA-03 classification
+
+Standards-aligned:
+
+- idempotency.
+- audit.
+- transaction confirmation.
+- Step-up.
+- immutable-history correction.
+- online privileged mutations.
+
+Adapted:
+
+- one entitlement per purchased well.
+- permanent manual V1 sale.
+- platform-specific activation correction.
+
+Rejected V1:
+
+- SQL console.
+- direct posted-finance edit.
+- force reopen bypass.
+- offline privileged write.
+- infinite-scroll admin tables.
+
+Result:
+
+    PA03_RESEARCH_STANDARDS_GATE=PASS

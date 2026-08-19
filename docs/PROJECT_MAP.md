@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-105.
+آخر قرار مرقم حاليًا: ق-106.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -602,15 +602,15 @@ PA-02.
 - error references.
 - admin corrections.
 - audit.
-- Recoverable Encrypted Password Vault.
-- Option B.
-- legacy password coverage.
-- password reveal.
-- password orchestration.
-- key management.
+- force password reset.
+- OTP/user-chosen password recovery.
+- lost-phone identity recovery.
+- Platform Admin MFA/Step-up.
+- no recoverable password vault.
+- no current-password reveal.
 - م-33.
 
-ق-103 ينسخ فقط Password Non-Readability من ق-85.
+ق-103 Password Option B أصبحت تاريخية ومنسوخة بق-105.
 
 Trusted Auth Admin Boundary من ق-85 تبقى نافذة.
 
@@ -663,8 +663,50 @@ Current rule:
 
 PA-02 non-password decisions remain active.
 
-المناقشة التالية تبقى:
+PA-03 / Sales, Activation, Operations & Financial Control:
 
-PA-03 / Sales, Activation, Operations & Financial Control.
+**معتمدة وموثقة بق-106.**
 
-PA-03 تخضع لق-104 قبل اعتماد قراراتها.
+المصدر:
+
+`technical/PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md`
+
+تغطي:
+
+- Platform Sales.
+- one entitlement per purchased well.
+- atomic/idempotent grant.
+- activation corrections.
+- global operations monitoring.
+- administrative session correction.
+- global financial monitoring.
+- correction/reversal.
+- accounting reopen admin decision.
+- audited export.
+- Online-only privileged writes.
+- م-34.
+
+المناقشة التالية:
+
+PA-04 / Monitoring, Audit, Platform Settings & Final Admin Review.
+
+PA-04 تخضع لق-104 قبل اعتمادها.
+
+### Platform Sales Current Authority
+
+القرار الحاكم:
+
+ق-106.
+
+ق-106 تثبت ق-86 وتنسخ من ق-10 فقط عبارة:
+
+    النسخة الأولى مجانية بالكامل
+
+Current V1 commerce:
+
+- permanent manual sale.
+- no recurring subscription.
+- each purchased well = independent entitlement.
+- sale history preserved.
+- entitlement history preserved.
+- corrections are audited.

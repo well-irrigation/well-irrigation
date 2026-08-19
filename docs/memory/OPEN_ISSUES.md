@@ -1,6 +1,6 @@
 # المسائل المفتوحة
 
-**آخر تحديث:** 2026-08-17
+**آخر تحديث:** 2026-08-19
 
 مسائل معروفة لم تُحسم بعد، لكنها **لا تمنع البدء**.
 أي مسألة تُحسم تُنقل إلى `DECISIONS.md` برقم جديد ثم تُشطب من هنا.
@@ -144,11 +144,21 @@
 
 ---
 
-## م-12 — تسع نقاط مواءمة بين النص القانوني والقرارات
+## م-12 — مواءمة النص القانوني النهائي مع القرارات
 
 **الوصف:** ليست أخطاء، لكن النص أعمّ من القرار فيها. التفاصيل الكاملة في `legal/LEGAL_REVIEW.md` قسم 5.
 **أهمها ثلاث:** تأكيد السعر عند بداية الجلسة (ق-02) · تجميد السعر بعد البدء (ق-20) · اشتراط مجموع النسب 100% (ق-03).
 **وأخطرها واحدة:** البند 16.2.1 قد يُقرأ على أن المزارع يصله إشعار، والنسخة الأولى لا ترسل للمزارع شيئًا (ق-36).
+
+**تحديث ق-106 — 2026-08-19:** النص القانوني يحتاج أيضًا
+مواءمة نموذج البيع الجديد:
+
+- V1 بيع دائم يدوي وليست مجانية بالكامل.
+- لا Subscription دورية في V1.
+- كل شراء يمنح عددًا محددًا من Well Entitlements.
+- يجب توضيح سياسة التصحيح/الإلغاء/الاسترداد التجاري
+  قبل البيع العام.
+- Entitlement المستهلك لا يحذف تاريخيًا.
 **الحالة:** مفتوحة — تُنفذ دفعةً واحدة عند إعداد النسخة النهائية.
 
 ## م-02 — اغلاق بتاريخ 2026-08-13
@@ -908,3 +918,75 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - pagination/filter/sort tests.
 - accessibility tests.
 - complete security review.
+
+---
+
+## م-34 — Platform Sales, Entitlement & Administrative Control Consistency
+
+**الحالة:** مفتوحة — 2026-08-19
+**القرار الحاكم:** ق-106
+**المناقشة:** PA-03
+**الأولوية:** حرجة قبل Platform Admin Production
+
+### الفجوات
+
+1. Platform Sale model غير منفذ.
+
+2. Entitlement-per-Well model غير منفذ.
+
+3. Atomic Sale + Rights Grant غير منفذ.
+
+4. Stable Admin Idempotency IDs غير منفذة.
+
+5. Double Consumption prevention يحتاج implementation/tests.
+
+6. Sale Void/Correction غير منفذة.
+
+7. Activation Correction/Replacement غير منفذة.
+
+8. Exceptional Consumed Entitlement Hold غير منفذ.
+
+9. Global Operations Admin Read Models ناقصة.
+
+10. Administrative Session Closure غير منفذة.
+
+11. Global Finance Admin Read Models ناقصة.
+
+12. Typed Payment/Expense/Distribution Corrections ناقصة.
+
+13. Accounting Period Platform Admin approval contract يحتاج
+    ربطًا نهائيًا بالControl Plane.
+
+14. Step-up enforcement لعمليات PA-03 غير منفذ.
+
+15. Sensitive transaction confirmation binding غير منفذ.
+
+16. Admin export contracts غير منفذة.
+
+17. Server-side pagination/filter/sort لبعض القوائم ناقصة.
+
+18. Online-only privileged-write enforcement يحتاج اختبارات.
+
+19. Q106 legal commerce alignment يبقى ضمن م-12.
+
+20. Migration 078+ مطلوبة لأي DB changes.
+
+### لا تغلق قبل
+
+- sale idempotency tests.
+- atomic grant tests.
+- entitlement double-spend tests.
+- failed-well-creation entitlement tests.
+- correction lineage tests.
+- non-admin denial.
+- admin operation monitoring tests.
+- administrative session closure tests.
+- financial reversal/correction tests.
+- accounting reopen tests.
+- Step-up tests.
+- confirmation integrity tests.
+- audit tests.
+- export tests.
+- pagination/filter/sort tests.
+- Online-only tests.
+- no-secret logging tests.

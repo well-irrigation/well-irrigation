@@ -663,3 +663,35 @@ UX-14 لا تعتبر Production Complete حتى:
 - periods protections مثبتة.
 - Backend permanent tests ناجحة.
 - Android Offline tests ناجحة.
+
+## ق-106 — Platform Admin Financial Control Boundary
+
+Platform Admin لديه Global Financial Visibility لأغراض:
+
+- monitoring.
+- support.
+- reconciliation.
+- correction.
+
+لكن ق-106 لا تنشئ Direct Edit bypass.
+
+تظل القواعد:
+
+- posted payment immutable.
+- posted expense immutable.
+- approved distribution immutable.
+- correction via reversal/adjustment/correction.
+- audit mandatory.
+
+إعادة فتح Accounting Period:
+
+تظل وفق المسار الحاكم الحالي:
+
+- reason.
+- required partner approvals.
+- Platform Admin final decision.
+
+لا يوجد Force Reopen bypass في V1.
+
+Platform Commerce Sale Amount لا تدمج مع Well Finance
+Totals.
