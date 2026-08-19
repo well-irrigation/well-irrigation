@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-99
+**آخر قرار مرقّم:** ق-100
 **آخر تحديث:** 2026-08-18
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -3202,4 +3202,221 @@ UX-14 تجمع في تجربة واحدة:
 - partner privacy.
 - Offline reconciliation.
 - permanent Backend tests.
+- Android field tests.
+
+---
+
+## ق-100 — إدارة البئر والتقارير والرسوم البسيطة
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق؛ التنفيذ الكامل Pending.
+- **UX:** UX-15 / القرارات 460–526.
+- **المصدر التقني:** `technical/WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md`.
+- **المسألة المفتوحة:** م-30.
+
+### السياق
+
+UX-15 تجمع:
+
+- Well configuration.
+- pumps.
+- session energy sources.
+- fuel inventory.
+- pricing.
+- reporting.
+- V1 charts.
+
+### الواقع الحالي
+
+1. `core.pumps` يدعم نموذج معدات أوسع يتضمن النوع
+   والقدرة والتدفق واستهلاك الوقود التقديري والحالة.
+
+2. مصدر الطاقة الحديث هو
+   `ops.session_segments.energy_source`.
+
+3. `pump.power_source` Legacy compatibility فقط.
+
+4. `reporting.well_daily_summary` موجود.
+
+5. التقرير الحالي يستطيع تجميع Sessions وSolar/Diesel
+   time وCharges وCollections وExpenses وFuel Out.
+
+6. Farmer/Fuel/Partner reporting views موجودة كأساس داخلي.
+
+7. Fuel tanks وFuel Transactions موجودة.
+
+8. النظام يميز Well Fuel وFarmer Fuel.
+
+9. Measurement يدعم Actual وEstimated.
+
+10. Pricing Schedules لها Effective Period.
+
+11. Price Rules تفصل Energy Sources.
+
+12. النموذج القديم يسمح `operation_plus_fuel`.
+
+13. هذا يتعارض مع القرار الأحدث بأن Diesel Billing
+    Inclusive Hourly للمزارع.
+
+### القرار
+
+1. Well Management لها مدخل واضح.
+
+2. Well تاريخية لا Hard Delete من التطبيق.
+
+3. لا تعطيل مورد بطريقة تكسر Active Session.
+
+4. Pump هي Equipment، وليست Session Energy Source.
+
+5. Pump تاريخية لا تحذف.
+
+6. Maintenance/Retired pump لا تستخدم للعمل الجديد
+   بصورة طبيعية.
+
+7. Modern Session Energy من Segments.
+
+8. Legacy Pump Power Source fallback تاريخي فقط.
+
+9. Well Fuel وFarmer Fuel يبقيان منفصلين.
+
+10. Estimated Fuel Measurement تظهر على أنها تقديرية.
+
+11. Physical Count يظهر الفرق بدل إخفائه.
+
+12. Fuel Adjustment يحتاج Audit ولا يستخدم Direct Balance Edit.
+
+13. Negative Fuel Balance ممنوع حسب العقد Canonical.
+
+14. Fuel ليس Farmer Surcharge إضافيًا وفق ق-17 وق-91.
+
+15. Price changes تحفظ كتاريخ فعال.
+
+16. Session القديمة لا يعاد تسعيرها بسعر حديث.
+
+17. Diesel V1 يستخدم Inclusive Hourly فقط.
+
+18. `operation_plus_fuel` لا يظهر في Flutter.
+
+19. معالجة العقد القديم تتم في Migration 078+ إذا احتاجت DB.
+
+20. لا Minimum Billable Minutes ولا Billing Blocks.
+
+21. Pricing Pending لا تعرض Zero أو Guess.
+
+22. Reports تبدأ بفترة واضحة.
+
+23. الأرقام الأساسية محدودة ومفهومة.
+
+24. Reports تسمح Drill-down إلى سجلات المصدر.
+
+25. Flutter لا يعيد حساب Canonical report totals.
+
+26. Backend Read Models هي مصدر التقرير.
+
+27. Partner Reports تطبق صلاحية أقل البيانات اللازمة.
+
+28. Cached Report تعرض Last Sync.
+
+29. Chart ليست مصدر حقيقة مستقلًا.
+
+30. V1 تستخدم Bar وLine فقط.
+
+31. Pie/Donut/3D/Gauge/Radar/Heatmap مؤجلة.
+
+32. Owner Home لا تعرض Chart في V1.
+
+33. Reports Main تعرض Chart رئيسية واحدة.
+
+34. Irrigation Report تعرض Daily Billable Hours.
+
+35. Financial Report يمكن أن تقارن Collections وExpenses
+    لأنهما بنفس الوحدة.
+
+36. لا تخلط مقاييس مختلفة على Y Axis واحدة.
+
+37. Energy Report تعرض Time by Energy Source.
+
+38. Fuel Page يمكن أن تعرض Mini 7-day Consumption Chart.
+
+39. Pump Report تعرض Usage by Pump.
+
+40. Operator Report تعرض Sessions/Hours by Operator.
+
+41. Partner Profit View يمكن أن تعرض آخر 6 دورات للشريك نفسه.
+
+42. Chart interaction يعرض Exact Value.
+
+43. Drill-down يفتح Source Records عند الصلاحية.
+
+44. Offline Chart تعرض Staleness/Last Sync.
+
+45. Chart لا تعتمد على Color فقط.
+
+46. Flutter ترسم فقط ولا تقوم Business Aggregation.
+
+47. Backend يطبق Aggregation وAuthorization.
+
+48. Empty Data لا تتحول إلى Fake Zero Chart.
+
+49. V1 تستخدم Series واحدة افتراضيًا، واثنتين فقط عند
+    مقارنة مفيدة بنفس الوحدة.
+
+50. الرسوم تتبع Visual Identity الحالية.
+
+51. Timezone/Day Boundary للتقارير يحتاج Audit قبل Production.
+
+52. كل Reporting/Chart API جديد يمر عبر `api.*`.
+
+53. لا Direct DML.
+
+54. أي DB change يبدأ من Migration 078+.
+
+55. م-30 تمنع اعتبار UX-15 Production Complete.
+
+### لماذا لا Chart في الرئيسية؟
+
+UX-06 حسم أن الرئيسية:
+
+- موجز حالة.
+- تنبيهات.
+- مداخل أقسام.
+
+وأنها لا تعرض عددًا كبيرًا من الرسوم.
+
+كما أن Reports مدخل أساسي في Navigation.
+
+إضافة Chart إلى Home في V1 ستزيد كثافة الواجهة دون
+ضرورة تشغيلية، بينما Reports توفر مكانًا أفضل للتحليل.
+
+### البدائل المستبعدة
+
+**Dashboard مليء بالرسوم في الرئيسية:** مرفوض في V1
+لأنه يخالف أولوية البساطة.
+
+**Pie/3D/Gauge بكثرة:** مرفوض في V1 لأنه يزيد التعقيد
+ولا يحسن دقة القراءة المطلوبة.
+
+**حساب الرسم داخل Flutter من جداول متعددة:** مرفوض؛
+لأنه قد ينتج رقمًا مختلفًا عن التقرير Canonical.
+
+**Fuel Chart كFarmer Billing Chart:** مرفوض؛ الوقود
+تشغيلي/مخزني وليس Charge إضافية.
+
+### شرط الإغلاق
+
+لا يعتبر ق-100 منفذًا حتى يثبت:
+
+- well/pump safe contracts.
+- correct energy source reporting.
+- inclusive diesel pricing contract.
+- historical pricing.
+- fuel inventory correctness.
+- fuel reconciliation.
+- report read models.
+- chart aggregations.
+- role filtering.
+- timezone correctness.
+- offline/stale behavior.
+- chart accessibility.
+- Backend permanent tests.
 - Android field tests.

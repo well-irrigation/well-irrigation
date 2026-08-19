@@ -625,3 +625,56 @@ DECISION_IMPLEMENTATION_MATRIX.md.
 **القرار المبرر:** ق-99.
 
 **نوع الدفعة:** توثيقية فقط؛ Baseline الاختبارات لم يتغير.
+
+## تحديث 2026-08-19 — UX-15 / ق-100
+
+**المجال:** إدارة البئر والمضخات والطاقة والوقود والتسعير
+والتقارير والرسوم البيانية.
+
+**السبب:**
+
+اعتماد القرارات 460–510، ثم طلب المالك دراسة وتوظيف
+رسوم بيانية بسيطة تناسب النسخة الأولى وتحديد أماكنها،
+فأضيفت القرارات 511–526.
+
+**الملف الجديد:**
+
+- `technical/WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md`
+
+**الملفات المحدثة:**
+
+- `design/UX_UI_SPEC.md`
+- `design/VISUAL_IDENTITY.md`
+- `memory/DECISIONS.md`
+- `memory/OPEN_ISSUES.md`
+- `memory/PROGRESS.md`
+- `memory/RESUME_POINT.md`
+- `PROJECT_MAP.md`
+- `technical/API_ARCHITECTURE.md`
+- `technical/SYNC_ARCHITECTURE.md`
+- `technical/INVARIANTS.md`
+- `technical/DECISION_IMPLEMENTATION_MATRIX.md`
+
+**أهم ما ثبت:**
+
+- Pump = Equipment.
+- Modern Energy = Session Segments.
+- Well Fuel وFarmer Fuel منفصلان.
+- Fuel ليس Farmer Surcharge.
+- Pricing تاريخية.
+- Diesel V1 = Inclusive Hourly.
+- `operation_plus_fuel` لا يظهر في Flutter V1.
+- Reports تعتمد Backend Read Models.
+- V1 Charts = Bar + Line.
+- لا Chart في Owner Home V1.
+- Chart رئيسية واحدة في Reports.
+- Fuel Mini Chart فقط في سياق الوقود.
+- Partner Chart تعرض بيانات الشريك نفسه.
+- Chart تسمح Exact Value وDrill-down.
+- Offline Chart تعرض Last Sync.
+- لا Fake Zero Chart.
+- م-30 فتحت للفجوات التنفيذية.
+
+**القرار المبرر:** ق-100.
+
+**نوع الدفعة:** توثيقية فقط؛ Baseline الاختبارات لم يتغير.

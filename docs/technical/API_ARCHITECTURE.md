@@ -469,3 +469,44 @@ Typed `api.*` المطلوبة حسب الحاجة تشمل:
 8. كل Write حساس يشتق Actor من auth.
 9. Flutter لا Direct DML.
 10. أي تغيير DB جديد يبدأ من 078+.
+
+## ق-100 — Well, Fuel, Pricing and Reporting Contracts
+
+UX-15 تحتاج Typed Contracts داخل `api.*` لـ:
+
+- well summary/update.
+- pump list/detail/update.
+- fuel summary/history.
+- fuel physical count/adjustment.
+- pricing read/version.
+- report overview.
+- irrigation trend.
+- financial trend.
+- energy breakdown.
+- fuel trend.
+- pump usage.
+- operator usage.
+- partner own-profit trend.
+
+القواعد:
+
+1. Flutter لا تقرأ Reporting Internals مباشرة بوصفها
+   عقد UI دائمًا.
+
+2. Flutter لا تجمع Raw Tables لصناعة Total Canonical.
+
+3. Report Aggregation خادمية.
+
+4. Chart Series مشتقة من نفس Report Source of Truth.
+
+5. Partner projection Least Privilege.
+
+6. Pump state mutation تتحقق من Active Session.
+
+7. V1 pricing لا تكشف `operation_plus_fuel`.
+
+8. Actor/role يتحقق منه Backend.
+
+9. لا Direct DML.
+
+10. أي DB change جديد يبدأ من Migration 078+.

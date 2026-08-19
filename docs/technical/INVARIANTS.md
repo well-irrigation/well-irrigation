@@ -678,3 +678,91 @@ Commit جديدًا.
 300. UX-14 لا تعتبر Production Complete قبل إغلاق م-29.
 
 301. عدم تشغيل اختبارات جديدة لا يغير Baseline المثبت.
+
+## ق-100 — ثوابت إدارة البئر والتقارير والرسوم
+
+302. Well مستخدم تاريخيًا لا Hard Delete من Flutter.
+
+303. لا Unsafe Well/Pump transition مع Active Session.
+
+304. Pump هي Equipment وليست Session Energy Authority.
+
+305. Modern Energy Source = Session Segment.
+
+306. Pump Power Source Legacy fallback فقط.
+
+307. Maintenance/Retired Pump لا تستخدم عاديًا لعمل جديد.
+
+308. Well Fuel وFarmer Fuel لا يدمجان.
+
+309. Estimated Fuel Measurement لا توصف Actual.
+
+310. Fuel Physical Difference لا يخفى.
+
+311. Fuel Balance لا يعدل مباشرة لتسوية الفرق.
+
+312. Fuel Adjustment يحتاج Audit.
+
+313. Fuel لا يضاف Farmer Surcharge فوق Inclusive Hourly.
+
+314. Price changes تحفظ تاريخيًا.
+
+315. Historical Session لا يعاد تسعيرها بسعر مستقبلي.
+
+316. V1 Diesel Pricing = Inclusive Hourly.
+
+317. `operation_plus_fuel` لا يظهر في Flutter V1.
+
+318. لا Minimum Billable Minutes.
+
+319. Untrusted Offline Price = Pricing Pending.
+
+320. Report Totals تأتي من Backend Canonical Read Models.
+
+321. Report Drill-down يجب أن يطابق الرقم المصدر.
+
+322. Closed Session daily attribution تتبع End Day rule.
+
+323. Cached Report لا توصف Live.
+
+324. V1 Chart هي Presentation وليست Source of Truth.
+
+325. V1 Chart Types = Bar + Line فقط.
+
+326. لا Chart في Owner Home في V1.
+
+327. Reports Main تعرض Primary Chart واحدة في الوقت.
+
+328. Irrigation Chart تستخدم Daily Billable Hours.
+
+329. Financial Chart لا تخلط وحدات مختلفة في محور واحد.
+
+330. Energy Chart الحديثة تستخدم Session Segments.
+
+331. Fuel Mini Chart تعرض Consumption لا Farmer Billing.
+
+332. Partner Chart لا تسرب بيانات شريك آخر.
+
+333. Tap على Chart Element يعرض Exact Value.
+
+334. Chart Drill-down يخضع للصلاحية.
+
+335. Stale Chart تعرض Last Sync/As-of.
+
+336. Chart لا تعتمد على اللون وحده.
+
+337. Flutter لا تقوم Reporting Business Aggregation.
+
+338. Empty Report لا ينتج Fake Zero Chart.
+
+339. Server aggregation تستخدم لتجنب تحميل Raw Rows بلا حاجة.
+
+340. Reporting Timezone/Day Boundary يجب أن يكون صريحًا.
+
+341. Report API يخضع لنفس Role Authorization.
+
+342. أي DB change جديد يبدأ من Migration 078+.
+
+343. UX-15 لا تعتبر Production Complete قبل إغلاق م-30.
+
+344. عدم تشغيل اختبارات جديدة لا يغير Baseline المثبت.

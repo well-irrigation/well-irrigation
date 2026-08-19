@@ -90,6 +90,7 @@
 | ق-97 | Mandatory documentation completeness gate | `DOCUMENTATION_GATE.md` + governance protocol integration | documentation contract + Git closure | نافذ؛ لا Migration |
 | ق-98 | Operations records + farmers/farms + booking confirmation + shift handover consistency | 032/033/042/045/074/075 foundations موجودة؛ typed booking/history/handover/offline contracts ناقصة | `OPERATIONS_RECORDS_ARCHITECTURE.md` + م-28 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
 | ق-99 | Money + farmer accounts + expenses + partners + distributions + corrections | 035/044/047–053/056/061/068/073/074 foundations موجودة؛ financial reads/idempotency/corrections/rounding gaps باقية | `MONEY_PARTNERS_ARCHITECTURE.md` + م-27 + م-29 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
+| ق-100 | Well/Pump/Fuel/Pricing/Reports + V1 charts | 031/046/058/060/064/065/073/076 foundations موجودة؛ typed management/report/chart contracts ناقصة | `WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md` + م-30 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
 
 ## Stage 7 — التزامات UX-08 / ق-88
 
@@ -255,3 +256,22 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | Corrections | audit/accounting foundation | typed reversal/correction contracts |
 | Partner privacy | internal RLS foundation | least-privilege public projection |
 | M-29 | مفتوحة | must close |
+
+## Stage 7 — التزامات UX-15 / ق-100
+
+| المتطلب | الموجود | المتبقي قبل Production |
+| --- | --- | --- |
+| Well | core model | typed read/write + safe state transition |
+| Pumps | 076 equipment model | typed management contracts |
+| Energy | session segments | report/API projection |
+| Fuel | 046/055/061/073 | UI reads + reconciliation/idempotency |
+| Pricing | 031 + session pricing foundation | typed versioning + diesel conflict fix |
+| Daily reports | 060/065/076 | public typed report contracts |
+| Timezone | partial historical rules | explicit day-boundary contract |
+| Irrigation chart | source data exists | aggregated API series |
+| Financial chart | collections/expenses exist | aggregated API series |
+| Energy chart | segment data exists | aggregated API series |
+| Fuel chart | transactions exist | aggregated API series |
+| Pump/operator charts | underlying records exist | aggregated API series |
+| Partner chart | distribution data exists | private partner projection |
+| M-30 | مفتوحة | must close |

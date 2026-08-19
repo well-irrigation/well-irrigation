@@ -114,6 +114,14 @@
 - ق-99: Final Financial Actions Online only.
 - م-29: Financial Reads/Idempotency/Expense Skip Reason/
   Partner Privacy/Rounding/Corrections مفتوحة قبل Production.
+- ق-100: UX-15 توحد Well/Pumps/Energy/Fuel/Pricing/Reports.
+- ق-100: Modern Energy Source تأتي من Session Segments.
+- ق-100: Diesel V1 = Inclusive Hourly ولا يظهر
+  `operation_plus_fuel`.
+- ق-100: الرسوم في V1 = Bar/Line فقط ولا Chart في Home.
+- ق-100: Reports وCharts تأتي من Backend Aggregation.
+- م-30: Well/Pump/Pricing/Fuel/Reporting/Chart contracts
+  مفتوحة قبل Production.
 - م-25: تنفيذ Android Offline/Background Sync مفتوح وحرج.
 - م-26: Active Session Contract وFuel Billing consistency
   مفتوحة وحرجة قبل UX-11/UX-12 الإنتاجية.
@@ -207,8 +215,8 @@
   له بيانات مزارع مرتبطة بهويته صراحة.
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
-  UX-02/03/08/09/10/11/12/13/14
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99 غير منفذة؛
+  UX-02/03/08/09/10/11/12/13/14/15
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -235,31 +243,31 @@
 
 ## التالي
 
-**UX-15 — Well Management & Reports / إدارة البئر والتقارير.**
+**UX-16 — Account, Settings & Administration /
+الحساب والإعدادات والإدارة.**
 
-بعد إغلاق UX-14 ببوابة ق-97 أصبح المتبقي ثلاث مناقشات:
+بعد إغلاق UX-15 ببوابة ق-97 أصبح المتبقي مناقشتان:
 
-- UX-15: Well Management & Reports.
 - UX-16: Account, Settings & Administration.
 - UX-17: Final Cross-Cutting Review.
 
-UX-14 معتمدة حتى القرار 459.
+UX-15 معتمدة حتى القرار 526.
 
-ق-99 يحكم:
+ق-100 يحكم:
 
-- Farmer debt/advance separation.
-- explicit old-advance allocation.
-- payment visibility and receipts.
-- expenses and approvals.
-- partner share history.
-- profit distributions.
-- partner payouts.
-- accounting periods.
-- audited financial corrections.
-- Online authority للأفعال المالية النهائية.
+- Well/Pump management.
+- modern Session Energy truth.
+- Fuel inventory/reconciliation.
+- historical Pricing.
+- inclusive diesel pricing.
+- Reporting Read Models.
+- Simple V1 Bar/Line Charts.
+- no Chart on Owner Home V1.
+- Chart drill-down.
+- Offline/Stale reporting.
 
-م-25 وم-26 وم-27 وم-28 وم-29 والتنفيذ التقني المطلوب
-ما زال Pending.
+م-25 وم-26 وم-27 وم-28 وم-29 وم-30 والتنفيذ التقني
+المطلوب ما زال Pending.
 
 لا تغير أرقام Baseline إلا بدليل تحقق جديد.
 

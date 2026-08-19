@@ -487,3 +487,33 @@ Migration 075 ولا أي هجرة مطبقة سابقة.
 
 لم تنفذ Migration 078 ولم تشغل اختبارات قاعدة بيانات
 جديدة، لذلك يبقى Baseline التقني السابق دون تغيير.
+
+## 2026-08-19 — اعتماد وتوثيق UX-15 / ق-100
+
+**المنجز المثبت في هذه الدفعة التوثيقية:**
+
+- اعتماد UX-15 من القرار 460 إلى 526.
+- توثيق Well Management UX.
+- توثيق Pump Equipment UX.
+- إعادة تأكيد Session Segments كمصدر Energy الحديث.
+- توثيق Fuel Inventory/Physical Count/Reconciliation UX.
+- إعادة تأكيد أن Fuel ليس Farmer Surcharge.
+- توثيق Historical Pricing.
+- حجب `operation_plus_fuel` عن V1 UX.
+- توثيق Reporting UX.
+- اعتماد Simple Charts للنسخة الأولى.
+- اعتماد Bar وLine فقط في V1.
+- اعتماد عدم وضع Chart في Owner Home في V1.
+- تحديد Chart Locations.
+- توثيق Drill-down وExact Values.
+- توثيق Offline/Stale Chart behavior.
+- ربط Chart Data بـBackend Aggregation.
+- تحديث Visual Identity للرسوم.
+- إنشاء `WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md`.
+- فتح م-30.
+- تحديد UX-16 كنقطة العمل التالية.
+
+هذه دفعة توثيقية فقط.
+
+لم تنفذ Migration 078 ولم تشغل اختبارات قاعدة بيانات
+جديدة، لذلك يبقى Baseline التقني السابق دون تغيير.

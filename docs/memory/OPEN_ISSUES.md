@@ -636,3 +636,81 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - Offline unknown-delivery reconciliation.
 - no Direct DML verification.
 - Android process-death/retry tests.
+
+---
+
+## م-30 — Well Configuration, Pricing, Fuel & Reporting Consistency
+
+**الحالة:** مفتوحة — 2026-08-19
+**القرار الحاكم:** ق-100
+**UX:** UX-15
+**الأولوية:** حرجة قبل UX-15 الإنتاجية
+
+### الأساس الموجود
+
+- Pump equipment model موجود في 076.
+- Session Segments هي Energy Authority الحديثة.
+- Fuel Tanks/Transactions موجودة.
+- Price Schedules/Rules موجودة.
+- Reporting Views موجودة.
+- Well Daily Summary موجودة.
+- API foundation موجودة.
+
+### الفجوات
+
+1. Well/Pump typed read/write contracts للواجهة تحتاج
+   استكمالًا.
+
+2. Safe state transition للبئر والمضخة مع Active Session
+   يحتاج عقدًا مثبتًا.
+
+3. `operation_plus_fuel` ما زال موجودًا في Price Rules
+   القديمة رغم أن V1 تعتمد Inclusive Hourly.
+
+4. Price version/snapshot contracts المطلوبة للواجهة
+   تحتاج إثباتًا أو استكمالًا.
+
+5. Fuel Read Models المطلوبة للواجهة ناقصة.
+
+6. Fuel adjustment/reconciliation typed contract يحتاج
+   إثباتًا أو تنفيذًا.
+
+7. Fuel Offline Command Idempotency غير مكتملة.
+
+8. Reporting `api.*` Read Models الخاصة بـFlutter ناقصة.
+
+9. Chart aggregation contracts غير موجودة بعد كعقد عام
+   للواجهة.
+
+10. Timezone/Day Boundary في التقارير يحتاج Audit صريحًا.
+
+11. Partner report projection يحتاج Least Privilege.
+
+12. Stale/Offline report metadata يحتاج عقدًا واضحًا.
+
+### الرسوم المطلوبة في V1
+
+- Irrigation hours by day.
+- Collections vs expenses.
+- Energy hours by source.
+- Fuel consumption trend.
+- Pump usage.
+- Operator usage.
+- Partner own-profit trend.
+
+### لا تغلق قبل
+
+- well/pump transition tests.
+- modern energy attribution tests.
+- legacy fallback tests.
+- inclusive diesel contract tests.
+- historical price tests.
+- fuel balance/reconciliation tests.
+- fuel retry/idempotency tests.
+- timezone report tests.
+- report/source-total reconciliation.
+- chart-series tests.
+- partner privacy tests.
+- Offline/Stale tests.
+- no Direct DML verification.
+- Android rendering/field tests.

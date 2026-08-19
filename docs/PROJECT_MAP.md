@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-99.
+آخر قرار مرقم حاليًا: ق-100.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -173,6 +173,7 @@
 - UX-12 / Session Completion & Settlement: معتمد وموثق.
 - UX-13 / Operations, Records & Farmers: معتمد وموثق.
 - UX-14 / Money & Partners: معتمد وموثق.
+- UX-15 / Well Management & Reports: معتمد وموثق.
 - ق-88 / Smart Lookup ودعم منع التكرار: معتمد.
 - ق-89 / Offline Field Operations وBackground Sync: معتمد.
 - ق-90 / Device Readiness وSync Transparency: معتمد.
@@ -181,7 +182,7 @@
 
 الخطوة التالية:
 
-UX-15 / Well Management & Reports.
+UX-16 / Account, Settings & Administration.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -486,3 +487,31 @@ UX-15 / Well Management & Reports.
 - م-29.
 
 ق-99 تكمل ولا تستبدل ق-92 وم-27 في Session Settlement.
+
+### إدارة البئر والتقارير والرسوم
+
+القرار:
+
+ق-100.
+
+المصدر التقني:
+
+`technical/WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md`
+
+يغطي:
+
+- Well/Pump configuration.
+- Session Energy Authority.
+- Fuel Inventory.
+- Historical Pricing.
+- Reporting Read Models.
+- V1 Bar/Line Charts.
+- chart locations.
+- drill-down.
+- Offline/Stale reports.
+- report authorization.
+- م-30.
+
+المصدر البصري للرسوم:
+
+`design/VISUAL_IDENTITY.md`.

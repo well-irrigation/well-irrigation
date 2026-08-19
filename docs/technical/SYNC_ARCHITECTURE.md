@@ -513,3 +513,48 @@ Canonical لا Payment ثانية.
 - posted financial correction.
 
 يمكن عرض Cached State Offline مع بيان Last Sync.
+
+## ق-100 — Well/Fuel/Report Offline Rules
+
+### Well/Pump configuration
+
+الإعدادات الإدارية الحساسة ليست Offline-first تلقائيًا.
+
+إذا كان التغيير قد يؤثر على Active Operation:
+
+يحتاج Canonical Server validation.
+
+### Fuel
+
+الحركات الميدانية المسموحة Offline تتبع:
+
+- local durable.
+- Outbox.
+- Stable Command ID.
+- retry-safe acceptance.
+
+Physical Count/Adjustment يحتاجان Reconciliation واضحًا.
+
+### Pricing
+
+Trusted cached Price Snapshot يمكن استخدامها وفق
+القواعد السابقة.
+
+عدم وجود Trusted Snapshot:
+
+    Pricing Pending
+
+### Reports
+
+Cached Report يجب أن يحمل:
+
+- period.
+- generated/as-of time.
+- last sync metadata.
+
+### Charts
+
+Chart Cached لا توصف Live.
+
+Chart Data يعاد رسمها من Canonical Cached Report Series
+ولا يعاد حساب Business Total بصورة منفصلة.
