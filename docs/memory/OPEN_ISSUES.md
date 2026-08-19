@@ -1058,3 +1058,50 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 - security monitoring tests.
 - no-secret logging tests.
 - permanent backend/web tests.
+
+---
+
+## م-36 — Cross-Cutting UX Implementation Consistency
+
+**الحالة:** مفتوحة — 2026-08-19
+**القرار الحاكم:** ق-108
+**UX:** UX-17
+**الأولوية:** حرجة قبل Production UI completion
+
+### المطلوب إثباته
+
+- role-aware navigation consistency.
+- current-well context safety.
+- canonical terminology.
+- Offline/Sync state consistency.
+- item-level pending state for critical records.
+- duplicate-submit prevention.
+- form input preservation.
+- errors and confirmation.
+- stale/cache presentation.
+- Smart Lookup consistency.
+- financial confirmation.
+- dangerous-action hierarchy.
+- 48dp Android touch targets.
+- RTL.
+- font scaling.
+- semantic labels.
+- no color-only status.
+- adaptive layouts.
+- notification deep linking/dedup.
+- support/error-reference safety.
+- privacy-safe UI.
+- no placeholder actions.
+
+### لا تغلق قبل
+
+- Android acceptance coverage.
+- Web Admin acceptance coverage.
+- role matrix verification.
+- offline/reconnect verification.
+- retry/idempotency UX verification.
+- accessibility verification.
+- RTL verification.
+- financial/sensitive-action verification.
+- error/empty/loading/stale verification.
+- implementation evidence.

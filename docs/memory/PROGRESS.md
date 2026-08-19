@@ -710,3 +710,37 @@ Baseline الاختبارات لم يتغير.
 لم تنفذ Migration 078+ أو Monitoring/Admin APIs جديدة.
 
 Baseline الاختبارات لم يتغير.
+
+## 2026-08-19 — اعتماد UX-17 / ق-108
+
+**دفعة توثيقية فقط.**
+
+تم:
+
+- اعتماد Final Cross-Cutting UX Review.
+- اجتياز UX17 Research & Standards Gate.
+- تثبيت canonical Offline/Sync user terminology.
+- فصل connectivity عن sync state.
+- اعتماد honest local/server success messaging.
+- اعتماد stable connectivity/status placement.
+- اعتماد item-level sync state للسجلات الحرجة.
+- اعتماد form preservation.
+- اعتماد clear error/confirmation states.
+- اعتماد duplicate-submit prevention.
+- إعادة تأكيد financial/sensitive review.
+- اعتماد Loading/Empty/Error/Denied/Stale separation.
+- اعتماد Android 48dp touch targets.
+- اعتماد RTL/font scaling/accessibility semantics.
+- اعتماد adaptive navigation/layout.
+- اعتماد notification/support/privacy consistency.
+- اعتماد back/context-switch safety.
+- إنشاء `FINAL_CROSS_CUTTING_UX_ARCHITECTURE.md`.
+- فتح م-36.
+- إصلاح malformed ق-107 text في RESUME_POINT.
+- إغلاق UX-00..UX-17 تصميميًا.
+- إبقاء PA-01..PA-04 Design Complete.
+- تحديد IMPLEMENTATION-01 كنقطة العمل التالية.
+
+لم تنفذ Production UI أو Migration جديدة.
+
+Baseline الاختبارات لم يتغير.

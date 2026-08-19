@@ -714,3 +714,72 @@ Version/maintenance state يجب أن تدخل Reconciliation
 
 Technical monitoring لا يدعي معرفة command لم تصل
 إلى الخادم.
+
+## ق-108 — Canonical User-facing Sync Semantics
+
+Cross-cutting UI terminology must map consistently to actual
+sync state.
+
+### Local durable
+
+The operation is safely stored locally.
+
+User message:
+
+    محفوظ على الجهاز
+
+### Pending
+
+Local operation is not yet server-confirmed.
+
+User message:
+
+    بانتظار المزامنة
+
+### Confirmed
+
+Server accepted/reconciled operation.
+
+User message:
+
+    تمت المزامنة
+
+### Needs review
+
+Server/client reconciliation requires attention.
+
+User message:
+
+    يحتاج مراجعة
+
+### Failed
+
+Known attempt cannot currently succeed without retry/action.
+
+Use understandable explanation.
+
+### Connectivity
+
+`offline` describes connectivity/readiness.
+
+It does not equal `pending`, `failed` or `conflict`.
+
+### UI stability
+
+Short connectivity transitions should not cause repeated
+page reflow/banner bouncing.
+
+### Critical record state
+
+Where business impact matters, state can be attached to the
+specific Session/Booking/Payment/Command rather than only a
+global icon.
+
+### Local reads
+
+Valid local data remains visible during background refresh.
+
+### Pending preservation
+
+Back navigation/logout/context changes cannot silently
+destroy pending critical operations.

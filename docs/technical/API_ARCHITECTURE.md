@@ -743,3 +743,54 @@ PA-04 تحتاج Trusted Contracts مثل:
 9. Large lists use server-side pagination/filter/sort.
 
 10. New DB objects begin Migration 078+.
+
+## ق-108 — Cross-Cutting UX Contract Requirements
+
+Backend/API contracts must expose enough state for UI to
+distinguish:
+
+- locally pending versus server accepted where applicable.
+- confirmed.
+- rejected.
+- conflict.
+- needs review.
+- stale/fresh read metadata where required.
+
+### Errors
+
+Public API errors should support:
+
+- stable error class/code.
+- safe user message mapping.
+- Error/Correlation Reference.
+- retryability where useful.
+
+Do not require UI to parse DB exception strings.
+
+### Sensitive actions
+
+Contracts for financial/historical/sensitive operations must
+provide current state/version necessary for review and
+confirmation integrity.
+
+### Idempotency
+
+Retry-sensitive APIs expose/use stable operation identity.
+
+### Read models
+
+UI should consume typed read models rather than rebuilding
+critical financial/role/session truth independently.
+
+### Permissions
+
+UI visibility is not authorization.
+
+Backend remains authority.
+
+### Adaptive clients
+
+API does not encode presentation assumptions tied to one
+screen size.
+
+Any DB change starts from Migration 078+.

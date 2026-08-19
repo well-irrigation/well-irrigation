@@ -1,6 +1,6 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-107
+**آخر قرار مرقّم:** ق-108
 **آخر تحديث:** 2026-08-19
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
@@ -4754,3 +4754,126 @@ V1:
 - telemetry privacy.
 - security monitoring.
 - permanent tests.
+
+---
+
+## ق-108 — الاتساق النهائي لتجربة المستخدم وإغلاق التصميم
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد وموثق؛ التنفيذ Pending.
+- **UX:** UX-17.
+- **Research & Standards Gate:** PASS.
+- **المصدر التقني:**
+  `technical/FINAL_CROSS_CUTTING_UX_ARCHITECTURE.md`.
+- **المسألة المفتوحة:** م-36.
+
+### الهدف
+
+ق-108 لا تضيف Feature كبيرة جديدة.
+
+تغلق Cross-cutting inconsistencies قبل التنفيذ.
+
+### القواعد الرئيسية
+
+1. نفس Business Concept يستخدم نفس terminology.
+
+2. Arabic RTL + English digits/date-time policy تبقى ثابتة.
+
+3. Current Well context واضح عندما يمكن حدوث خطأ Cross-Well.
+
+4. No Role Picker.
+
+5. Platform Admin UX منفصلة.
+
+6. Offline/Connectivity/Sync حالات مختلفة.
+
+7. Local durable save لا يسمى Server sync.
+
+8. Pending/Confirmed/Conflict/Needs Review/Failed
+   حالات واضحة.
+
+9. Critical record يمكن أن يعرض Item-level sync state.
+
+10. Connectivity indicators لا تسبب Layout bouncing.
+
+11. Forms تحفظ valid input عند validation/network errors.
+
+12. Error messages تعطي next action ولا تعرض raw internals.
+
+13. Important success يعرض outcome/reference/next step
+    عند الانطباق.
+
+14. Retry/duplicate tap لا يكرر Business Operation.
+
+15. Sensitive financial/data action reviewed before finalize.
+
+16. Whole YER and explicit financial semantics remain.
+
+17. Posted history uses correction flows, not normal editing.
+
+18. Smart Lookup and canonical UUID selection remain global.
+
+19. Loading/Empty/Error/Denied/Stale states منفصلة.
+
+20. Local readable data لا تحجب بـblocking network refresh.
+
+21. Minimum Android touch target = 48×48dp.
+
+22. No color-only meaning.
+
+23. Font scaling and semantic labels required.
+
+24. RTL native layout required.
+
+25. Adaptive navigation/layout by available window size.
+
+26. Notification is not Source of Truth.
+
+27. Support/error references share safe context only.
+
+28. No placeholder production buttons.
+
+29. One clear primary action on critical screens.
+
+30. Dangerous actions separated visually.
+
+31. Back/context switching cannot silently lose critical work.
+
+### Real-user sync feedback
+
+Research identified repeated real-world confusion from:
+
+- ambiguous sync/offline icons.
+- stale data shown with success-like indicator.
+- unclear one-time download versus sync semantics.
+- unstable offline banners moving UI.
+
+Project response:
+
+- explicit Arabic state text.
+- stable status placement.
+- separate connectivity/sync states.
+- item-level state where critical.
+
+### Design closure
+
+After ق-108:
+
+- UX-00..UX-17 are Design Complete.
+- PA-01..PA-04 are Design Complete.
+
+This means documentation/design is complete.
+
+It does **not** mean Backend/Android/Web implementation is complete.
+
+### Next
+
+`IMPLEMENTATION-01 — V1 Implementation Sequencing & Dependency Plan`.
+
+Implementation ordering must follow dependencies and
+critical open issues rather than UX numbering alone.
+
+### شرط الإغلاق التنفيذي
+
+ق-108 لا تعتبر Production Implemented حتى م-36 تغلق
+وتثبت Cross-cutting acceptance across implemented screens.

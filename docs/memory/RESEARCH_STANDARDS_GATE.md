@@ -768,3 +768,126 @@ Deferred/rejected V1:
 Result:
 
     PA04_RESEARCH_STANDARDS_GATE=PASS
+
+## 20. UX-17 Evidence Review — 2026-08-19
+
+### Android Offline-first Architecture
+
+URL:
+
+https://developer.android.com/topic/architecture/data-layer/offline-first
+
+Supports:
+
+- local source for offline-first reads.
+- explicit write-strategy classification.
+- durable local writes for critical offline behavior.
+- synchronization/reconciliation.
+
+### Android Data Layer
+
+URL:
+
+https://developer.android.com/topic/architecture/data-layer
+
+Supports:
+
+- explicit source of truth.
+- separation of data/business logic from UI.
+
+### Android Accessibility
+
+URL:
+
+https://developer.android.com/guide/topics/ui/accessibility/apps
+
+Supports:
+
+- minimum 48×48dp touch targets.
+- accessible semantic descriptions.
+
+### Android Adaptive Navigation
+
+URL:
+
+https://developer.android.com/design/ui/mobile/guides/layout-and-content/layout-and-nav-patterns
+
+Supports:
+
+- navigation adapting to available window size.
+
+### WCAG 2.2
+
+URL:
+
+https://www.w3.org/TR/WCAG22/
+
+Supports:
+
+- predictable navigation.
+- financial/data error prevention.
+- review/confirm/correct.
+- focus/status/accessibility requirements.
+
+### GOV.UK Confirmation Pattern
+
+URL:
+
+https://design-system.service.gov.uk/patterns/confirmation-pages/
+
+Supports:
+
+- explicit completion.
+- reference when relevant.
+- what happens next.
+
+### ONS Error/Status Pattern
+
+URL:
+
+https://service-manual.ons.gov.uk/design-system/patterns/error-status-pages
+
+Supports:
+
+- clear problem explanation.
+- next action.
+- no technical jargon/user blame.
+
+### Real User Feedback — Nextcloud Android
+
+URLs:
+
+https://github.com/nextcloud/android/issues/208
+https://github.com/nextcloud/android/issues/3349
+
+Observed:
+
+- unclear sync icons/terminology.
+- users could not tell offline/download/sync state.
+- stale/out-of-sync state could be misinterpreted.
+
+### Real User Feedback — Element X Android
+
+URL:
+
+https://github.com/element-hq/element-x-android/issues/5567
+
+Observed:
+
+- repeatedly appearing offline/status UI can be
+  distracting and move page content.
+
+### UX-17 project adaptation
+
+Therefore:
+
+- explicit Arabic sync text.
+- connectivity separated from sync.
+- stable status placement.
+- local-save versus server-confirmation language.
+- record-level state for critical records.
+- no blocking refresh when valid local data exists.
+
+Result:
+
+    UX17_RESEARCH_STANDARDS_GATE=PASS

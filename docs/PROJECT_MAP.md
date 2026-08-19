@@ -38,7 +38,7 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-107.
+آخر قرار مرقم حاليًا: ق-108.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -760,3 +760,57 @@ Current V1 commerce:
 UX-17 / Final Cross-Cutting Review.
 
 UX-17 تخضع لق-104 قبل اعتمادها.
+
+### UX-17 — Final Cross-Cutting Review
+
+القرار:
+
+ق-108.
+
+المصدر:
+
+`technical/FINAL_CROSS_CUTTING_UX_ARCHITECTURE.md`
+
+يغطي:
+
+- terminology consistency.
+- role/well context safety.
+- Offline/Sync semantics.
+- form/error/success consistency.
+- financial/sensitive confirmation.
+- Smart Lookup consistency.
+- loading/empty/error/stale states.
+- accessibility.
+- RTL/font scaling.
+- adaptive layout.
+- notification/support/privacy.
+- navigation/back/context-switch safety.
+- م-36.
+
+### UX Design Status
+
+UX-00..UX-17:
+
+**مكتملة تصميميًا.**
+
+PA-01..PA-04:
+
+**مكتملة تصميميًا.**
+
+هذا لا يعني أن Production UI منفذة.
+
+### Next
+
+IMPLEMENTATION-01 / V1 Implementation Sequencing &
+Dependency Plan.
+
+يجب أن يرتب التنفيذ حسب:
+
+- dependency.
+- data integrity.
+- security.
+- Offline foundations.
+- user-critical flow.
+- testability.
+
+وليس حسب رقم UX فقط.

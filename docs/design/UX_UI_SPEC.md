@@ -10142,16 +10142,529 @@ Incident Consistency.**
 
 ---
 
-## 20. نقطة المناقشة التالية
+# UX-17 — Final Cross-Cutting Review
+# المراجعة الشاملة النهائية
 
-**UX-17 — Final Cross-Cutting Review /
-المراجعة الشاملة النهائية لتجربة المستخدم والمعمارية.**
+**الحالة:** معتمدة — 2026-08-19
+**القرار الحاكم:** ق-108
+**المسألة المفتوحة:** م-36
+**Research & Standards Gate:** PASS
 
-Platform Administration أصبحت مكتملة تصميميًا:
+---
 
-- PA-01.
-- PA-02.
-- PA-03.
-- PA-04.
+## UX-17-01 — One Product Language
 
-لكن تنفيذها ما زال Pending وفق المسائل المفتوحة.
+نفس Business Concept يستخدم نفس الاسم في جميع الشاشات.
+
+لا نستخدم عدة أسماء لعملية واحدة دون سبب.
+
+## UX-17-02 — Arabic-first
+
+واجهة V1 عربية RTL.
+
+Technical English لا يظهر للمستخدم العادي إلا إذا كان
+مصطلحًا ضروريًا أو في شاشة إدارية تقنية مناسبة.
+
+## UX-17-03 — English Digits
+
+الأرقام المعروضة تستخدم English digits وفق القرارات السابقة.
+
+## UX-17-04 — English Date/Time Presentation
+
+User-facing date/time تتبع القاعدة الإنجليزية المعتمدة.
+
+## UX-17-05 — Current Well Context
+
+عندما يكون المستخدم داخل Well Scope:
+
+اسم البئر الحالي يكون واضحًا.
+
+لا ينفذ المستخدم عملًا على Well مختلفة بسبب Context غامض.
+
+## UX-17-06 — No Role Picker
+
+لا شاشة «اختر دورك».
+
+الحساب واحد، والواجهة تتكيف مع العلاقات الفعلية.
+
+## UX-17-07 — Platform Admin Separate
+
+Platform Admin Console لا تختلط بواجهات Owner/Operator/Partner.
+
+---
+
+## UX-17-08 — Offline Does Not Mean Broken
+
+غياب الإنترنت لا يحول التطبيق الميداني إلى Error Screen.
+
+## UX-17-09 — Local-first Presentation
+
+الواجهة الميدانية تقرأ الحالة المحلية المتاحة فورًا
+وفق Offline Architecture.
+
+## UX-17-10 — Canonical Sync Vocabulary
+
+الحالات الأساسية المفهومة للمستخدم:
+
+- محفوظ على الجهاز.
+- بانتظار المزامنة.
+- تمت المزامنة.
+- يحتاج مراجعة.
+- تعذر الإرسال/المزامنة.
+
+لا تستخدم Icons وحدها لتحديد هذه الحالات.
+
+## UX-17-11 — Connectivity ≠ Sync
+
+Online/Offline وSync Status حالتان مختلفتان.
+
+## UX-17-12 — Background Sync ≠ Notification Permission
+
+رفض Notification Permission لا يعني أن البيانات لم تحفظ.
+
+## UX-17-13 — Pending Is Visible
+
+عندما توجد Business Operation غير مؤكدة خادميًا:
+
+تظهر حالتها المناسبة ولا تقدم كServer-confirmed.
+
+## UX-17-14 — No Bouncing Offline UI
+
+Connectivity/Sync status لا تغير Layout بصورة متكررة
+ومزعجة عند تقلب الشبكة.
+
+استخدم مساحة ثابتة/غير مزعجة للحالة عند الحاجة.
+
+## UX-17-15 — Item-level Status for Critical Records
+
+Session/Payment/Booking/Command الحرجة تستطيع إظهار
+حالة المزامنة الخاصة بها عندما يحتاج المستخدم فهمها.
+
+## UX-17-16 — Conflict Is Actionable
+
+Conflict لا يظهر ككلمة تقنية فقط.
+
+يعرض:
+
+- ما المشكلة؟
+- ما السجل المتأثر؟
+- ماذا يستطيع المستخدم فعله؟
+
+---
+
+## UX-17-17 — Preserve User Input
+
+Validation/Network Error لا يمحو Form Input الصالح بلا سبب.
+
+## UX-17-18 — Required versus Optional
+
+الحقول الإلزامية والاختيارية واضحة.
+
+## UX-17-19 — Inline Error Guidance
+
+الخطأ يظهر قرب الحقل أو الإجراء المتأثر مع طريقة التصحيح.
+
+لا يكتفى بـ:
+
+    خطأ
+
+## UX-17-20 — No User Blame
+
+Error messages لا تلوم المستخدم.
+
+## UX-17-21 — No Raw Technical Error
+
+لا SQL/Postgres/HTTP stack trace للمستخدم العادي.
+
+يمكن إظهار Error Reference آمن.
+
+## UX-17-22 — Double Submit Prevention
+
+ضغط الزر عدة مرات لا ينشئ العملية نفسها عدة مرات.
+
+## UX-17-23 — Preserve Pending Operation Identity
+
+Retry للعملية نفسها يستخدم نفس Business/Command Identity
+وفق العقد التقني.
+
+---
+
+## UX-17-24 — Honest Success
+
+لا تظهر «تمت المزامنة» قبل Server confirmation.
+
+## UX-17-25 — Offline Durable Success Language
+
+في عملية Offline-safe:
+
+يمكن عرض:
+
+    تم الحفظ على الجهاز
+    وستتم المزامنة عند توفر الاتصال
+
+ولا نستخدم:
+
+    تم الحفظ على الخادم
+
+قبل حدوثه.
+
+## UX-17-26 — Online-only Success
+
+العملية Online-only لا تعرض Final Success قبل Server ACK.
+
+## UX-17-27 — Important Confirmation Result
+
+بعد العملية المهمة يعرض عند الانطباق:
+
+- ماذا تم؟
+- Reference.
+- الحالة.
+- ماذا يحدث بعد ذلك؟
+
+## UX-17-28 — Failure versus Needs Review
+
+Failed وNeeds Review حالتان مختلفتان.
+
+Needs Review لا تقدم كفشل نهائي.
+
+---
+
+## UX-17-29 — Financial Review Before Finalize
+
+قبل العملية المالية/التاريخية الحساسة:
+
+يعرض Summary للمراجعة.
+
+## UX-17-30 — Significant Data
+
+Summary تعرض حسب العملية:
+
+- Well.
+- person/farmer/partner.
+- amount.
+- duration.
+- current state.
+- requested state.
+- impact.
+
+## UX-17-31 — Whole YER
+
+المبالغ المالية تعرض Whole YER وفق ق-77.
+
+## UX-17-32 — No Ambiguous Financial Signs
+
+Debt/Advance/Payment/Expense تعرض بتسمية واضحة.
+
+لا يعتمد المستخدم على `+` و`-` وحدهما لفهم المعنى.
+
+## UX-17-33 — Historical Correction
+
+السجل المرحل لا يظهر للمستخدم كEditable normal field.
+
+التصحيح يظهر كإجراء مستقل.
+
+## UX-17-34 — Dangerous Actions Are Distinct
+
+Suspend/Revoke/Delete-like/Correction actions لا توضع
+بجوار Primary Save بطريقة تؤدي إلى لمسها بالخطأ.
+
+---
+
+## UX-17-35 — Smart Lookup Everywhere
+
+اختيار Person/Farmer/Farm/Well/Partner/Operator يستخدم
+Smart Lookup الموحد عند انطباقه.
+
+## UX-17-36 — Canonical Selection
+
+اختيار Search Result يربط UUID/Canonical Entity.
+
+لا يحفظ نص البحث كEntity جديدة تلقائيًا.
+
+## UX-17-37 — Disambiguation
+
+عند تشابه النتائج يعرض معلومات كافية للتمييز.
+
+مثال:
+
+- الاسم.
+- الهاتف الجزئي المسموح.
+- Well.
+- العلاقة.
+
+## UX-17-38 — No Silent Merge
+
+البحث أو التشابه لا يدمج Identity تلقائيًا.
+
+---
+
+## UX-17-39 — Loading ≠ Empty ≠ Error
+
+كل شاشة تفرق بين:
+
+- Loading.
+- Empty.
+- Error.
+- Access denied.
+- Stale/Cached when relevant.
+
+## UX-17-40 — Local Data Avoids Unnecessary Blocking
+
+إذا توجد بيانات محلية صالحة:
+
+لا نغطي الشاشة بـBlocking Spinner أثناء Refresh خلفي.
+
+## UX-17-41 — Empty State Explains Next Step
+
+Empty State تقول للمستخدم ماذا يعني الفراغ وما الذي
+يمكن فعله عند وجود Action.
+
+## UX-17-42 — Error State Gives Next Action
+
+Error مهمة توفر واحدًا أو أكثر من:
+
+- Retry.
+- continue offline.
+- contact support.
+- Error Reference.
+
+وفق نوع المشكلة.
+
+## UX-17-43 — Stale State Is Honest
+
+البيانات القديمة لا تقدم بوصفها Live.
+
+يظهر Last Update عندما تكون freshness مهمة.
+
+---
+
+## UX-17-44 — Minimum Android Touch Target
+
+كل Interactive field control يستهدف حدًا أدنى 48×48dp.
+
+للعمليات الميدانية الحرجة يمكن أن تكون Controls أكبر.
+
+## UX-17-45 — No Color-only Meaning
+
+Status/Warning/Error/Success تستخدم Text/Icon إلى جانب اللون.
+
+## UX-17-46 — Font Scaling
+
+الواجهة تحترم Android text scaling ولا تقص البيانات
+المهمة عند التكبير المعقول.
+
+## UX-17-47 — Accessible Labels
+
+Icon-only action تحتاج semantic label/description.
+
+## UX-17-48 — RTL Native
+
+Layouts تستخدم Start/End semantics ولا تعتمد على
+Left/Right بصورة تكسر RTL.
+
+## UX-17-49 — Adaptive Navigation
+
+Compact Android:
+
+النمط المحمول المعتمد.
+
+Medium/Large:
+
+يمكن استخدام Rail/Drawer/Layout adaptive بدل تمديد
+Bottom Navigation بصورة غير مناسبة.
+
+Platform Admin Web تبقى منفصلة بتصميم Desktop-first.
+
+## UX-17-50 — No Gesture-only Critical Action
+
+لا توجد عملية حرجة لا يمكن تنفيذها إلا Swipe/Gesture
+غير ظاهر.
+
+---
+
+## UX-17-51 — Notification Deep Link
+
+Notification القابلة للإجراء تفتح Context المناسب.
+
+## UX-17-52 — Notification Is Not Source of Truth
+
+عدم وصول Push لا يلغي Business State.
+
+التطبيق/Backend هما المرجع.
+
+## UX-17-53 — Notification Dedup
+
+لا Spam للحدث نفسه.
+
+## UX-17-54 — Security Event Visibility
+
+أحداث الأمان المهمة يمكن رؤيتها داخل التطبيق/الإدارة
+ولا تعتمد فقط على Push.
+
+---
+
+## UX-17-55 — Safe Support Context
+
+الدعم يستطيع مشاركة:
+
+- app version.
+- well code.
+- error reference.
+- sync state.
+
+ولا يشارك Secrets.
+
+## UX-17-56 — Privacy by Default
+
+لا يظهر Full Phone/Financial Detail في أماكن لا تحتاجها.
+
+## UX-17-57 — Logs/Telemetry Are Not UI
+
+Technical telemetry لا تعرض للمستخدم العادي.
+
+---
+
+## UX-17-58 — V1 Scope Discipline
+
+الميزة المؤجلة لا تظهر كزر غير عامل أو «قريبًا» في مسار
+العمل الأساسي إلا لسبب منتج واضح.
+
+## UX-17-59 — No Placeholder Production Actions
+
+لا Production Button دون Contract حقيقي خلفه.
+
+## UX-17-60 — Backend Authority Remains
+
+UI لا تصبح Authorization Authority أو Financial Truth
+بسبب تصميم بصري.
+
+---
+
+## UX-17-61 — Consistent Primary Action
+
+في Forms المتشابهة:
+
+مكان وأسلوب Primary Action يبقيان متوقعين قدر الإمكان.
+
+## UX-17-62 — One Primary Action
+
+لا عدة أزرار متساوية بصريًا تتنافس على القرار الأساسي
+في الشاشة الحرجة.
+
+## UX-17-63 — Back Navigation Safety
+
+Back لا يمحو Draft/critical input بصمت.
+
+عند وجود Unsaved Critical Data:
+
+يحفظ Draft عندما يسمح العقد أو يحذر المستخدم.
+
+## UX-17-64 — Context Switching Safety
+
+تغيير Well/Account/Role Context لا ينفذ بينما هناك
+Operation حرجة غير محسومة دون تحذير أو حسم مناسب.
+
+---
+
+## UX-17-65 — Design Gate Closure
+
+بعد ق-108:
+
+UX-00 إلى UX-17 وPA-01 إلى PA-04 مكتملة تصميميًا.
+
+هذا لا يعني Implemented.
+
+أي Production UI يجب أن تتبع:
+
+- UX_UI_SPEC.
+- VISUAL_IDENTITY.
+- technical architecture.
+- invariants.
+- Research & Standards Gate.
+
+---
+
+## Research & Standards Classification
+
+### Standards-aligned
+
+- clear system status.
+- error prevention/review for financial/data actions.
+- accessible touch targets.
+- no color-only meaning.
+- adaptive navigation.
+- error guidance.
+- honest success state.
+- local-first offline presentation.
+
+### Adapted for this project
+
+- explicit Arabic sync vocabulary.
+- Offline banner stability.
+- item-level sync state for critical irrigation records.
+- preserving field work during degraded connectivity.
+- separate Platform Admin UX.
+
+### Real-user feedback incorporated
+
+Public feedback from offline/sync products shows recurring
+confusion when:
+
+- one icon has unclear sync meaning.
+- offline and synced states look too similar.
+- stale data appears with a success/check indicator.
+- connectivity banners repeatedly appear/disappear and
+  move screen content.
+
+Project response:
+
+Use explicit state text, stable status placement and
+record-level status where it matters.
+
+---
+
+## فجوات UX-17
+
+قبل Production يلزم إثبات Cross-cutting consistency في:
+
+- mobile navigation.
+- role-aware routing.
+- offline states.
+- sync labels.
+- forms.
+- errors.
+- confirmation.
+- accessibility.
+- RTL.
+- date/time/digits.
+- sensitive actions.
+- financial summaries.
+- notification deep links.
+- support/error references.
+- adaptive layouts.
+- Admin separation.
+
+المسألة:
+
+**م-36 — Cross-Cutting UX Implementation Consistency.**
+
+---
+
+## 21. نقطة العمل التالية
+
+**IMPLEMENTATION-01 — V1 Implementation Sequencing &
+Dependency Plan / خطة ترتيب تنفيذ النسخة الأولى.**
+
+الهدف:
+
+تحويل القرارات المعتمدة إلى ترتيب تنفيذ واقعي:
+
+1. Backend foundations / Migration 078+.
+2. Android foundations.
+3. Core user flows.
+4. Finance/operations consistency.
+5. Platform Admin Web.
+6. field/security/acceptance verification.
+
+الترتيب النهائي يناقش وفق Dependencies والمسائل المفتوحة،
+وليس وفق ترتيب أرقام UX فقط.

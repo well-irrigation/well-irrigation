@@ -291,3 +291,33 @@
 
 يطبق ق-104 ويختار Standards-aligned أو Adapted بصورة
 موثقة دون إعادة سؤال غير ضروري.
+
+## UX Design Closure — ق-108
+
+حالة التصميم الحالية:
+
+- UX-00..UX-17 Design Complete.
+- PA-01..PA-04 Design Complete.
+
+لا تعني Implemented.
+
+أي AI يستلم المشروع بعد ق-108:
+
+لا يبدأ UX discussion جديدة تلقائيًا.
+
+يقرأ:
+
+- `design/UX_UI_SPEC.md`
+- `design/VISUAL_IDENTITY.md`
+- `technical/FINAL_CROSS_CUTTING_UX_ARCHITECTURE.md`
+- architecture الخاصة بالمجال الجاري تنفيذه.
+
+ثم ينتقل إلى:
+
+`IMPLEMENTATION-01 — V1 Implementation Sequencing &
+Dependency Plan`
+
+ما لم يطلب المالك صراحة إعادة فتح قرار تصميم.
+
+Research & Standards Gate وDocumentation Gate تبقيان
+نافذتين أثناء التنفيذ.

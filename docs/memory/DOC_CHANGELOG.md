@@ -918,3 +918,43 @@ UX-17.
 **نوع الدفعة:** توثيقية فقط.
 
 Baseline الاختبارات لم يتغير.
+
+## تحديث 2026-08-19 — UX-17 / ق-108
+
+**المجال:**
+
+Final Cross-Cutting UX Consistency.
+
+**الملف الجديد:**
+
+- `technical/FINAL_CROSS_CUTTING_UX_ARCHITECTURE.md`
+
+**أهم القرارات:**
+
+- canonical terminology.
+- explicit Offline/Sync states.
+- local-save vs server-confirmation honesty.
+- stable status UI.
+- form/error/success consistency.
+- duplicate-submit protection.
+- financial/sensitive review.
+- loading/empty/error/stale distinction.
+- 48dp Android targets.
+- RTL/accessibility/adaptive layout.
+- notification/support/privacy consistency.
+- navigation/back/context safety.
+- م-36 opened.
+
+**الحالة:**
+
+UX-00..UX-17 Design Complete.
+
+PA-01..PA-04 Design Complete.
+
+**التالي:**
+
+IMPLEMENTATION-01.
+
+**نوع الدفعة:** توثيقية فقط.
+
+Baseline الاختبارات لم يتغير.

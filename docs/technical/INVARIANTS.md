@@ -1261,3 +1261,125 @@ Production عندما تنفذ capability.
 604. PA-04 لا تعتبر Production Complete قبل إغلاق م-35.
 
 605. Any new DB change يبدأ Migration 078+.
+
+## ق-108 — ثوابت الاتساق النهائي لتجربة المستخدم
+
+606. Same Business Concept uses consistent terminology.
+
+607. Arabic UI remains RTL-first.
+
+608. English digits remain mandatory.
+
+609. User-facing date/time follows adopted English presentation.
+
+610. Current Well is visible where cross-well mistakes are possible.
+
+611. No Role Picker.
+
+612. Platform Admin navigation remains separate.
+
+613. Offline does not mean application failure.
+
+614. Connectivity and Sync are separate states.
+
+615. Local durable save does not equal server confirmation.
+
+616. Pending state must not appear confirmed.
+
+617. Critical records may expose item-level sync state.
+
+618. Sync state cannot rely on icon/color alone.
+
+619. Connectivity status must avoid repeated disruptive layout shifts.
+
+620. Conflict must be actionable.
+
+621. Form validation failure must not erase valid input silently.
+
+622. Required/optional fields must be understandable.
+
+623. User-facing errors should explain corrective action.
+
+624. User-facing errors must not expose raw backend internals.
+
+625. Retry/double tap must not duplicate business operation.
+
+626. Final online success requires server ACK.
+
+627. Offline-safe success language states local durability honestly.
+
+628. Important completion may expose reference/result/next step.
+
+629. Failed and Needs Review are distinct states.
+
+630. Sensitive financial/data action needs review before finalization.
+
+631. Whole-YER policy remains.
+
+632. Financial meaning cannot rely on plus/minus or color alone.
+
+633. Posted history is not ordinary editable UI.
+
+634. Dangerous actions separated from routine primary actions.
+
+635. Smart Lookup remains canonical entity-selection pattern.
+
+636. Search text alone is not entity identity.
+
+637. Fuzzy/name similarity cannot silently merge identities.
+
+638. Loading/Empty/Error/Denied/Stale are distinct UI states.
+
+639. Valid local data should remain visible during background refresh.
+
+640. Stale important data exposes freshness.
+
+641. Android touch target minimum = 48×48dp.
+
+642. Status meaning cannot rely on color alone.
+
+643. Android font scaling must be respected.
+
+644. Icon-only actions need accessible semantic labels.
+
+645. RTL implementation uses mirror-safe directional semantics.
+
+646. Critical action cannot require gesture-only interaction.
+
+647. Navigation may adapt by window size.
+
+648. Phone navigation pattern must not be blindly stretched to large windows.
+
+649. Notification delivery is not Business Source of Truth.
+
+650. Notification deep-links should preserve correct business context.
+
+651. Notification dedup remains required.
+
+652. Support context cannot expose secrets.
+
+653. Privacy-sensitive data display must be task-necessary.
+
+654. Deferred features should not pollute critical V1 flows.
+
+655. No production action without a real contract.
+
+656. UI never becomes authorization authority.
+
+657. Critical screen should have one clear primary action.
+
+658. Back cannot silently destroy critical work.
+
+659. Context switch cannot silently abandon critical operation.
+
+660. UX-00..UX-17 are Design Complete after ق-108.
+
+661. PA-01..PA-04 remain Design Complete after ق-108.
+
+662. Design Complete does not mean Implemented.
+
+663. Production UI must satisfy Cross-cutting acceptance.
+
+664. UX-17 is not Production Complete before م-36 closure.
+
+665. Any new DB change starts Migration 078+.

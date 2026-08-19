@@ -235,7 +235,7 @@
 - حساب دخول المزارع العادي مؤجل إلى نسخة لاحقة.
 - لا تزال هناك متطلبات Backend/Mobile ناتجة عن
   UX-02/03/08/09/10/11/12/13/14/15/16A
-  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103/ق-104/ق-105/ق-106 غير منفذة؛/ق-107
+  وق-84/ق-86/ق-88/ق-89/ق-90/ق-91/ق-92/ق-98/ق-99/ق-100/ق-101/ق-102/ق-103/ق-104/ق-105/ق-106/ق-107/ق-108 غير منفذة؛
   أول تغيير قاعدة جديد يجب أن يكون Migration 078+
   إذا احتاجت المتطلبات تغيير DB.
 - م-26 تسجل تعارض Fuel Billing في 066 وفجوات Active Session.
@@ -262,48 +262,43 @@
 
 ## التالي
 
-**UX-17 — Final Cross-Cutting Review /
-المراجعة الشاملة النهائية.**
+**IMPLEMENTATION-01 — V1 Implementation Sequencing &
+Dependency Plan / خطة ترتيب تنفيذ النسخة الأولى.**
 
-Platform Administration مكتملة تصميميًا:
+UX Design Gate:
 
-- PA-01 / ق-102.
-- PA-02 / ق-103 مع Password correction بق-105.
-- PA-03 / ق-106.
-- PA-04 / ق-107.
+**مغلقة تصميميًا بق-108.**
 
-ق-107 يحكم:
+Platform Administration Design:
 
-- symptom-first monitoring.
-- actionable/deduplicated alerts.
-- incident management.
-- postmortems.
-- correlation IDs.
-- global Audit projection.
-- secret redaction.
-- typed/versioned config.
-- rollback.
-- scoped maintenance.
-- version compatibility.
-- release/change tracking.
-- telemetry privacy.
-- final 12-section Admin navigation.
+**مغلقة تصميميًا بق-107 وق-108.**
+
+ق-108 يحكم:
+
+- final terminology consistency.
+- Offline/Sync vocabulary.
+- honest local/server success states.
+- forms/errors/confirmation.
+- accessibility/RTL.
+- adaptive layouts.
+- financial/sensitive review.
+- Smart Lookup consistency.
+- notification/support/privacy.
+- back/context-switch safety.
 
 Research Gate:
 
-PA-04 = PASS.
+UX-17 = PASS.
 
-المسائل المفتوحة تشمل:
+المسائل المفتوحة التنفيذية تشمل م-16 وم-18 وم-21
+وم-23 وم-25..م-36 حسب مجال التنفيذ.
 
-- م-32.
-- م-33.
-- م-34.
-- م-35.
+الخطوة التالية ليست UX جديدة.
 
-Platform Administration Design Complete لا تعني Implemented.
+الخطوة التالية:
 
-UX-17 يجب أن تراجع كل القرارات عبر الشاشات والأدوار
-والـOffline والأمن والمال والإدارة قبل إغلاق مرحلة التصميم.
+ترتيب تنفيذ V1 حسب dependencies والحرجية، مع بقاء
+Migration 071–077 immutable وأي DB change جديد = 078+.
 
 لا تغير Baseline الاختبارات دون دليل تحقق جديد.
 

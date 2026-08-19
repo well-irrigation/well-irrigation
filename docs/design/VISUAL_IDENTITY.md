@@ -719,3 +719,67 @@ Dangerous Setting تستخدم:
 Monitoring/Admin Settings تستمر تحت WCAG 2.2 AA.
 
 No blinking/flashing critical states كوسيلة أساسية.
+
+## ق-108 — Final Cross-Cutting Visual Rules
+
+### State semantics
+
+Canonical UI states use text + icon when needed.
+
+Color is secondary.
+
+### Touch
+
+Android interactive elements:
+
+minimum 48×48dp touch target.
+
+### Layout stability
+
+Connectivity/Sync indicators should not cause repetitive
+layout shifts during unstable network conditions.
+
+### Forms
+
+- one clear primary action.
+- destructive actions visually separated.
+- inline field errors.
+- valid input preserved after errors.
+
+### RTL
+
+Arabic is native RTL.
+
+Use Start/End directional layout semantics.
+
+### Typography
+
+Respect Android font scaling.
+
+Do not truncate critical amounts, names or state labels.
+
+### Adaptive layout
+
+Do not stretch phone navigation unchanged to large windows.
+
+Use suitable navigation/layout pattern by available width.
+
+### Stale and Pending
+
+Stale/Pending states must be visually distinct from
+confirmed success.
+
+### Empty/Error/Loading
+
+Each has a different visual/content pattern.
+
+### Consistency
+
+Same operation uses the same:
+
+- label.
+- icon semantics.
+- confirmation hierarchy.
+- status terminology.
+
+across the application.
