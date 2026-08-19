@@ -21,9 +21,9 @@
 
 ## 2. قواعد التنفيذ
 
-1. Migration 071–077 immutable.
+1. Migration 071–078 immutable.
 
-2. أول DB change جديد = Migration 078.
+2. W1-02 يستخدم Migration 079؛ أي DB change لاحق يبدأ 080+ بعد قبول 079.
 
 3. Migration 078 ليست Migration عملاقة تجمع V1 كلها.
 

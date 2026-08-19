@@ -5028,3 +5028,54 @@ Permanent Test:
 - `iam.current_person_id(uuid)` مطابق للعقد المعتمد.
 - Data API بقي 33 authenticated RPC / 0 anon / 0 SECURITY DEFINER.
 - الاختبار السلوكي الكامل مثبت محليًا بـ18 PASS.
+
+---
+
+## ق-111 — Farmer self-scope authorization
+
+- **التاريخ:** 2026-08-19.
+- **الحالة:** معتمد ومنفذ ومتحقق منه محليًا؛ Cloud pending.
+- **المرحلة:** W1-02 / Backend Foundations.
+- **المسألة:** م-16.
+- **التنفيذ:** Migration 079.
+- **Research & Standards Gate:** PASS.
+
+### القرار
+
+Farmer self access لا يعتمد على `role='farmer'` وحده.
+
+المسار الحاكم:
+
+`auth.uid()`
+→ `iam.profile_person_links`
+→ `core.persons`
+→ `ops.farmer_profiles`
+→ `ops.farmer_well_accounts`.
+
+### القواعد
+
+1. لا Name/Phone guessing.
+2. Farmer-only لا يرى بيانات مزارع آخر داخل البئر نفسه.
+3. Farmer Well Account الذاتية هي مفتاح بياناته داخل كل بئر.
+4. المزارع يرى Person/Contacts/Aliases وFarms/Bookings/Sessions وتوابعها الخاصة به فقط.
+5. البيانات المرجعية المشتركة اللازمة للبئر تبقى مرئية لحسابه الذاتي.
+6. وجود Farmer Well Account ذاتية لا يمنح صلاحية إدارية على البئر.
+7. owner/manager/operator يحتفظون بوصولهم التشغيلي.
+8. Partner policies المستقلة لا تغيرها 079.
+9. Migration 079 لا تضيف أي `api.*` RPC.
+10. Direct DML يبقى صفرًا.
+
+### دليل التحقق المحلي
+
+- Migration 079 طُبقت ضمن `db:reset`.
+- Permanent Test 079 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 19 files / 255 PASS / 0 FAIL / 0 ERROR.
+- Owner/Staff regression = PASS.
+- Data API surface بقي 33 authenticated RPC / 0 anon / 0 SECURITY DEFINER.
+- Direct DML بقي صفرًا.
+
+### المتبقي
+
+- Commit/Push.
+- Cloud deployment/verification.
+- بعدها تُغلق م-16.

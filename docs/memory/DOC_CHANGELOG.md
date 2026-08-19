@@ -1034,3 +1034,15 @@ Prepared / Pending Owner Verification.
 - ثبتت Migration 071–078 immutable.
 - نقلت RESUME_POINT إلى W1-02 / م-16.
 - أي DB change جديد يبدأ Migration 079+.
+
+---
+
+## 2026-08-19 — W1-02 local verification
+
+- وثقت ق-111 / Farmer self-scope.
+- وثقت Migration 079 وPermanent Test.
+- Local baseline صار 78 migration files through 079.
+- Permanent tests = 19 files.
+- Full DB Suite = 255 PASS / 0 FAIL / 0 ERROR.
+- Cloud baseline بقي through 078؛ 079 pending.
+- RESUME_POINT انتقل إلى Cloud deploy/verify لـ079.

@@ -8,10 +8,10 @@
 
 ## الحالة الحالية الحاكمة — 2026-08-19
 
-- Local: 77 migration file مطبقة حتى 078؛ الترقيم التاريخي لا يحتوي Migration 067.
-- Cloud: 77 migration مطبقة حتى 078؛ Cloud structure/security verification مكتمل.
-- 18 ملف اختبار دائم.
-- 235 PASS / 0 FAIL / 0 ERROR محليًا.
+- Local: 78 migration file مطبقة حتى 079؛ الترقيم التاريخي لا يحتوي Migration 067.
+- Cloud: 77 migration مطبقة حتى 078؛ Migration 079 pending Cloud deployment.
+- 19 ملف اختبار دائم.
+- 255 PASS / 0 FAIL / 0 ERROR محليًا.
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
 - 073: عقد الكتابة الأساسي داخل api.
@@ -27,7 +27,7 @@ milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القا�
 
 حُذف ملفا الترحيل القديمان (001 و002، بتاريخ 2026-08-05) بالكامل، لأنهما سبقا استقرار القرارات الخمسين. استُبدلا بـ 25 ملف ترحيل جديدة، مبنية ومختبرة تباعًا في نفس اليوم، تعكس كل القرارات النافذة حتى ق-66.
 
-**ملاحظة تاريخية:** هذا القسم كُتب أولًا عندما كان التطبيق محليًا فقط. الحالة الحالية الحاكمة هي الملخص أعلى الملف: 001–077 منشورة على Supabase Cloud، بينما 078 متحققة محليًا ولم تُنشر إلى Cloud بعد.
+**ملاحظة تاريخية:** هذا القسم كُتب أولًا عندما كان التطبيق محليًا فقط. الحالة الحالية الحاكمة هي الملخص أعلى الملف: 001–078 موجودة على Supabase Cloud، بينما 079 متحققة محليًا وتنتظر Cloud deployment/verification.
 
 ---
 
@@ -384,3 +384,28 @@ Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
 - `api` بقي 33 authenticated RPC؛ anon = 0؛ SECURITY DEFINER = 0.
 - عدد روابط الأشخاص أثناء التحقق السحابي = 0.
 - Permanent Test 078 المحلي = 18 PASS / 0 FAIL / 0 ERROR.
+
+---
+
+## Migration 079 — Farmer self-scope authorization
+
+**الملف:** `20260819224401_079_farmer_self_scope_rls.sql`
+
+**المرحلة:** W1-02 / م-16 / ق-111.
+
+**الحالة:** مطبقة ومتحقق منها محليًا؛ Cloud pending.
+
+### ما تغير
+
+- أزيل Farmer well-wide SELECT القديم.
+- أضيفت Farmer self helpers في `iam`.
+- Person/Contacts/Aliases أصبحت Self-only للمزارع.
+- Farmer Profiles/Accounts/Farms/Bookings/Sessions وتوابعها أصبحت Self-only.
+- Staff access للـowner/manager/operator بقي محفوظًا.
+- `api.*` surface لم تتغير.
+- Direct DML بقي صفرًا.
+
+### دليل التحقق
+
+- Permanent Test 079 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 19 files / 255 PASS / 0 FAIL / 0 ERROR.

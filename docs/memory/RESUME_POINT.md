@@ -262,39 +262,39 @@
 
 ## التالي
 
-**W1-02 — Farmer self-scope authorization / م-16.**
+**W1-02 — نشر Migration 079 إلى Supabase Cloud والتحقق منها.**
+
+ق-111 معتمدة ومنفذة ومتحقق منها محليًا.
 
 تمت كتابة:
 
-- `20260819200401_078_profile_person_identity_links.sql`
-- `20260819_078_profile_person_identity_links.test.sql`
+- `20260819224401_079_farmer_self_scope_rls.sql`
+- `20260819_079_farmer_self_scope_rls.test.sql`
 
-ق-110 معتمدة.
+Local Verification:
 
-Local Verification مكتمل:
+- Migration 079 طُبقت ضمن `db:reset`.
+- Permanent Test 079 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 19 files / 255 PASS / 0 FAIL / 0 ERROR.
+- Data API surface بقيت 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML بقي صفرًا.
+- Owner/Staff regression = PASS.
 
-- Migration 078 طُبقت فعليًا في `db:reset`.
-- Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR.
-- Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
+Cloud:
 
-W1-01 مكتملة ضمن النطاق المعتمد:
+- Applied baseline الحالي حتى 078.
+- Migration 079 لم تُنشر بعد.
 
-- Migration 078 متحققة محليًا.
-- Permanent Test 078 = 18 PASS / 0 FAIL / 0 ERROR.
-- Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
-- Cloud migration history = 77 migrations through 078.
-- Cloud structure/security verification مكتمل.
+الترتيب التالي:
 
-التالي:
-
-W1-02 / Farmer Self-scope authorization / م-16.
+1. Documentation Gate + Commit/Push.
+2. `db push` لـ079 فقط.
+3. Cloud structure/security verification.
+4. عند النجاح: إغلاق م-16 والانتقال إلى W1 item التالي.
 
 Migration 071–078 immutable.
-
-أول DB change جديد بعد W1-01: Migration 079+.
-
-م-16 ما زالت مفتوحة.
-
+Migration 079 pending Cloud acceptance.
+م-16 مفتوحة حتى Cloud verification.
 م-18 ما زالت مفتوحة.
 
 ## قاعدة التنفيذ

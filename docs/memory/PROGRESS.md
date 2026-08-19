@@ -836,3 +836,20 @@ Documentation Gate → Commit/Push → Cloud deploy/verify 078 → W1-02.
 W1-01 مكتملة ضمن نطاقها المعتمد.
 التالي: W1-02 / م-16.
 Migration 071–078 immutable؛ أي DB change جديد = 079+.
+
+---
+
+## 2026-08-19 — W1-02 / ق-111 locally verified
+
+المالك شغّل التحقق الفعلي بعد إضافة Migration 079:
+
+- `db:reset` طبق 079.
+- Permanent Test 079 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 19 files / 255 PASS / 0 FAIL / 0 ERROR.
+- Farmer private data = Self-only.
+- Farmer account في بئر بلا well_assignment بقي قادرًا على عرض بياناته الذاتية دون صلاحية إدارية.
+- Owner/Staff visibility regression = PASS.
+- API surface لم تتوسع.
+- Direct DML بقي صفرًا.
+
+الحالة: Implemented + Local Verified؛ Cloud pending.
