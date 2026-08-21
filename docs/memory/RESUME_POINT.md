@@ -1,4 +1,4 @@
-# نقطة الاستئناف — 2026-08-21
+# نقطة الاستئناف — 2026-08-22
 
 ## Stage 7 Readiness Gate
 
@@ -150,7 +150,7 @@
 ## المسائل المفتوحة المعروفة بعد بوابة الجاهزية
 
 - م-16: Farmer RLS well-wide.
-- م-18: roles/permissions catalog wiring.
+- م-18: roles/permissions catalog wiring — **مغلقة** بق-113 (2026-08-22).
 - م-21: field testing أثناء Stage 7.
 - م-23: notification UI/channel + scheduler deployment.
 - القضايا القانونية والنشر كما في `OPEN_ISSUES.md`.
@@ -262,7 +262,34 @@
 
 ## التالي
 
-**Migration 081 — W1-03b Enforcement wiring. تغلق م-18.**
+**W1-03 مكتملة ومغلقة — م-18 مغلقة. التالي = W2 Offline &
+Background Sync Foundations / م-25، أو دفعة RLS مستقلة لنقل
+273 policy، بحسب قرار المالك.**
+
+W1-03b / ق-113 مكتملة ومغلقة — Local + Cloud (2026-08-22):
+
+- Migration 081 = `20260822003001_081_permission_enforcement_money.sql`
+  (13 موضعًا ماليًا).
+- Migration 082 = `20260822013001_082_permission_enforcement_ops.sql`
+  (15 موضعًا تشغيليًا).
+- Permanent Test 081 = 20 PASS؛ 082 = 20 PASS.
+- Full DB Suite = 22 files / 315 PASS / 0 FAIL / 0 ERROR؛
+  صفر Regression على 295 فحصًا من جولات سابقة.
+- Function-body guards على `has_well_role` = **0**.
+- Legacy RLS = 273 policy بلا تغيير، وهي مستهلكها الوحيد.
+- Catalog = 39؛ grants = 73 (owner 39 / manager 13 /
+  operator 21). الإضافة الوحيدة = `session.energy.change`.
+- برهان تكافؤ قبل الكتابة = 28 EQUIVALENT / 1 MISSING_CODE /
+  **0 DIFFERS** = `NO_SILENT_DRIFT`.
+- حرس الهوية لم يُحوّل في `api.declare_handover` /
+  `api.request_session_transfer` /
+  `api.respond_session_transfer` وفرع الهوية في
+  `api.close_shift`.
+- `ops.create_farm` نُقلت من تعريف 075 الحي لا 069 المُسقط.
+- **Cloud = متحقق منه:** `CLOUD_W1_03B_ALL_PASS`؛
+  remote history = 81 through `20260822013001`.
+- سلوك المستخدم = بلا تغيير، مبرهنًا لا مُدّعى.
+- Local baseline = 81 migration file، أعلى رقم 082.
 
 W1-02 / ق-111 مكتملة ومغلقة:
 
@@ -293,18 +320,18 @@ W1-03a / ق-112 مكتملة ومغلقة — Local + Cloud:
   و`DATA_API_BOUNDARY=OK`؛ remote history = 79 through
   `20260819235001`.
 
-Migration 071–080 immutable.
+Migration 071–082 immutable.
 
-أي DB change جديد يبدأ Migration 081+.
+أي DB change جديد يبدأ Migration 083+.
 
-### حالة البيئة السحابية — 2026-08-21
+### حالة البيئة السحابية — 2026-08-22
 
 المشروع السحابي أُعيد بناؤه من الصفر في حساب جديد ومنطقة
 South Asia (Mumbai) بعد تعذّر الوصول إلى بريد الحساب السابق.
 لم يُفقد شيء: لا بيانات إنتاجية، ولا مستخدمين حقيقيين،
 ولا أي مرجع للمشروع القديم في المستودع.
 
-- الـ79 migration مطبقة كلها بالترتيب من 001 إلى 080.
+- الـ81 migration مطبقة كلها بالترتيب من 001 إلى 082.
 - Exposed schemas = `api` أولًا ثم `graphql_public`؛
   `public` غير مكشوفة.
 - الغرف الداخلية `core` / `iam` / `public` / `audit` /
@@ -318,20 +345,27 @@ South Asia (Mumbai) بعد تعذّر الوصول إلى بريد الحساب 
 
 ### الخطوة التالية بالترتيب
 
-1. تصميم Migration 081 — نقل الإنفاذ:
-   استهلاك `iam.has_well_permission` داخل `api.*` والدوال
-   الداخلية بدل مصفوفات الأدوار النصية.
-2. قرار صريح لصلاحيات `partner` / `accountant` / `viewer`
-   قبل أو مع 081.
-3. Permanent Test 081 + Local verification.
-4. Cloud deploy + verify عبر قناة 6543.
-5. م-18 تغلق هناك فقط.
+W1 اكتملت: W1-01 وW1-02 وW1-03 كلها مغلقة. الخيارات
+المطروحة على المالك بترتيب أولوية ق-109:
+
+1. **W2 — Offline & Background Sync Foundations / م-25.**
+   المسار الافتراضي بحسب ق-109: Rule C يمنع إنتاج معظم
+   Field Screens قبل إثبات أن الكتابات الميدانية الحرجة
+   تُحفظ محليًا بصورة دائمة.
+2. **دفعة RLS مستقلة (Migration 083+)** لنقل 273 policy
+   إلى Permission Codes وإسقاط `has_well_role` بعدها.
+   ليست حاجزًا أمام W2 لأن السلطتين تعطيان الجواب نفسه.
+3. **قرار صريح لصلاحيات `partner` / `accountant` /
+   `viewer`** — يُطلب أول مرة تحتاجها واجهة فعليًا.
+4. جولة تنظيف التوثيق المؤجلة (`PROJECT_MAP.md`
+   و`INVARIANTS.md`).
 
 ### تحذير تشغيلي قائم
 
-`accountant` و`viewer` صارا مقبولين في
-`core.well_assignments.role` لكن بلا أي صلاحية فعلية،
-فلا يُعرضان في أي واجهة قبل W1-03b.
+`partner` و`accountant` و`viewer` مقبولون في
+`core.well_assignments.role` لكن بصفر منح بالتصميم — بلا أي
+صلاحية فعلية. لا تعرضهم أي واجهة قبل قرار صريح لصلاحياتهم.
+هذا لم يتغير بإغلاق W1-03b.
 
 ### مؤجل بقرار المالك
 
@@ -342,9 +376,14 @@ South Asia (Mumbai) بعد تعذّر الوصول إلى بريد الحساب 
 
 ### المسألة الحالية
 
-م-18 — مفتوحة ومحصورة الآن في Enforcement wiring:
-جعل RLS/RPC تستهلك مصدر الصلاحية بدل مصفوفات
-الأدوار النصية. الكتالوج نفسه لم يبق تأسيسيًا.
+**م-18 مغلقة** بق-113. أجساد الدوال كلها تُنفذ الصلاحية من
+الكتالوج، وصفر حرس دالة باقٍ على مصفوفات الأدوار النصية.
+
+الباقي خارج نطاقها عمدًا: 273 RLS policy تبقى على
+`has_well_role` كطبقة توافق للقراءة، وهي الآن مستهلكها
+الوحيد؛ نقلها دفعة مستقلة.
+
+المسألة الجامعة م-37 تبقى مفتوحة حتى W10.
 
 ## قاعدة التنفيذ
 

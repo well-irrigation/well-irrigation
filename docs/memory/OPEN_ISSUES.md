@@ -21,7 +21,7 @@
 - م-12: مواءمة النص القانوني النهائي.
 - م-14: صلاحية GitHub integration.
 - م-16: مغلقة — ق-111 / 079؛ Farmer self-scope RLS.
-- م-18: ربط roles/permissions.
+- م-18: ربط roles/permissions — **مغلقة** بق-113 / Migration 081+082 (2026-08-22).
 - م-19: مغلقة — ق-81 / 076؛ Pump equipment model/reporting/concurrency مصححة.
 - م-21: اختبارات ميدانية.
 - م-22: مغلقة — ق-80 / 075؛ Farm → Farmer Well Account.
@@ -260,6 +260,32 @@
 **تنبيه تشغيلي:** `accountant` و`viewer` صارا قيمتين مقبولتين في `core.well_assignments.role` لكن بلا وصول فعلي. يجب ألا تعرضهما أي واجهة قبل اعتماد صلاحياتهما.
 
 **الحالة:** مفتوحة — نطاقها تقلّص إلى نقل الإنفاذ فقط.
+
+### إغلاق م-18 بتاريخ 2026-08-22 — ق-113 / Migration 081 + 082
+
+**ما استُكمل:** نُقل إنفاذ **أجساد الدوال** كلها من مصفوفات الأدوار النصية إلى Permission Codes. 28 موضع حرس حي في 27 دالة صارت تسأل `iam.has_well_permission(well_id, '<code>')` بدل `iam.has_well_role(well_id, array[...])`.
+
+**البرهان قبل الكتابة:** أُثبت آليًا لكل موضع من الـ29 أن مجموعة الأدوار المسموح لها الآن = مجموعة الأدوار التي يمنحها الكتالوج: 28 EQUIVALENT، 1 MISSING_CODE، **0 DIFFERS** = `NO_SILENT_DRIFT`. ثم فُحص الناتج: 27 دالة، صفر تغيير غير مقصود، وخصائص الأمان متطابقة بايتًا ببايت.
+
+**ما كشفه المسح الآلي ولم يكشفه اليدوي:**
+
+1. مواضع الحرس = 29 لا 23؛ ستة كانت مغفلة، منها حرسان في `api.close_shift` وحده.
+2. `ops.change_session_energy_source` كانت بلا permission code إطلاقًا — الفجوة الوحيدة؛ أُنشئت `session.energy.change` ومُنحت لـowner + manager + operator حرفيًا.
+3. `shift.close_override` موجودة أصلًا وبيد tenant_owner وحده — مطابقة لحرسَي `close_shift` بلا منح جديد.
+4. موضع ميت: 075 تُسقط `ops.create_farm(uuid, text, uuid)` من 069؛ نقل جسد 069 كان سيُحيي التعريف المُسقط ويلغي تحسين 075 صامتًا. المواضع الحية = 28.
+5. أربع دوال تفوّض بالهوية لا بالدور (`declare_handover` / `request_session_transfer` / `respond_session_transfer` وفرع الهوية في `close_shift`)؛ تحويلها كان سيمنع المشغّل من تسليم نقده أو جلسته.
+
+**التحقق المحلي (2026-08-22):** Permanent Test 081 = 20 PASS؛ Permanent Test 082 = 20 PASS؛ Full DB Suite = 22 files / 315 PASS / 0 FAIL / 0 ERROR. **صفر Regression:** 295 فحصًا من جولات سابقة مبنية على السلطة القديمة مرّت كلها بعد استبدالها.
+
+**التحقق السحابي (2026-08-22):** Remote migration history = 81 through `20260822013001`؛ Cloud Test 081 = 20 PASS؛ Cloud Test 082 = 20 PASS؛ النتيجة = `CLOUD_W1_03B_ALL_PASS`.
+
+**ما يثبت الإغلاق:** function-body guards على `has_well_role` = **0** في api/ops/billing/finance/inventory/core/reporting. لم يبق `has_well_role` مصدر سلطة كتابة في أي دالة. regression الأدوار الحالية = PASS بلا استثناء.
+
+**ما بقي خارج نطاق م-18 عمدًا:** 273 RLS policy تبقى على `has_well_role` كطبقة توافق للقراءة، وهي الآن مستهلكها الوحيد. نقلها يحتاج دفعة مستقلة لأن Blast Radius على 273 policy غير قابل للتحقق في دفعة واحدة — هذا قرار ق-113 لا نقص فيه.
+
+**تنبيه تشغيلي باقٍ:** `partner` / `accountant` / `viewer` بصفر منح بالتصميم. لا تعرضها أي واجهة قبل قرار صريح لصلاحياتها.
+
+**الحالة:** **مغلقة.**
 
 ## تحديث م-17 بتاريخ 2026-08-13 (بعد المرحلة 2) — تقدّم إضافي
 **الحالة وقت هذا التحديث التاريخي:** نشطة جزئيًا (تراجعت أكثر).
@@ -774,7 +800,10 @@ Migration 066 الحالية يمكن أن تجمع `fuel_charge_minor`
 
 3. Forgot Password V1 يحتاج عقدًا كاملًا.
 
-4. م-18 Role Authority لم تغلق بعد.
+4. م-18 Role Authority مغلقة بق-113 (2026-08-22)؛ أجساد
+   الدوال تُنفذ الصلاحية من الكتالوج. المتبقي هنا =
+   صلاحيات `partner` / `accountant` / `viewer` (صفر منح
+   بالتصميم) وطبقة RLS الباقية على `has_well_role`.
 
 5. Operator/Partner access lifecycle يحتاج typed contracts.
 

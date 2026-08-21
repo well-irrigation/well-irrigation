@@ -72,7 +72,10 @@ Role Catalog ليس Authority وحده.
 
 Backend Relationship/Authorization هو المرجع.
 
-م-18 تبقى اعتمادًا تقنيًا قائمًا.
+تحديث بق-113 (2026-08-22): م-18 مغلقة. الكتالوج صار مصدر
+الإنفاذ لأجساد الدوال، فمنح صلاحية في `iam.role_permissions`
+يغيّر الصلاحية فعليًا وفورًا. طبقة RLS تبقى على
+`iam.has_well_role` كطبقة توافق للقراءة.
 
 ## 8. Operator deactivation
 

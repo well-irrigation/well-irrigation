@@ -1,21 +1,27 @@
 # الهجرات
 
-**آخر تحديث:** 2026-08-21
+**آخر تحديث:** 2026-08-22
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
 ---
 
-## الحالة الحالية الحاكمة — 2026-08-19
+## الحالة الحالية الحاكمة — 2026-08-22
 
-- Local: 78 migration file مطبقة حتى 079؛ الترقيم التاريخي لا يحتوي Migration 067.
-- Cloud: 78 migration مطبقة حتى 079؛ Cloud structure/security verification مكتمل.
-- 19 ملف اختبار دائم.
-- 255 PASS / 0 FAIL / 0 ERROR محليًا.
+- Local: 81 migration file مطبقة حتى 082؛ الترقيم التاريخي
+  لا يحتوي Migration 067.
+- Cloud: 81 migration مطبقة حتى 082؛ remote history = 81
+  through `20260822013001`؛ Cloud verification مكتمل.
+- 22 ملف اختبار دائم.
+- 315 PASS / 0 FAIL / 0 ERROR محليًا.
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
 - 073: عقد الكتابة الأساسي داخل api.
 - 074: استكمال تدفقات MVP الحرجة داخل api.
+- 080: ق-112 — Permission Authority Foundation.
+- 081+082: ق-113 — Permission Enforcement Wiring؛ م-18 مغلقة.
+
+Migration 071–082 immutable. أي DB change جديد يبدأ 083+.
 
 **مهم:** الجداول أدناه تسجل ما فعلته كل هجرة في وقتها.
 لذلك قد يظهر في هجرة قديمة وصف منسوخ لاحقًا، مثل
@@ -108,7 +114,7 @@ milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القا�
 | --- | --- | --- |
 | 026 | `_026_locations.sql` | امتدادات pg_trgm/btree_gist/citext، `core.generate_public_code()`، `core.locations`، عمود `core.wells.location_id` |
 | 027 | `_027_persons_and_contacts.sql` | `core.persons`، `core.person_contacts`، `core.person_aliases`، فهارس trigram |
-| 028 | `_028_roles_and_permissions_catalog.sql` | `iam.roles`، `iam.permissions`، `iam.role_permissions` (كتالوج تأسيسي، غير مربوط بعد — انظر م-18) |
+| 028 | `_028_roles_and_permissions_catalog.sql` | `iam.roles`، `iam.permissions`، `iam.role_permissions` (كان كتالوجًا تأسيسيًا؛ صار مصدر الإنفاذ لأجساد الدوال بق-113 / 081+082) |
 
 **حالة التطبيق:** مُطبّقة ومُختبرة محليًا — ق-68.
 
@@ -421,8 +427,8 @@ Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
 - Direct DML = 0.
 - لا Security Advisor warning جديد من 079.
 
-Migration 071–079 immutable.
-أي DB change جديد يبدأ Migration 080+.
+Migration 071–082 immutable.
+أي DB change جديد يبدأ Migration 083+.
 
 ---
 
@@ -433,7 +439,7 @@ Migration 071–079 immutable.
 **المرحلة:** W1-03 / م-18 / ق-112.
 
 **الحالة:** مطبقة ومتحقق منها محليًا وسحابيًا.
-م-18 لم تغلق — الإنفاذ ينتقل في 081.
+م-18 لم تغلق بـ080 — الإنفاذ انتقل في 081+082 وأُغلقت هناك.
 
 ### ما تغير
 
@@ -503,12 +509,151 @@ Migration 071–079 immutable.
 - جداول عبر `api` = 0.
 - النتيجة = `DATA_API_BOUNDARY=OK`.
 
-Migration 071–080 immutable.
-أي DB change جديد يبدأ Migration 081+.
+Migration 071–082 immutable.
+أي DB change جديد يبدأ Migration 083+.
+
+---
+
+## Migration 081 — Permission enforcement: money domain
+
+**الملف:** `20260822003001_081_permission_enforcement_money.sql`
+
+**المرحلة:** W1-03b / م-18 / ق-113.
+
+**الحالة:** مطبقة ومتحقق منها محليًا وسحابيًا.
+
+### ما تغير
+
+- أُنشئت `session.energy.change` — الفجوة الوحيدة في الكتالوج:
+  `ops.change_session_energy_source` كانت بلا permission code
+  إطلاقًا. مُنحت لـtenant_owner + well_manager + operator
+  حرفيًا كما كان الحرس النصي. الكتالوج = 39؛ المنح = 73.
+- 13 موضع حرس في 13 دالة مالية انتقلت من
+  `iam.has_well_role(well_id, array[...])` إلى
+  `iam.has_well_permission(well_id, '<code>')`:
+
+  | الدالة | الصلاحية |
+  |---|---|
+  | `billing.issue_session_invoice` | `invoice.issue` |
+  | `billing.record_payment` | `payment.create` |
+  | `billing.allocate_payment` | `payment.allocate` |
+  | `finance.pay_partner_distribution` | `distribution.pay` |
+  | `api.record_expense` | `expense.create` |
+  | `api.decide_expense` | `expense.approve` |
+  | `api.confirm_handover` | `handover.confirm` |
+  | `api.settle_handover` | `handover.settle` |
+  | `api.close_period` | `period.close` |
+  | `api.calculate_profit_distribution` | `distribution.calculate` |
+  | `api.approve_profit_distribution` | `distribution.approve` |
+  | `api.accrue_payroll` | `payroll.accrue` |
+  | `api.pay_salary` | `payroll.pay` |
+
+- فحوص الهوية وفحص تسجيل الدخول محفوظة في الـ13 كلها.
+- المنح محفوظة بـ`create or replace function` بلا إعادة إصدار.
+
+### ما لم تفعله 081 عمدًا
+
+- لا تعديل على أي RLS policy — 273 policy تبقى على
+  `has_well_role` كطبقة توافق.
+- لا توسيع ولا تضييق لأي دور.
+- لا تحويل لحرس الهوية.
+- لا إضافة `api.*` جديدة؛ Direct DML يبقى صفرًا.
+
+### دليل التحقق
+
+- Permanent Test 081 = 20 PASS / 0 FAIL / 0 ERROR.
+- Cloud Test 081 = 20 PASS / 0 FAIL / 0 ERROR.
+- 13 دالة على السلطة الجديدة / 0 على القديمة.
+- owner = الـ13 كلها؛ manager = 7؛ operator = 4 —
+  مطابقة للحرس النصي قبل النقل.
+- partner / viewer = 0.
+- سحب منح واحد يسري في اللحظة والدور يبقى.
+
+---
+
+## Migration 082 — Permission enforcement: operations domain
+
+**الملف:** `20260822013001_082_permission_enforcement_ops.sql`
+
+**المرحلة:** W1-03b / م-18 / ق-113.
+
+**الحالة:** مطبقة ومتحقق منها محليًا وسحابيًا.
+**م-18 تغلق بهذه الهجرة.**
+
+### ما تغير
+
+- 15 موضع حرس في 14 دالة تشغيلية انتقلت إلى
+  `iam.has_well_permission`:
+
+  | الدالة | الصلاحية |
+  |---|---|
+  | `ops.start_irrigation_session` | `session.start` |
+  | `ops.pause_irrigation_session` | `session.pause` |
+  | `ops.resume_irrigation_session` | `session.resume` |
+  | `ops.complete_irrigation_session` | `session.complete` |
+  | `ops.change_session_energy_source` | `session.energy.change` |
+  | `ops.create_farmer` | `farmer.create` |
+  | `ops.create_farm` | `farm.create` |
+  | `ops.create_booking` | `booking.create` |
+  | `ops.reschedule_booking` | `booking.reschedule` |
+  | `inventory.purchase_fuel` | `fuel.purchase` |
+  | `inventory.record_fuel_consumption` | `fuel.consume` |
+  | `inventory.record_physical_fuel_count` | `fuel.count` |
+  | `api.open_shift` | `shift.open` |
+  | `api.close_shift` (حرسان) | `shift.close_override` |
+
+- `ops.create_farm` نُقلت من تعريف **075** لا 069:
+  075 تُسقط `ops.create_farm(uuid, text, uuid)`، فنقل جسد 069
+  كان سيُحيي التعريف المُسقط ويلغي تحسين 075 صامتًا.
+  التوقيع الحي = `(p_well_id, p_name, p_farmer_well_account_id)`.
+- `api.close_shift` يحمل حرسين: فرع الهوية
+  (`v_actor is distinct from v_operator_profile_id`) بقي كما هو،
+  وفرع التجاوز الإداري (`p_allow_open_sessions`) انتقل إلى
+  `shift.close_override` — وهي بيد tenant_owner وحده أصلًا،
+  فلا منح جديد.
+
+### ما لم تفعله 082 عمدًا
+
+- `api.declare_handover` / `api.request_session_transfer` /
+  `api.respond_session_transfer` بقيت بلا حرس دور — تفوّض
+  بالهوية وحدها. تحويلها كان سيمنع المشغّل من تسليم نقده أو
+  جلسته: عطل ميداني لا يوجد اليوم.
+- لا تعديل على أي RLS policy.
+- لا توسيع ولا تضييق لأي دور.
+
+### دليل التحقق
+
+- Permanent Test 082 = 20 PASS / 0 FAIL / 0 ERROR.
+- Cloud Test 082 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 22 files / 315 PASS / 0 FAIL / 0 ERROR —
+  صفر Regression على 295 فحصًا من جولات سابقة.
+- Function-body guards على `has_well_role` = **0** في
+  api/ops/billing/finance/inventory/core/reporting.
+- Legacy RLS policies = 273 دون تغيير، وهي المستهلك الوحيد.
+- owner = الـ14 كلها؛ manager = سلطة الجلسة الخمس فقط؛
+  operator = 12 (الميدان كاملًا بلا `farm.create` وبلا
+  `shift.close_override`).
+- `ops.create_farm` = توقيع 075 وحده، تعريف واحد.
+- api.* invoker = 2؛ الدوال الداخلية definer = 12.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+- Remote migration history = 81 through `20260822013001`.
+- النتيجة السحابية = `CLOUD_W1_03B_ALL_PASS`.
+
+### أثر جانبي على اختبار 080
+
+اختبار 080 كان يؤكد الكتالوج = 38 والمنح = 70. إضافة
+`session.energy.change` تجعله يفشل، فحُدّث إلى 39 و73
+(owner 39 / manager 13 / operator 21). **ملف Migration 080
+نفسه لم يُمسّ** — المعدَّل هو ملف اختباره فقط، وهذا تعديل
+اختبار مسموح لا تعديل هجرة مختومة.
+
+Migration 071–082 immutable.
+أي DB change جديد يبدأ Migration 083+.
 
 ### ملاحظة ترقيم
 
-عدد ملفات الترحيل المحلية = 79 بينما أعلى رقم = 080.
+عدد ملفات الترحيل المحلية = 81 بينما أعلى رقم = 082.
 السبب أن الرقم 067 لم يُستخدم أصلًا؛ فجوة ترقيم تاريخية
 وليست ملفًا ناقصًا.
 

@@ -1,6 +1,6 @@
 # V1 Implementation Sequence
 
-**آخر تحديث:** 2026-08-21
+**آخر تحديث:** 2026-08-22
 **القرار الحاكم:** ق-109
 **الحالة:** معتمد — التنفيذ يبدأ بعد Documentation Gate
 **المسألة الجامعة:** م-37
@@ -21,10 +21,10 @@
 
 ## 2. قواعد التنفيذ
 
-1. Migration 071–080 immutable.
+1. Migration 071–082 immutable.
 
-2. W1-02 مغلقة؛ W1-03 أساسها مطبق بق-112 / Migration 080؛
-   أي DB change جديد يبدأ Migration 081+.
+2. W1-02 وW1-03 مغلقتان؛ W1-03b مطبقة بق-113 /
+   Migration 081+082؛ أي DB change جديد يبدأ Migration 083+.
 
 3. Migration 078 ليست Migration عملاقة تجمع V1 كلها.
 
@@ -111,9 +111,9 @@
 
 ### W1-03 — Role/Permission authority wiring
 
-قيد التنفيذ: م-18.
+**مكتملة ومغلقة: م-18 مغلقة بق-113.**
 
-W1-03a مغلقة (Local + Cloud). المتبقي = W1-03b فقط.
+W1-03a وW1-03b مغلقتان (Local + Cloud).
 
 الكتالوج الحالي `iam.roles` / `iam.permissions` /
 `iam.role_permissions` تأسيسي فقط منذ Migration 028،
@@ -147,14 +147,40 @@ W1-03a مكتملة ومغلقة.
 
 #### W1-03b — Enforcement wiring
 
-لم تنفذ. تغلق م-18 عندما تستهلك RLS/RPC
-`iam.has_well_permission` بدل مصفوفات الأدوار النصية.
+مطبقة ومتحققة محليًا وسحابيًا بق-113 /
+Migration 081 + 082:
 
-`accountant` و`viewer` صارا مقبولين في
-`core.well_assignments.role` بلا أي صلاحية فعلية،
-فلا يعرضان في أي واجهة قبل W1-03b.
+- 28 موضع حرس حي في 27 دالة انتقلت من
+  `iam.has_well_role(well_id, array[...])` إلى
+  `iam.has_well_permission(well_id, '<code>')`.
+- Function-body guards على السلطة القديمة = **0**.
+- `session.energy.change` أُنشئت — الفجوة الوحيدة في
+  الكتالوج؛ الكتالوج = 39، المنح = 73
+  (owner 39 / manager 13 / operator 21).
+- برهان تكافؤ قبل الكتابة = 28 EQUIVALENT /
+  1 MISSING_CODE / **0 DIFFERS** = `NO_SILENT_DRIFT`.
+- حرس الهوية لم يُحوّل: `api.declare_handover` /
+  `api.request_session_transfer` /
+  `api.respond_session_transfer` وفرع الهوية في
+  `api.close_shift`.
+- `ops.create_farm` نُقلت من تعريف 075 الحي لا 069 المُسقط.
+- Permanent Test 081 = 20 PASS؛ 082 = 20 PASS.
+- Full DB Suite = 22 files / 315 PASS / 0 FAIL / 0 ERROR؛
+  صفر Regression على 295 فحصًا سابقًا.
+- Cloud = `CLOUD_W1_03B_ALL_PASS`؛ Remote history = 81
+  through `20260822013001`.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+- سلوك المستخدم = بلا تغيير، مبرهنًا لا مُدّعى.
 
-أي DB change جديد يبدأ Migration 081+.
+خارج النطاق عمدًا: 273 RLS policy تبقى على
+`has_well_role` كطبقة توافق للقراءة وهي مستهلكها الوحيد؛
+نقلها يحتاج دفعة مستقلة.
+
+`partner` / `accountant` / `viewer` بصفر منح بالتصميم،
+فلا تعرضها أي واجهة قبل قرار صريح لصلاحياتها.
+
+W1-03 مكتملة ومغلقة. أي DB change جديد يبدأ Migration 083+.
 
 ### سبب W1
 
@@ -489,6 +515,6 @@ Backend أي Person تخص الحساب الحالي.
 Farmer self-scope authorization / م-16 باستخدام الرابط
 المثبت في 078.
 
-أي DB change جديد يبدأ Migration 079+.
+أي DB change جديد يبدأ Migration 083+.
 
-م-18 تراجع منفردة بعد تثبيت Identity Foundation.
+م-18 روجعت منفردة وأُغلقت بق-113 / Migration 081+082.

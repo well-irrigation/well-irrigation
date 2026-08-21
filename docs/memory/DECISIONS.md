@@ -5283,3 +5283,186 @@ Migration 080 تبني الأساس فقط؛ الإغلاق يحتاج نقل ا
 Migration 071–080 immutable.
 
 أي DB change جديد يبدأ Migration 081+.
+
+**تجاوُز (2026-08-22):** الكتلة أعلاه تسجل حالة ق-112 وقت
+اعتماده. تجاوزها ق-113 في شق الإنفاذ: م-18 **مغلقة**، و
+Migration 071–082 immutable، وأي DB change جديد يبدأ 083+.
+أساس ق-112 نفسه لم يُنقض — بُني عليه.
+
+## ق-113 — Permission Enforcement Wiring
+
+- **التاريخ:** 2026-08-22.
+- **الحالة:** معتمد ومنفذ ومتحقق منه محليًا وسحابيًا.
+- **المرحلة:** W1-03b / Backend Foundations.
+- **المسألة:** م-18 — تغلق بهذا القرار.
+- **التنفيذ:** Migration 081 + Migration 082.
+- **Research & Standards Gate:** PASS.
+
+### السياق
+
+ق-112 بنت `iam.has_well_permission` كمصدر Canonical للصلاحية
+وتركت الإنفاذ الفعلي على مصدرين:
+
+1. `iam.has_well_role` داخل 273 RLS policy.
+2. فحوص `array[...]` نصية داخل أجساد الدوال.
+
+بقاء المصدر الثاني يعني أن أي تعديل صلاحية يبقى تعديل كود،
+وأن `iam.has_well_permission` بلا مستهلك — وهو الأثر الذي
+حذّرت منه ق-112 نفسها.
+
+### القرار
+
+ينقل إنفاذ **أجساد الدوال** إلى Permission Codes في
+Migration 081 (المال/المالية) و082 (التشغيل/الجلسات/المخزون)،
+بشرط Zero Behavior Change مبرهنًا لا مُدّعى.
+
+طبقة RLS تبقى على `has_well_role` بلا تعديل.
+
+### القواعد
+
+1. **Zero Behavior Change.** لا توسيع ولا تضييق لأي دور.
+2. **Proof before Write.** لا يُكتب سطر قبل إثبات آلي أن
+   مجموعة المسموح لهم قبل النقل = مجموعة المسموح لهم بعده.
+3. **Mechanical Transformation.** الأجساد تُنقل باستخراج آلي،
+   ولا تُعاد كتابتها يدويًا؛ يتبعها diff يثبت أن المتغير
+   الوحيد هو الجملة المقصودة.
+4. **Identity is not Authority.** الحرس الذي يسأل «هل هذا
+   يخصك؟» لا يُحوّل. `api.declare_handover` /
+   `api.request_session_transfer` / `api.respond_session_transfer`
+   تبقى بلا حرس دور، و`api.close_shift` يبقى فيها فرع الهوية
+   إلى جانب صلاحية التجاوز.
+5. **Latest Definition Only.** الدالة المعرَّفة أكثر من مرة
+   تُنقل من تعريفها الحي الأخير؛ التعريف المُسقط لا يُحيا.
+6. **Privileges Preserved.** `create or replace function` يحفظ
+   المنح القائمة، فلا تُعاد المنح ولا الإبطالات.
+7. **Legacy Layer Untouched.** 273 policy تبقى كما هي، وتصبح
+   المستهلك الوحيد لـ`has_well_role`.
+8. **Catalog Completion is Additive.** الصلاحية المفقودة
+   الوحيدة تُنشأ وتُمنح لمن كان الحرس النصي يسمح لهم حرفيًا.
+
+### الاستكشاف الذي غيّر التنفيذ
+
+المسح الآلي كشف خمس حقائق لم يكشفها المسح اليدوي:
+
+1. **مواضع الحرس = 29 لا 23.** المسح اليدوي أسقط ستة، منها
+   حرسان في `api.close_shift` وحده وأربعة في 066 بصيغة
+   `if v_actor is null or not iam.has_well_role(...)`.
+2. **`ops.change_session_energy_source` بلا permission code
+   إطلاقًا.** الفجوة الوحيدة في الكتالوج؛ أُنشئت
+   `session.energy.change` ومُنحت لـowner + manager + operator
+   حرفيًا كما كان الحرس النصي.
+3. **`shift.close_override` موجودة أصلًا وبيد tenant_owner
+   وحده** — مطابقة لحرسَي `api.close_shift` بلا منح جديد.
+4. **موضع ميت:** Migration 075 تُسقط
+   `ops.create_farm(uuid, text, uuid)` من 069؛ نقل جسد 069
+   كان سيُحيي التعريف القديم ويلغي تحسين 075 صامتًا.
+   المواضع الحية = 28.
+5. **أربع دوال تفوّض بالهوية لا بالدور.** تحويلها كان
+   سيمنع المشغّل من تسليم نقده أو جلسته أو إغلاق مناوبته —
+   عطل ميداني لا يوجد اليوم.
+
+### البرهان
+
+قبل الكتابة نُفّذ إثبات تكافؤ قائم على الكتالوج وحده،
+بلا fixtures وبلا بيانات: لكل موضع من الـ29 قُورنت مجموعة
+الأدوار في `array[...]` بمجموعة الأدوار التي يمنحها الكتالوج
+للـcode المقابل.
+
+| النتيجة | العدد |
+|---|---|
+| EQUIVALENT | 28 |
+| MISSING_CODE | 1 |
+| DIFFERS | **0** |
+
+النتيجة = `NO_SILENT_DRIFT`.
+
+ثم فُحص الناتج آليًا: 27 دالة، صفر تغيير غير مقصود،
+وخصائص `returns` / `language` / `volatile` / `security` /
+`search_path` متطابقة بايتًا ببايت.
+
+ثم دُقّق كل اسم عمود في الملفات الأربعة مقابل البنية الفعلية
+= 283 إشارة، صفر خطأ.
+
+### البدائل المستبعدة
+
+| البديل | سبب الاستبعاد |
+|---|---|
+| نقل RLS في الدفعة نفسها | Blast Radius على 273 policy غير قابل للتحقق في دفعة واحدة؛ يخالف Verification Gate per Wave |
+| دفعة واحدة تجمع الـ28 موضعًا | يخالف قاعدة «كل Domain change منطقي يحصل على Migration مستقلة»؛ ويجعل الفشل غير معزول |
+| تحويل حرس الهوية أيضًا للاتساق | يضيف قيدًا لم يكن موجودًا؛ يعطّل تسليم المشغّل لنقده وجلسته |
+| منح `session.energy.change` حسب «المنطق» لا حسب الحرس | Silent Privilege Expansion؛ الكتالوج يعكس السلطة القائمة |
+| إعادة كتابة الأجساد يدويًا | 3265 سطرًا = خطر Transcription لا يمكن إثبات غيابه |
+
+### المخاطر وTrade-offs
+
+- الحالة الوسطى بين 081 و082 مختلطة السلطة؛ غير ضارة لأن
+  التكافؤ مبرهن، فالسلطتان تعطيان الجواب نفسه.
+- `has_well_role` تبقى قائمة لأجل RLS؛ إزالتها تحتاج دفعة
+  RLS مستقلة لاحقًا.
+- `partner` / `accountant` / `viewer` تبقى بصفر منح، فلا
+  تعرضها أي واجهة قبل قرار صريح.
+
+### الأثر
+
+- **UX:** لا شيء. لا شاشة ولا زر ولا رسالة خطأ تتغير.
+  القيمة تظهر أول مرة يُطلب فيها تعديل صلاحية: يصبح تعديل
+  صف في جدول يسري في اللحظة، لا تعديل كود وإعادة نشر.
+- **Backend:** 27 دالة صارت تستهلك `has_well_permission`؛
+  `api` surface بلا تغيير.
+- **البيانات:** صف permission واحد + 3 صفوف منح فقط.
+- **Offline/Sync:** لا أثر.
+- **الأمن والصلاحيات:** مصدر إنفاذ واحد لأجساد الدوال؛
+  لا توسع ولا تضييق.
+- **المالي:** لا أثر.
+
+### دليل التحقق المحلي — 2026-08-22
+
+- Migration 081 + 082 طُبقتا ضمن `db:reset` بنجاح.
+- Permanent Test 081 = 20 PASS / 0 FAIL / 0 ERROR.
+- Permanent Test 082 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 22 files / 315 PASS / 0 FAIL / 0 ERROR.
+- **صفر Regression:** 295 فحصًا من جولات سابقة مبنية على
+  السلطة القديمة مرّت كلها بعد استبدالها.
+- Function-body guards على `has_well_role` = 0 في
+  api/ops/billing/finance/inventory/core/reporting.
+- Legacy RLS policies = 273 دون تغيير.
+- Permission catalog = 39؛ role_permissions = 73
+  (owner 39 / manager 13 / operator 21).
+- owner = الـ13 المالية والـ14 التشغيلية كما قبل النقل.
+- manager = سلطة الجلسة فقط تشغيليًا؛ بلا farmer/farm/booking/
+  fuel/shift.
+- operator = الميدان كاملًا؛ بلا `farm.create` وبلا
+  `shift.close_override`.
+- partner / viewer = 0؛ farmer = 0 سلطة تشغيلية مع بقاء
+  نطاقه الذاتي؛ inactive assignment = 0.
+- Cross-well leak = 0؛ anonymous = 0؛ unknown code = false.
+- سحب منح واحد يسري في اللحظة، والدور يبقى، وبقية المنح
+  لا تتأثر.
+- api.* invoker محفوظة؛ الدوال الداخلية definer محفوظة.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+
+### دليل التحقق السحابي — 2026-08-22
+
+- Remote migration history = 81 through `20260822013001`.
+- Cloud Test 081 = 20 PASS / 0 FAIL / 0 ERROR.
+- Cloud Test 082 = 20 PASS / 0 FAIL / 0 ERROR.
+- النتيجة الكلية = `CLOUD_W1_03B_ALL_PASS`.
+
+النشر جرى عبر القناة المثبتة في `technical/MIGRATIONS.md`
+(Supavisor transaction mode / 6543) بنقل الملفات بلا تعديل.
+
+### ما يحتاج تنفيذًا لاحقًا
+
+- دفعة مستقلة لنقل 273 RLS policy إلى Permission Codes
+  وإسقاط `has_well_role` بعدها.
+- قرار صريح لصلاحيات `partner` / `accountant` / `viewer`.
+- قرار عرض `accountant` / `viewer` في أي واجهة إدارية.
+
+### الحالة
+
+**م-18 مغلقة.** أجساد الدوال كلها تُنفذ الصلاحية من الكتالوج.
+
+Migration 071–082 immutable.
+
+أي DB change جديد يبدأ Migration 083+.

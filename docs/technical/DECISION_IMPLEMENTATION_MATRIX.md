@@ -51,7 +51,7 @@
 | المسألة | الحالة |
 | --- | --- |
 | م-16 | مفتوحة |
-| م-18 | مفتوحة |
+| م-18 | مغلقة بق-113 / 081+082 — function-body enforcement on permission codes |
 | م-19 | مغلقة بق-81 / 076 — Pump schema/reporting/concurrency corrected |
 | م-21 | مفتوحة؛ اختبار ميداني |
 | م-22 | مغلقة بق-80 / 075 — Farm → Farmer Well Account |
@@ -286,4 +286,5 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | Partner chart | distribution data exists | private partner projection |
 | M-30 | مفتوحة | must close |
 | ق-111 | Farmer self-scope authorization / م-16 | Migration 079؛ local 20 PASS؛ full suite 255 PASS؛ Cloud verified | W1-03 / م-18 | Implemented + Local Verified + Cloud Verified; م-16 closed |
-| ق-112 | Permission Authority Foundation / م-18 | Migration 080؛ local 20 PASS؛ full suite 275 PASS؛ catalog 38؛ grants 70؛ legacy policies 273 unchanged | Cloud 20/20 `CLOUD_080_ALL_PASS`؛ `DATA_API_BOUNDARY=OK` | Implemented + Local Verified + Cloud Verified; م-18 open (narrowed to enforcement) |
+| ق-112 | Permission Authority Foundation / م-18 | Migration 080؛ local 20 PASS؛ full suite 275 PASS؛ catalog 38؛ grants 70؛ legacy policies 273 unchanged | Cloud 20/20 `CLOUD_080_ALL_PASS`؛ `DATA_API_BOUNDARY=OK` | Implemented + Local Verified + Cloud Verified; superseded on enforcement by ق-113 |
+| ق-113 | Permission Enforcement Wiring / م-18 | Migration 081+082؛ 28 live guards in 27 functions moved to `has_well_permission`؛ function-body legacy guards = 0؛ equivalence proof 28 EQUIVALENT / 1 MISSING_CODE / 0 DIFFERS = `NO_SILENT_DRIFT`؛ local 20+20 PASS؛ full suite 22 files / 315 PASS / 0 FAIL / 0 ERROR (zero regression on 295 prior checks)؛ catalog 39؛ grants 73؛ legacy policies 273 unchanged | Cloud 20+20 PASS `CLOUD_W1_03B_ALL_PASS`؛ remote history 81 through `20260822013001` | Implemented + Local Verified + Cloud Verified; **م-18 closed** |
