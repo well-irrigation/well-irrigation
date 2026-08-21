@@ -1,6 +1,6 @@
 # V1 Implementation Sequence
 
-**آخر تحديث:** 2026-08-19
+**آخر تحديث:** 2026-08-21
 **القرار الحاكم:** ق-109
 **الحالة:** معتمد — التنفيذ يبدأ بعد Documentation Gate
 **المسألة الجامعة:** م-37
@@ -21,16 +21,17 @@
 
 ## 2. قواعد التنفيذ
 
-1. Migration 071–079 immutable.
+1. Migration 071–080 immutable.
 
-2. W1-02 مغلقة؛ أي DB change جديد يبدأ Migration 080+.
+2. W1-02 مغلقة؛ W1-03 أساسها مطبق بق-112 / Migration 080؛
+   أي DB change جديد يبدأ Migration 081+.
 
 3. Migration 078 ليست Migration عملاقة تجمع V1 كلها.
 
 4. كل Domain change منطقي يحصل على Migration مستقلة
    متتابعة عند الحاجة:
 
-   078, 079, 080 ...
+   078, 079, 080, 081 ...
 
 5. كل DB change تحتاج Permanent Test مناسب.
 
@@ -104,14 +105,44 @@
 
 ### W1-03 — Role/Permission authority wiring
 
-التالي: م-18.
+قيد التنفيذ: م-18.
 
 الكتالوج الحالي `iam.roles` / `iam.permissions` /
 `iam.role_permissions` تأسيسي فقط منذ Migration 028،
 بينما السلطة التشغيلية ما زالت تعتمد
 `core.well_assignments.role`.
 
-أي DB change جديد يبدأ Migration 080+.
+#### W1-03a — Permission Authority Foundation
+
+مطبقة ومتحققة محليًا بق-112 / Migration 080:
+
+- Permission catalog = 38 code (17 جديدة).
+- `iam.well_assignment_role_map` = 6 صفوف؛ `farmer` مستثنى عمدًا.
+- `iam.role_permissions` = 70 منح:
+  tenant_owner 38 / well_manager 12 / operator 20.
+- partner / accountant / viewer = 0 منح — قرار صلاحياتها مؤجل.
+- `iam.has_well_permission(uuid, text)` = الدالة القانونية
+  الجديدة للصلاحية، SECURITY DEFINER بـ`search_path` مثبت،
+  execute لـ`authenticated` فقط.
+- Legacy `iam.has_well_role` = 273 policy بلا تغيير.
+- Permanent Test 080 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 20 files / 275 PASS / 0 FAIL / 0 ERROR.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+- سلوك المستخدم = بلا تغيير (Additive only).
+
+Cloud = Pending.
+
+#### W1-03b — Enforcement wiring
+
+لم تنفذ. تغلق م-18 عندما تستهلك RLS/RPC
+`iam.has_well_permission` بدل مصفوفات الأدوار النصية.
+
+`accountant` و`viewer` صارا مقبولين في
+`core.well_assignments.role` بلا أي صلاحية فعلية،
+فلا يعرضان في أي واجهة قبل W1-03b.
+
+أي DB change جديد يبدأ Migration 081+.
 
 ### سبب W1
 

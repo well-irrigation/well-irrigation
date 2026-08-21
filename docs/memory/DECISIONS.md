@@ -1,7 +1,7 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-111
-**آخر تحديث:** 2026-08-19
+**آخر قرار مرقّم:** ق-112
+**آخر تحديث:** 2026-08-21
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
 ---
@@ -5101,3 +5101,157 @@ Migration 071–079 immutable.
 الخطوة التالية في W1:
 
 W1-03 — Role/Permission authority wiring / م-18.
+
+## ق-112 — Permission Authority Foundation
+
+- **التاريخ:** 2026-08-21.
+- **الحالة:** معتمد ومنفذ ومتحقق منه محليًا؛ Cloud pending.
+- **المرحلة:** W1-03 / Backend Foundations.
+- **المسألة:** م-18.
+- **التنفيذ:** Migration 080.
+- **Research & Standards Gate:** PASS.
+
+### السياق
+
+`iam.roles` / `iam.permissions` / `iam.role_permissions` بقيت
+كتالوجًا تأسيسيًا فقط منذ Migration 028.
+
+السلطة التشغيلية الفعلية موزعة على مصدرين:
+
+1. `iam.has_well_role` داخل 273 RLS policy.
+2. فحوص `array[...]` نصية داخل `api.*` والدوال الداخلية
+   SECURITY DEFINER.
+
+النتيجة: لا يوجد مصدر واحد يجيب على سؤال
+«هل يملك هذا المستخدم صلاحية X في هذا البئر؟»،
+وأي تعديل صلاحية يتطلب مراجعة عشرات المواضع.
+
+### القرار
+
+تبنى Permission Authority كطبقة Canonical مستقلة في
+Migration 080، دون نقل الإنفاذ إليها في الدفعة نفسها.
+
+المسار الحاكم:
+
+`auth.uid()`
+→ `core.well_assignments` (active)
+→ `iam.well_assignment_role_map`
+→ `iam.role_permissions`
+→ `iam.permissions`.
+
+### القواعد
+
+1. **Preserve Existing Authority.** الـseed ينسخ السلطة
+   القائمة حرفيًا؛ لا صلاحية كتابة جديدة لأي دور.
+2. Permission catalog توسع من 21 إلى 38 code لتغطية
+   تدفقات V1 الفعلية المنفذة في 073/074.
+3. `owner` → `tenant_owner` bundle، والنطاق يبقى `well_id`.
+   لا Tenant-wide access في 080.
+4. `manager` → `well_manager` = 12 permission فقط.
+5. `operator` → `operator` = 20 permission فقط.
+6. `partner` / `accountant` / `viewer` = صفر write grants.
+   أي منح مستقبلي يحتاج قرارًا صريحًا.
+7. `farmer` مستثنى من الـbridge عمدًا؛ وصوله يحكمه ق-111.
+8. `core.well_assignments.role` يقبل `accountant` و`viewer`
+   دون إبطال أي قيمة قائمة.
+9. `iam.has_well_permission(uuid, text)` = STABLE +
+   SECURITY DEFINER + `search_path = pg_catalog, pg_temp`،
+   EXECUTE لـauthenticated فقط.
+10. `iam.has_well_role` و273 policy تبقى Compatibility Layer
+    دون تعديل.
+11. Migration 080 لا تضيف أي `api.*` RPC.
+12. Direct DML يبقى صفرًا.
+13. نقل الإنفاذ إلى Permission Codes = Migration 081.
+
+### سبب القرار
+
+- Rule A في ق-109: Identity/Auth قبل user flows؛ W2–W9
+  تعتمد Backend Truth مستقرة.
+- فصل «بناء السلطة» عن «نقل الإنفاذ» يجعل كل دفعة قابلة
+  للتحقق منفردة، ويمنع Blast Radius غير محسوب على 273 policy.
+- Seed محافظ يجعل أي توسع صلاحية لاحق فعلًا صريحًا موثقًا
+  بدل أثر جانبي صامت لإعادة الهيكلة.
+
+### البدائل المستبعدة
+
+| البديل | سبب الاستبعاد |
+|---|---|
+| إعادة كتابة 273 policy داخل 080 | Blast Radius غير قابل للتحقق في دفعة واحدة؛ يخالف Verification Gate per Wave |
+| منح الأدوار حزمًا «منطقية» أوسع حسب اسم الدور | Silent Privilege Expansion؛ الكتالوج يجب أن يعكس السلطة القائمة لا السلطة المتوقعة |
+| إدراج `farmer` في الـbridge | `farmer` مفهوم هوية/Self-scope بق-111 وليس Administrative Authority؛ إدراجه يفتح طريق منح إداري عبر assignment |
+| تأجيل م-18 إلى W9 | يخالف ترتيب ق-109؛ Admin/Platform waves تفترض سلطة صلاحيات مستقرة |
+
+### الأدلة التي بني عليها القرار
+
+قرئ Internal Source of Truth أولًا وتحقق سطرًا بسطر من
+السلطة القائمة قبل كتابة الـseed:
+
+- `billing.record_payment` = owner/manager/operator.
+- `finance.pay_partner_distribution` = owner/manager.
+- `api.accrue_payroll` / `api.pay_salary` = owner/manager.
+- `api.record_expense` = owner/operator.
+- `core.persons` insert/update policies = owner/operator.
+- `finance.expenses` insert policy = owner/operator.
+- `api.open_shift` = owner/operator.
+- `api.close_shift` override = owner فقط.
+- `api.confirm_handover` / `api.settle_handover` = owner فقط.
+- `api.declare_handover` = مشغل المناوبة نفسه.
+
+الأساس المعياري: Least Privilege وNo Silent Privilege
+Expansion. لا Standards Conflict، ولم يُحتج معيار خارجي جديد
+لأن القرار ينسخ سلطة قائمة ولا ينشئ نموذج تفويض جديدًا.
+
+### المخاطر وTrade-offs
+
+- نظاما سلطة متعايشان مؤقتًا (`has_well_role` +
+  `has_well_permission`) حتى 081؛ خطر Drift إذا تأخرت 081.
+- `accountant` / `viewer` صارا assignable بلا وصول فعلي؛
+  يجب ألا تعرضهما أي واجهة قبل اعتماد صلاحياتهما.
+- `iam.has_well_permission` بلا مستهلك حتى 081 — مقصود.
+
+### الأثر
+
+- **UX:** لا شيء. لا شاشة ولا زر ولا رسالة خطأ تتغير.
+- **Backend:** جدول Bridge + دالة فحص؛ `api` surface بلا تغيير.
+- **البيانات:** لا تعديل على بيانات قائمة؛ صفوف كتالوج فقط.
+- **Offline/Sync:** لا أثر.
+- **الأمن والصلاحيات:** لا توسع ولا تضييق؛ مصدر Canonical متاح.
+- **المالي:** لا أثر.
+
+### دليل التحقق المحلي
+
+- Migration 080 طُبقت ضمن `db:reset`.
+- Permanent Test 080 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 20 files / 275 PASS / 0 FAIL / 0 ERROR.
+- Permission catalog = 38؛ الـ17 code الجديدة موجودة.
+- Role permissions = 70 (owner 38 / manager 12 / operator 20).
+- partner/accountant/viewer grants = 0.
+- Bridge rows = 6؛ `farmer` غير مربوط.
+- `iam.has_well_permission` = STABLE + SECURITY DEFINER +
+  fixed `search_path`؛ authenticated EXECUTE = yes؛ anon = no.
+- Legacy `has_well_role` policies = 273 دون تغيير.
+- inactive assignment لا تمنح Permission.
+- Cross-well permission leak = 0.
+- multi-role user = Union بلا owner escalation.
+- Unknown permission code = false.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+
+### ما يحتاج تنفيذًا لاحقًا
+
+- Migration 081: نقل إنفاذ `api.*` والدوال الداخلية إلى
+  Permission Codes.
+- قرار صريح لصلاحيات `partner` / `accountant` / `viewer`.
+- قرار عرض `accountant` / `viewer` في أي واجهة إدارية.
+- Cloud deploy + Cloud verification لـ080.
+
+### الحالة
+
+م-18 لم تغلق بعد.
+
+Migration 080 تبني الأساس فقط؛ الإغلاق يحتاج نقل الإنفاذ
+في Migration 081.
+
+Migration 071–080 immutable.
+
+أي DB change جديد يبدأ Migration 081+.

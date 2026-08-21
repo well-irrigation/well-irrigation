@@ -1,4 +1,4 @@
-# نقطة الاستئناف — 2026-08-18
+# نقطة الاستئناف — 2026-08-21
 
 ## Stage 7 Readiness Gate
 
@@ -262,28 +262,70 @@
 
 ## التالي
 
-**W1-03 — Role/Permission authority wiring / م-18.**
+**Cloud deploy + verify لـMigration 080.**
 
-W1-02 / ق-111 مكتملة:
+W1-02 / ق-111 مكتملة ومغلقة:
 
 - Migration 079 = Local + Cloud applied.
 - Permanent Test 079 = 20 PASS / 0 FAIL / 0 ERROR.
-- Full DB Suite = 19 files / 255 PASS / 0 FAIL / 0 ERROR.
 - Cloud migration history = 78 through 079.
 - Farmer self-scope policies = 19.
 - Legacy Farmer broad policies في نطاق W1-02 = 0.
-- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
-- Direct DML = 0.
 - م-16 مغلقة.
 
-Migration 071–079 immutable.
+W1-03a / ق-112 مطبقة ومتحققة محليًا:
 
-أي DB change جديد يبدأ Migration 080+.
+- Migration 080 = `20260819235001_080_permission_authority_foundation.sql`.
+- Permanent Test 080 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 20 files / 275 PASS / 0 FAIL / 0 ERROR.
+- Local baseline = 79 migration files، أعلى رقم 080
+  (الرقم 067 غير مستخدم تاريخيًا).
+- Permission catalog = 38 code (17 جديدة).
+- `iam.well_assignment_role_map` = 6 صفوف؛ `farmer` مستثنى عمدًا.
+- `iam.role_permissions` = 70 منح:
+  tenant_owner 38 / well_manager 12 / operator 20.
+- partner / accountant / viewer = 0 منح.
+- `iam.has_well_permission(uuid, text)` = دالة الصلاحية القانونية الجديدة.
+- Legacy `iam.has_well_role` = 273 policy بلا تغيير.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+- سلوك المستخدم = بلا تغيير.
+- **Cloud = Pending عند 079.**
 
-المسألة التالية:
+Migration 071–080 immutable.
 
-م-18 — ربط `iam.roles` / `iam.permissions` / `iam.role_permissions`
-بمصدر الصلاحية التشغيلي بدل بقاء الكتالوج تأسيسيًا فقط.
+أي DB change جديد يبدأ Migration 081+.
+
+### الخطوة التالية بالترتيب
+
+1. `db push` لـMigration 080 إلى Supabase Cloud.
+2. Cloud verification: migration history = 79 through 080،
+   catalog = 38، bridge = 6، grants = 70،
+   `iam.has_well_permission` موجودة بـSECURITY DEFINER و
+   `search_path` مثبت وexecute لـ`authenticated` فقط،
+   API = 33 authenticated / 0 anon، Direct DML = 0.
+3. Migration 081 — W1-03b Enforcement wiring:
+   استهلاك `iam.has_well_permission` داخل RLS/RPC بدل
+   مصفوفات الأدوار النصية. م-18 تغلق هناك فقط.
+
+### تحذير تشغيلي قائم
+
+`accountant` و`viewer` صارا مقبولين في
+`core.well_assignments.role` لكن بلا أي صلاحية فعلية،
+فلا يُعرضان في أي واجهة قبل W1-03b.
+
+### مؤجل بقرار المالك
+
+جولة تنظيف توثيق مستقلة لملفين متأخرين عن الواقع:
+
+- `docs/PROJECT_MAP.md`.
+- `docs/technical/INVARIANTS.md`.
+
+### المسألة الحالية
+
+م-18 — مفتوحة ومحصورة الآن في Enforcement wiring:
+جعل RLS/RPC تستهلك مصدر الصلاحية بدل مصفوفات
+الأدوار النصية. الكتالوج نفسه لم يبق تأسيسيًا.
 
 ## قاعدة التنفيذ
 

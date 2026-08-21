@@ -1,6 +1,6 @@
 # سجل تغييرات الوثائق
 
-**آخر تحديث:** 2026-08-18
+**آخر تحديث:** 2026-08-21
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 
@@ -1058,3 +1058,31 @@ Prepared / Pending Owner Verification.
 - ثبتت Migration 071–079 immutable.
 - نقلت RESUME_POINT إلى W1-03 / م-18.
 - أي DB change جديد يبدأ 080+.
+
+---
+
+## 2026-08-21 — W1-03a local verification / ق-112
+
+- وثقت ق-112 / Permission Authority Foundation في DECISIONS.
+- وثقت Migration 080 والاختبار الدائم في MIGRATIONS.
+- سجلت توسيع Permission catalog من 21 إلى 38 code.
+- سجلت `iam.well_assignment_role_map` = 6 صفوف مع استثناء `farmer` عمدًا.
+- سجلت `iam.role_permissions` = 70 منح:
+  tenant_owner 38 / well_manager 12 / operator 20.
+- سجلت partner / accountant / viewer = 0 منح كقرار مؤجل صريح.
+- سجلت `iam.has_well_permission` كدالة الصلاحية القانونية الجديدة.
+- سجلت أن 273 policy على `iam.has_well_role` لم تتغير.
+- Local baseline = 79 migration files through 080؛ 067 رقم غير مستخدم تاريخيًا.
+- Permanent tests = 20 files.
+- Permanent Test 080 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 275 PASS / 0 FAIL / 0 ERROR.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER؛ Direct DML = 0.
+- حدّثت م-18 كمفتوحة ومحصورة في Enforcement wiring بدل الكتالوج.
+- سجلت تحذير تشغيلي: `accountant` و`viewer` قابلان للتعيين بلا صلاحية فعلية،
+  فلا يعرضان في أي واجهة قبل Migration 081.
+- ثبتت Migration 071–080 immutable.
+- Cloud baseline بقي through 079؛ 080 pending.
+- نقلت RESUME_POINT إلى Cloud deploy/verify لـ080.
+- أي DB change جديد يبدأ 081+.
+- مؤجل بقرار المالك إلى جولة تنظيف مستقلة:
+  `PROJECT_MAP.md` و`INVARIANTS.md`.

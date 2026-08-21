@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-08-19
+**آخر تحديث:** 2026-08-21
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -286,3 +286,4 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | Partner chart | distribution data exists | private partner projection |
 | M-30 | مفتوحة | must close |
 | ق-111 | Farmer self-scope authorization / م-16 | Migration 079؛ local 20 PASS؛ full suite 255 PASS؛ Cloud verified | W1-03 / م-18 | Implemented + Local Verified + Cloud Verified; م-16 closed |
+| ق-112 | Permission Authority Foundation / م-18 | Migration 080؛ local 20 PASS؛ full suite 275 PASS؛ catalog 38؛ grants 70؛ legacy policies 273 unchanged | Cloud verify 080؛ ثم Migration 081 enforcement wiring؛ قرار صلاحيات partner/accountant/viewer | Implemented + Local Verified; Cloud pending; م-18 open (narrowed to enforcement) |

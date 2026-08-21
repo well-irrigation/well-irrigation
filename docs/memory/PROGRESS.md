@@ -1,6 +1,6 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-08-18
+**آخر تحديث:** 2026-08-21
 
 قاعدة هذا الملف: **لا يُكتب فيه إلا ما تمّ فعلًا وثُبِت بدليل.** النية والخطة مكانهما `RESUME_POINT.md`.
 
@@ -876,3 +876,31 @@ W1-02 مكتملة.
 م-16 مغلقة.
 Migration 071–079 immutable.
 التالي W1-03 / م-18.
+
+---
+
+## 2026-08-21 — W1-03 / ق-112 locally verified
+
+المالك شغّل التحقق الفعلي بعد إضافة Migration 080:
+
+- `db:reset` طبق 080.
+- Permanent Test 080 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 20 files / 275 PASS / 0 FAIL / 0 ERROR.
+- Permission catalog = 38؛ new V1 codes = 17.
+- Role permissions = 70 (owner 38 / manager 12 / operator 20).
+- partner/accountant/viewer write grants = 0.
+- Bridge rows = 6؛ farmer map rows = 0.
+- `iam.has_well_permission` = STABLE + SECURITY DEFINER + fixed `search_path`؛ authenticated فقط.
+- Legacy `has_well_role` policies = 273 دون تغيير.
+- manager/operator authority regression = PASS بلا توسع.
+- inactive assignment = deny.
+- Cross-well permission leak = 0.
+- multi-role = Union بلا owner escalation.
+- API surface لم تتوسع (33 authenticated / 0 anon / 0 SECURITY DEFINER).
+- Direct DML بقي صفرًا.
+
+Local baseline: 79 migration files، أعلى رقم 080، و20 permanent test file.
+
+الحالة: Implemented + Local Verified؛ Cloud pending.
+
+م-18 لم تغلق — الإنفاذ ينتقل في Migration 081.

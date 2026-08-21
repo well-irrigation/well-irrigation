@@ -1,6 +1,6 @@
 # الهجرات
 
-**آخر تحديث:** 2026-08-19
+**آخر تحديث:** 2026-08-21
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
@@ -423,3 +423,70 @@ Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
 
 Migration 071–079 immutable.
 أي DB change جديد يبدأ Migration 080+.
+
+---
+
+## Migration 080 — Permission authority foundation
+
+**الملف:** `20260819235001_080_permission_authority_foundation.sql`
+
+**المرحلة:** W1-03 / م-18 / ق-112.
+
+**الحالة:** مطبقة ومتحقق منها محليًا؛ Cloud pending.
+م-18 لم تغلق — الإنفاذ ينتقل في 081.
+
+### ما تغير
+
+- Permission catalog توسع من 21 إلى 38 code لتغطية تدفقات
+  V1 المنفذة في 073/074 (session.resume، invoice.issue،
+  payment.allocate، distribution.pay، fuel.*، shift.*،
+  handover.*، session.transfer.*، payroll.*).
+- أضيف `iam.well_assignment_role_map` كـCanonical bridge من
+  `core.well_assignments.role` إلى `iam.roles`؛ 6 صفوف،
+  و`farmer` مستثنى عمدًا.
+- `core.well_assignments_role_check` وسّع ليقبل `accountant`
+  و`viewer` دون إبطال أي قيمة قائمة.
+- `iam.role_permissions` seed محافظ = 70 صف:
+  tenant_owner 38 / well_manager 12 / operator 20.
+- partner / accountant / viewer = صفر write grants.
+- أضيفت `iam.has_well_permission(uuid, text)` كدالة الفحص
+  الـCanonical؛ STABLE + SECURITY DEFINER + fixed `search_path`؛
+  EXECUTE لـauthenticated فقط.
+- `iam.has_well_role` و273 RLS policy بقيت Compatibility Layer
+  دون تعديل.
+- `api.*` surface لم تتغير.
+- Direct DML بقي صفرًا.
+
+### ما لم تفعله 080 عمدًا
+
+- لا نقل إنفاذ إلى Permission Codes — ذلك Migration 081.
+- لا تعديل على أي RLS policy قائمة.
+- لا Tenant-wide access؛ النطاق يبقى `well_id`.
+- لا توسع ولا تضييق لصلاحيات أي مستخدم حالي.
+- لا أثر على Farmer self-scope من 079.
+
+### دليل التحقق
+
+- Permanent Test 080 = 20 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 20 files / 275 PASS / 0 FAIL / 0 ERROR.
+- Permission catalog = 38؛ new codes = 17.
+- Role permissions = 70؛ partner/accountant/viewer = 0.
+- Bridge rows = 6؛ farmer map rows = 0.
+- Legacy `has_well_role` policies = 273 دون تغيير.
+- inactive assignment = deny.
+- Cross-well permission leak = 0.
+- multi-role = Union بلا owner escalation.
+- unknown permission code = false.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+
+**دليل Cloud لـ080:** Pending.
+
+Migration 071–080 immutable.
+أي DB change جديد يبدأ Migration 081+.
+
+### ملاحظة ترقيم
+
+عدد ملفات الترحيل المحلية = 79 بينما أعلى رقم = 080.
+السبب أن الرقم 067 لم يُستخدم أصلًا؛ فجوة ترقيم تاريخية
+وليست ملفًا ناقصًا.
