@@ -262,18 +262,17 @@
 
 ## التالي
 
-**Cloud deploy + verify لـMigration 080.**
+**Migration 081 — W1-03b Enforcement wiring. تغلق م-18.**
 
 W1-02 / ق-111 مكتملة ومغلقة:
 
 - Migration 079 = Local + Cloud applied.
 - Permanent Test 079 = 20 PASS / 0 FAIL / 0 ERROR.
-- Cloud migration history = 78 through 079.
 - Farmer self-scope policies = 19.
 - Legacy Farmer broad policies في نطاق W1-02 = 0.
 - م-16 مغلقة.
 
-W1-03a / ق-112 مطبقة ومتحققة محليًا:
+W1-03a / ق-112 مكتملة ومغلقة — Local + Cloud:
 
 - Migration 080 = `20260819235001_080_permission_authority_foundation.sql`.
 - Permanent Test 080 = 20 PASS / 0 FAIL / 0 ERROR.
@@ -290,23 +289,43 @@ W1-03a / ق-112 مطبقة ومتحققة محليًا:
 - API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
 - Direct DML = 0.
 - سلوك المستخدم = بلا تغيير.
-- **Cloud = Pending عند 079.**
+- **Cloud = متحقق منه:** `CLOUD_080_ALL_PASS` (20/20)
+  و`DATA_API_BOUNDARY=OK`؛ remote history = 79 through
+  `20260819235001`.
 
 Migration 071–080 immutable.
 
 أي DB change جديد يبدأ Migration 081+.
 
+### حالة البيئة السحابية — 2026-08-21
+
+المشروع السحابي أُعيد بناؤه من الصفر في حساب جديد ومنطقة
+South Asia (Mumbai) بعد تعذّر الوصول إلى بريد الحساب السابق.
+لم يُفقد شيء: لا بيانات إنتاجية، ولا مستخدمين حقيقيين،
+ولا أي مرجع للمشروع القديم في المستودع.
+
+- الـ79 migration مطبقة كلها بالترتيب من 001 إلى 080.
+- Exposed schemas = `api` أولًا ثم `graphql_public`؛
+  `public` غير مكشوفة.
+- الغرف الداخلية `core` / `iam` / `public` / `audit` /
+  `reporting` كلها محجوبة عبر Data API.
+- **قناة النشر العاملة الوحيدة = Supavisor transaction mode
+  على المنفذ 6543.** المنفذ 5432 والاتصال المباشر IPv6
+  لا يصلان من شبكة المالك، لذلك `db push` لا يعمل
+  والنشر يجري بسكربت `psql` قابل للاستكمال.
+
+تفاصيل القناة وسبب أمانها في `technical/MIGRATIONS.md`.
+
 ### الخطوة التالية بالترتيب
 
-1. `db push` لـMigration 080 إلى Supabase Cloud.
-2. Cloud verification: migration history = 79 through 080،
-   catalog = 38، bridge = 6، grants = 70،
-   `iam.has_well_permission` موجودة بـSECURITY DEFINER و
-   `search_path` مثبت وexecute لـ`authenticated` فقط،
-   API = 33 authenticated / 0 anon، Direct DML = 0.
-3. Migration 081 — W1-03b Enforcement wiring:
-   استهلاك `iam.has_well_permission` داخل RLS/RPC بدل
-   مصفوفات الأدوار النصية. م-18 تغلق هناك فقط.
+1. تصميم Migration 081 — نقل الإنفاذ:
+   استهلاك `iam.has_well_permission` داخل `api.*` والدوال
+   الداخلية بدل مصفوفات الأدوار النصية.
+2. قرار صريح لصلاحيات `partner` / `accountant` / `viewer`
+   قبل أو مع 081.
+3. Permanent Test 081 + Local verification.
+4. Cloud deploy + verify عبر قناة 6543.
+5. م-18 تغلق هناك فقط.
 
 ### تحذير تشغيلي قائم
 

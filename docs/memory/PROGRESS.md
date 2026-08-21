@@ -904,3 +904,52 @@ Local baseline: 79 migration files، أعلى رقم 080، و20 permanent test f
 الحالة: Implemented + Local Verified؛ Cloud pending.
 
 م-18 لم تغلق — الإنفاذ ينتقل في Migration 081.
+
+---
+
+## 2026-08-21 — W1-03a Cloud verification closure
+
+المالك أعاد بناء المشروع السحابي من الصفر ثم شغّل التحقق:
+
+- المشروع السحابي السابق تعذّر الوصول إليه (بريد الحساب)؛
+  أُنشئ حساب ومشروع جديدان في South Asia (Mumbai).
+- لا شيء فُقد: لا بيانات إنتاجية ولا مستخدمين حقيقيين ولا
+  مرجع للمشروع القديم في أي ملف متتبَّع.
+- طُبقت الـ79 migration كلها بالترتيب من 001 إلى 080، كلها OK.
+- قناة النشر العاملة الوحيدة = Supavisor transaction mode
+  (المنفذ 6543)؛ المنفذ 5432 والاتصال المباشر IPv6 لا يصلان
+  من شبكة المالك.
+- ضُبطت Exposed schemas = `api` أولًا ثم `graphql_public`؛
+  `public` غير مكشوفة.
+
+Cloud verification لـ080 = 20 / 20:
+
+- Remote migration history = 79 through `20260819235001`.
+- Permission catalog = 38؛ new codes = 17.
+- Bridge rows = 6؛ farmer map rows = 0؛ Bridge RLS enabled.
+- Role permissions = 70 (38 / 12 / 20)؛
+  partner + accountant + viewer = 0.
+- `iam.has_well_permission` = SECURITY DEFINER + STABLE +
+  fixed `search_path`؛ authenticated فقط؛ anon = no.
+- `core.well_assignments` role constraint = مطبق.
+- Legacy `has_well_role` policies = 273 دون تغيير.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER /
+  0 relations.
+- Direct DML = 0.
+- النتيجة = `CLOUD_080_ALL_PASS`.
+
+Data API boundary من خارج قاعدة البيانات:
+
+- Default exposed schema = `api`؛ anon مرفوض.
+- `core` / `iam` / `public` / `audit` / `reporting` = محجوبة.
+- جداول عبر `api` = 0.
+- النتيجة = `DATA_API_BOUNDARY=OK`.
+
+النتيجة:
+
+W1-03a مكتملة ومغلقة.
+Migration 071–080 immutable.
+أي DB change جديد يبدأ 081+.
+
+م-18 ما زالت مفتوحة ومحصورة في Enforcement wiring؛
+تغلق في Migration 081 / W1-03b.

@@ -43,6 +43,12 @@
 
 9. لا نعدل Remote Database يدويًا خارج Migration workflow.
 
+    ملفات الترحيل هي المصدر الوحيد. إذا حُجبت قناة `db push`
+    شبكيًا، يجوز نقل نفس الملفات بلا تعديل عبر سكربت `psql`
+    قابل للاستكمال يسجّل كل migration في
+    `supabase_migrations.schema_migrations` — القناة المعتمدة
+    موثقة في `MIGRATIONS.md`. هذا نقل، لا تعديل يدوي.
+
 10. لا Production UI بلا Backend Contract حقيقي.
 
 ## 3. أسلوب التنفيذ
@@ -107,6 +113,8 @@
 
 قيد التنفيذ: م-18.
 
+W1-03a مغلقة (Local + Cloud). المتبقي = W1-03b فقط.
+
 الكتالوج الحالي `iam.roles` / `iam.permissions` /
 `iam.role_permissions` تأسيسي فقط منذ Migration 028،
 بينما السلطة التشغيلية ما زالت تعتمد
@@ -131,7 +139,11 @@
 - Direct DML = 0.
 - سلوك المستخدم = بلا تغيير (Additive only).
 
-Cloud = Pending.
+Cloud = متحقق منها 2026-08-21:
+`CLOUD_080_ALL_PASS` (20/20) + `DATA_API_BOUNDARY=OK`.
+Remote migration history = 79 through `20260819235001`.
+
+W1-03a مكتملة ومغلقة.
 
 #### W1-03b — Enforcement wiring
 

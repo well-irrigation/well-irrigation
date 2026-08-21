@@ -5105,7 +5105,7 @@ W1-03 — Role/Permission authority wiring / م-18.
 ## ق-112 — Permission Authority Foundation
 
 - **التاريخ:** 2026-08-21.
-- **الحالة:** معتمد ومنفذ ومتحقق منه محليًا؛ Cloud pending.
+- **الحالة:** معتمد ومنفذ ومتحقق منه محليًا وسحابيًا.
 - **المرحلة:** W1-03 / Backend Foundations.
 - **المسألة:** م-18.
 - **التنفيذ:** Migration 080.
@@ -5237,13 +5237,41 @@ Expansion. لا Standards Conflict، ولم يُحتج معيار خارجي ج�
 - API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
 - Direct DML = 0.
 
+### دليل التحقق السحابي — 2026-08-21
+
+نُشرت 080 إلى Supabase Cloud وتحقق منها المالك.
+النشر جرى في مشروع سحابي جديد أُعيد بناؤه من الصفر
+(79 migration بالترتيب) لأن حساب المشروع السابق تعذّر
+الوصول إليه؛ التفاصيل في `technical/MIGRATIONS.md`.
+
+- Remote migration history = 79 through `20260819235001`.
+- Permission catalog = 38؛ new codes = 17.
+- Bridge rows = 6؛ farmer map rows = 0؛ Bridge RLS enabled.
+- Role permissions = 70 (38 / 12 / 20)؛
+  partner + accountant + viewer = 0.
+- `iam.has_well_permission` = SECURITY DEFINER + STABLE +
+  fixed `search_path`؛ authenticated فقط؛ anon = no.
+- `core.well_assignments` role constraint = مطبق.
+- Legacy `has_well_role` policies = 273 دون تغيير.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER /
+  0 relations.
+- Direct DML = 0.
+- النتيجة الكلية = `CLOUD_080_ALL_PASS` (20 / 20).
+
+Data API boundary تحقق من خارج قاعدة البيانات أيضًا:
+
+- Default exposed schema = `api`؛ anon مرفوض
+  (`permission denied for schema api`).
+- `core` / `iam` / `public` / `audit` / `reporting` = محجوبة.
+- جداول عبر `api` = 0.
+- النتيجة = `DATA_API_BOUNDARY=OK`.
+
 ### ما يحتاج تنفيذًا لاحقًا
 
 - Migration 081: نقل إنفاذ `api.*` والدوال الداخلية إلى
   Permission Codes.
 - قرار صريح لصلاحيات `partner` / `accountant` / `viewer`.
 - قرار عرض `accountant` / `viewer` في أي واجهة إدارية.
-- Cloud deploy + Cloud verification لـ080.
 
 ### الحالة
 

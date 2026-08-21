@@ -432,7 +432,7 @@ Migration 071–079 immutable.
 
 **المرحلة:** W1-03 / م-18 / ق-112.
 
-**الحالة:** مطبقة ومتحقق منها محليًا؛ Cloud pending.
+**الحالة:** مطبقة ومتحقق منها محليًا وسحابيًا.
 م-18 لم تغلق — الإنفاذ ينتقل في 081.
 
 ### ما تغير
@@ -480,7 +480,28 @@ Migration 071–079 immutable.
 - API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
 - Direct DML = 0.
 
-**دليل Cloud لـ080:** Pending.
+**دليل Cloud لـ080:**
+
+- Remote migration history = 79 through `20260819235001`.
+- Permission catalog = 38؛ new codes = 17.
+- Bridge rows = 6؛ farmer map rows = 0؛ Bridge RLS enabled.
+- Role permissions = 70 (38 / 12 / 20)؛
+  partner + accountant + viewer = 0.
+- `iam.has_well_permission` = SECURITY DEFINER + STABLE +
+  fixed `search_path`؛ authenticated فقط؛ anon = no.
+- `core.well_assignments` role constraint = مطبق.
+- Legacy `has_well_role` policies = 273 دون تغيير.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER /
+  0 relations.
+- Direct DML = 0.
+- النتيجة = `CLOUD_080_ALL_PASS` (20 / 20).
+
+**دليل Data API boundary من خارج قاعدة البيانات:**
+
+- Default exposed schema = `api`؛ anon مرفوض.
+- `core` / `iam` / `public` / `audit` / `reporting` = محجوبة.
+- جداول عبر `api` = 0.
+- النتيجة = `DATA_API_BOUNDARY=OK`.
 
 Migration 071–080 immutable.
 أي DB change جديد يبدأ Migration 081+.
@@ -490,3 +511,62 @@ Migration 071–080 immutable.
 عدد ملفات الترحيل المحلية = 79 بينما أعلى رقم = 080.
 السبب أن الرقم 067 لم يُستخدم أصلًا؛ فجوة ترقيم تاريخية
 وليست ملفًا ناقصًا.
+
+---
+
+## حدث تشغيلي — إعادة بناء المشروع السحابي 2026-08-21
+
+**السبب:** تعذّر الوصول إلى البريد الإلكتروني المرتبط
+بحساب Supabase السابق. أنشأ المالك حسابًا جديدًا ومشروعًا
+جديدًا في منطقة South Asia (Mumbai).
+
+**ما فُقد:** لا شيء له قيمة.
+
+- المشروع السابق كان Schema فقط بلا بيانات إنتاجية
+  وبلا مستخدمين حقيقيين.
+- لا ملف متتبَّع في المستودع يذكر المشروع السابق؛
+  إعداد التطبيق يقرأ `SUPABASE_URL` و
+  `SUPABASE_PUBLISHABLE_KEY` من البيئة ولا يخزّن شيئًا.
+- لا مفاتيح ولا كلمات مرور في المستودع.
+
+**ما أُعيد بناؤه:** الـ79 migration كلها بالترتيب الزمني
+من 001 إلى 080، ثم أُعيد ضبط Exposed schemas.
+
+### قناة النشر السحابي المثبتة
+
+`db push` عبر Supavisor session mode (المنفذ 5432) والاتصال
+المباشر IPv6 كلاهما لا يصل من شبكة المالك:
+
+- direct IPv6 `db.<ref>.supabase.co:5432` = فشل.
+- pooler `aws-0`/`aws-1` port 5432 = فشل المصادقة/المهلة.
+- pooler `aws-0` **port 6543** (transaction mode) = **يعمل**.
+
+القناة العاملة الوحيدة = Supavisor transaction mode / 6543.
+
+لذلك النشر السحابي يجري بسكربت `psql` قابل للاستكمال:
+
+1. ينشئ `supabase_migrations.schema_migrations` إن لم يوجد.
+2. يقرأ ما طُبق فعلًا ويتخطاه.
+3. يطبق كل migration داخل معاملة واحدة ويسجّل صفها.
+4. يتوقف عند أول فشل ويطبع الخطأ، وإعادة التشغيل تكمل
+   من موضع التوقف.
+
+الحقائق التي تسمح بذلك: مجموع الـ79 ملفًا = 0.52 MB،
+وصفر أوامر `concurrently` / `vacuum` / `reindex`،
+وترتيب أسماء الملفات = الترتيب الزمني.
+
+هذه القناة لا تغيّر أي قاعدة حاكمة: لا تعديل يدوي على
+Remote Database خارج Migration workflow، ولا استخدام
+`config push` لنشر DB migrations. الملفات هي المصدر،
+والسكربت مجرد ناقل بديل عن `db push` المحجوب شبكيًا.
+
+### إعداد Data API بعد إعادة البناء
+
+`api` schema تُنشأ في Migration 071، فلا تظهر في
+Exposed schemas قبل تطبيق الترحيلات. الترتيب الصحيح:
+
+login → build → set Exposed schemas → verify.
+
+القيمة المعتمدة = `api` **أولًا** ثم `graphql_public`.
+`api` يجب أن تكون الأولى لأنها الـschema الافتراضية
+لأي طلب بلا ترويسة صريحة. `public` غير مكشوفة.

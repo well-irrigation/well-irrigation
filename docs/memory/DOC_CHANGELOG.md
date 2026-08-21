@@ -1086,3 +1086,33 @@ Prepared / Pending Owner Verification.
 - أي DB change جديد يبدأ 081+.
 - مؤجل بقرار المالك إلى جولة تنظيف مستقلة:
   `PROJECT_MAP.md` و`INVARIANTS.md`.
+
+---
+
+## 2026-08-21 — W1-03a Cloud verification closure
+
+- سجلت Cloud verification لـ080: `CLOUD_080_ALL_PASS` = 20/20.
+- سجلت remote migration history = 79 through `20260819235001`.
+- سجلت `DATA_API_BOUNDARY=OK` من خارج قاعدة البيانات:
+  default exposed schema = `api` وanon مرفوض،
+  و`core`/`iam`/`public`/`audit`/`reporting` محجوبة،
+  وجداول عبر `api` = 0.
+- وثقت حدث إعادة بناء المشروع السحابي في `MIGRATIONS.md`:
+  حساب جديد، منطقة South Asia (Mumbai)، 79 migration بالترتيب،
+  ولا شيء فُقد لأن المشروع السابق كان Schema بلا بيانات.
+- وثقت قناة النشر السحابي المثبتة: Supavisor transaction mode
+  على المنفذ 6543 هي القناة العاملة الوحيدة؛ المنفذ 5432
+  والاتصال المباشر IPv6 لا يصلان، فـ`db push` لا يعمل.
+- وثقت أن النشر يجري بسكربت `psql` قابل للاستكمال ينقل نفس
+  الملفات بلا تعديل ويسجّلها في
+  `supabase_migrations.schema_migrations`.
+- وضّحت في `V1_IMPLEMENTATION_SEQUENCE.md` القاعدة 9 أن هذا
+  نقل لا تعديل يدوي، والملفات تبقى المصدر الوحيد.
+- وثقت أن `api` تُنشأ في Migration 071، فترتيب العمل الصحيح =
+  login → build → set Exposed schemas → verify، و`api` أولًا.
+- حدّثت م-18 بدليل التحقق السحابي مع بقائها مفتوحة.
+- حدّثت ق-112 إلى Cloud Verified في DECISIONS والمصفوفة.
+- أغلقت W1-03a في PROGRESS و`V1_IMPLEMENTATION_SEQUENCE`.
+- نقلت RESUME_POINT إلى Migration 081 / W1-03b Enforcement wiring.
+- ثبتت Migration 071–080 immutable؛ أي DB change جديد يبدأ 081+.
+- التحذير التشغيلي لـ`accountant` و`viewer` ما زال قائمًا.
