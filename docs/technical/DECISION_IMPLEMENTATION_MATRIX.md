@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-08-21
+**آخر تحديث:** 2026-08-22
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -57,8 +57,14 @@
 | م-22 | مغلقة بق-80 / 075 — Farm → Farmer Well Account |
 | م-23 | منطق الخادم منجز، UI/scheduler متبقيان |
 | م-24 | مغلقة |
+| م-25 | مفتوحة — **ضُيِّقت** بق-114 / 083+084: الأساس الخادمي للـidempotency موصول ومُثبت؛ طابور الهاتف وstable command IDs والعمل الخلفي متبقية |
 
 ## baseline المرجعي
+
+**لقطة Stage 7 Readiness Gate — 2026-08-17. ليست الحالة
+الحالية.** الأرقام الحاكمة الآن في
+`technical/MIGRATIONS.md` (83 migration / 24 test file /
+354 PASS).
 
 - migrations = 76
 - permanent tests = 17
@@ -288,3 +294,4 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | ق-111 | Farmer self-scope authorization / م-16 | Migration 079؛ local 20 PASS؛ full suite 255 PASS؛ Cloud verified | W1-03 / م-18 | Implemented + Local Verified + Cloud Verified; م-16 closed |
 | ق-112 | Permission Authority Foundation / م-18 | Migration 080؛ local 20 PASS؛ full suite 275 PASS؛ catalog 38؛ grants 70؛ legacy policies 273 unchanged | Cloud 20/20 `CLOUD_080_ALL_PASS`؛ `DATA_API_BOUNDARY=OK` | Implemented + Local Verified + Cloud Verified; superseded on enforcement by ق-113 |
 | ق-113 | Permission Enforcement Wiring / م-18 | Migration 081+082؛ 28 live guards in 27 functions moved to `has_well_permission`؛ function-body legacy guards = 0؛ equivalence proof 28 EQUIVALENT / 1 MISSING_CODE / 0 DIFFERS = `NO_SILENT_DRIFT`؛ local 20+20 PASS؛ full suite 22 files / 315 PASS / 0 FAIL / 0 ERROR (zero regression on 295 prior checks)؛ catalog 39؛ grants 73؛ legacy policies 273 unchanged | Cloud 20+20 PASS `CLOUD_W1_03B_ALL_PASS`؛ remote history 81 through `20260822013001` | Implemented + Local Verified + Cloud Verified; **م-18 closed** |
+| ق-114 | Server-side Idempotency / م-25 | Migration 083+084؛ 4 tenant resolvers in `sync` (server-derived tenant, active-assignment scope gate, no authority decision — drift-free by `080:243`)؛ 8 `api.*` first-field-cycle wrappers take trailing optional `p_command_id`؛ signature replacement keeps api surface = 33؛ `p_command_id = null` = literal legacy path؛ `PUBLIC` grants revoked from 058 executors؛ local 16+23 PASS؛ full suite 24 files / 354 PASS / 0 FAIL / 0 ERROR (zero regression on 315 prior checks) | Cloud 16+23 PASS `CLOUD_W2_01_ALL_PASS` (39/0/0)؛ `DATA_API_BOUNDARY=OK`؛ `API_SURFACE/ANON/DEFINER/DIRECT_DML = 33/0/0/0`؛ remote history 83 through `20260823013001`؛ payment total does not double on replay | Implemented + Local Verified + Cloud Verified; **م-25 narrowed, not closed** — server foundation wired, mobile outbox/stable command IDs still open |

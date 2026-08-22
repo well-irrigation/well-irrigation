@@ -8,20 +8,21 @@
 
 ## الحالة الحالية الحاكمة — 2026-08-22
 
-- Local: 81 migration file مطبقة حتى 082؛ الترقيم التاريخي
+- Local: 83 migration file مطبقة حتى 084؛ الترقيم التاريخي
   لا يحتوي Migration 067.
-- Cloud: 81 migration مطبقة حتى 082؛ remote history = 81
-  through `20260822013001`؛ Cloud verification مكتمل.
-- 22 ملف اختبار دائم.
-- 315 PASS / 0 FAIL / 0 ERROR محليًا.
+- Cloud: 83 migration مطبقة حتى 084؛ remote history = 83
+  through `20260823013001`؛ Cloud verification مكتمل.
+- 24 ملف اختبار دائم.
+- 354 PASS / 0 FAIL / 0 ERROR محليًا.
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
 - 073: عقد الكتابة الأساسي داخل api.
 - 074: استكمال تدفقات MVP الحرجة داخل api.
 - 080: ق-112 — Permission Authority Foundation.
 - 081+082: ق-113 — Permission Enforcement Wiring؛ م-18 مغلقة.
+- 083+084: ق-114 — Server-side Idempotency؛ م-25 تضيق.
 
-Migration 071–082 immutable. أي DB change جديد يبدأ 083+.
+Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 
 **مهم:** الجداول أدناه تسجل ما فعلته كل هجرة في وقتها.
 لذلك قد يظهر في هجرة قديمة وصف منسوخ لاحقًا، مثل
@@ -427,8 +428,8 @@ Full DB Suite = 18 files / 235 PASS / 0 FAIL / 0 ERROR.
 - Direct DML = 0.
 - لا Security Advisor warning جديد من 079.
 
-Migration 071–082 immutable.
-أي DB change جديد يبدأ Migration 083+.
+Migration 071–084 immutable.
+أي DB change جديد يبدأ Migration 085+.
 
 ---
 
@@ -509,8 +510,8 @@ Migration 071–082 immutable.
 - جداول عبر `api` = 0.
 - النتيجة = `DATA_API_BOUNDARY=OK`.
 
-Migration 071–082 immutable.
-أي DB change جديد يبدأ Migration 083+.
+Migration 071–084 immutable.
+أي DB change جديد يبدأ Migration 085+.
 
 ---
 
@@ -648,14 +649,235 @@ Migration 071–082 immutable.
 نفسه لم يُمسّ** — المعدَّل هو ملف اختباره فقط، وهذا تعديل
 اختبار مسموح لا تعديل هجرة مختومة.
 
-Migration 071–082 immutable.
-أي DB change جديد يبدأ Migration 083+.
+Migration 071–084 immutable.
+أي DB change جديد يبدأ Migration 085+.
 
 ### ملاحظة ترقيم
 
-عدد ملفات الترحيل المحلية = 81 بينما أعلى رقم = 082.
+عدد ملفات الترحيل المحلية = 83 بينما أعلى رقم = 084.
 السبب أن الرقم 067 لم يُستخدم أصلًا؛ فجوة ترقيم تاريخية
 وليست ملفًا ناقصًا.
+
+---
+
+## Migration 083 — Sync command resolvers
+
+**الملف:** `20260823003001_083_sync_command_resolvers.sql`
+
+**المرحلة:** W2-01 / م-25 / ق-114.
+
+**الحالة:** مطبقة ومتحقق منها محليًا وسحابيًا.
+
+### لماذا لزمت
+
+`sync.processed_commands` و`sync.begin_command` /
+`sync.finish_command` موجودة من 058، لكن **لا دالة واحدة على
+الخادم كانت تستدعيها**، ولا واحدة من 33 دالة `api.*` تقبل
+معرّف عملية. البنية كانت مبنية وغير موصولة.
+
+و`sync.begin_command` تأخذ `p_tenant_id` من المتصل بلا تحقق
+(`058:26`)، فلا يجوز أن يصل هذا المعامل إلى العميل: تمرير
+tenant غير مملوك يسمح بحجز `command_id` سلفًا فتبدو عملية
+الضحية «مكرَّرة» فلا تُنفَّذ.
+
+### ما تغير
+
+- سُحبت منح `PUBLIC` الافتراضية عن مُنفِّذي 058:
+
+  | الدالة | ما سُحب |
+  |---|---|
+  | `sync.begin_command(uuid,uuid,text,jsonb,uuid)` | `public`, `anon`, `authenticated` |
+  | `sync.finish_command(uuid,uuid,text,jsonb)` | `public`, `anon`, `authenticated` |
+
+  لا ثقب حيًّا كان قائمًا لأن `sync` غير مكشوف عبر Data API
+  (`config.toml` يكشف `api` و`graphql_public` فقط)، لكن بقاء
+  المنح يخالف Least Privilege في ق-89 بند 22 ويجعل الأمان
+  معتمدًا على إعداد خارجي وحده لا على منح قاعدة البيانات.
+
+- أُضيفت 4 مُحلِّلات تستخرج الجهة على الخادم ثم تنادي
+  مُنفِّذي 058 القائمين (إعادة استخدام لا استبدال، وفق ق-89
+  بند 10):
+
+  | المُحلِّل | مصدر الجهة | يُستخدم في |
+  |---|---|---|
+  | `sync.begin_well_command(uuid,uuid,text,jsonb)` | `core.wells` | بدء جلسة، دفعة، مزارع، أرض |
+  | `sync.finish_well_command(uuid,uuid,text,jsonb)` | `core.wells` | تثبيت نتائج الأربع أعلاه |
+  | `sync.begin_session_command(uuid,uuid,text,jsonb)` | `ops.irrigation_sessions` ← `core.wells` | Pause / Resume / تغيير الطاقة / الإنهاء |
+  | `sync.finish_session_command(uuid,uuid,text,jsonb)` | `ops.irrigation_sessions` ← `core.wells` | تثبيت نتائج الأربع أعلاه |
+
+- كلها `security definer` + `volatile` +
+  `set search_path = pg_catalog, pg_temp`، وEXECUTE مسحوبة
+  ثم ممنوحة صراحة لـ`authenticated` و`service_role` فقط —
+  وهما بالضبط مستفيدو أغلفة `api` الثمانية، فلا توجد هوية
+  تستطيع بدء العملية ولا تستطيع إتمامها. `anon` = صفر.
+- `security definer` لازم لأن 072 سحبت DML من `authenticated`
+  على كل المخططات الداخلية بما فيها `sync`، وأغلفة `api`
+  تبقى `security invoker` وفق ق-78.
+
+### Scope is not Authority
+
+المُحلِّل يشترط تعيينًا نشطًا على البئر
+(`core.well_assignments` بـ`profile_id = auth.uid()` و
+`status = 'active'`) **بلا اشتراط دور**. هذا حدّ نطاق لا
+قرار صلاحية؛ القرار يبقى في الدوال الداخلية عبر
+`iam.has_well_permission` (ق-113).
+
+**البرهان على غياب Silent Drift:** الشرط لا يرفض عملية كانت
+الدالة الداخلية ستقبلها، لأن `iam.has_well_permission` نفسها
+تشترط `wa.profile_id = auth.uid() and wa.status = 'active'`
+(`080:243`). فالعضوية النشطة شرط لازم لكل واحدة من العمليات
+الثماني، ومن يجتاز فحص الصلاحية الداخلي يجتازها حتمًا.
+
+### لا كشف للوجود
+
+«بئر جهة أخرى» و«بئر غير موجود» يعطيان الرسالة نفسها
+حرفيًا، فلا يصلح المُحلِّل أداة استكشاف لمعرّفات جهات أخرى.
+نفس القاعدة للجلسة.
+
+### ما لم تفعله 083 عمدًا
+
+- لا جدول جديد ولا عمود جديد ولا RLS policy واحدة.
+- لا تعديل على `sync.begin_command` / `finish_command`
+  أنفسهما — 058 مختومة وهما المُنفِّذ الفعلي كما هما.
+- لا قرار صلاحية داخل أي مُحلِّل؛ صفر إشارة إلى
+  `has_well_permission` أو `has_well_role`.
+- لا كشف لـ`sync` عبر Data API؛ المُحلِّلات ليست عقدًا للعميل.
+
+### دليل التحقق
+
+- Permanent Test 083 = 16 PASS / 0 FAIL / 0 ERROR.
+- Cloud Test 083 = 16 PASS / 0 FAIL / 0 ERROR.
+- المُحلِّلات = 4 definer بمسار بحث مثبَّت وتوقيعات مطابقة
+  لما تتوقعه أغلفة `api` بالضبط.
+- صفر مُحلِّل يقبل معامل جهة؛ صفر مُحلِّل يتخذ قرار صلاحية.
+- `authenticated` = 4 / `service_role` = 4 / `anon` = 0.
+- مُنفِّذو 058 في متناول أدوار العميل = **0**.
+- الغريب مُنع، والتعيين غير النشط مُنع، ونفس الرسالة
+  للحالتين، ومعرّف العملية مطلوب.
+- تكرار المعرّف يعيد النتيجة المخزَّنة بصفّ واحد.
+- Direct DML = 0 بعد 083.
+
+---
+
+## Migration 084 — Idempotent api writes
+
+**الملف:** `20260823013001_084_api_idempotent_writes.sql`
+
+**المرحلة:** W2-01 / م-25 / ق-114.
+
+**الحالة:** مطبقة ومتحقق منها محليًا وسحابيًا.
+
+### ما تغير
+
+الأغلفة الثمانية للدورة الميدانية الأولى أُعيد تعريفها
+بوسيط أخير اختياري `p_command_id uuid default null`:
+
+| غلاف `api` | عدد الوسائط بعد التغيير | الإرجاع | المُحلِّل المستخدم |
+|---|---|---|---|
+| `start_irrigation_session` | 8 | `uuid` | well |
+| `pause_irrigation_session` | 4 | `uuid` | session |
+| `change_session_energy_source` | 7 | `uuid` | session |
+| `resume_irrigation_session` | 3 | `uuid` | session |
+| `complete_irrigation_session` | 6 | `jsonb` | session |
+| `record_payment` | 12 | `jsonb` | well |
+| `create_farmer` | 7 | `jsonb` | well |
+| `create_farm` | 4 | `jsonb` | well |
+
+المنطق في كل غلاف:
+
+1. `p_command_id is null` ⟹ المسار القديم حرفيًا، بلا فرق.
+2. وإلا: حجز عبر `sync.begin_*_command`.
+3. إن كان الحجز `duplicate` وحالته `accepted` ⟹ تُعاد
+   النتيجة الأولى المخزَّنة كما هي.
+4. إن كان `duplicate` بحالة أخرى ⟹ رفض صريح.
+5. وإلا: تُنفَّذ الدالة الداخلية، ثم
+   `sync.finish_*_command(..., 'accepted', ...)`.
+
+للدوال `returns uuid` تُخزَّن النتيجة
+`jsonb_build_object('id', v_id)` وتُعاد
+`(response ->> 'id')::uuid`.
+
+### قيود التصميم التي فرضت الشكل
+
+- **استبدال لا إضافة.** سطح `api` مقفل على 33 دالة بخمسة
+  اختبارات (`078:570`، `079:114`، `080:227`، `081:262`،
+  `082:304`)؛ إضافة overload كانت ستجعله 41 وتُسقط الخمسة.
+  لذلك `drop function` ثم `create function` بنفس الاسم.
+- **المنح تُفقد بالحذف** فأُعيد إصدارها صراحة: سحب من
+  `public`/`anon` ثم منح لـ`authenticated` و`service_role`.
+- **الأغلفة تبقى `security invoker`** مع `search_path` مثبَّت
+  وفق ق-78؛ صفر SECURITY DEFINER في `api` محفوظ.
+- **`create_farm` أُخذ من تعريف 075 الحي** لا 073 — نفس سبب
+  ق-113 في `ops.create_farm`.
+- **فحص التبعيات أُجري قبل الحذف:** لا view ولا trigger ولا
+  دالة أخرى تستدعي أيًّا من الأغلفة الثمانية، فـ`drop` آمن.
+
+### لا تسجيل للرفض ولا حالة عالقة
+
+استدعاء RPC واحد = transaction واحدة. عند رفض العملية لسبب
+عمل تتراجع الـtransaction كلها **بما فيها صفّ
+`begin_command`**، فلا يبقى أثر وإعادة المحاولة تُنفَّذ من
+جديد بأمان بلا «تلويث» لمعرّف العملية.
+
+ولنفس السبب **حالة `processing` العالقة مستحيلة** ولا تحتاج
+مُنظِّفًا دوريًا: الإدراج والإنهاء يُثبَّتان أو يتراجعان معًا.
+
+### ما لم تفعله 084 عمدًا
+
+- لا تعديل على أي دالة داخلية في 081/082 — الأغلفة فقط.
+- لا تغيير على ترتيب الوسائط القائمة؛ الإضافة في الآخر
+  حصرًا، فكل نداء قائم يبقى صحيحًا موضعيًا.
+- خارج النطاق: الورديات ونقل الجلسة والحجوزات (ق-98)
+  والمصروفات والتوزيعات (ق-99) — تُنقل بنفس النمط بعد
+  إثباته على الثماني.
+
+### دليل التحقق
+
+- Permanent Test 084 = 23 PASS / 0 FAIL / 0 ERROR.
+- Cloud Test 084 = 23 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = **24 files / 354 PASS / 0 FAIL / 0 ERROR** —
+  صفر Regression على 315 فحصًا من جولات سابقة.
+- الأغلفة الثمانية كلها تقبل `p_command_id` أخيرًا، وكلها
+  invoker بمسار بحث مثبَّت، ولـ`authenticated` و
+  `service_role` بلا `anon`.
+- نفس `command_id` مرتين ⟹ صفّ واحد، ونفس المعرّف/النتيجة.
+- `record_payment`: **الإجمالي لم يتضاعف** — قياس مبلغ لا
+  عدد صفوف فقط.
+- `p_command_id = null` ⟹ السلوك القديم حرفيًا.
+- `command_id` مختلف ⟹ عمليتان فعلًا؛ لا حجب زائد.
+- معرّف عملية محجوز في جهة أخرى لا يحجب عملية هذه الجهة.
+- API = 33 authenticated / 0 anon / 0 SECURITY DEFINER.
+- Direct DML = 0.
+- Remote migration history = 83 through `20260823013001`.
+- النتيجة السحابية = **`CLOUD_W2_01_ALL_PASS`**
+  (39 PASS / 0 FAIL / 0 ERROR)، و`DATA_API_BOUNDARY=OK`،
+  و`API_SURFACE/ANON/DEFINER/DIRECT_DML = 33/0/0/0`.
+
+### أثر جانبي على اختبارَي 073 و075
+
+الاختباران كانا يؤكدان توقيعات `api.create_farm` و
+`api.start_irrigation_session` بعدد الوسائط القديم، فأُضيف
+`p_command_id uuid` إلى النص المتوقَّع في موضعين محدَّدين
+فقط. **السطر الذي يرفض توقيعًا زائدًا في 073 بقي كما هو** —
+ما زال يجب ألّا يوجد. وموضع `ops.create_farm` الداخلية في
+075 لم يُمسّ. ملفا Migration 073 و075 أنفسهما لم يُمسّا؛
+المعدَّل ملفا الاختبار، وهذا تعديل اختبار مسموح.
+
+### ملاحظة مكتشفة أثناء التحقق — ليست من هذه الجولة
+
+دفعة الرصيد المقدم (بلا فاتورة جلسة) لا تُقرأ عبر
+`authenticated`، لأن `payments_select_assigned` (`016:45`)
+تشترط ارتباط الدفعة بفاتورة جلسة. الكتابة تنجح والقراءة
+تُحجب. سلوك قائم قبل ق-114 ولا علاقة له بها؛ لذلك يعدّ
+اختبار 084 الدفعات كـ`postgres` لقياس ما كُتب فعلًا، بنفس
+أسلوب الخروج المؤقت من الدور في اختبار 075 فحص 8.
+
+الأثر المستقبلي: المشغّل — وهو من يستلم النقد — لن يرى
+الدفعة على شاشته حين تُبنى شاشة الدفعات. يُحسم مع عقد قراءة
+المال (م-29).
+
+Migration 071–084 immutable.
+أي DB change جديد يبدأ Migration 085+.
 
 ---
 

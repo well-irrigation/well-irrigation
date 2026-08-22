@@ -150,8 +150,10 @@ begin
 
   -- في 073 كان create_farm مؤجلًا فعلًا.
   -- بعد ق-80/075 يسمح ببقائه إذا كان عقده اللاحق آمنًا.
+  -- التوقيع صار 4 وسائط بعد ق-114/084 بإضافة p_command_id
+  -- الاختيارية لحماية التكرار. الملف 073 نفسه لم يُعدَّل.
   if to_regprocedure(
-       'api.create_farm(uuid,text,uuid)'
+       'api.create_farm(uuid,text,uuid,uuid)'
      ) is null
      or exists (
        select 1
@@ -184,9 +186,12 @@ begin
   end if;
 
 
+  -- start_irrigation_session صار 8 وسائط بعد ق-114/084
+  -- (p_command_id اختيارية في آخر القائمة). التوقيع المرفوض أدناه
+  -- يبقى مرفوضًا: هو الذي يضع هوية المنفِّذ وسيطًا خامسًا.
   if
     to_regprocedure(
-      'api.start_irrigation_session(uuid,uuid,uuid,uuid,text,timestamptz,uuid)'
+      'api.start_irrigation_session(uuid,uuid,uuid,uuid,text,timestamptz,uuid,uuid)'
     ) is not null
     and to_regprocedure(
       'api.start_irrigation_session(uuid,uuid,uuid,uuid,uuid,text,timestamptz,uuid)'

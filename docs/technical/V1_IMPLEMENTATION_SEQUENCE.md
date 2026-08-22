@@ -21,10 +21,11 @@
 
 ## 2. قواعد التنفيذ
 
-1. Migration 071–082 immutable.
+1. Migration 071–084 immutable.
 
 2. W1-02 وW1-03 مغلقتان؛ W1-03b مطبقة بق-113 /
-   Migration 081+082؛ أي DB change جديد يبدأ Migration 083+.
+   Migration 081+082؛ وW2-01 مطبقة بق-114 /
+   Migration 083+084؛ أي DB change جديد يبدأ Migration 085+.
 
 3. Migration 078 ليست Migration عملاقة تجمع V1 كلها.
 
@@ -180,7 +181,7 @@ Migration 081 + 082:
 `partner` / `accountant` / `viewer` بصفر منح بالتصميم،
 فلا تعرضها أي واجهة قبل قرار صريح لصلاحياتها.
 
-W1-03 مكتملة ومغلقة. أي DB change جديد يبدأ Migration 083+.
+W1-03 مكتملة ومغلقة. أي DB change جديد يبدأ Migration 085+.
 
 ### سبب W1
 
@@ -205,6 +206,36 @@ W2–W9 تعتمد على Backend Truth مستقرة.
 المسألة الرئيسية:
 
 - م-25.
+
+### W2-01 — Server-side Idempotency
+
+**مكتملة ومغلقة — ق-114 / Migration 083+084 (2026-08-22)،
+متحقق منها محليًا وسحابيًا.**
+
+- 4 مُحلِّلات في `sync` تستخرج الجهة من البئر أو الجلسة؛
+  العميل لا يُرسل `tenant_id`.
+- 8 أغلفة `api.*` للدورة الميدانية الأولى تقبل
+  `p_command_id uuid` اختياريًا في آخر الوسائط.
+- استبدال التوقيع لا إضافته ⟹ سطح API بقي = 33.
+- `p_command_id = null` = المسار القديم حرفيًا.
+- Permanent Test 083 = 16 PASS؛ 084 = 23 PASS.
+- Full DB Suite = 24 files / 354 PASS / 0 FAIL / 0 ERROR؛
+  صفر Regression على 315 فحصًا سابقًا.
+- Cloud = `CLOUD_W2_01_ALL_PASS` (39/0/0)؛ Remote history =
+  83 through `20260823013001`؛ `DATA_API_BOUNDARY=OK`.
+- `record_payment` لا يتضاعف إجماليها عند إعادة الإرسال.
+- **م-25 تضيق ولا تُغلق.**
+
+خارج نطاق W2-01 عمدًا: الورديات ونقل الجلسة والحجوزات
+(ق-98) والمصروفات والتوزيعات (ق-99) — تُنقل بنفس النمط في
+Migration 085+.
+
+### W2-02 — طابور الهاتف
+
+**لم تبدأ.** المتبقي من م-25 كله هنا: durable local database،
+Outbox مرتّب، **توليد معرّف العملية مرة واحدة لكل عملية
+ميدانية** وإعادة إرساله بلا تغيير، retries، WorkManager،
+Device Readiness، وحالات المزامنة المرئية.
 
 ### Gate
 
@@ -515,6 +546,8 @@ Backend أي Person تخص الحساب الحالي.
 Farmer self-scope authorization / م-16 باستخدام الرابط
 المثبت في 078.
 
-أي DB change جديد يبدأ Migration 083+.
+أي DB change جديد يبدأ Migration 085+.
 
 م-18 روجعت منفردة وأُغلقت بق-113 / Migration 081+082.
+
+م-25 ضُيِّقت بق-114 / Migration 083+084 ولم تُغلق.

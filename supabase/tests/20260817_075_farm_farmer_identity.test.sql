@@ -155,6 +155,10 @@ begin
 
   -- ============================================================
   -- 6. api.create_farm آمن ومتاح فقط للأدوار المعتمدة
+  --
+  -- بعد ق-114/084 صار الغلاف يقبل p_command_id اختيارية في آخر
+  -- القائمة لحماية التكرار. الوسائط الثلاثة الأولى لم تتغير،
+  -- والغلاف بقي security invoker. الملف 075 نفسه لم يُعدَّل.
   -- ============================================================
 
   if exists (
@@ -165,7 +169,8 @@ begin
     where n.nspname = 'api'
       and p.proname = 'create_farm'
       and pg_get_function_identity_arguments(p.oid)
-          = 'p_well_id uuid, p_name text, p_farmer_well_account_id uuid'
+          = 'p_well_id uuid, p_name text, '
+            || 'p_farmer_well_account_id uuid, p_command_id uuid'
       and not p.prosecdef
       and has_function_privilege(
         'authenticated',
