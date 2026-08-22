@@ -4,7 +4,7 @@
 **القرار الحاكم:** ق-92
 **UX:** UX-12
 **الحالة:** تصميم تقني ملزم؛ التنفيذ الكامل Pending
-**أول DB Migration جديدة:** 078 أو أحدث
+**أول DB Migration جديدة:** 085 أو أحدث
 
 ## 1. الهدف
 
@@ -339,7 +339,7 @@ Settlement Command يحتاج Stable Command ID.
 - منع duplicate financial journal effect.
 - منع duplicate notification event.
 
-## 21. Required Migration 078+ work
+## 21. Required Migration 085+ work
 
 بعد فحص التنفيذ الحالي:
 
@@ -353,7 +353,7 @@ Settlement Command يحتاج Stable Command ID.
 8. notification event deduplication.
 9. permanent acceptance tests.
 
-لا تعدل migrations 071–077.
+لا تعدل migrations 071–084.
 
 ## 22. Acceptance tests
 

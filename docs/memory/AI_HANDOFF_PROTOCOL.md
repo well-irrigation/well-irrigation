@@ -334,13 +334,13 @@ Governing sequence:
 
 Current point:
 
-**W1 — Backend Foundations.**
+**W2 — Offline & Background Sync. W1 مكتملة ومغلقة، وW2-01 (حماية التكرار على الخادم) مكتملة؛ التالي W2-02 طابور الهاتف.**
 
 Do not start arbitrary screens.
 
-Do not edit migrations 071–077.
+Do not edit migrations 071–084.
 
-New DB changes begin 078+.
+New DB changes begin 085+.
 
 Use coherent domain-sized migrations and permanent tests.
 

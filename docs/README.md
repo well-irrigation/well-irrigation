@@ -160,8 +160,8 @@
 
 - Flutter لا ينفذ Direct DML على Business Schemas.
 - Data API العام يمر عبر `api.*`.
-- migrations 071–077 المقبولة لا تعدل.
-- أي DB change جديد يبدأ من Migration 078+.
+- migrations 071–084 المقبولة لا تعدل.
+- أي DB change جديد يبدأ من Migration 085+.
 - المساعد لا يشغل اختبارات المشروع أو db reset أو Docker verification.
 - المالك يشغل اختبارات قاعدة البيانات ويرسل النتائج.
 

@@ -179,7 +179,7 @@ Platform Administration لها:
 
 ## 20. Required backend work
 
-Migration 078+ أو Trusted Server work قد تحتاج:
+Migration 085+ أو Trusted Server work قد تحتاج:
 
 - change-phone orchestration.
 - recover-phone orchestration.

@@ -195,7 +195,7 @@ Smart Lookup يمكن أن يستخدم Local Cache لسرعة عرض
 - دفع بلا سياق صحيح.
 - Session state تختلف عن Payment state.
 
-تفاصيل العقد تحسم في Migration 078+.
+تفاصيل العقد تحسم في Migration 085+.
 
 ## 12. ق-89 — Offline Field Operations
 

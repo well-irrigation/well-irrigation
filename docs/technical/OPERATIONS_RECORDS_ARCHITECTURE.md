@@ -5,7 +5,7 @@
 **UX:** UX-13
 **الحالة:** تصميم تقني ملزم؛ التنفيذ الكامل Pending
 **المسألة المفتوحة:** م-28
-**أول DB Migration جديدة:** 078 أو أحدث
+**أول DB Migration جديدة:** 085 أو أحدث
 
 ## 1. الهدف
 
@@ -172,7 +172,7 @@ Local Device يمكنه حفظ Booking Intent بصورة Durable.
 
 ## 8. Booking command contract
 
-يلزم Migration 078+ عقد typed داخل `api.*` مثل
+يلزم Migration 085+ عقد typed داخل `api.*` مثل
 مفهوم:
 
 - create booking.
@@ -275,7 +275,7 @@ Backend هو المرجع النهائي.
 
 لا تعدل Migration 074.
 
-يجب في Migration 078+:
+يجب في Migration 085+:
 
 - إزالة هذا التجاوز من عقد التطبيق العادي.
 - أو جعله غير متاح للتطبيق.
@@ -413,7 +413,7 @@ Conflict يحتاج Review إذا كان يمس:
 - server authorization change.
 - historical record mismatch.
 
-## 23. Required Migration 078+ work
+## 23. Required Migration 085+ work
 
 بعد فحص التنفيذ الحالي:
 

@@ -1057,7 +1057,7 @@ OTP هو رمز تحقق لمرة واحدة لإثبات ملكية رقم ال
 - وقت الاستهلاك أو الإلغاء عند حدوثه.
 
 التصميم التقني النهائي للجدول والعقد يحدد عند بناء
-Migration 078 أو أحدث.
+Migration 085 أو أحدث.
 
 ### الخطأ في تسجيل البيع
 
@@ -1091,7 +1091,7 @@ Migration 078 أو أحدث.
 توثيق هذه الشاشات.
 
 قبل تنفيذ المسارات الإنتاجية يجب مراجعة وإضافة ما يلزم
-عبر Migration 078 أو أحدث، مع اختبارات قبول دائمة.
+عبر Migration 085 أو أحدث، مع اختبارات قبول دائمة.
 
 المتطلبات المعروفة حاليًا:
 
@@ -2485,7 +2485,7 @@ UX-05 يحسم الوجهة والمنطق فقط.
   بخادم موثوق بحيث لا تترك العملية حالة جزئية غامضة.
 
 العقد الحالي يفصل بدء الجلسة عن تسجيل الدفع؛ لذلك
-التنسيق الآمن المطلوب هنا Gap تنفيذية لـMigration 078+
+التنسيق الآمن المطلوب هنا Gap تنفيذية لـMigration 085+
 ولا يعد منفذًا بمجرد اعتماد UX.
 
 ## 265 — تأكيد بدء الجلسة
@@ -2822,7 +2822,7 @@ Backend وأوقات الجلسة والمقاطع هما المرجع النه�
 Backend الحالي يقصر `create_farm` على owner.
 
 لذلك السماح للمشغل بإضافة أرض **متطلب جديد صريح**
-في Migration 078+ أو أحدث.
+في Migration 085+ أو أحدث.
 
 لا يتحايل Flutter على هذا القيد بكتابة مباشرة.
 
@@ -3006,8 +3006,8 @@ Backend هو مصدر الحقيقة عند إغلاق الجلسة.
 - Read/Calculation data اللازمة لعداد المستحق الحي.
 - دمج البحث المحلي والخادم دون تكرار.
 - اختبارات قبول دائمة لكل قاعدة جديدة.
-- عدم تعديل migrations 071–077 المقبولة.
-- أي تغيير DB جديد يبدأ من Migration 078+.
+- عدم تعديل migrations 071–084 المقبولة.
+- أي تغيير DB جديد يبدأ من Migration 085+.
 
 ---
 
@@ -3435,8 +3435,8 @@ UX-09 لا تعتبر منفذة حتى توجد:
 - Android integration tests.
 - field tests تحت Doze/background restrictions.
 - no Direct DML.
-- migrations 071–077 تبقى دون تعديل.
-- أول DB change جديد Migration 078+.
+- migrations 071–084 تبقى دون تعديل.
+- أول DB change جديد Migration 085+.
 
 ---
 
@@ -3902,7 +3902,7 @@ Force Stop حالة منصة خاصة.
 - field tests.
 - no critical state represented by color alone.
 
-أي API أو DB contract جديد يحتاج Migration 078+ عند
+أي API أو DB contract جديد يحتاج Migration 085+ عند
 الحاجة واختبار قبول دائم.
 
 ---
@@ -4102,7 +4102,7 @@ Backend الحالي يملك نوعي Pause أساسيين:
 
 إذا اختير «آخر» يمكن إدخال ملاحظة قصيرة.
 
-إضافة السبب التفصيلي Gap تنفيذية لـMigration 078+
+إضافة السبب التفصيلي Gap تنفيذية لـMigration 085+
 أو أحدث ولا تعتبر منفذة حاليًا.
 
 ## 346 — شكل Pause
@@ -4168,7 +4168,7 @@ Backend الحالي يملك نوعي Pause أساسيين:
 - التقاط سعر المصدر الجديد حسب وقت الاستئناف.
 - عدم إنشاء ثانية تشغيل وهمية بالمصدر السابق.
 
-هذه Gap تنفيذية لـMigration 078+.
+هذه Gap تنفيذية لـMigration 085+.
 
 ## 349 — تغيير الطاقة أثناء التشغيل
 
@@ -4224,7 +4224,7 @@ Migration 066 الحالية تحتوي تنفيذًا يمكنه ضم
 
 لا تتبع Flutter السلوك المتعارض.
 
-يلزم تصحيح Backend في Migration 078+ قبل إنتاج
+يلزم تصحيح Backend في Migration 085+ قبل إنتاج
 الفوترة الجديدة للجلسات.
 
 ## 352 — الإنهاء أثناء Pause
@@ -4426,8 +4426,8 @@ Retry يستخدم نفس الهوية المنطقية.
 - permanent backend tests.
 - Android integration tests.
 - no Direct DML.
-- migrations 071–077 لا تعدل.
-- أول DB change جديد Migration 078+.
+- migrations 071–084 لا تعدل.
+- أول DB change جديد Migration 085+.
 
 ---
 
@@ -4479,7 +4479,7 @@ Retry يستخدم نفس الهوية المنطقية.
 لا يحتاج المشغل زرًا مستقلًا باسم «إصدار فاتورة».
 
 Backend الحالي يفصل بين إكمال الجلسة وإصدار الفاتورة،
-لذلك يلزم Settlement Orchestration آمن في Migration 078+
+لذلك يلزم Settlement Orchestration آمن في Migration 085+
 أو أحدث.
 
 إعادة المحاولة لا يجوز أن تنشئ فاتورتين للجلسة نفسها.
@@ -4709,8 +4709,8 @@ Migration 066.
 - permanent Backend tests.
 - Android Offline/Retry tests.
 - لا Direct DML.
-- migrations 071–077 لا تعدل.
-- أي DB change جديد يبدأ من Migration 078+.
+- migrations 071–084 لا تعدل.
+- أي DB change جديد يبدأ من Migration 085+.
 
 ---
 
@@ -5233,7 +5233,7 @@ Flutter لا ينشئ نظام هوية أو بحث أو سجلات موازية
 
 **م-28 — Operations Records, Booking and Handover Consistency.**
 
-أي DB change جديد يبدأ من Migration 078+.
+أي DB change جديد يبدأ من Migration 085+.
 
 ---
 
@@ -5948,7 +5948,7 @@ Backend هو السلطة Canonical.
 
 **م-29 — Money, Partner Distribution and Financial Correction Consistency.**
 
-أي DB change جديد يبدأ من Migration 078+.
+أي DB change جديد يبدأ من Migration 085+.
 
 ---
 
@@ -6794,7 +6794,7 @@ Animations خفيفة فقط عند ظهور البيانات.
 
 **م-30 — Well Configuration, Pricing, Fuel & Reporting Consistency.**
 
-أي DB change جديد يبدأ من Migration 078+.
+أي DB change جديد يبدأ من Migration 085+.
 
 ---
 
@@ -8554,7 +8554,7 @@ Password Reveal من PA-02.
 **م-33 — Platform Account, Well, Support & Password
 Recovery Control.**
 
-أي DB change جديد يبدأ من Migration 078+.
+أي DB change جديد يبدأ من Migration 085+.
 
 ---
 
@@ -9293,7 +9293,7 @@ Retry يستخدم نفس Stable Command/Idempotency ID.
 **م-34 — Platform Sales, Entitlement & Administrative
 Control Consistency.**
 
-أي DB change جديد يبدأ من Migration 078+.
+أي DB change جديد يبدأ من Migration 085+.
 
 ---
 
@@ -10142,7 +10142,7 @@ Support Admin/Finance Admin/Security Admin تؤجل
 **م-35 — Platform Monitoring, Audit, Configuration &
 Incident Consistency.**
 
-أي DB change جديد يبدأ من Migration 078+.
+أي DB change جديد يبدأ من Migration 085+.
 
 ---
 
@@ -10663,7 +10663,7 @@ Dependency Plan / خطة ترتيب تنفيذ النسخة الأولى.**
 
 تحويل القرارات المعتمدة إلى ترتيب تنفيذ واقعي:
 
-1. Backend foundations / Migration 078+.
+1. Backend foundations / Migration 085+.
 2. Android foundations.
 3. Core user flows.
 4. Finance/operations consistency.

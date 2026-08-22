@@ -403,8 +403,14 @@ W1 اكتملت: W1-01 وW1-02 وW1-03 كلها مغلقة. وW2-01 (أساس
 4. **قرار صريح لصلاحيات `partner` / `accountant` /
    `viewer`** — يُطلب أول مرة تحتاجها واجهة فعليًا.
 5. **قرار في رؤية دفعة الرصيد المقدم** (انظر «مؤجل» أدناه).
-6. جولة تنظيف التوثيق المؤجلة (`PROJECT_MAP.md`
-   و`INVARIANTS.md`).
+
+### مغلق — جولة تنظيف التوثيق (2026-08-22)
+
+`docs/PROJECT_MAP.md` و`docs/technical/INVARIANTS.md` كانا
+مؤجَّلين للتنظيف. نُفِّذت الجولة: قاعدة الترقيم صُحِّحت في
+كليهما، وحالة W1-01 في `PROJECT_MAP.md` صُحِّحت من
+«Pending Owner Verification» إلى «مكتملة ومغلقة». التفاصيل
+في القسم التالي.
 
 ### تحذير تشغيلي قائم
 
@@ -415,30 +421,56 @@ W1 اكتملت: W1-01 وW1-02 وW1-03 كلها مغلقة. وW2-01 (أساس
 
 ### مؤجل بقرار المالك
 
-جولة تنظيف توثيق مستقلة لملفين متأخرين عن الواقع:
+لا شيء مؤجَّل حاليًا في التوثيق. جولة تنظيف
+`PROJECT_MAP.md` و`INVARIANTS.md` نُفِّذت 2026-08-22.
 
-- `docs/PROJECT_MAP.md`.
-- `docs/technical/INVARIANTS.md`.
+### مغلق — قاعدة الترقيم القديمة صُحِّحت (2026-08-22)
 
-### مؤجل — قاعدة ترقيم قديمة في ست وثائق معمارية (خطر تصادم)
+**نُفِّذت كجولة مستقلة بعد إغلاق W2-01.** كانت قاعدة «أول DB
+Migration جديدة: 078 أو أحدث» مكتوبة في **123 موضعًا موزَّعة على
+24 ملفًا**، وصارت خاطئة منذ تطبيق 078 فعلًا (لا علاقة لها بجولة
+W2-01). الخطر لم يكن تجميليًا: من يقرأ أي موضع منها ويبدأ
+Migration 078 يصطدم بملف مختوم موجود.
 
-ست وثائق معمارية ما زالت تحمل في ترويستها **«أول DB Migration
-جديدة: 078 أو أحدث»**، وهي قاعدة صارت خاطئة منذ تطبيق 078
-فعلًا، وليست من إنتاج هذه الجولة:
+**أ — قواعد حيّة صُحِّحت إلى 085+ / 071–084:**
 
-- `technical/SEARCH_DEDUP_ARCHITECTURE.md`.
-- `technical/ACTIVE_SESSION_ARCHITECTURE.md`.
-- `technical/SESSION_SETTLEMENT_ARCHITECTURE.md`.
-- `technical/OPERATIONS_RECORDS_ARCHITECTURE.md`.
-- `technical/MONEY_PARTNERS_ARCHITECTURE.md`.
-- `technical/WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md`.
+- 9 ترويسات «أول DB Migration جديدة» في الوثائق المعمارية:
+  `SEARCH_DEDUP` و`ACTIVE_SESSION` و`SESSION_SETTLEMENT` و
+  `OPERATIONS_RECORDS` و`MONEY_PARTNERS` و
+  `WELL_MANAGEMENT_REPORTING` وثلاث وثائق `PLATFORM_ADMIN_*`
+  (و`ANDROID_OFFLINE_BACKGROUND_SYNC` كانت صُحِّحت في W2-01).
+- `technical/INVARIANTS.md` — 15 ثابتًا مرقّمًا، والثابت 681 صار
+  «Migration 071–084 تبقى immutable».
+- `technical/API_ARCHITECTURE.md` — 14 قاعدة.
+- `design/UX_UI_SPEC.md` — 20 موضعًا (منها سطران بصيغة
+  «Migration 078 أو أحدث»).
+- `technical/DECISION_IMPLEMENTATION_MATRIX.md` — 14 خلية
+  «Migration 078+ Pending» + خلية «correct in 078+».
+- `technical/V1_IMPLEMENTATION_SEQUENCE.md` — قواعد التنفيذ
+  وسطر «Next» في نهاية الوثيقة.
+- **`memory/AI_HANDOFF_PROTOCOL.md` — الأخطر**، لأنه أول ملف
+  يقرأه أي مساعد جديد: «Do not edit migrations 071–084» و
+  «New DB changes begin 085+»، ونقطة العمل الحالية صارت W2.
+- `docs/README.md` و`docs/PROJECT_MAP.md`.
 
-**الخطر ليس تجميليًا:** من يقرأ إحداها ويبدأ Migration 078
-يصطدم بملف مختوم موجود. الصواب = **085 أو أحدث**.
+**تُركت عمدًا — عبارات صحيحة *عن* الملف الحقيقي 078:** الثوابت
+678/679/680 في `INVARIANTS.md` و`API_ARCHITECTURE.md:829` و
+`SEARCH_DEDUP_ARCHITECTURE.md:702` و
+`DECISION_IMPLEMENTATION_MATRIX.md:109` — كلها تصف ما فعلته 078
+وما لم تفعله، ولا تُوجِّه أحدًا لبدء رقم.
 
-لم تُعدَّل في جولة W2-01 عمدًا لأنها خارج موضوعها ولأن
-تعديلها يستلزم إعادة تأريخ ست وثائق داخل commit خاص بحماية
-التكرار. تُصحَّح في جولة التنظيف أعلاه، وهي أول عنصر فيها.
+**ب — سجلات مؤرَّخة تُركت كما هي:** `PROGRESS.md` (19 موضعًا) و
+`DOC_CHANGELOG.md` (11) و`DECISIONS.md` (29) وكتل أدلة
+`OPEN_ISSUES.md` (9). تصف ما كان صحيحًا في تاريخه.
+`RESEARCH_STANDARDS_GATE.md` (قسم مؤرَّخ 2026-08-19) عُولج
+بمؤشر تجاوُز لا بتعديل — نفس قاعدة تدقيق W1-03b وW2-01.
+
+**تحقق نهائي:** صفر موضع حيّ باقٍ من `078+` أو `071–077`،
+وأعداد السجلات المؤرَّخة لم تتغير (19/11/29/9).
+
+**صُحِّح أيضًا في نفس الجولة:** `PROJECT_MAP.md` كان يقول عن
+W1-01 «Prepared / Pending Owner Verification» وهي مكتملة ومغلقة
+ومتحقق منها سحابيًا منذ جولات.
 
 ### مؤجل — رؤية دفعة الرصيد المقدم
 

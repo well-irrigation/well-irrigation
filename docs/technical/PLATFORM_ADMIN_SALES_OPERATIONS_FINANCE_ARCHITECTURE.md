@@ -6,7 +6,7 @@
 **الحالة:** تصميم ملزم؛ التنفيذ الكامل Pending
 **المسألة المفتوحة:** م-34
 **Research & Standards Gate:** PASS
-**أول DB change جديد:** Migration 078+
+**أول DB change جديد:** Migration 085+
 
 ## 1. الهدف
 
@@ -61,7 +61,7 @@ Target Sale record يحتاج على الأقل:
 - server timestamps.
 - operation/idempotency id.
 
-الأسماء النهائية للجداول تحسم في Migration 078+.
+الأسماء النهائية للجداول تحسم في Migration 085+.
 
 ## 4. Entitlement model
 

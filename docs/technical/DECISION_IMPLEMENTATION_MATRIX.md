@@ -80,30 +80,30 @@
 | ق-82 | App Bootstrap Read Contract: المستخدم + الآبار + الأدوار الفعالة عبر `api` فقط | 077 مطبقة ومثبتة | 077 = 12 PASS؛ suite = 217 PASS؛ Data API = 33 RPC | مغلق — 2026-08-17 |
 
 | ق-83 | الهوية البصرية العامة وثوابت Stage 7 | `docs/design/VISUAL_IDENTITY.md`؛ التنفيذ المرئي في الشاشات القادمة | اعتماد المالك وتوثيق المصدر الحاكم | معتمد كمرجع؛ UI الإنتاجي لم يبدأ بعد |
-| ق-84 | هاتف هوية عالمي + حساب موحد + explicit profile↔person link | الأساس موثق؛ الربط والتفرد النهائي Pending | اختبارات Migration 078+ مطلوبة | معتمد؛ Backend غير مكتمل |
+| ق-84 | هاتف هوية عالمي + حساب موحد + explicit profile↔person link | الأساس موثق؛ الربط والتفرد النهائي Pending | اختبارات Migration 085+ مطلوبة | معتمد؛ Backend غير مكتمل |
 | ق-85 | Super Admin عبر حدود خادم موثوقة | Auth Admin/service role trusted boundary مطلوب | اختبارات صلاحيات وتدقيق مطلوبة | معتمد؛ تنفيذ UI/backend التفصيلي Pending |
-| ق-86 | حق تفعيل بئر دائم لكل شراء واستهلاك ذري | Model/API غير منفذ بعد | اختبارات entitlement/double-spend مطلوبة | معتمد؛ Migration 078+ Pending |
+| ق-86 | حق تفعيل بئر دائم لكل شراء واستهلاك ذري | Model/API غير منفذ بعد | اختبارات entitlement/double-spend مطلوبة | معتمد؛ Migration 085+ Pending |
 | ق-87 | التوجيه بعد الدخول حسب الدور | `api.app_bootstrap` أساس جزئي؛ UI routing Pending | UX-05 موثق | معتمد؛ Flutter Pending |
-| ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ عقود البحث/farm dedup/operator farm/payment orchestration Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md` | معتمد؛ Migration 078+ وFlutter Pending |
+| ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ عقود البحث/farm dedup/operator farm/payment orchestration Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md` | معتمد؛ Migration 085+ وFlutter Pending |
 | ق-89 | Offline field operations + Android persistent background sync | Server sync foundation موجود؛ Mobile DB/outbox/worker/idempotent offline contracts غير منفذة | `ANDROID_OFFLINE_BACKGROUND_SYNC.md` + permanent/backend/Android field tests مطلوبة | معتمد؛ Stage 7 implementation Pending |
 | ق-90 | Device Readiness + sync transparency + non-blocking field UX | UX-10 موثق؛ local evaluator/status UI/reminders غير منفذة | Android integration + readiness/sync acceptance tests مطلوبة | معتمد؛ Flutter/Android Pending |
-| ق-91 | Active session UX + live amount + fuel-billing consistency | Session/segments backend foundation موجود؛ Fuel billing conflict وactive read/pause detail/resume-new-energy Pending | `ACTIVE_SESSION_ARCHITECTURE.md` + م-26 + backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
-| ق-92 | Session completion + invoice + payment settlement consistency | Complete/invoice/payment procedures موجودة منفصلة؛ orchestration وoffline settlement Pending | `SESSION_SETTLEMENT_ARCHITECTURE.md` + م-26 + م-27 | معتمد؛ Migration 078+ وFlutter Pending |
+| ق-91 | Active session UX + live amount + fuel-billing consistency | Session/segments backend foundation موجود؛ Fuel billing conflict وactive read/pause detail/resume-new-energy Pending | `ACTIVE_SESSION_ARCHITECTURE.md` + م-26 + backend/Android tests | معتمد؛ Migration 085+ وFlutter Pending |
+| ق-92 | Session completion + invoice + payment settlement consistency | Complete/invoice/payment procedures موجودة منفصلة؛ orchestration وoffline settlement Pending | `SESSION_SETTLEMENT_ARCHITECTURE.md` + م-26 + م-27 | معتمد؛ Migration 085+ وFlutter Pending |
 | ق-93 | Documentation continuity + AI handoff protocol | `AI_HANDOFF_PROTOCOL.md` + تحديث مصادر الذاكرة | Git/doc consistency checks | نافذ؛ لا Migration |
 | ق-94 | Consolidated remaining UX discussions UX-13..UX-17 | UX roadmap + RESUME_POINT | اكتمال مناقشة كل حزمة قبل Production UI | معتمد؛ لا Migration بحد ذاته |
 | ق-95 | AI collaboration/work method protocol | `AI_COLLABORATION_PROTOCOL.md` + handoff/map updates | Documentation contract checks | نافذ؛ لا Migration |
 | ق-96 | Terminal command + recovery protocol | `TERMINAL_COMMAND_PROTOCOL.md` + invariants | Git/recovery contract checks | نافذ؛ لا Migration |
 | ق-97 | Mandatory documentation completeness gate | `DOCUMENTATION_GATE.md` + governance protocol integration | documentation contract + Git closure | نافذ؛ لا Migration |
-| ق-98 | Operations records + farmers/farms + booking confirmation + shift handover consistency | 032/033/042/045/074/075 foundations موجودة؛ typed booking/history/handover/offline contracts ناقصة | `OPERATIONS_RECORDS_ARCHITECTURE.md` + م-28 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
-| ق-99 | Money + farmer accounts + expenses + partners + distributions + corrections | 035/044/047–053/056/061/068/073/074 foundations موجودة؛ financial reads/idempotency/corrections/rounding gaps باقية | `MONEY_PARTNERS_ARCHITECTURE.md` + م-27 + م-29 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
-| ق-100 | Well/Pump/Fuel/Pricing/Reports + V1 charts | 031/046/058/060/064/065/073/076 foundations موجودة؛ typed management/report/chart contracts ناقصة | `WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md` + م-30 + Backend/Android tests | معتمد؛ Migration 078+ وFlutter Pending |
+| ق-98 | Operations records + farmers/farms + booking confirmation + shift handover consistency | 032/033/042/045/074/075 foundations موجودة؛ typed booking/history/handover/offline contracts ناقصة | `OPERATIONS_RECORDS_ARCHITECTURE.md` + م-28 + Backend/Android tests | معتمد؛ Migration 085+ وFlutter Pending |
+| ق-99 | Money + farmer accounts + expenses + partners + distributions + corrections | 035/044/047–053/056/061/068/073/074 foundations موجودة؛ financial reads/idempotency/corrections/rounding gaps باقية | `MONEY_PARTNERS_ARCHITECTURE.md` + م-27 + م-29 + Backend/Android tests | معتمد؛ Migration 085+ وFlutter Pending |
+| ق-100 | Well/Pump/Fuel/Pricing/Reports + V1 charts | 031/046/058/060/064/065/073/076 foundations موجودة؛ typed management/report/chart contracts ناقصة | `WELL_MANAGEMENT_REPORTING_ARCHITECTURE.md` + م-30 + Backend/Android tests | معتمد؛ Migration 085+ وFlutter Pending |
 | ق-101 | Account + identity + settings + local account isolation | Q84/Q85/Q89/Q90 foundations موجودة؛ phone recovery/role lifecycle/account-scoped local state gaps باقية | `ACCOUNT_SETTINGS_ARCHITECTURE.md` + م-18 + م-31 + Auth/Android tests | معتمد؛ Platform Administration مفصولة إلى PA |
 | ق-102 | Independent Platform Admin + live global dashboard + control plane | activation/admin foundations متفرقة؛ global admin APIs/metrics/realtime/audit/observability ناقصة | `PLATFORM_ADMINISTRATION_ARCHITECTURE.md` + م-32 + trusted backend/security tests | PA-01 معتمد؛ PA-02 التالي |
 | ق-103 | Global accounts/wells/support؛ Password Vault portion historical | `is_platform_admin` + Auth/Audit foundations موجودة؛ admin control غير مكتمل | `PLATFORM_ADMIN_ACCOUNTS_WELLS_SUPPORT_ARCHITECTURE.md` + م-32 + م-33 | PA-02 core معتمد؛ Password Option B منسوخة بق-105 |
 | ق-104 | Mandatory Research & Standards Gate + admin UX/security hardening | Governance documented؛ implementation requirements موزعة على PA gaps | `RESEARCH_STANDARDS_GATE.md` + Collaboration/Documentation/Handoff updates | نافذ كGovernance Rule؛ implementation items Pending |
-| ق-105 | Hash-only passwords + admin-triggered reset + OTP/user-chosen password + Admin MFA | Supabase Auth foundation موجودة؛ reset/admin MFA/recovery orchestration Pending | PA-02 architecture + م-33 + Auth/security tests | معتمد؛ ق-103 Password Vault منسوخة؛ Migration 078+ / Trusted Backend Pending |
-| ق-106 | Platform sales + per-well entitlements + operations/financial admin control | ق-86 foundation موثقة؛ sale/entitlement/admin-control contracts غير منفذة | `PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md` + م-34 + security/finance/idempotency tests | PA-03 معتمد؛ Migration 078+ / Trusted Backend Pending |
-| ق-107 | Platform monitoring + incidents + global audit + typed/versioned config + maintenance/version control | 057 Audit foundation موجودة؛ global monitoring/incidents/config/read models غير منفذة | `PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md` + م-35 + observability/security/web tests | PA-04 معتمد؛ Platform Administration design complete؛ Migration 078+ / Trusted Backend Pending |
+| ق-105 | Hash-only passwords + admin-triggered reset + OTP/user-chosen password + Admin MFA | Supabase Auth foundation موجودة؛ reset/admin MFA/recovery orchestration Pending | PA-02 architecture + م-33 + Auth/security tests | معتمد؛ ق-103 Password Vault منسوخة؛ Migration 085+ / Trusted Backend Pending |
+| ق-106 | Platform sales + per-well entitlements + operations/financial admin control | ق-86 foundation موثقة؛ sale/entitlement/admin-control contracts غير منفذة | `PLATFORM_ADMIN_SALES_OPERATIONS_FINANCE_ARCHITECTURE.md` + م-34 + security/finance/idempotency tests | PA-03 معتمد؛ Migration 085+ / Trusted Backend Pending |
+| ق-107 | Platform monitoring + incidents + global audit + typed/versioned config + maintenance/version control | 057 Audit foundation موجودة؛ global monitoring/incidents/config/read models غير منفذة | `PLATFORM_ADMIN_MONITORING_SETTINGS_ARCHITECTURE.md` + م-35 + observability/security/web tests | PA-04 معتمد؛ Platform Administration design complete؛ Migration 085+ / Trusted Backend Pending |
 | ق-108 | Final cross-cutting UX consistency + design closure | all UX/PA design foundations documented؛ implementation remains distributed across open gaps | `FINAL_CROSS_CUTTING_UX_ARCHITECTURE.md` + م-36 + Android/Web acceptance | UX design complete؛ implementation sequencing next |
 | ق-109 | V1 dependency-based implementation sequence W1–W10 | Design complete؛ implementation gaps م-16..م-36 remain | `V1_IMPLEMENTATION_SEQUENCE.md` + م-37 | Implementation plan adopted؛ W1 Backend Foundations next |
 | ق-110 | Explicit Tenant-aware Profile↔Person identity link | Migration 078 implemented؛ local 18/235 PASS؛ Cloud structure/security verified | W1-02 Farmer RLS / م-16 | Implemented + Local Verified + Cloud Verified |
@@ -119,7 +119,7 @@
 | Farm search | جدول العلاقة موجود | normalized search/index/read contract |
 | Farm dedup | غير مكتمل | scope + discriminator + DB/API enforcement |
 | Operator add farmer | موجود | ربط UX واختباره |
-| Operator add farm | Backend owner-only حاليًا | Migration 078+ لتفويض operator |
+| Operator add farm | Backend owner-only حاليًا | Migration 085+ لتفويض operator |
 | Inline return/select | غير منفذ | API/Flutter flow يحفظ السياق |
 | Live time counter | يمكن اشتقاقه من session times | Flutter display + reconciliation |
 | Live accrued amount | session pricing foundation موجود | read/calculation contract + Flutter display |
@@ -197,12 +197,12 @@ integration + field verification.
 | Pricing Pending | موثق | no fake zero/estimate |
 | Active payment display | جزئي | local pending vs server posted |
 | Pause | موجود | UX + Offline integration |
-| Pause detail reason | غير موجود | Migration 078+ |
+| Pause detail reason | غير موجود | Migration 085+ |
 | Resume | موجود | preserve previous source/rate |
-| Resume with new energy | غير موجود ذريًا | Migration 078+ |
+| Resume with new energy | غير موجود ذريًا | Migration 085+ |
 | Change energy | موجود | q17-consistent pricing |
 | Complete while paused | يحتاج إثبات | permanent test/fix |
-| Fuel billing | **متعارض مع ق-17 في 066** | correct in 078+ |
+| Fuel billing | **متعارض مع ق-17 في 066** | correct in 085+ |
 | Offline actions | server foundation جزئي | mobile outbox + idempotent contracts |
 | Process death/reboot recovery | غير منفذ | Android acceptance |
 | Double-tap protection | غير منفذ end-to-end | local + server idempotency |

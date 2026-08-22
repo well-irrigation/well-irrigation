@@ -216,7 +216,7 @@ UX-17 مؤجلة حتى إكمال سلسلة Platform Administration.
 - حدود api للبحث.
 - local/server search merge.
 - عداد المستحق الجاري.
-- فجوات Migration 078+ واختبارات القبول.
+- فجوات Migration 085+ واختبارات القبول.
 
 لا تنشأ طبقة بحث أو هوية موازية لما هو موجود أصلًا.
 
@@ -846,11 +846,11 @@ Dependency Plan.
 
 **W1 — Backend Foundations.**
 
-Migration 071–077 immutable.
+Migration 071–084 immutable.
 
 أول DB change جديد:
 
-**Migration 078+**.
+**Migration 085+**.
 
 ### W1-01 — Profile ↔ Person Identity Foundation
 
@@ -864,7 +864,7 @@ Migration:
 
 الحالة:
 
-**Prepared / Pending Owner Verification.**
+**مكتملة ومغلقة — Local + Cloud verified.**
 
 الهدف:
 

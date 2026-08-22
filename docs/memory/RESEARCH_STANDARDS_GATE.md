@@ -911,6 +911,11 @@ Project decision:
 New work begins 078+ and continues in coherent
 domain-sized migrations.
 
+> **تجاوُز — 2026-08-22:** السطران أعلاه يمثلان حالة 2026-08-19.
+> بعد تطبيق 078 إلى 084 فعلًا (ق-110 إلى ق-114) صار النافذ:
+> **071–084 immutable، وأي DB change جديد يبدأ 085+.**
+> منهج «domain-sized migrations» نفسه لم يتغير.
+
 ### Android Offline-first
 
 Current Android guidance supports:

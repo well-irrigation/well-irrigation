@@ -3,7 +3,7 @@
 **آخر تحديث:** 2026-08-18
 **القرار الحاكم:** ق-88
 **الحالة:** تصميم تقني ملزم؛ بعض الأساس موجود والتنفيذ الكامل ما زال Pending
-**أول Migration جديدة:** 078 أو أحدث
+**أول Migration جديدة:** 085 أو أحدث
 
 هذه الوثيقة لا تنشئ تنفيذًا بحد ذاتها.
 
@@ -290,7 +290,7 @@ UX-08 يسمح للمشغل بإضافة أرض.
 Backend الحالي owner-only.
 
 يجب توسيع `ops.create_farm`/العقد المناسب في Migration
-078+ مع اختبار صلاحيات دائم.
+085+ مع اختبار صلاحيات دائم.
 
 ---
 
@@ -543,7 +543,7 @@ UX يسمح بإدخال دفعة عند البداية.
 
 ---
 
-## 18. Required Migration 078+ Work
+## 18. Required Migration 085+ Work
 
 القائمة الحالية، ولا تعتبر نهائية إذا أضاف UX متطلبات
 لاحقة:
@@ -563,7 +563,7 @@ UX يسمح بإدخال دفعة عند البداية.
 13. Idempotency integration for new writes.
 14. Audit events for new sensitive operations.
 15. Permanent acceptance tests.
-16. No edits to accepted migrations 071–077.
+16. No edits to accepted migrations 071–084.
 
 ---
 

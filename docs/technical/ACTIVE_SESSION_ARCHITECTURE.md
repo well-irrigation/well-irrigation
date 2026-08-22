@@ -4,7 +4,7 @@
 **القرار الحاكم:** ق-91
 **UX:** UX-11
 **الحالة:** تصميم تقني ملزم؛ التنفيذ الكامل Pending
-**أول DB Migration جديدة:** 078 أو أحدث
+**أول DB Migration جديدة:** 085 أو أحدث
 
 ## 1. الهدف
 
@@ -157,7 +157,7 @@ Migration 066 الحالية تحتوي:
 
 هذه Gap تنفيذية.
 
-في Migration 078+ يجب توحيد التنفيذ مع ق-17.
+في Migration 085+ يجب توحيد التنفيذ مع ق-17.
 
 الهدف بعد التصحيح:
 
@@ -306,7 +306,7 @@ UX يسمح بإنهاء الجلسة وهي Paused.
 
 إذا كان العقد الحالي يحقق ذلك، يثبت باختبار دائم.
 
-إذا لا، يصلح في Migration 078+.
+إذا لا، يصلح في Migration 085+.
 
 ## 15. Offline commands
 
@@ -376,7 +376,7 @@ Navigation away لا يغير Business State.
 أي اختلاف في Fuel Billing أو Rate Snapshot يعتبر
 Defect يمنع الإغلاق التقني.
 
-## 20. Required Migration 078+ work
+## 20. Required Migration 085+ work
 
 حسب الحاجة وبعد فحص العقود الحالية:
 
@@ -391,7 +391,7 @@ Defect يمنع الإغلاق التقني.
 9. reconciliation responses.
 10. permanent acceptance tests.
 
-Migrations 071–077 لا تعدل.
+Migrations 071–084 لا تعدل.
 
 ## 21. Acceptance tests
 

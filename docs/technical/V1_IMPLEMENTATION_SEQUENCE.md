@@ -278,7 +278,7 @@ End-to-End:
 - م-26.
 - م-27.
 
-أي تصحيح لـMigration 066 يكون في Migration 078+
+أي تصحيح لـMigration 066 يكون في Migration 085+
 المناسبة ولا تعدل 066.
 
 ## 8. W5 — Operations Records & Coordination
@@ -512,7 +512,7 @@ IMPLEMENTATION-01 is complete when:
 
 Next:
 
-**W1 — Backend Foundations / Migration 078+ planning and implementation.**
+**W2-02 — طابور الهاتف / بقية م-25. أي DB change جديد = Migration 085+.**
 
 ## 19. W1-01 — Explicit Account/Person Identity Foundation
 

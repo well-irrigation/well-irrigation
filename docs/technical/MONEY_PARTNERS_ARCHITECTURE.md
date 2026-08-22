@@ -5,7 +5,7 @@
 **UX:** UX-14 / 408–459
 **الحالة:** تصميم تقني ملزم؛ التنفيذ الكامل Pending
 **المسألة المفتوحة:** م-29
-**أول DB Migration جديدة:** 078 أو أحدث
+**أول DB Migration جديدة:** 085 أو أحدث
 
 ## 1. الهدف
 
@@ -238,7 +238,7 @@ UX-14 يفرض:
 
 إذا كان التخطي مسموحًا ومطلوبًا تفسيره، يحفظ السبب.
 
-الحل في Migration 078+ بعد فحص التوقيع النهائي:
+الحل في Migration 085+ بعد فحص التوقيع النهائي:
 
 - إضافة السبب إلى Business Procedure.
 - إضافته إلى `api.*`.
@@ -407,7 +407,7 @@ Backend يحسم الاستقطاع.
 - Partner-paid expense.
 - irrigation deduction.
 
-أي إعادة كتابة في 078+ يجب الحفاظ على هذا invariant.
+أي إعادة كتابة في 085+ يجب الحفاظ على هذا invariant.
 
 ## 27. Partner visibility
 
@@ -439,7 +439,7 @@ Flutter لا تصحح هذا محليًا.
 
 إذا كان التنفيذ يحتاج تعديلًا:
 
-- Migration 078+.
+- Migration 085+.
 - permanent regression test.
 - توثيق واضح لسياسة التقريب/الباقي.
 
@@ -540,7 +540,7 @@ Flutter لا تنفذ rounding مالي مستقل.
 
 ## 35. Required API work
 
-Migration 078+ أو أحدث قد تحتاج:
+Migration 085+ أو أحدث قد تحتاج:
 
 1. farmer financial summary.
 2. invoice list/detail.

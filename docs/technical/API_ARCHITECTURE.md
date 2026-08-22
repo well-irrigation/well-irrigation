@@ -206,7 +206,7 @@ Surface الحالي يبقى:
         ↓
     internal data
 
-المطلوب في Migration 078+ حسب الحاجة:
+المطلوب في Migration 085+ حسب الحاجة:
 
 - عقود Search محددة النوع.
 - لا Dynamic table/schema parameter.
@@ -234,7 +234,7 @@ UX-08 يسمح للمشغل بإضافة أرض.
 
 لا يغير Flutter هذا القيد مباشرة.
 
-يلزم Migration 078+ لتوسيع التفويض واختباره إذا بقي
+يلزم Migration 085+ لتوسيع التفويض واختباره إذا بقي
 UX المعتمد كما هو.
 
 ### Start Session + Advance Payment
@@ -281,7 +281,7 @@ Offline لا يغير API Boundary.
 - no Direct DML.
 
 قد تنفذ هذه المتطلبات عبر typed wrappers جديدة أو
-توسعة العقود الحالية في Migration 078+.
+توسعة العقود الحالية في Migration 085+.
 
 لا ينشأ Generic RPC يسمح للعميل بتنفيذ اسم دالة أو
 جدول ديناميكي.
@@ -354,7 +354,7 @@ Flutter لا يجمع:
 
 العقود الحالية يعاد استخدامها متى كانت مطابقة للقرار.
 
-الفجوات التي تحتاج Migration 078+ حسب الفحص:
+الفجوات التي تحتاج Migration 085+ حسب الفحص:
 
 - Pause Detail Reason.
 - Resume With New Energy.
@@ -442,7 +442,7 @@ UX-13 يحتاج Typed Contracts إضافية داخل `api.*`.
 5. Shift Close العادي لا يتجاوز Active Session.
 6. Cash Handover وOperational Transfer عقدان مختلفان.
 7. كل write حساس يحتاج auth-derived actor وصلاحية.
-8. أي عقد جديد يبدأ من Migration 078+.
+8. أي عقد جديد يبدأ من Migration 085+.
 
 ## ق-99 — Money & Partners Read/Write Contracts
 
@@ -473,7 +473,7 @@ Typed `api.*` المطلوبة حسب الحاجة تشمل:
 7. correction لا تستخدم Direct UPDATE.
 8. كل Write حساس يشتق Actor من auth.
 9. Flutter لا Direct DML.
-10. أي تغيير DB جديد يبدأ من 078+.
+10. أي تغيير DB جديد يبدأ من 085+.
 
 ## ق-100 — Well, Fuel, Pricing and Reporting Contracts
 
@@ -514,7 +514,7 @@ UX-15 تحتاج Typed Contracts داخل `api.*` لـ:
 
 9. لا Direct DML.
 
-10. أي DB change جديد يبدأ من Migration 078+.
+10. أي DB change جديد يبدأ من Migration 085+.
 
 ## ق-101 — Account & Settings Boundary
 
@@ -535,7 +535,7 @@ UX-16A تحتاج Contracts لـ:
 3. Platform Admin APIs ليست جزءًا من هذه العقود.
 4. Auth Admin operations الحساسة تستخدم Trusted Backend.
 5. Service secrets لا تدخل Flutter.
-6. Any DB change يبدأ من Migration 078+.
+6. Any DB change يبدأ من Migration 085+.
 
 ## ق-102 — Platform Administration Control Plane
 
@@ -565,7 +565,7 @@ Well Roles.
 9. Exposed schemas تبقى وفق Source of Truth المعتمد ما
    لم يعتمد تغيير جديد.
 
-10. DB change جديد يبدأ من Migration 078+.
+10. DB change جديد يبدأ من Migration 085+.
 
 ## ق-103 — Platform Account/Well/Support/Password APIs
 
@@ -621,7 +621,7 @@ Password Mutation flow ينسق:
 - KEK/decryption permission server-side only.
 - no password in audit/logging.
 - no Direct DML from Browser.
-- Migration 078+ لأي DB objects جديدة.
+- Migration 085+ لأي DB objects جديدة.
 
 ## ق-104 — Admin API Research/Standards Rules
 
@@ -665,7 +665,7 @@ Supabase Auth Admin operations:
 
 No Direct DML.
 
-أي DB change يبدأ من Migration 078+.
+أي DB change يبدأ من Migration 085+.
 
 ## ق-106 — Platform Sales/Operations/Finance Admin APIs
 
@@ -708,7 +708,7 @@ PA-03 تحتاج Trusted Admin Contracts لـ:
 
 11. service_role/secret key never enters Browser/Flutter.
 
-12. New DB objects start Migration 078+.
+12. New DB objects start Migration 085+.
 
 ## ق-107 — Monitoring, Audit & Configuration APIs
 
@@ -747,7 +747,7 @@ PA-04 تحتاج Trusted Contracts مثل:
 
 9. Large lists use server-side pagination/filter/sort.
 
-10. New DB objects begin Migration 078+.
+10. New DB objects begin Migration 085+.
 
 ## ق-108 — Cross-Cutting UX Contract Requirements
 
@@ -798,7 +798,7 @@ Backend remains authority.
 API does not encode presentation assumptions tied to one
 screen size.
 
-Any DB change starts from Migration 078+.
+Any DB change starts from Migration 085+.
 
 ## ق-109 — API Implementation Sequencing
 
@@ -822,7 +822,7 @@ Trusted Platform Admin APIs before Admin Web.
 No production UI may depend on an imaginary/future API
 without a tracked implementation gap.
 
-New DB changes start Migration 078+.
+New DB changes start Migration 085+.
 
 ## ق-110 — Identity Link Foundation
 

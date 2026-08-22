@@ -199,7 +199,7 @@ Profile قبل اعتباره مكتملًا.
 التنفيذ الإنتاجي.
 
 97. أي تغيير قاعدة ناتج عن ق-84 أو ق-88 يبدأ في
-Migration 078+؛ migrations 071–077 لا تعدل.
+Migration 085+؛ migrations 071–084 لا تعدل.
 
 98. كل عقد بحث/إنشاء/تسعير جديد يحتاج اختبار قبول دائم
 قبل وصف UX المعتمد بأنه منفذ.
@@ -255,7 +255,7 @@ Background Work ويجب شرحهما للمستخدم.
 
 118. Reboot أو Process Death لا يفقد Outbox.
 
-119. كل تغيير DB ناتج عن ق-89 يبدأ من Migration 078+.
+119. كل تغيير DB ناتج عن ق-89 يبدأ من Migration 085+.
 
 120. لا يعتبر ق-89 منفذًا قبل اختبارات Android الفعلية
 للشبكة والبطارية وإعادة التشغيل والـRetry.
@@ -303,7 +303,7 @@ Background Work ويجب شرحهما للمستخدم.
 
 138. أي دعم خادمي جديد لـSync Status يبقى عبر `api.*`.
 
-139. أي DB change ناتج عن ق-90 يبدأ من Migration 078+.
+139. أي DB change ناتج عن ق-90 يبدأ من Migration 085+.
 
 140. ق-90 لا يعتبر منفذًا قبل Android integration
 والاختبار الميداني.
@@ -338,7 +338,7 @@ Background Work ويجب شرحهما للمستخدم.
 مستحق المزارع.
 
 153. تنفيذ Migration 066 الذي يضم Fuel Charge إلى Session
-Charge يعتبر Gap معروفة يجب تصحيحها في 078+.
+Charge يعتبر Gap معروفة يجب تصحيحها في 085+.
 
 154. Migration 066 لا تعدل بأثر رجعي.
 
@@ -359,7 +359,7 @@ Charge يعتبر Gap معروفة يجب تصحيحها في 078+.
 
 162. Flutter لا يستخدم float أو double لحساب المال.
 
-163. أي تغيير DB ناتج عن ق-91 يبدأ من Migration 078+.
+163. أي تغيير DB ناتج عن ق-91 يبدأ من Migration 085+.
 
 164. ق-91 لا يعتبر منفذًا قبل إغلاق م-26 باختبارات دائمة
 واختبارات Android المطلوبة.
@@ -407,7 +407,7 @@ Charge يعتبر Gap معروفة يجب تصحيحها في 078+.
 
 183. كل Settlement Retry يستخدم Stable Command ID.
 
-184. أي DB change ناتج عن ق-92 يبدأ من Migration 078+.
+184. أي DB change ناتج عن ق-92 يبدأ من Migration 085+.
 
 185. ق-92 لا يعتبر منفذًا قبل إغلاق م-27 واختبارات
 Backend وAndroid المطلوبة.
@@ -592,7 +592,7 @@ Commit جديدًا.
 260. Owner open-session close bypass الحالي لا يدخل Flutter
 العادي وفق ق-98.
 
-261. أي إصلاح لهذا التعارض يبدأ من Migration 078+.
+261. أي إصلاح لهذا التعارض يبدأ من Migration 085+.
 
 262. Flutter لا يجمع السجل التشغيلي من الجداول الداخلية
 مباشرة إذا كان يلزم Read Model موحد.
@@ -673,7 +673,7 @@ Commit جديدًا.
 
 298. Backend هو Authority للمال والتواريخ النهائية.
 
-299. أي DB fix جديد يبدأ من Migration 078+.
+299. أي DB fix جديد يبدأ من Migration 085+.
 
 300. UX-14 لا تعتبر Production Complete قبل إغلاق م-29.
 
@@ -761,7 +761,7 @@ Commit جديدًا.
 
 341. Report API يخضع لنفس Role Authorization.
 
-342. أي DB change جديد يبدأ من Migration 078+.
+342. أي DB change جديد يبدأ من Migration 085+.
 
 343. UX-15 لا تعتبر Production Complete قبل إغلاق م-30.
 
@@ -813,7 +813,7 @@ Commit جديدًا.
 
 366. Platform Admin Password Requirement لا يحكمها ق-101.
 
-367. Any new DB change يبدأ من Migration 078+.
+367. Any new DB change يبدأ من Migration 085+.
 
 368. UX-16A لا تعتبر Production Complete قبل إغلاق م-31.
 
@@ -883,7 +883,7 @@ Commit جديدًا.
 
 400. PA-01 لا تعتبر Production Complete قبل إغلاق م-32.
 
-401. Any DB change جديد يبدأ من Migration 078+.
+401. Any DB change جديد يبدأ من Migration 085+.
 
 ## ق-103 — ثوابت الحسابات والآبار والدعم وكلمات المرور
 
@@ -924,7 +924,7 @@ Commit جديدًا.
 
 القواعد الحالية تبدأ في قسم ق-105 أدناه.
 
-444. أي DB change جديد يبدأ من Migration 078+.
+444. أي DB change جديد يبدأ من Migration 085+.
 
 445. PA-02 لا تعتبر Production Complete قبل إغلاق م-33.
 
@@ -1036,7 +1036,7 @@ Production عندما تنفذ capability.
 494. PA-02 لا تعتبر Production Complete قبل إغلاق م-33
 وفق ق-105 الحالية.
 
-495. أي DB change جديد يبدأ من Migration 078+.
+495. أي DB change جديد يبدأ من Migration 085+.
 
 ## ق-106 — ثوابت مبيعات المنصة والتفعيل والتحكم الإداري
 
@@ -1146,7 +1146,7 @@ Production عندما تنفذ capability.
 
 548. PA-03 لا تعتبر Production Complete قبل إغلاق م-34.
 
-549. Any DB change جديد يبدأ Migration 078+.
+549. Any DB change جديد يبدأ Migration 085+.
 
 ## ق-107 — ثوابت Monitoring/Audit/Configuration
 
@@ -1260,7 +1260,7 @@ Production عندما تنفذ capability.
 
 604. PA-04 لا تعتبر Production Complete قبل إغلاق م-35.
 
-605. Any new DB change يبدأ Migration 078+.
+605. Any new DB change يبدأ Migration 085+.
 
 ## ق-108 — ثوابت الاتساق النهائي لتجربة المستخدم
 
@@ -1382,7 +1382,7 @@ Production عندما تنفذ capability.
 
 664. UX-17 is not Production Complete before م-36 closure.
 
-665. Any new DB change starts Migration 078+.
+665. Any new DB change starts Migration 085+.
 
 ## ق-110 — ثوابت Account ↔ Person Identity
 
@@ -1416,4 +1416,4 @@ Production عندما تنفذ capability.
 
 680. Migration 078 لا توسع `api` surface.
 
-681. Migration 071–077 تبقى immutable.
+681. Migration 071–084 تبقى immutable.

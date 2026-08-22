@@ -5,7 +5,7 @@
 **UX:** UX-15 / 460–526
 **الحالة:** تصميم تقني ملزم؛ التنفيذ الكامل Pending
 **المسألة المفتوحة:** م-30
-**أول DB Migration جديدة:** 078 أو أحدث
+**أول DB Migration جديدة:** 085 أو أحدث
 
 ## 1. الهدف
 
@@ -189,7 +189,7 @@ V1 target:
 
 إذا احتاج DB restriction:
 
-Migration 078+.
+Migration 085+.
 
 ## 15. Historical pricing
 
@@ -480,7 +480,7 @@ Backend authorization remains final.
 
 ## 39. Required API work
 
-Migration 078+ أو Server changes قد تحتاج:
+Migration 085+ أو Server changes قد تحتاج:
 
 1. well summary/read.
 2. well update.
