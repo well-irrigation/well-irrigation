@@ -334,7 +334,7 @@ Governing sequence:
 
 Current point:
 
-**W2 — Offline & Background Sync. W1 مكتملة ومغلقة، وW2-01 (حماية التكرار على الخادم) مكتملة؛ التالي W2-02 طابور الهاتف.**
+**W2 — Offline & Background Sync. W1 مكتملة ومغلقة، وW2-01 (حماية التكرار على الخادم) مكتملة، وW2-02a (طابور الهاتف الدائم / ق-115) وW2-02c (سجل الجلسة النشطة والاستعادة بعد موت التطبيق / ق-116) مكتملتان بصفر تغيير DB؛ التالي W2-02b الإرسال الخلفي بـWorkManager، وهو محجوب حتى `flutter pub add workmanager connectivity_plus`.**
 
 Do not start arbitrary screens.
 
