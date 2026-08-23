@@ -22,7 +22,7 @@
 - 081+082: ق-113 — Permission Enforcement Wiring؛ م-18 مغلقة.
 - 083+084: ق-114 — Server-side Idempotency؛ م-25 تضيق.
 
-Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
+Migration 071–085 immutable. أي DB change جديد يبدأ 086+.
 
 **مهم:** الجداول أدناه تسجل ما فعلته كل هجرة في وقتها.
 لذلك قد يظهر في هجرة قديمة وصف منسوخ لاحقًا، مثل
@@ -937,3 +937,13 @@ login → build → set Exposed schemas → verify.
 القيمة المعتمدة = `api` **أولًا** ثم `graphql_public`.
 `api` يجب أن تكون الأولى لأنها الـschema الافتراضية
 لأي طلب بلا ترويسة صريحة. `public` غير مكشوفة.
+
+## 085 — 20260823200001_085_backend_gap_fixes.sql
+
+**الهدف:** إغلاق الفجوات الخلفية في RLS والوقود ونموذج التسعير وحماية الدوال الداخلية.
+
+**ما تفعله:**
+1. **تصحيح RLS الدفعات:** تحديث سياسة `billing.payments` (`payments_select_assigned`) لتسمح للمشغل/المالك بقراءة الدفعات المقدمة والديون القديمة عبر `well_id` حين يكون `session_charge_id IS NULL`.
+2. **تصحيح احتساب الوقود (ق-17 / ق-91):** قصر `total_charge_minor` على `time_charge_minor` فقط في جدول `ops.session_segments` وإلغاء إضافة الوقود كرسوم على المزارع مع إبقائه كقيد رقابي في `fuel_charge_minor`.
+3. **سحب صلاحية التنفيذ:** سحب `EXECUTE` على كافة دوال المخططات الداخلية الحالية والمستقبلية من دور `anon` وحمايتها عبر `alter default privileges`.
+4. **إلغاء نموذج التسعير المتقاعد:** إلغاء `operation_plus_fuel` وحصر نموذج الديزل على `inclusive_hourly` فقط في قيود جدول `ops.price_rules`.

@@ -26,7 +26,7 @@
 
 ### قاعدة البيانات — محدَّث 2026-08-23
 
-- migrations = 83 file، آخرها 084؛ 071–084 immutable.
+- migrations = 84 file، آخرها 085؛ 071–085 immutable.
 - permanent test files = 24.
 - PASS = 354.
 - FAIL = 0.
