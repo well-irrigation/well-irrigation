@@ -12,9 +12,9 @@
 /// ما لا يفعله: لا يولّد معرّفات (لا يملك مولّدًا)، ولا يكتب على
 /// `commandId`، ولا يُرسل وقتًا غير وقت الحدث المحفوظ.
 ///
-/// هذه الجولة تشغّل الحلقة عند فتح التطبيق ووجود شبكة. الإرسال الخلفي
-/// بلا فتح التطبيق جولة تالية — والحجز الشرطي مصمَّم مسبقًا ليعمل بين
-/// التطبيق وعامل خلفي بلا إعادة تصميم (القسم 35).
+/// الحلقة تعمل عند فتح التطبيق وكذلك من عامل خلفي بلا فتح التطبيق
+/// (ق-117). الحجز الشرطي هو ما يجعل الحالتين آمنتين معًا بلا إعادة
+/// تصميم (القسم 35).
 library;
 
 import 'command_envelope.dart';
@@ -31,6 +31,7 @@ class SyncRunReport {
     this.retryScheduled = 0,
     this.needsReview = 0,
     this.skipped = 0,
+    this.blockedByReview = 0,
     this.recoveredClaims = 0,
     this.alreadyRunning = false,
   });
@@ -50,6 +51,13 @@ class SyncRunReport {
   /// لم تُحاول: مرجع غير محسوم، أو أصلٌ موقوف، أو سبقها غيرها للحجز.
   final int skipped;
 
+  /// من [skipped]: ما لا يمكن أن يتحرك إلا بقرار إنسان.
+  ///
+  /// أمرٌ صار `review` يوقف أصله كله، والأوامر التي تشير إليه لن تُحلّ
+  /// مراجعها أبدًا بلا تدخل. عدّها منفصلةً هو ما يمنع العامل الخلفي من
+  /// إعادة المحاولة إلى الأبد على شيء لا تُصلحه شبكة (ق-90 بند 20).
+  final int blockedByReview;
+
   /// حجوزات ميتة أُعيدت إلى الطابور.
   final int recoveredClaims;
 
@@ -58,11 +66,30 @@ class SyncRunReport {
 
   bool get hasPendingWork => retryScheduled > 0 || skipped > 0;
 
+  /// هل بقي عملٌ قد ينجح وحده لو أُعيدت المحاولة لاحقًا؟
+  ///
+  /// هذا وحده مبرِّر إعادة الجدولة. `skipped` كلها موقوفة على إنسان
+  /// يعني: لا تُوقظ الهاتف مرة أخرى بلا فائدة.
+  bool get canRetryWithoutHelp =>
+      retryScheduled > 0 || skipped > blockedByReview;
+
+  /// هل يوجد ما ينتظر قرار إنسان؟ (يظهر للمستخدم، ولا يُعاد تلقائيًا.)
+  bool get awaitsHumanDecision => needsReview > 0 || blockedByReview > 0;
+
   @override
   String toString() =>
       'SyncRunReport(attempted=$attempted confirmed=$confirmed '
       'retry=$retryScheduled review=$needsReview skipped=$skipped '
-      'recovered=$recoveredClaims)';
+      'blockedByReview=$blockedByReview recovered=$recoveredClaims)';
+}
+
+/// سبب توقّف الإرسال في أصل معيّن داخل تشغيل واحد.
+enum _BlockReason {
+  /// سبب عابر: شبكة، أو حجزٌ سبقنا إليه غيرنا، أو مرجع سيُحلّ بنفسه.
+  transient,
+
+  /// موقوف على قرار إنسان — لا تُعيد المحاولة تلقائيًا.
+  awaitingReview,
 }
 
 class SyncEngine {
@@ -114,34 +141,54 @@ class SyncEngine {
     var retryScheduled = 0;
     var needsReview = 0;
     var skipped = 0;
+    var blockedByReview = 0;
 
-    /// الأصول التي توقّف إرسالها في هذا التشغيل.
+    /// الأصول التي توقّف إرسالها في هذا التشغيل، ومعها سبب التوقف.
     ///
     /// أول أمر لم يُحسم في أصل يوقف كل ما بعده فيه: لا يُرسل استئناف
     /// لجلسة لم يُحسم إيقافها. أصول أخرى تكمل بلا تأثر (القسم 6).
-    final blockedAggregates = <String>{};
+    /// والسبب محفوظ لأن «موقوف على الشبكة» و«موقوف على إنسان» يقودان
+    /// إلى قرارين مختلفين تمامًا في العامل الخلفي.
+    final blockedAggregates = <String, _BlockReason>{};
+
+    void block(String aggregate, _BlockReason reason) {
+      blockedAggregates[aggregate] = reason;
+    }
 
     for (final command in await _store.pendingCommands(accountId)) {
       final aggregate = command.effectiveAggregateId;
+      final blockedBy = blockedAggregates[aggregate];
 
-      if (blockedAggregates.contains(aggregate)) {
+      if (blockedBy != null) {
         skipped += 1;
+
+        if (blockedBy == _BlockReason.awaitingReview) {
+          blockedByReview += 1;
+        }
+
         continue;
       }
 
       // أمرٌ يحتاج مراجعة يوقف أصله: حالة الجلسة على الخادم غير
       // معروفة، وإرسال حدث لاحق عليها يفاقم اللبس لا يحلّه.
       if (command.status == CommandStatus.review) {
-        blockedAggregates.add(aggregate);
+        block(aggregate, _BlockReason.awaitingReview);
         skipped += 1;
+        blockedByReview += 1;
         continue;
       }
 
-      final resolved = await _resolvePayload(accountId, command);
+      final resolution = await _resolvePayload(accountId, command);
+      final resolved = resolution.payload;
 
       if (resolved == null) {
-        blockedAggregates.add(aggregate);
+        block(aggregate, resolution.reason);
         skipped += 1;
+
+        if (resolution.reason == _BlockReason.awaitingReview) {
+          blockedByReview += 1;
+        }
+
         continue;
       }
 
@@ -153,9 +200,9 @@ class SyncEngine {
       );
 
       if (!claimed) {
-        // سبقنا إليه غيرنا — حلقة أخرى أو عامل خلفي لاحقًا. لا نلمسه
-        // ولا نُرسل بعده في أصله، فترتيبه ما زال مضمونًا.
-        blockedAggregates.add(aggregate);
+        // سبقنا إليه غيرنا — حلقة أخرى أو عامل خلفي. لا نلمسه ولا
+        // نُرسل بعده في أصله، فترتيبه ما زال مضمونًا.
+        block(aggregate, _BlockReason.transient);
         skipped += 1;
         continue;
       }
@@ -187,7 +234,7 @@ class SyncEngine {
             error: failure.message,
             attemptedAt: attemptedAt,
           );
-          blockedAggregates.add(aggregate);
+          block(aggregate, _BlockReason.transient);
           retryScheduled += 1;
 
         case final DispatchFailed failure:
@@ -197,7 +244,7 @@ class SyncEngine {
             error: failure.message,
             attemptedAt: attemptedAt,
           );
-          blockedAggregates.add(aggregate);
+          block(aggregate, _BlockReason.awaitingReview);
           needsReview += 1;
       }
     }
@@ -212,6 +259,7 @@ class SyncEngine {
       retryScheduled: retryScheduled,
       needsReview: needsReview,
       skipped: skipped,
+      blockedByReview: blockedByReview,
       recoveredClaims: recovered,
     );
   }
@@ -253,15 +301,15 @@ class SyncEngine {
     return recovered;
   }
 
-  /// يستبدل مراجع الحمولة بالمعرّفات الخادمية، أو `null` إن لم تُحسم.
-  Future<Map<String, Object?>?> _resolvePayload(
+  /// يستبدل مراجع الحمولة بالمعرّفات الخادمية، أو يشرح سبب التعذّر.
+  Future<_PayloadResolution> _resolvePayload(
     String accountId,
     CommandEnvelope command,
   ) async {
     final references = command.references;
 
     if (references.isEmpty) {
-      return command.payload;
+      return _PayloadResolution.ready(command.payload);
     }
 
     final resolutions = <CommandReference, String>{};
@@ -274,7 +322,19 @@ class SyncEngine {
       );
 
       if (mapping == null) {
-        return null;
+        // المرجع غير محسوم. الفرق الحاسم: هل الأمر المُشار إليه ما زال
+        // في طريقه إلى الخادم، أم صار «مراجعة» فلن يُحسم أبدًا وحده؟
+        // في الحالة الثانية إعادة المحاولة استهلاك بطارية بلا نتيجة.
+        final source = await _store.commandByLocalId(
+          accountId,
+          reference.localId,
+        );
+
+        return _PayloadResolution.blocked(
+          source?.status == CommandStatus.review
+              ? _BlockReason.awaitingReview
+              : _BlockReason.transient,
+        );
       }
 
       resolutions[reference] = mapping.serverId;
@@ -285,7 +345,7 @@ class SyncEngine {
       (reference) => resolutions[reference],
     );
 
-    return Map<String, Object?>.from(resolved as Map);
+    return _PayloadResolution.ready(Map<String, Object?>.from(resolved as Map));
   }
 
   Future<void> _confirm(
@@ -321,4 +381,15 @@ class SyncEngine {
       attemptedAt: attemptedAt,
     );
   }
+}
+
+/// نتيجة محاولة حلّ حمولة أمر: جاهزة، أو موقوفة ومعها السبب.
+class _PayloadResolution {
+  const _PayloadResolution.ready(this.payload)
+    : reason = _BlockReason.transient;
+
+  const _PayloadResolution.blocked(this.reason) : payload = null;
+
+  final Map<String, Object?>? payload;
+  final _BlockReason reason;
 }

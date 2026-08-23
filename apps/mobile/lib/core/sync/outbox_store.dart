@@ -100,11 +100,7 @@ abstract interface class OutboxStore {
   Future<void> putMapping(String accountId, IdMapping mapping);
 
   /// يقرأ ربطًا محسومًا، أو `null` إذا لم يُحسم بعد.
-  Future<IdMapping?> mapping(
-    String accountId,
-    String localId,
-    EntityKind kind,
-  );
+  Future<IdMapping?> mapping(String accountId, String localId, EntityKind kind);
 
   /// كل الروابط المحسومة لهذا الحساب.
   Future<List<IdMapping>> mappings(String accountId);

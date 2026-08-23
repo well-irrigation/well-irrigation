@@ -171,10 +171,10 @@ class InMemoryOutboxStore implements OutboxStore {
   Future<void> putMapping(String accountId, IdMapping mapping) async {
     _assertOpen();
 
-    _mappings.putIfAbsent(accountId, () => {})[_mappingKey(
-      mapping.localId,
-      mapping.kind,
-    )] = mapping;
+    _mappings.putIfAbsent(
+      accountId,
+      () => {},
+    )[_mappingKey(mapping.localId, mapping.kind)] = mapping;
   }
 
   @override

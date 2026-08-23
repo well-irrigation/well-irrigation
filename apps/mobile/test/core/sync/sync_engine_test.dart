@@ -134,7 +134,10 @@ void main() {
         'start_irrigation_session',
         'start_irrigation_session',
       ]);
-      expect(transport.requestsFor(CommandType.pauseIrrigationSession), isEmpty);
+      expect(
+        transport.requestsFor(CommandType.pauseIrrigationSession),
+        isEmpty,
+      );
 
       final startedTwo = await repository.byLocalId(accountA, startTwo.localId);
 

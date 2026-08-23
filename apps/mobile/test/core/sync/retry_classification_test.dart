@@ -58,7 +58,9 @@ void main() {
         FailureDisposition.retry,
       );
       expect(
-        classifyThrownFailure(Exception('Connection closed before full header')),
+        classifyThrownFailure(
+          Exception('Connection closed before full header'),
+        ),
         FailureDisposition.retry,
       );
     });

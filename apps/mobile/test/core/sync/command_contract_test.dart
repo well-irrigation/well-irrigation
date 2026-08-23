@@ -152,17 +152,19 @@ void main() {
 
     test('كل ردّ jsonb له مفتاح، وكل ردّ uuid بلا مفتاح', () {
       for (final type in CommandType.values) {
-        expect(
-          type.resultKey != null,
-          type.returnsJson,
-          reason: type.rpcName,
-        );
+        expect(type.resultKey != null, type.returnsJson, reason: type.rpcName);
       }
     });
 
     test('أحداث الجلسة كلها تحمل وسيط وقت حدث', () {
-      expect(CommandType.startIrrigationSession.eventTimeArgument, 'p_started_at');
-      expect(CommandType.pauseIrrigationSession.eventTimeArgument, 'p_paused_at');
+      expect(
+        CommandType.startIrrigationSession.eventTimeArgument,
+        'p_started_at',
+      );
+      expect(
+        CommandType.pauseIrrigationSession.eventTimeArgument,
+        'p_paused_at',
+      );
       expect(
         CommandType.resumeIrrigationSession.eventTimeArgument,
         'p_resumed_at',
@@ -299,7 +301,9 @@ void main() {
 
     test('لا يتكرر', () {
       final generator = SecureIdGenerator();
-      final ids = {for (var index = 0; index < 500; index += 1) generator.newId()};
+      final ids = {
+        for (var index = 0; index < 500; index += 1) generator.newId(),
+      };
 
       expect(ids, hasLength(500));
     });

@@ -117,10 +117,7 @@ DispatchAccepted normalizeAcceptedResponse(
   if (!type.returnsJson) {
     final id = rawResponse?.toString();
 
-    return DispatchAccepted(
-      response: {'id': id},
-      entityId: id,
-    );
+    return DispatchAccepted(response: {'id': id}, entityId: id);
   }
 
   if (rawResponse is! Map) {

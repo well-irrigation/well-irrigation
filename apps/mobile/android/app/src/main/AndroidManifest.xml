@@ -1,5 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- الصلاحيات التي يطلبها التطبيق صراحةً — أقلّ ما يكفي (القسم 11).
+         INTERNET: إرسال العمليات إلى الخادم.
+         ACCESS_NETWORK_STATE: قراءة «هل هناك شبكة» لمحاولة الإرسال عند
+         عودتها، ولشرط الشبكة في العمل الخلفي المجدول (ق-117).
+
+         ما لم يُطلب مقصودًا: الموقع في الخلفية، والمنبّه الدقيق،
+         وخدمات الوصول، والرسم فوق التطبيقات، وإدارة كل ملفات الجهاز.
+
+         ملاحظة مسجَّلة لا مخفية: حزمة workmanager تدمج في المانيفست
+         النهائي POST_NOTIFICATIONS وFOREGROUND_SERVICE
+         وFOREGROUND_SERVICE_SHORT_SERVICE. الأخيرتان تُستخدمان فقط مع
+         العمل «المستعجل» (expedited) وهو غير مستخدم هنا، وأول واحدة
+         تحتاجها الإشعارات لاحقًا على أندرويد 13+. تُراجع قبل النشر على
+         المتجر بقراءة المانيفست المدموج الفعلي. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <application
         android:label="well_irrigation_mobile"
         android:name="${applicationName}"

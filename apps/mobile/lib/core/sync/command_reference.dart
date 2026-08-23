@@ -108,9 +108,7 @@ Object? resolveReferences(
   }
 
   if (payload is List) {
-    return [
-      for (final item in payload) resolveReferences(item, resolve),
-    ];
+    return [for (final item in payload) resolveReferences(item, resolve)];
   }
 
   return payload;
