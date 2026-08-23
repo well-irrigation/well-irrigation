@@ -122,10 +122,10 @@ begin
 
   insert into ops.price_rules (
     tenant_id, price_schedule_id, energy_source, diesel_pricing_model,
-    operation_hourly_rate_minor, fuel_price_per_liter_minor
+    hourly_rate_minor
   ) values (
-    v_tenant, v_schedule, 'well_diesel', 'operation_plus_fuel',
-    7200, 1000
+    v_tenant, v_schedule, 'well_diesel', 'inclusive_hourly',
+    7200
   );
 
   insert into ops.price_rules
@@ -220,11 +220,11 @@ begin
     where session_id = v_session and sequence_number = 4
       and segment_type = 'well_diesel_run'
       and energy_source = 'well_diesel'
-      and applied_operation_rate_minor = 7200
-      and applied_fuel_price_per_liter_minor = 1000
+      and applied_hourly_rate_minor = 7200
+      and applied_fuel_price_per_liter_minor is null
       and ended_at is null
   ) then
-    raise notice 'PASS 4: تغيير المصدر فتح مقطع ديزل بلقطتي التشغيل والوقود الجديدتين';
+    raise notice 'PASS 4: تغيير المصدر فتح مقطع ديزل بسعر شامل مثبت (inclusive_hourly)';
   else
     raise notice 'FAIL 4: مقطع الديزل أو أسعارُه المثبتة غير صحيحة';
   end if;
@@ -241,11 +241,11 @@ begin
       and sc.pricing_mode = 'segments'
       and sc.duration_seconds = 10800
       and sc.price_per_hour_minor = 4800
-      and sc.amount_minor = 15400
+      and sc.amount_minor = 14400
   )
-  and (v_summary ->> 'amount_minor')::bigint = 15400
+  and (v_summary ->> 'amount_minor')::bigint = 14400
   and (select sum(total_charge_minor) from ops.session_segments
-       where session_id = v_session) = 15400
+       where session_id = v_session) = 14400
   and exists (
     select 1 from ops.session_segments
     where session_id = v_session and sequence_number = 1
@@ -268,9 +268,9 @@ begin
     select 1 from ops.session_segments
     where session_id = v_session and sequence_number = 4
       and billable_seconds = 3600 and time_charge_minor = 7200
-      and fuel_charge_minor = 1000 and total_charge_minor = 8200
+      and fuel_charge_minor = 0 and total_charge_minor = 7200
   ) then
-    raise notice 'PASS 5: الإكمال حسب المقاطع أعطى 3600 + 3600 + 7200 + 1000 = 15400';
+    raise notice 'PASS 5: الإكمال حسب المقاطع أعطى 3600 + 3600 + 7200 = 14400 (الوقود رقابي ق-17)';
   else
     raise notice 'FAIL 5: مبالغ المقاطع أو ملخص الجلسة المختلطة غير صحيحة';
   end if;
@@ -314,20 +314,20 @@ begin
   if exists (
     select 1 from billing.invoices i
     where i.id = v_invoice and i.session_id = v_session
-      and i.status = 'issued' and i.total_minor = 15400
-      and i.outstanding_minor = 15400 and i.journal_entry_id is not null
+      and i.status = 'issued' and i.total_minor = 14400
+      and i.outstanding_minor = 14400 and i.journal_entry_id is not null
   )
   and (select count(*) from billing.invoice_lines
-       where invoice_id = v_invoice) = 4
+       where invoice_id = v_invoice) = 3
   and (select sum(amount_minor) from billing.invoice_lines
-       where invoice_id = v_invoice) = 15400
+       where invoice_id = v_invoice) = 14400
   and (select count(*) from billing.invoice_lines
        where invoice_id = v_invoice and line_type = 'solar_irrigation') = 2
   and (select count(*) from billing.invoice_lines
        where invoice_id = v_invoice and line_type = 'diesel_operation') = 1
   and (select count(*) from billing.invoice_lines
-       where invoice_id = v_invoice and line_type = 'diesel_fuel') = 1 then
-    raise notice 'PASS 7: أُصدرت فاتورة بأربعة بنود صحيحة من المقاطع ومجموع 15400';
+       where invoice_id = v_invoice and line_type = 'diesel_fuel') = 0 then
+    raise notice 'PASS 7: أُصدرت فاتورة بثلاثة بنود صحيحة (لا وقود مستقل) ومجموع 14400';
   else
     raise notice 'FAIL 7: الفاتورة أو أنواع بنودها أو مجموعها غير صحيح';
   end if;
@@ -341,7 +341,7 @@ begin
         select 1 from finance.journal_lines jl
         join finance.ledger_accounts la on la.id = jl.ledger_account_id
         where jl.journal_entry_id = je.id and jl.entry_side = 'debit'
-          and la.account_code = '1100' and jl.amount_minor = 15400
+          and la.account_code = '1100' and jl.amount_minor = 14400
       )
       and exists (
         select 1 from finance.journal_lines jl
@@ -355,14 +355,8 @@ begin
         where jl.journal_entry_id = je.id and jl.entry_side = 'credit'
           and la.account_code = '4100' and jl.amount_minor = 7200
       )
-      and exists (
-        select 1 from finance.journal_lines jl
-        join finance.ledger_accounts la on la.id = jl.ledger_account_id
-        where jl.journal_entry_id = je.id and jl.entry_side = 'credit'
-          and la.account_code = '4200' and jl.amount_minor = 1000
-      )
   ) then
-    raise notice 'PASS 8: زناد الفاتورة رحّل قيد 1100 مقابل 4000 و4100 و4200';
+    raise notice 'PASS 8: زناد الفاتورة رحّل قيد 1100 مقابل 4000 و4100 (ق-17: لا بند وقود)';
   else
     raise notice 'FAIL 8: القيد المرحل للفاتورة المختلطة غير صحيح';
   end if;

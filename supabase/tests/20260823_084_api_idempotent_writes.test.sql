@@ -349,10 +349,10 @@ begin
 
   insert into ops.price_rules (
     tenant_id, price_schedule_id, energy_source, diesel_pricing_model,
-    operation_hourly_rate_minor, fuel_price_per_liter_minor
+    hourly_rate_minor
   ) values (
-    v_tenant, v_schedule, 'well_diesel', 'operation_plus_fuel',
-    7200, 1000
+    v_tenant, v_schedule, 'well_diesel', 'inclusive_hourly',
+    7200
   );
 
   insert into inventory.fuel_transactions (
