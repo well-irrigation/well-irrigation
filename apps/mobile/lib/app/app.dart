@@ -12,6 +12,7 @@ import '../features/finance/partners_screen.dart';
 import '../features/history/session_history_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/operations/operations_screen.dart';
+import '../features/settings/more_settings_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/well_management/reports_analytics_screen.dart';
 import '../features/well_management/well_management_hub_screen.dart';
@@ -278,6 +279,25 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
                           _userRole = newWell.isOwner ? 'owner' : 'operator';
                         });
                       },
+                    ),
+                  ),
+                );
+              },
+              onNavigateToMoreSettings: () {
+                Navigator.of(innerContext).push(
+                  MaterialPageRoute(
+                    builder: (_) => MoreSettingsScreen(
+                      wellName: _wellName,
+                      wellId: _activeWell?.id ?? 'well-1',
+                      wells: _wells,
+                      onWellChanged: (newWell) {
+                        setState(() {
+                          _activeWell = newWell;
+                          _wellName = newWell.name;
+                          _userRole = newWell.isOwner ? 'owner' : 'operator';
+                        });
+                      },
+                      onLogout: _handleLogout,
                     ),
                   ),
                 );

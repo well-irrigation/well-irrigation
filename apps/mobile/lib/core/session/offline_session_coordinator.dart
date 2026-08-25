@@ -81,8 +81,9 @@ class OfflineSessionCoordinator {
     // تشغيل مؤقت تحديث العداد اللحظي
     _tickerTimer?.cancel();
     _tickerTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      // إشعار المستمعين بتحديث الوقت اللحظي
-      _sessionController.add(_currentProjectedSession);
+      if (!_sessionController.isClosed) {
+        _sessionController.add(_currentProjectedSession);
+      }
     });
   }
 
@@ -303,8 +304,19 @@ class OfflineSessionCoordinator {
   }
 
 
+  /// جلب عدد العمليات المعلقة في الطابور المتين (القرار 563 / القرار 578)
+  Future<int> getPendingOperationsCount([String? accountId]) async {
+    await initialize();
+    return _outbox.pendingCount(accountId ?? 'active-user');
+  }
+
   void dispose() {
     _tickerTimer?.cancel();
-    _sessionController.close();
+    _tickerTimer = null;
+    _initialized = false;
+    if (!_sessionController.isClosed) {
+      _sessionController.close();
+    }
+    _instance = null;
   }
 }

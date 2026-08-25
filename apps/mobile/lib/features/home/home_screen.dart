@@ -18,6 +18,7 @@ class HomeScreen extends StatelessWidget {
     this.onNavigateToPartners,
     this.onNavigateToWellManagement,
     this.onNavigateToReports,
+    this.onNavigateToMoreSettings,
     this.onLogout,
     super.key,
   });
@@ -34,6 +35,7 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback? onNavigateToPartners;
   final VoidCallback? onNavigateToWellManagement;
   final VoidCallback? onNavigateToReports;
+  final VoidCallback? onNavigateToMoreSettings;
   final VoidCallback? onLogout;
 
   @override
@@ -66,6 +68,11 @@ class HomeScreen extends StatelessWidget {
           },
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary),
+            tooltip: 'الإعدادات والمزيد',
+            onPressed: onNavigateToMoreSettings,
+          ),
           IconButton(
             icon: const Icon(Icons.logout, color: AppColors.textSecondary),
             tooltip: 'تسجيل الخروج',
@@ -163,7 +170,7 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
 
-              // شبكة كروت الوصول السريع للخدمات (UX-07 / UX-13 / UX-14 / UX-15)
+              // شبكة كروت الوصول السريع للخدمات (UX-07 / UX-13 / UX-14 / UX-15 / UX-16A)
               Row(
                 children: [
                   Expanded(
@@ -248,7 +255,15 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  const Spacer(),
+                  Expanded(
+                    child: _ServiceCard(
+                      icon: Icons.more_horiz_rounded,
+                      title: 'المزيد والإعدادات',
+                      subtitle: 'الحساب، الفريق والمزامنة',
+                      color: AppColors.waterBlue,
+                      onTap: onNavigateToMoreSettings,
+                    ),
+                  ),
                 ],
               ),
             ],

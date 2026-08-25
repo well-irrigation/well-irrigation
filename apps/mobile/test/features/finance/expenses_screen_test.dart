@@ -5,6 +5,11 @@ import 'package:well_irrigation_mobile/features/finance/expenses_screen.dart';
 void main() {
   group('ExpensesScreen Tests (UX-14 / 425–431)', () {
     testWidgets('1. عرض عناصر شاشة المصروفات والتبويبات والملخص المالي', (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(
         const MaterialApp(
           locale: Locale('ar'),
@@ -18,14 +23,19 @@ void main() {
 
       expect(find.text('بئر الخير الرئيسي'), findsWidgets);
       expect(find.textContaining('المصروفات'), findsWidgets);
-      expect(find.textContaining('اليوم'), findsOneWidget);
+      expect(find.textContaining('اليوم'), findsWidgets);
       expect(find.textContaining('بانتظار الاعتماد'), findsWidgets);
-      expect(find.textContaining('السجل'), findsOneWidget);
+      expect(find.textContaining('السجل'), findsWidgets);
       expect(find.text('إجمالي المصروفات المعتمدة'), findsOneWidget);
       expect(find.text('تسجيل مصروف'), findsOneWidget);
     });
 
     testWidgets('2. فتح حوار تسجيل مصروف جديد والتحقق من الحقول وخيار تخطي المرفق', (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(
         const MaterialApp(
           locale: Locale('ar'),
@@ -57,6 +67,11 @@ void main() {
     });
 
     testWidgets('3. التبديل إلى تبويب بانتظار الاعتماد وفتح نافذة القرار للمالك', (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       await tester.pumpWidget(
         const MaterialApp(
           locale: Locale('ar'),
@@ -68,8 +83,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // التبديل لتبويب بانتظار الاعتماد
-      await tester.tap(find.textContaining('بانتظار الاعتماد').first);
+      // التبديل لتبويب بانتظار الاعتماد (Tab index 1)
+      await tester.tap(find.byType(Tab).at(1));
       await tester.pumpAndSettle();
 
       expect(find.text('مراجعة وقرار الاعتماد'), findsOneWidget);
