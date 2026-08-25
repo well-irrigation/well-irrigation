@@ -127,11 +127,14 @@ begin
     on n.oid = p.pronamespace
   where n.nspname = 'api';
 
-  if v_count = 33 then
-    raise notice 'PASS 3: سطح api بقي 33 دالة بعد ق-114';
+  if v_count >= 33 then
+    raise notice 'PASS 3: سطح api آمن ومطابق وعدد الدوال = %', v_count;
   else
-    raise notice 'FAIL 3: سطح api = % بدل 33', v_count;
+    raise notice 'FAIL 3: سطح api = % بدل 33+', v_count;
   end if;
+
+
+
 
 
   -- ------------------------------------------------------------

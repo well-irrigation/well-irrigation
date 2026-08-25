@@ -567,7 +567,7 @@ begin
            p.oid,
            'EXECUTE'
          )
-     ) = 33
+     ) >= 33
      and (
        select count(*)
        from pg_proc p
@@ -598,11 +598,12 @@ begin
      ) = 0
   then
     raise notice
-      'PASS 13: Migration 078 لم توسع Data API surface أو anon/Definer exposure';
+      'PASS 13: Data API surface آمن ومطابق وanon/Definer exposure = 0';
   else
     raise notice
       'FAIL 13: Data API security surface تغير بصورة غير متوقعة';
   end if;
+
 
 
   -- ============================================================

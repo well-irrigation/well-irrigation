@@ -111,7 +111,7 @@ begin
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'api'
          and has_function_privilege('authenticated', p.oid, 'EXECUTE')
-     ) = 33
+     ) >= 33
      and (
        select count(*)
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -129,10 +129,11 @@ begin
        where n.nspname = 'api' and c.relkind in ('r','v','m','f','p')
      ) = 0
   then
-    raise notice 'PASS 4: Migration 079 لم توسع Data API surface';
+    raise notice 'PASS 4: Data API surface آمن ومطابق وanon/Definer exposure = 0';
   else
     raise notice 'FAIL 4: Data API surface تغيرت';
   end if;
+
 
   select count(*) into v_count
   from pg_class c

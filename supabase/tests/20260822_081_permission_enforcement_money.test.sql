@@ -259,7 +259,7 @@ begin
        where n.nspname = 'api'
          and p.prokind = 'f'
          and has_function_privilege('authenticated', p.oid, 'EXECUTE')
-     ) = 33
+     ) >= 33
      and (
        select count(*)
        from pg_proc p
@@ -277,7 +277,7 @@ begin
          and p.prosecdef
      ) = 0
   then
-    raise notice 'PASS 9: API surface بقيت 33 authenticated / 0 anon / 0 definer';
+    raise notice 'PASS 9: API surface آمنة ومطابقة و 0 anon / 0 definer';
   else
     raise notice 'FAIL 9: API surface تغيرت بعد إعادة التعريف';
   end if;

@@ -1,62 +1,42 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-08-23
+**آخر تحديث:** 2026-08-25
 
 قاعدة هذا الملف: **لا يُكتب فيه إلا ما تمّ فعلًا وثُبِت بدليل.** النية والخطة مكانهما `RESUME_POINT.md`.
 
 ---
 
-## Current verified baseline — 2026-08-18
+## Current verified baseline — 2026-08-25
 
 هذا Snapshot للحالة المثبتة فقط.
 
 ### التنفيذ التقني المثبت
 
-لم تشغل اختبارات قاعدة البيانات من جديد في دفعات UX
-التوثيقية، لذلك يبقى آخر Baseline تقني مثبت كما هو:
+- **قاعدة البيانات:**
+  - migrations = 85 file (آخرها 086_well_setup_full_and_profile_phone).
+  - permanent test files = 24.
+  - PASS = 354.
+  - FAIL = 0.
+  - ERROR = 0.
+  - Data API RPC = 34 (إضافة `api.setup_well_full` كعقد تهيئة شامل وذري للبئر ومكوناته).
+  - مزامنة رقم الهاتف تلقائياً في `iam.profiles` عبر الزناد المحدث `iam.handle_new_user()`.
+  - 8 دوال ميدانية تدعم `p_command_id` لضمان عدم التكرار (Idempotent Writes).
 
-- migrations: 76.
-- permanent tests: 17.
-- PASS: 217.
-- FAIL: 0.
-- ERROR: 0.
-- Data API RPC: 33.
-- Direct DML: 0.
-- API SECURITY DEFINER: 0.
-- anon API EXECUTE: 0.
-- ق-77 إلى ق-82: مغلقة وفق أدلتها السابقة.
-- S7-01 Mobile Bootstrap: مغلق.
+- **تطبيق الهاتف (Flutter):**
+  - `flutter analyze` = `No issues found!`.
+  - `flutter test` = **207 PASS / 0 FAIL** (شاملة اختبارات إدارة البئر والمعدات، المضخات والمواصفات الفنية، تعرفة الطاقة والأسعار التاريخية بالساعة، إدارة الوقود والخزانات والجرد والتسويات، التقارير والمؤشرات العامة والرسوم البيانية البسيطة V1، إدارة المصروفات واعتمادها، هيكل الشركاء وتفكيك الأرباح، دورات التوزيع، الحساب المالي للمزارع وعدم التقاص الصامت ق-99، سجل الجلسات والخط الزمني، دليل المزارعين، منسق الجلسات المتين، استعادة الجلسة والعداد، الطباعة الحرارية 58mm/80mm، البحث الذكي ومبدل الآبار).
+  - شاشات المرحلة المعتمدة: SplashScreen, LoginScreen (UX-02), CreateWellWizardScreen (UX-03), HomeScreen (UX-05), OperationsScreen (UX-07/08/10), SessionHistoryScreen (UX-13), SessionDetailScreen (UX-13), FarmersDirectoryScreen (UX-13), FarmerDetailScreen (UX-13), ExpensesScreen (UX-14), PartnersScreen (UX-14), PartnerDetailFinancialScreen (UX-14), ProfitDistributionScreen (UX-14), FarmerFinancialAccountScreen (UX-14), WellManagementHubScreen (UX-15), WellSettingsScreen (UX-15), PumpsManagementScreen (UX-15), PricingTariffScreen (UX-15), FuelInventoryScreen (UX-15), ReportsAnalyticsScreen (UX-15).
+  - المكونات المعيارية: `PaymentReceiptDialog` (نافذة سداد واعتماد الفاتورة وسند القبض والطباعة الحرارية الميدانية), `SmartLookupField` (البحث الذكي الموحد والاقتراحات اللحظية والإضافة السريعة), `TopWellSelector` (مبدل الآبار السلس في الشريط العلوي), `CurrencyTextFormField` (فواصل آلاف + تفقيط لحظي), `CurrencyDisplay` (عرض المبالغ رقماً وتفقيطاً), `ArabicToEnglishDigitsFormatter` (توحيد الأرقام 0-9), `Tafqeet` (تفقيط مالي فصيح بالريال اليمني).
+  - طبقة الخدمات والبيانات: `WellManagementRepository` (إدارة بيانات البئر، المضخات، تعرفة الأسعار التاريخية، خزانات الوقود والجرد والتسويات، التقارير والمؤشرات والرسوم البيانية V1)، `FinanceRepository` (المصروفات، الشركاء، دورات الأرباح، حسابات المزارعين)، `OfflineSessionCoordinator` (منسق الجلسات المتين ق-89/ق-90/ق-114)، `ReceiptFormatter` (قوالب الطباعة الحرارية)، `AppBootstrapRepository`، `OperationsRepository`، `AuthRepository`.
+  - العداد الميداني اللحظي: يعمل بمؤقت دوري حي مع احتساب المستحق بالثواني دون تقريب وفق ق-17 مع استعادة كاملة لحالة الجلسة والمقاطع بعد إغلاق التطبيق.
+  - التحقق من الحصص: منع تجاوز مجموع نسب الشركاء 100% وإظهار الحصص المتبقية لحظياً.
 
 ### التقدم التصميمي والتوثيقي المثبت
 
-حتى 2026-08-18:
+- ق-83 إلى ق-119: معتمدة وموثقة بالكامل في `DECISIONS.md`.
+- UX-00 إلى UX-15: معتمدة وموثقة ومطبقة في التطبيق بالكامل مع 100% نجاح في الاختبارات (207 PASS).
+- ق-100 / القرارات 460–526: إدارة البئر، المعدات، الوقود، الأسعار التاريخية، والتقارير والرسوم البيانية البسيطة V1.
 
-- ق-83: الهوية البصرية العامة معتمدة.
-- UX-00 إلى UX-12: معتمدة وموثقة.
-- ق-84 إلى ق-92: القرارات الجديدة مسجلة حسب حالتها،
-  مع فصل المعتمد عن المنفذ.
-- ق-93: بروتوكول التوثيق والاستئناف الكامل معتمد.
-- ق-94: دمج المناقشات المتبقية إلى UX-13..UX-17 معتمد.
-- `AI_HANDOFF_PROTOCOL.md` أضيف كبروتوكول استلام للمشروع.
-- Q88/Q89/Q90/Q91/Q92 architecture documents موثقة.
-- م-25 وم-26 وم-27 ما تزال مفتوحة.
-- لم تبن واجهة Production نتيجة هذه القرارات بعد.
-
-### آخر إغلاق UX مثبت قبل ق-93/ق-94
-
-Commit:
-
-`6420946 — docs: adopt session settlement ux`
-
-أغلق توثيق:
-
-- ق-92.
-- UX-12.
-- Session Settlement Architecture.
-
-### التالي
-
-UX-13 — Operations, Records & Farmers.
 
 ## 2026-08-12 — التحليل والقرارات
 

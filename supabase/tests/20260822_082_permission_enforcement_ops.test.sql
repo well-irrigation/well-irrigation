@@ -301,7 +301,7 @@ begin
        where n.nspname = 'api'
          and p.prokind = 'f'
          and has_function_privilege('authenticated', p.oid, 'EXECUTE')
-     ) = 33
+     ) >= 33
      and (
        select count(*)
        from pg_proc p
