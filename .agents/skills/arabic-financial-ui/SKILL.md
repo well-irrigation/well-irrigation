@@ -1,6 +1,10 @@
 ---
 name: arabic-financial-ui
-description: "معايير بناء الواجهات المالية العربية والمبالغ والتفقيط اللحظي والفواصل الألفية بالريال اليمني وفق معايير UX العالمية. يوجه استخدام المكونات المعيارية CurrencyTextFormField و CurrencyDisplay و ArabicToEnglishDigitsFormatter والتغذية اللمسية والحسابات الدقيقة."
+description: >-
+  معايير بناء الواجهات المالية العربية والمبالغ والتفقيط اللحظي والفواصل الألفية
+  بالريال اليمني وفق معايير UX العالمية. يوجه استخدام المكونات المعيارية
+  CurrencyTextFormField و CurrencyDisplay و ArabicToEnglishDigitsFormatter
+  والتغذية اللمسية والحسابات الدقيقة.
 ---
 
 # مهارة: معايير الواجهات المالية والتفقيط العربي (Arabic Financial UI Suite)

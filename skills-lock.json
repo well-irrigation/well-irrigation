@@ -5,199 +5,381 @@
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/babysit/SKILL.md",
-      "computedHash": "1e0610afc6110fad8c012f44dd5aa09cdd25530198f515f49e5d94eda08a4465"
+      "computedHash": "dcae1863c7255afcebb533b6c1f9455e55a93486aec1d47be6ddad233fbce561"
     },
     "banner-design": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
       "skillPath": ".claude/skills/banner-design/SKILL.md",
-      "computedHash": "82c86217829268afd1f86e89390270e35cb3a1761854a0bbe6180929614ae022"
+      "computedHash": "11695c05337646bdf73df09c7053549587ea626ed1d5700f68d4d41735566b24"
     },
     "brand": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
       "skillPath": ".claude/skills/brand/SKILL.md",
-      "computedHash": "2077eb4768370a23aee9696cbb5995a41df7b5415a31f7756e9ef60e39b3523f"
+      "computedHash": "6a450ee1a83a403d47cec2ede9030feb60a67a81fc425d2406e975339313bd44"
     },
     "cloud-sync": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/cloud-sync/SKILL.md",
-      "computedHash": "e33574d4a9136764f10ae7f33dc3cc983e11e3c19f9f4b243b102eedcc3dc904"
+      "computedHash": "224caae274f26466190ebf6cb9d2a0ce4104cc6866ea5f99ecf62ba5b35216f8"
     },
     "code-review": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/code-review/SKILL.md",
-      "computedHash": "caa9a086baaf9e0f7cd71f64edfa83da6821c05e826b083221f3d02e3d6a1905"
+      "computedHash": "ee5c19bf748484e699cb6a87d6d33fc36c26fbcc2b4e6c1362a128532bbc5439"
     },
     "design": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
       "skillPath": ".claude/skills/design/SKILL.md",
-      "computedHash": "4e0412d29df74e6153e4944b367459a28cf52e3e81c7f45c1ecf4c2a8b21907c"
+      "computedHash": "413f4ab913d07f7fd92acbadc25d71aad63443be0c40d11234944aea688603b6"
     },
     "design-is": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/design-is/SKILL.md",
-      "computedHash": "f2912e5eb57ebf3dafa2c08fa92af2294309951cef124b83d35214aebc98de8d"
+      "computedHash": "1d6529372738c64a74e2ad1b3a8521fe354d166ca9909d448aa2ac1094fc8627"
     },
     "design-system": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
       "skillPath": ".claude/skills/design-system/SKILL.md",
-      "computedHash": "a05715299135276628f53519484e1267ec8ad111e6355a09c2da1cf66aee2cc3"
+      "computedHash": "9993566ab8c4300c90f64814133ca6516935471153f40b4abe01c52387698384"
     },
     "do": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/do/SKILL.md",
-      "computedHash": "ac80a2338872768e8d9e24bcad9d7a379019afa062167a20b525c4562405a2a3"
+      "computedHash": "993ea03d417bb8ddcc32b62f2a09408a06a6a71889466046fb05ebc0ec9a994a"
     },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
       "skillPath": "skills/find-skills/SKILL.md",
-      "computedHash": "913b9d37d0d54047dd65222bb8c67b2bf04e3cb87dcad1729068d7a8b2c8c396"
+      "computedHash": "c00eeea0e13e74fe4a9d84ba0a8542205a1b736d65f13134fe1a6647eb14976f"
     },
     "flutter-apply-architecture-best-practices": {
       "source": "flutter/agent-plugins",
       "sourceType": "github",
       "skillPath": "skills/flutter-apply-architecture-best-practices/SKILL.md",
-      "computedHash": "2b1b63214d6b153c50aacd4bbcb76ce91dece449de9e06f477f8aad3163d667f"
+      "computedHash": "00497869976a903c83f509a59d4b6a501d409fa711eb8e1f89945921e1983b65"
     },
     "flutter-fix-layout-issues": {
       "source": "flutter/agent-plugins",
       "sourceType": "github",
       "skillPath": "skills/flutter-fix-layout-issues/SKILL.md",
-      "computedHash": "1aaba922c951159118f9b141788f7bb7b8167bdc0bd5c6f0738ebb90c29b9532"
+      "computedHash": "e82c82b4245ef502bd93bc543d4f5968f4ee8043fa7556ffebcb34f30651fc9b"
     },
     "how-it-works": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/how-it-works/SKILL.md",
-      "computedHash": "121ff2926b3de14b8b1ffdb883b736004a3b25e3fcb3589ca386ecca5bff1900"
+      "computedHash": "9214da98b56accbe765df5bc9544a2d6c62f2ccb4efe60be69391419477f1b81"
     },
     "knowledge-agent": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/knowledge-agent/SKILL.md",
-      "computedHash": "52a8f2c5351a0b73b3c55296c3dcd46ade6070f66f0d59ccd01832a9f77123f6"
+      "computedHash": "538de006ebe2619b8a47dd47b09c5afa51ccbe0f806f5fd17ab348609eef6fd1"
     },
     "learn-codebase": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/learn-codebase/SKILL.md",
-      "computedHash": "9142aab8302123f63d8db49430d1f59e2ff2bdcb885d6b3f054f22f7d92f5791"
+      "computedHash": "7dece1f0742473515d009d9aa5255305fcec326cabdebb4792d38c5dfb5a71c6"
     },
     "make-plan": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/make-plan/SKILL.md",
-      "computedHash": "828c96bc3eab1c8c46db001b3a6a71fe07dfb32814081678ddfe067ba0978664"
+      "computedHash": "5e83552aa87eb321451e1da464aff5765d84ef053f0c1062e3ff7b789b08448d"
     },
     "mem-search": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/mem-search/SKILL.md",
-      "computedHash": "6058bee763732e6c85f77523e97ad27f476e73ee44fbfdcf105a218ef1dd52e0"
+      "computedHash": "73c810cf6b08e67c253b1fcdf370d391a5ad2ccf63211f478426b977a5c1e694"
     },
     "mode-creator": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/mode-creator/SKILL.md",
-      "computedHash": "4f54fd5ffb5cbe3436beddd1051b043cae60694a7b5f48e0ff6b29e4a912183b"
+      "computedHash": "3379b4c6a5fcec3ef1f8f29d929424158614351b3cc7a74f93b651abfcb7e159"
     },
     "oh-my-issues": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/oh-my-issues/SKILL.md",
-      "computedHash": "cee3669201ddc7eb488e3c20699ad46428ded9ff29e98c7c1fbfc696e1d29cfd"
+      "computedHash": "292417dedb16cbf795f929db0d60e08ff5512efb7f58c16995c6ba15c6499566"
     },
     "pathfinder": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/pathfinder/SKILL.md",
-      "computedHash": "96bf2edcbffd36a3119d4dea942561b02ecf355cc872d73cf21cc346092e3db2"
+      "computedHash": "a3e17bf66e7c2eb198f4b04c06adaff29bf62b7cbd09005c7c234cdcf4ad796b"
     },
     "slides": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
       "skillPath": ".claude/skills/slides/SKILL.md",
-      "computedHash": "c72a8bcd2ee98a7caab8f00a816c7e7ccfa46bba6682539db2186e71220155f1"
+      "computedHash": "2b90bdaf63f231919a01f4962f374ecd84af101a7e7545f8d9c68e049025accb"
     },
     "smart-explore": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/smart-explore/SKILL.md",
-      "computedHash": "9a1725dd93477d0b1c698f3b47734dc10491c6edeb89cb728d2f33ab4ac35fce"
+      "computedHash": "89c834b9ed8881c7e22b27ec0c9ed9fc5e05b3379a8aa1f2a23265831eae7144"
     },
     "standup": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/standup/SKILL.md",
-      "computedHash": "d297e73c460cc806b578f7c4a97ada138035320d7d53cff4357e5d9ce9664631"
+      "computedHash": "2b2f8b72790cb728e3db24a91bcb229cd8a06284d4f734d09393ea13a8083335"
     },
     "stop-slop": {
       "source": "hardikpandya/stop-slop",
       "sourceType": "github",
       "skillPath": "SKILL.md",
-      "computedHash": "617bf97d33162a6bd0da4f40a97aac589de58e5a6c9cf011ed6108992210e7cb"
+      "computedHash": "7432a1d9ebdd42b27666da8458af252edf549f723fb14bcd4791425103930310"
     },
     "supabase-audit-rls": {
       "source": "yoanbernabeu/supabase-pentest-skills",
       "sourceType": "github",
       "skillPath": "skills/audit-api/supabase-audit-rls/SKILL.md",
-      "computedHash": "19722a043162d04e1465f6b8da7c6f3bbdef0b0295fa29d63504b3486847311e"
+      "computedHash": "dcb02dc8f2b05389214cc800167a1564689b1637f9e859cb488ef23ef0f1bead"
     },
     "task-observer": {
       "source": "rebelytics/one-skill-to-rule-them-all",
       "sourceType": "github",
       "skillPath": "SKILL.md",
-      "computedHash": "048a2cf8beabeced4419e7b479e42d2130f2b594dda4648d3bf8016f812719b5"
+      "computedHash": "60bfdcd99c4678a81e8adbd3a790c2a4b56cef95f25f90d3f091001380648fee"
     },
     "timeline-report": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/timeline-report/SKILL.md",
-      "computedHash": "b2194d39219a5baa62b5f9373b1cc04b8020ddebed8496d2eb7da9a729fbc99c"
+      "computedHash": "35b625feab3e4ecf9124cfc5a678440c41904091a0f6b7d4c1ae2a95670918c2"
     },
     "ui-styling": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
       "skillPath": ".claude/skills/ui-styling/SKILL.md",
-      "computedHash": "360a6007fae358c852fe0ba5efc0f69deee4768a00b9bdc8cd393a3f8491626a"
+      "computedHash": "e8984014c1493445559fb7ca1fa26b31f39bcec1b3ed6117d8ed6bc659ec2cc5"
     },
     "ui-ux-pro-max": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
       "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
-      "computedHash": "523b8063c07eedd2b8a1ca94d7a0be9ad340026bd9f21a1eda0b6be2a855298f"
+      "computedHash": "79edf31dbb82fe6560251d9589082b3d857d16e7f55926daef5874c3ac441fa9"
     },
     "version-bump": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/version-bump/SKILL.md",
-      "computedHash": "ff2b16d823f09e2252753a4103385870c0e7f9fbfd744d6f6004a9ff0904c4ae"
+      "computedHash": "d77e1a246da149f1fc5650daa9c6b1d99ada78eb1f0b210e0f63f631a50b0fb5"
     },
     "weekly-digests": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/weekly-digests/SKILL.md",
-      "computedHash": "7f7c19f47354e23952205ed63e828f4b953d830a24f0d93d45e119d9db6e87d5"
+      "computedHash": "e3f711e8b8e107a3fc5a38f8c61399d31820a40f5cf2b1cea310278cec08b9f6"
     },
     "what-the": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/what-the/SKILL.md",
-      "computedHash": "89d95f90e4299972cec11765a2db44dd4cb60c8c9f10b58eebfbcb1eec7aaf41"
+      "computedHash": "408a7fe8df05094631b9201b97a206a25830fb88c1bb36fb2ea631eeb9719697"
     },
     "wowerpoint": {
       "source": "thedotmack/claude-mem",
       "sourceType": "github",
       "skillPath": "plugin/skills/wowerpoint/SKILL.md",
-      "computedHash": "1f3e37d16463d0a9a55b178f3fb0325f10906891a3e2ec1bdbb970696190d5a5"
+      "computedHash": "0ed6e88554485922116486da89ee7a326d48bdabc83cd21a248362276b50379e"
+    },
+    "supabase-audit-auth-config": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-auth/supabase-audit-auth-config/SKILL.md",
+      "computedHash": "96165d5487e4d88379a07ed98068b00622b1d010ab0bcf46ab51515deb17df5d"
+    },
+    "supabase-audit-auth-signup": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-auth/supabase-audit-auth-signup/SKILL.md",
+      "computedHash": "878b1e97a0c1647c4854be5089010b4ba2c08cca5647dfdde2dab61d195bdfaf"
+    },
+    "supabase-audit-auth-users": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-auth/supabase-audit-auth-users/SKILL.md",
+      "computedHash": "9e92fc2c81448d5aaa34f9eef717c4226ecd7cbde008c433241b33140cfaf4c9"
+    },
+    "supabase-audit-authenticated": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-auth/supabase-audit-authenticated/SKILL.md",
+      "computedHash": "59074f83f6ee72a7879a977edce44af4e1cc3ce708f871b0ef48899dbec58d27"
+    },
+    "supabase-audit-buckets-list": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-storage/supabase-audit-buckets-list/SKILL.md",
+      "computedHash": "45eec1d92f826ced30ef27e48dd80422df29e8f04ee620c692fc5294ebaf118b"
+    },
+    "supabase-audit-buckets-public": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-storage/supabase-audit-buckets-public/SKILL.md",
+      "computedHash": "95e25d1550beb2d0dac5c173dce3ec235fe5b31763499bed2bc5d7162faafa93"
+    },
+    "supabase-audit-buckets-read": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-storage/supabase-audit-buckets-read/SKILL.md",
+      "computedHash": "116fe85dcc852587df1e0aac9f6df632454f1b2523c04218e67417864ae4038f"
+    },
+    "supabase-audit-functions": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-functions/supabase-audit-functions/SKILL.md",
+      "computedHash": "3602e2df1a812ef036e6d6e2e57169988e87134fab47dd8ee1bb828a88debf35"
+    },
+    "supabase-audit-realtime": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-realtime/supabase-audit-realtime/SKILL.md",
+      "computedHash": "1dc09d47486285512ba3e86f3fa5e03d473857458e9542fb6b01aa8a0c534146"
+    },
+    "supabase-audit-rpc": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-api/supabase-audit-rpc/SKILL.md",
+      "computedHash": "4260472d5f9afbc80fc6caa94488fb107be35d8bed356d8c0706047ab9b0e8de"
+    },
+    "supabase-audit-tables-list": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-api/supabase-audit-tables-list/SKILL.md",
+      "computedHash": "9bb41b6c3ec884acfdfb5846ebf5e205456737cc822da3f70f24f1cea72f9904"
+    },
+    "supabase-audit-tables-read": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit-api/supabase-audit-tables-read/SKILL.md",
+      "computedHash": "b4d422b552112ce57b65ec26a69a555f2d4dd2251cd901091b1171b3259abeb5"
+    },
+    "supabase-detect": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/detection/supabase-detect/SKILL.md",
+      "computedHash": "5724a86deea1554dde400b5c60c9baa907ad2a772bafb040f18ebdee791db04a"
+    },
+    "supabase-evidence": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/evidence/supabase-evidence/SKILL.md",
+      "computedHash": "522ab26aa2d7c504d440f1a860008e88f0b8b75c82bf9813c45113d121e10ca8"
+    },
+    "supabase-extract-anon-key": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/extraction/supabase-extract-anon-key/SKILL.md",
+      "computedHash": "c043a3e296ac32711fc75dad615736ba28cbfcc2eaf7b04acbad8da19104fde7"
+    },
+    "supabase-extract-db-string": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/extraction/supabase-extract-db-string/SKILL.md",
+      "computedHash": "17cbfffa5a7bba3b1f9296d1977a07da34afcdafbfdeb0a30eb66a1409212139"
+    },
+    "supabase-extract-jwt": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/extraction/supabase-extract-jwt/SKILL.md",
+      "computedHash": "f3270a31d91a8d178360920fba927b1ad096728cf577b918deef857b488c3e78"
+    },
+    "supabase-extract-service-key": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/extraction/supabase-extract-service-key/SKILL.md",
+      "computedHash": "df9bfbeb9de57a57217234102b0da6b67d36e34de3ef891185618dfcca10fe0a"
+    },
+    "supabase-extract-url": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/extraction/supabase-extract-url/SKILL.md",
+      "computedHash": "57137d4a4fb3352758390fbf4c9a02ad21e6eba711edf312f614052e6a1d3124"
+    },
+    "supabase-help": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/orchestration/supabase-help/SKILL.md",
+      "computedHash": "5cfda3b449306f95e610b9e4788047c79f940a80bb8f3a023ade5618174350b7"
+    },
+    "supabase-pentest": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/orchestration/supabase-pentest/SKILL.md",
+      "computedHash": "9d11975481e46a93697787e794de4d44fbd863c3daa601e8444637a49b65335b"
+    },
+    "supabase-report": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/report/supabase-report/SKILL.md",
+      "computedHash": "b6202f771f781c9423208373b98e20db9a2e669ec5cf4970b25c46d8476ab62d"
+    },
+    "supabase-report-compare": {
+      "source": "yoanbernabeu/supabase-pentest-skills",
+      "sourceType": "github",
+      "skillPath": "skills/report/supabase-report-compare/SKILL.md",
+      "computedHash": "7854216863032e2a8a0eff83e29e0f024fab114247627ce9287ad9bb9f26cc4c"
+    },
+    "owasp-security": {
+      "source": "agamm/claude-code-owasp",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/owasp-security/SKILL.md",
+      "computedHash": "7c7ee6971d977b301585d03ea570a98621f4eebc8bb63b08287ca83b50f6be80"
+    },
+    "flutter-guard": {
+      "source": "anasfik/FlutterGuard",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "74c32a7202d1059f637d05a8533af112774034bbc9dbf1d1f81f5fd6b5790a0c"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "1608ea77fbb6fc30d13a97d12cfa8ebf31358d40f0dd97beed24829d6b3f45dd"
+    },
+    "webapp-testing": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/webapp-testing/SKILL.md",
+      "computedHash": "51b7349e77ec63b7744a6f63647e7566a0b4d2e301121cc10e8c2113af6556a2"
+    },
+    "skill-creator": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/skill-creator/SKILL.md",
+      "computedHash": "dcd4803e61e913e6fc27294184cd3a71f09f5e924ff20c8a9a20173e7b3c2bcf"
+    },
+    "m3-expressive": {
+      "source": "abhixv/m3-expressive-design-skill",
+      "sourceType": "github",
+      "skillPath": "skills/m3-expressive/SKILL.md",
+      "computedHash": "82bf71dff32f388793ae2524461be9741a91b405d2027b0c4660a3bf01f4a6d5",
+      "note": "slim install via raw downloads: images/visuals excluded; all tokens/rules in markdown"
+    },
+    "well-android-ui": {
+      "source": "project-local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/well-android-ui/SKILL.md",
+      "computedHash": "d47ab99414a905feb07116ef0128f39f7c55da78bd92ea37808f3ce6f631a035",
+      "note": "custom skill: layers VISUAL_IDENTITY (q-83) + arabic-financial-ui + m3-expressive into project Android UI rules"
     }
   }
 }

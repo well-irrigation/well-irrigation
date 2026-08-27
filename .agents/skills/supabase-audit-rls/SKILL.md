@@ -1,6 +1,8 @@
 ---
 name: supabase-audit-rls
-description: Test Row Level Security (RLS) policies for common bypass vulnerabilities and misconfigurations.
+description: >-
+  Test Row Level Security (RLS) policies for common bypass vulnerabilities and
+  misconfigurations.
 ---
 
 # RLS Policy Audit

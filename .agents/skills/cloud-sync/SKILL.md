@@ -1,6 +1,10 @@
 ---
 name: cloud-sync
-description: Set up or check claude-mem cloud sync with cmem.ai Pro. Use when the user says "set up cloud sync", "sync my memories", "cmem pro", "cloud backup", "sync status", or wants their memory database backed up or synced to their cmem.ai account.
+description: >-
+  Set up or check claude-mem cloud sync with cmem.ai Pro. Use when the user says
+  "set up cloud sync", "sync my memories", "cmem pro", "cloud backup", "sync
+  status", or wants their memory database backed up or synced to their cmem.ai
+  account.
 allowed-tools:
   - Bash
   - Read

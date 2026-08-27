@@ -40,11 +40,6 @@ class CurrencyUtils {
     return int.tryParse(cleaned) ?? 0;
   }
 
-  /// تحويل نص منسق بالفواصل إلى عدد عشري نظيف
-  static double parseRawDouble(String input) {
-    final normalized = normalizeArabicDigits(input).replaceAll(',', '').trim();
-    return double.tryParse(normalized) ?? 0.0;
-  }
 }
 
 /// مُنسِّق إدخال ديناميكي يضيف الفواصل الألفية لحظياً أثناء الكتابة

@@ -82,3 +82,8 @@ supabase/.temp/
 
 # ملف مثال المتغيرات يجب ان يبقى محفوظا في Git
 !.env.example
+
+# Security audit artifacts - never commit
+_evidence/
+evidence.tgz
+WELL-IRRIGATION_FULL_TECHNICAL_REPORT.md
