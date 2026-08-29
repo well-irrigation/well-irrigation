@@ -27,9 +27,9 @@
 - م-21: اختبارات ميدانية.
 - م-22: مغلقة — ق-80 / 075؛ Farm → Farmer Well Account.
 - م-23: UI الإشعارات + scheduler عند النشر.
-- م-38: صلاحيات `api.setup_well_full` تمنع إنشاء البئر فعليًا.
-- م-39: خطأ السعر ×100 في مسار إنشاء البئر.
-- م-40: False Offline Success بعد فشل إنشاء البئر.
+- م-38: **Verified local** — Migration 087 أصلحت مسار `authenticated/service_role → api.setup_well_full → core.setup_well_full`؛ اختبار 087 = 8 PASS، والحزمة الكاملة = 25 files / 362 PASS / 0 FAIL / 0 ERROR. **Cloud verification pending**.
+- م-39: **Verified local** — أزيل ×100؛ 3500/7000/6000 تبقى كما هي. Flutter targeted = 2/2 PASS، والحزمة الكاملة = 222/222 PASS، و`flutter analyze` بلا مسائل.
+- م-40: **Verified local** — فشل Backend لا يستدعي completion ولا يغلق المعالج ولا يدعي حفظًا محليًا، ويحافظ على البيانات غير الحساسة لإعادة المحاولة؛ مثبت ضمن اختبارات Flutter. **Cloud verification غير منطبق على سلوك الواجهة**.
 
 ### مغلقة ذات صلة مباشرة بالحالة الحالية
 

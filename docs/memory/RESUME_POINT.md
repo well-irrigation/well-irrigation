@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = P0 Create-Well Correctness**
+**NEXT = P0 Create-Well Correctness — PR Review ثم Cloud Verification**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. لا يبدأ أي Screen أو Feature أو وظيفة جديدة
@@ -27,8 +27,16 @@
 - تحديث Integration/E2E tests.
 - مراجعة CI/branch protection.
 
-الفجوات P0 الحالية: م-38، م-39، م-40 — Confirmed Gaps فقط،
-وليست Implemented أو Verified.
+الفجوات م-38 وم-39 وم-40 **Verified local**:
+- DB target 087 = 8 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite = 25 files / 362 PASS / 0 FAIL / 0 ERROR.
+- Flutter targeted = 2/2 PASS.
+- Flutter full = 222/222 PASS.
+- `flutter analyze` = No issues found.
+
+لم يحدث Cloud verification بعد. الخطوة التالية هي مراجعة ودمج PR،
+ثم تطبيق Migration 087 واختبار م-38 على البيئة السحابية قبل الانتقال
+إلى بقية Audit Queue.
 
 ## Stage 7 Readiness Gate
 

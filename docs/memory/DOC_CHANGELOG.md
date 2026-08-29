@@ -1859,3 +1859,10 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
   آخر السطر وعلامات التعارض.
 
 Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
+## 2026-08-30 — P0 Create-Well Correctness
+
+- م-38/م-39/م-40 أصبحت **Verified local** بعد الاختبارات الفعلية.
+- Migration 087: اختبار مستهدف = 8 PASS / 0 FAIL / 0 ERROR.
+- Full DB Suite بعد reset محلي = 25 files / 362 PASS / 0 FAIL / 0 ERROR.
+- Flutter: targeted = 2/2 PASS؛ full = 222/222 PASS؛ analyze = No issues found.
+- لم يحدث Cloud verification بعد؛ م-38 تبقى Cloud pending حتى ما بعد مراجعة ودمج PR.

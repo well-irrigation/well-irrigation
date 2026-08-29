@@ -69,6 +69,65 @@ class OperatorData {
   String initialPassword;
 }
 
+Map<String, int> buildWellSetupPricing({
+  required bool enableSolar,
+  required int solarHourlyRate,
+  required bool enableWellDiesel,
+  required int wellDieselHourlyRate,
+  required bool enableFarmerDiesel,
+  required int farmerDieselHourlyRate,
+}) {
+  return {
+    'solar_rate_minor': enableSolar ? solarHourlyRate : 0,
+    'well_diesel_rate_minor': enableWellDiesel ? wellDieselHourlyRate : 0,
+    'farmer_diesel_rate_minor': enableFarmerDiesel ? farmerDieselHourlyRate : 0,
+  };
+}
+
+typedef WellSetupBackendSubmission = Future<void> Function(WellSetupData data);
+
+class WellSetupSubmissionResult {
+  const WellSetupSubmissionResult._({
+    required this.succeeded,
+    required this.message,
+  });
+
+  static const success = WellSetupSubmissionResult._(
+    succeeded: true,
+    message: 'تم إنشاء البئر وحساب المالك في قاعدة البيانات بنجاح!',
+  );
+
+  static const failure = WellSetupSubmissionResult._(
+    succeeded: false,
+    message: 'تعذر إنشاء البئر. تحقق من الاتصال وحاول مرة أخرى.',
+  );
+
+  final bool succeeded;
+  final String message;
+}
+
+class WellSetupSubmissionFlow {
+  const WellSetupSubmissionFlow(this._submitToBackend);
+
+  final WellSetupBackendSubmission _submitToBackend;
+
+  Future<WellSetupSubmissionResult> submit(
+    WellSetupData data, {
+    required VoidCallback onCompleted,
+    required VoidCallback close,
+  }) async {
+    try {
+      await _submitToBackend(data);
+      onCompleted();
+      close();
+      return WellSetupSubmissionResult.success;
+    } catch (error) {
+      debugPrint('Setup error: $error');
+      return WellSetupSubmissionResult.failure;
+    }
+  }
+}
+
 /// شاشة معالج إنشاء بئر جديد وإعداده (UX-03)
 ///
 /// المراحل الخمس المعتمدة:
@@ -80,10 +139,12 @@ class OperatorData {
 class CreateWellWizardScreen extends StatefulWidget {
   const CreateWellWizardScreen({
     this.onCompleted,
+    this.submissionFlow,
     super.key,
   });
 
   final VoidCallback? onCompleted;
+  final WellSetupSubmissionFlow? submissionFlow;
 
   @override
   State<CreateWellWizardScreen> createState() => _CreateWellWizardScreenState();
@@ -211,122 +272,121 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
 
     try {
       _setupData.pumpName = _pumpNameController.text.trim();
-      _setupData.solarHourlyRate =
-          CurrencyUtils.parseRawInt(_solarRateController.text.trim());
-      _setupData.wellDieselHourlyRate =
-          CurrencyUtils.parseRawInt(_dieselRateController.text.trim());
-      _setupData.farmerDieselHourlyRate =
-          CurrencyUtils.parseRawInt(_farmerDieselRateController.text.trim());
+      _setupData.solarHourlyRate = CurrencyUtils.parseRawInt(
+        _solarRateController.text.trim(),
+      );
+      _setupData.wellDieselHourlyRate = CurrencyUtils.parseRawInt(
+        _dieselRateController.text.trim(),
+      );
+      _setupData.farmerDieselHourlyRate = CurrencyUtils.parseRawInt(
+        _farmerDieselRateController.text.trim(),
+      );
 
-      bool isDatabaseSaved = false;
-
-      // 1. إنشاء حساب المالك وتهيئة البئر عبر Supabase API
-      try {
-        final client = Supabase.instance.client;
-        final authRepo = AuthRepository(client);
-        final bootstrapRepo = AppBootstrapRepository(client);
-
-        if (client.auth.currentSession == null) {
-          final authRes = await authRepo.signUpOwner(
-            phone: _setupData.ownerPhone,
-            password: _setupData.ownerPassword,
-            fullName: _setupData.ownerFullName,
-          );
-
-          if (client.auth.currentSession == null && authRes.session == null) {
-            await authRepo.signIn(
-              phoneOrEmail: _setupData.ownerPhone,
-              password: _setupData.ownerPassword,
-            );
-          }
-        }
-
-        // مسح كلمة المرور من الذاكرة فور انتهاء المصادقة لتعزيز الأمان
-        _setupData.ownerPassword = '';
-        _ownerPasswordController.clear();
-        _ownerPasswordConfirmController.clear();
-
-        if (client.auth.currentSession != null) {
-          final locationParts = [
-            'محافظة ${_setupData.governorate}',
-            if (_setupData.district.isNotEmpty) 'مديرية ${_setupData.district}',
-            if (_setupData.village.isNotEmpty) 'قرية ${_setupData.village}',
-          ];
-
-          final setupPayload = {
-            'well_name': _setupData.wellName,
-            'location': locationParts.join(' - '),
-            'pump_name': _setupData.pumpName,
-            'pump_power_source': _setupData.enableSolar ? 'solar' : 'diesel',
-            'pricing': {
-              'solar_rate_minor': _setupData.enableSolar
-                  ? (_setupData.solarHourlyRate * 100)
-                  : 0,
-              'well_diesel_rate_minor': _setupData.enableWellDiesel
-                  ? (_setupData.wellDieselHourlyRate * 100)
-                  : 0,
-              'farmer_diesel_rate_minor': _setupData.enableFarmerDiesel
-                  ? (_setupData.farmerDieselHourlyRate * 100)
-                  : 0,
-            },
-            'owner_equity_share': _setupData.ownerEquityShare,
-            'owner_profit_share': _setupData.ownerProfitShare,
-            'partners': _setupData.partners
-                .map((p) => {
-                      'full_name': p.fullName,
-                      'phone': p.phone.startsWith('+')
-                          ? p.phone
-                          : '+967${p.phone}',
-                      'equity_share': p.equityShare,
-                      'profit_share': p.profitShare,
-                    })
-                .toList(),
-            'operators': _setupData.operators
-                .map((o) => {
-                      'full_name': o.fullName,
-                      'phone': o.phone.startsWith('+')
-                          ? o.phone
-                          : '+967${o.phone}',
-                    })
-                .toList(),
-          };
-
-          await bootstrapRepo.setupWellFull(
-            setupData: setupPayload,
-          );
-          isDatabaseSaved = true;
-        }
-      } catch (err) {
-        debugPrint('Setup error: $err');
-      } finally {
-        // ضمان تنظيف كلمة المرور دائماً
-        _setupData.ownerPassword = '';
-        _ownerPasswordController.clear();
-        _ownerPasswordConfirmController.clear();
-      }
+      final flow =
+          widget.submissionFlow ??
+          WellSetupSubmissionFlow(_submitWellSetupToBackend);
+      final result = await flow.submit(
+        _setupData,
+        onCompleted: () => widget.onCompleted?.call(),
+        close: () => Navigator.of(context).pop(),
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: isDatabaseSaved ? AppColors.success : AppColors.warning,
+            backgroundColor: result.succeeded
+                ? AppColors.success
+                : AppColors.error,
             content: Text(
-              isDatabaseSaved
-                  ? 'تم إنشاء البئر وحساب المالك في قاعدة البيانات بنجاح!'
-                  : 'تم حفظ بيانات البئر محلياً على الهاتف (وضع غير متصل)',
+              result.message,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         );
-        widget.onCompleted?.call();
-        Navigator.of(context).pop();
       }
     } finally {
+      // ضمان تنظيف كلمة المرور دائماً
+      _setupData.ownerPassword = '';
+      _ownerPasswordController.clear();
+      _ownerPasswordConfirmController.clear();
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
     }
+  }
+
+  Future<void> _submitWellSetupToBackend(WellSetupData data) async {
+    final client = Supabase.instance.client;
+    final authRepo = AuthRepository(client);
+    final bootstrapRepo = AppBootstrapRepository(client);
+
+    if (client.auth.currentSession == null) {
+      final authRes = await authRepo.signUpOwner(
+        phone: data.ownerPhone,
+        password: data.ownerPassword,
+        fullName: data.ownerFullName,
+      );
+
+      if (client.auth.currentSession == null && authRes.session == null) {
+        await authRepo.signIn(
+          phoneOrEmail: data.ownerPhone,
+          password: data.ownerPassword,
+        );
+      }
+    }
+
+    if (client.auth.currentSession == null) {
+      throw StateError('Owner authentication did not create a session');
+    }
+
+    final locationParts = [
+      'محافظة ${data.governorate}',
+      if (data.district.isNotEmpty) 'مديرية ${data.district}',
+      if (data.village.isNotEmpty) 'قرية ${data.village}',
+    ];
+
+    await bootstrapRepo.setupWellFull(
+      setupData: {
+        'well_name': data.wellName,
+        'location': locationParts.join(' - '),
+        'pump_name': data.pumpName,
+        'pump_power_source': data.enableSolar ? 'solar' : 'diesel',
+        'pricing': buildWellSetupPricing(
+          enableSolar: data.enableSolar,
+          solarHourlyRate: data.solarHourlyRate,
+          enableWellDiesel: data.enableWellDiesel,
+          wellDieselHourlyRate: data.wellDieselHourlyRate,
+          enableFarmerDiesel: data.enableFarmerDiesel,
+          farmerDieselHourlyRate: data.farmerDieselHourlyRate,
+        ),
+        'owner_equity_share': data.ownerEquityShare,
+        'owner_profit_share': data.ownerProfitShare,
+        'partners': data.partners
+            .map(
+              (partner) => {
+                'full_name': partner.fullName,
+                'phone': partner.phone.startsWith('+')
+                    ? partner.phone
+                    : '+967${partner.phone}',
+                'equity_share': partner.equityShare,
+                'profit_share': partner.profitShare,
+              },
+            )
+            .toList(),
+        'operators': data.operators
+            .map(
+              (operator) => {
+                'full_name': operator.fullName,
+                'phone': operator.phone.startsWith('+')
+                    ? operator.phone
+                    : '+967${operator.phone}',
+              },
+            )
+            .toList(),
+      },
+    );
   }
 
   @override
