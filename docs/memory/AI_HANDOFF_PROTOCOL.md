@@ -332,9 +332,16 @@ Governing sequence:
 
 `technical/V1_IMPLEMENTATION_SEQUENCE.md`
 
-Current point:
+Current point (superseded for sequencing by ق-120):
 
-**W2 — Offline & Background Sync. W1 مكتملة ومغلقة، وW2-01 (حماية التكرار على الخادم) مكتملة، وW2-02a (طابور الهاتف الدائم / ق-115) وW2-02c (سجل الجلسة النشطة والاستعادة بعد موت التطبيق / ق-116) وW2-02b (الإرسال الخلفي بـWorkManager / ق-117) مكتملة كلها بصفر تغيير DB — 155 PASS / 0 FAIL؛ التالي W2-02d شاشات الجاهزية وحالة المزامنة (ق-90 / UX-10). الإرسال الخلفي مُبرهَن في منطق القرار على الحاسوب، ولم يُجرَّب على جهاز، وقياسات بند 9 غير موصولة.**
+**المشروع في مرحلة Stabilization / Audit Gate وفق ق-120. لا يبدأ W2-02d ولا أي شاشة أو Feature جديدة حتى تُغلق فجوات P0 م-38 وم-39 وم-40 بالدليل.**
+
+الترتيب الحالي:
+
+1. إصلاح صلاحيات `setup_well_full` بما يطابق معمارية `api.*`.
+2. إصلاح خطأ السعر ×100 وإضافة Regression Test.
+3. إزالة False Offline Success أو ربطه بحفظ محلي حقيقي مثبت.
+4. تشغيل التحقق وRegression Testing، ثم استئناف بقية Audit Queue.
 
 Do not start arbitrary screens.
 

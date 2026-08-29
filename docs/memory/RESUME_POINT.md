@@ -1,4 +1,34 @@
-# نقطة الاستئناف — 2026-08-24
+# نقطة الاستئناف — 2026-08-30
+
+## بوابة التثبيت الحالية — ق-120
+
+**CURRENT = Stabilization / Audit Gate**
+
+**NEXT = P0 Create-Well Correctness**
+
+المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
+أو تشغيل مالية حقيقية. لا يبدأ أي Screen أو Feature أو وظيفة جديدة
+حتى اجتياز بوابة التثبيت. الاعتمادات السابقة باقية، والتنفيذ الجديد
+مؤجل فقط.
+
+### الترتيب الإلزامي
+
+1. إصلاح صلاحيات `setup_well_full` وفق معمارية `api.*`.
+2. إصلاح خطأ السعر ×100 وإضافة Regression Test.
+3. إزالة False Offline Success أو ربطه بحفظ محلي حقيقي مثبت.
+4. التحقق وRegression Testing.
+
+ثم الانتقال إلى بقية Audit Queue:
+
+- مطابقة Flutter مع `api.*` وعدم الاعتماد على internal schemas.
+- إزالة silent production mock fallbacks.
+- مراجعة Auth/OTP/account lifecycle.
+- مراجعة settings false-success.
+- تحديث Integration/E2E tests.
+- مراجعة CI/branch protection.
+
+الفجوات P0 الحالية: م-38، م-39، م-40 — Confirmed Gaps فقط،
+وليست Implemented أو Verified.
 
 ## Stage 7 Readiness Gate
 

@@ -1,8 +1,26 @@
 # سجل تغييرات الوثائق
 
-**آخر تحديث:** 2026-08-25
+**آخر تحديث:** 2026-08-30
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
+
+---
+
+## 2026-08-30 — ق-120: بوابة التدقيق والتثبيت قبل أي توسع وظيفي
+
+- **الملفات:** `DECISIONS.md`، `OPEN_ISSUES.md`، `RESUME_POINT.md`،
+  `PROJECT_MAP.md`، `AI_HANDOFF_PROTOCOL.md`،
+  `AI_COLLABORATION_PROTOCOL.md`، و`DECISION_IMPLEMENTATION_MATRIX.md`.
+- **التغيير:** توثيق حالة Pre-Production ومرحلة Audit → Inspection →
+  Evaluation → Repair → Gap Closing، وتأجيل أي شاشة أو Feature جديدة
+  حتى اجتياز بوابة التثبيت.
+- **الفجوات المؤكدة:** م-38 لصلاحيات `api.setup_well_full`، م-39
+  لخطأ السعر ×100، وم-40 لـFalse Offline Success.
+- **السبب:** ترتيب العمل حول إصلاح العيوب المؤكدة ثم Regression Testing؛
+  لا إلغاء لأي UX أو Architecture معتمد.
+- **الطبيعة:** توثيقي/حوكمي فقط؛ لم يتغير كود التطبيق أو Supabase أو
+  migrations أو packages، ولم تُسجل أي فجوة كـImplemented أو Verified.
+- **Baseline:** لم يتغير.
 
 ---
 

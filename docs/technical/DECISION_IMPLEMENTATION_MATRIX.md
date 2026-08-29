@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-08-23
+**آخر تحديث:** 2026-08-30
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -58,8 +58,27 @@
 | م-23 | منطق الخادم منجز، UI/scheduler متبقيان |
 | م-24 | مغلقة |
 | م-25 | مفتوحة — **ضُيِّقت أربع مرات:** بق-114 / 083+084 (الأساس الخادمي للـidempotency موصول ومُثبت)، وبق-115 (طابور الجهاز الدائم وstable command IDs منفَّذان ومُثبتان)، وبق-116 (سجل الجلسة النشطة والاستعادة بعد موت التطبيق منفَّذان ومُثبتان على قرص حقيقي)، وبق-117 (الإرسال الخلفي بلا فتح التطبيق منفَّذ ومُثبت في منطق القرار) — كلها **بلا أي تغيير على قاعدة البيانات**؛ شاشات الحالة والجاهزية وعرض التعارض وعقد أسماء العرض والواجهة الميدانية متبقية، وقياسات بند 9 غير موصولة، والإثبات على جهاز حقيقي (الإقلاع وForce Stop والمانيفست المدموج) باقٍ |
+| م-38 | مفتوحة — `api.setup_well_full` SECURITY INVOKER مع رفض `core.setup_well_full` للمستخدم authenticated؛ إنشاء البئر متعذر فعليًا؛ ق-120 | إصلاح صلاحيات مطابق لـ`api.*` + permission regression test | Confirmed Gap؛ لا Implemented/Verified |
+| م-39 | مفتوحة — Flutter يرسل السعر ×100 رغم أن ق-77 وق-119 يعتمدان ريالًا كاملًا؛ مثال 3500 → 350000؛ ق-120 | توحيد الوحدة + regression test للقيمة 3500 | Confirmed Gap؛ لا Implemented/Verified |
+| م-40 | مفتوحة — فشل Backend يتحول إلى رسالة حفظ محلي ونجاح دون دليل حفظ؛ ق-120 | إزالة false success أو إثبات local persistence وحالات pending | Confirmed Gap؛ لا Implemented/Verified |
 
 ## baseline المرجعي
+
+## ق-120 — بوابة التدقيق والتثبيت
+
+التنفيذ الجديد متوقف حتى إغلاق م-38 وم-39 وم-40 وإثباتها، ثم
+Regression Testing. لا يلغي القرار أي UX أو Architecture معتمد.
+
+### Audit Queue التالية
+
+| العنصر | الحالة |
+| --- | --- |
+| مطابقة Flutter مع `api.*` وعدم الاعتماد على internal schemas | Audit Queue — مفتوحة |
+| إزالة silent production mock fallbacks | Audit Queue — مفتوحة |
+| مراجعة Auth/OTP/account lifecycle | Audit Queue — مفتوحة |
+| مراجعة settings false-success | Audit Queue — مفتوحة |
+| تحديث Integration/E2E tests | Audit Queue — مفتوحة |
+| مراجعة CI/branch protection | Audit Queue — مفتوحة |
 
 **لقطة Stage 7 Readiness Gate — 2026-08-17. ليست الحالة
 الحالية.** الأرقام الحاكمة الآن في
