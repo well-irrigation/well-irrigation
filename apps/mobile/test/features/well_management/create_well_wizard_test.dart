@@ -20,8 +20,31 @@ void main() {
     );
   });
 
-  test('failed setup cannot complete the success flow', () {
-    expect(shouldCompleteWellSetup(databaseSaved: false), isFalse);
-    expect(shouldCompleteWellSetup(databaseSaved: true), isTrue);
+  test('backend failure preserves data and cannot complete or close', () async {
+    final data = WellSetupData()
+      ..ownerFullName = 'مالك الاختبار'
+      ..wellName = 'بئر الاختبار'
+      ..district = 'همدان';
+    var completed = false;
+    var closed = false;
+
+    final flow = WellSetupSubmissionFlow((_) async {
+      throw Exception('backend unavailable');
+    });
+
+    final result = await flow.submit(
+      data,
+      onCompleted: () => completed = true,
+      close: () => closed = true,
+    );
+
+    expect(result.succeeded, isFalse);
+    expect(result.message, 'تعذر إنشاء البئر. تحقق من الاتصال وحاول مرة أخرى.');
+    expect(result.message, isNot(contains('تم حفظ بيانات البئر محلياً')));
+    expect(completed, isFalse);
+    expect(closed, isFalse);
+    expect(data.ownerFullName, 'مالك الاختبار');
+    expect(data.wellName, 'بئر الاختبار');
+    expect(data.district, 'همدان');
   });
 }

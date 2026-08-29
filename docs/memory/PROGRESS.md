@@ -1,13 +1,18 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-08-25
+**آخر تحديث:** 2026-08-30
 
 ## 2026-08-30 — P0 Create-Well Correctness
 
-- Implemented م-38 عبر Migration 087 بمنح `authenticated` تنفيذ الدالة الداخلية فقط مع إبقاء `api` invoker و`core` definer.
-- Implemented م-39 بإزالة ×100 وإضافة اختبار أسعار 3500/7000/6000.
-- Implemented م-40 بمنع completion والإغلاق الناجح عند فشل backend وعرض رسالة عامة.
-- Verified local: مراجعة SQL والامتيازات؛ لم يُنفذ Cloud أو Flutter بسبب قيود بيئة التشغيل.
+- **م-38 Verified local:** Migration 087 تحافظ على `api.setup_well_full` كـSECURITY INVOKER و`core.setup_well_full` كـSECURITY DEFINER، وتمنح مسار التنفيذ المطلوب لـ`authenticated` و`service_role` مع بقاء `anon` محجوبًا وDirect DML = 0.
+- اختبار DB المستهدف 087 = **8 PASS / 0 FAIL / 0 ERROR** مع استدعاء فعلي لـ`api.setup_well_full` كمستخدم `authenticated` ومعاملة تنتهي بـROLLBACK.
+- Full DB Suite = **25 files / 362 PASS / 0 FAIL / 0 ERROR** بعد `supabase db reset` محلي ناجح.
+- **م-39 Verified local:** أزيل ×100؛ القيم 3500/7000/6000 تصل كما أُدخلت.
+- **م-40 Verified local:** فشل Backend لا يؤدي إلى completion أو إغلاق ناجح أو ادعاء حفظ Offline، مع بقاء البيانات غير الحساسة لإعادة المحاولة.
+- Flutter targeted tests = **2/2 PASS**.
+- Full Flutter tests = **222/222 PASS**.
+- `flutter analyze` = **No issues found**.
+- **Cloud verification لم يُنفذ بعد**؛ لا تُعد م-38 متحققة سحابيًا حتى تطبيق Migration 087 واختبارها بعد مراجعة ودمج PR.
 
 قاعدة هذا الملف: **لا يُكتب فيه إلا ما تمّ فعلًا وثُبِت بدليل.** النية والخطة مكانهما `RESUME_POINT.md`.
 
