@@ -2,6 +2,13 @@
 
 **آخر تحديث:** 2026-08-25
 
+## 2026-08-30 — P0 Create-Well Correctness
+
+- Implemented م-38 عبر Migration 087 بمنح `authenticated` تنفيذ الدالة الداخلية فقط مع إبقاء `api` invoker و`core` definer.
+- Implemented م-39 بإزالة ×100 وإضافة اختبار أسعار 3500/7000/6000.
+- Implemented م-40 بمنع completion والإغلاق الناجح عند فشل backend وعرض رسالة عامة.
+- Verified local: مراجعة SQL والامتيازات؛ لم يُنفذ Cloud أو Flutter بسبب قيود بيئة التشغيل.
+
 قاعدة هذا الملف: **لا يُكتب فيه إلا ما تمّ فعلًا وثُبِت بدليل.** النية والخطة مكانهما `RESUME_POINT.md`.
 
 ---

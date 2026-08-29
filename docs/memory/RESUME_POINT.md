@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = P0 Create-Well Correctness**
+**NEXT = Audit Queue بعد تنفيذ P0 Create-Well Correctness محليًا**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. لا يبدأ أي Screen أو Feature أو وظيفة جديدة
@@ -27,8 +27,8 @@
 - تحديث Integration/E2E tests.
 - مراجعة CI/branch protection.
 
-الفجوات P0 الحالية: م-38، م-39، م-40 — Confirmed Gaps فقط،
-وليست Implemented أو Verified.
+الفجوات م-38 وم-39 وم-40 نُفذت محليًا، مع تحقق DB بنيوي فقط؛
+لا يوجد تحقق Cloud، واختبارات Flutter لم تُشغّل بسبب قيود البيئة.
 
 ## Stage 7 Readiness Gate
 

@@ -1859,3 +1859,8 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
   آخر السطر وعلامات التعارض.
 
 Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
+## 2026-08-30 — P0 Create-Well Correctness
+
+- توثيق تنفيذ م-38/م-39/م-40 في فرع الإصلاح.
+- Migration 087 واختبار DB البنيوي؛ لا تحقق Cloud.
+- اختبار Flutter للسعر أضيف، وتشغيل Flutter محجوب بقيود بيئة القراءة فقط.

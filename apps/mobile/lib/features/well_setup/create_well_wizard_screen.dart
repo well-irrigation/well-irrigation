@@ -69,6 +69,23 @@ class OperatorData {
   String initialPassword;
 }
 
+Map<String, int> buildWellSetupPricing({
+  required bool enableSolar,
+  required int solarHourlyRate,
+  required bool enableWellDiesel,
+  required int wellDieselHourlyRate,
+  required bool enableFarmerDiesel,
+  required int farmerDieselHourlyRate,
+}) {
+  return {
+    'solar_rate_minor': enableSolar ? solarHourlyRate : 0,
+    'well_diesel_rate_minor': enableWellDiesel ? wellDieselHourlyRate : 0,
+    'farmer_diesel_rate_minor': enableFarmerDiesel ? farmerDieselHourlyRate : 0,
+  };
+}
+
+bool shouldCompleteWellSetup({required bool databaseSaved}) => databaseSaved;
+
 /// شاشة معالج إنشاء بئر جديد وإعداده (UX-03)
 ///
 /// المراحل الخمس المعتمدة:
@@ -259,15 +276,14 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
             'pump_name': _setupData.pumpName,
             'pump_power_source': _setupData.enableSolar ? 'solar' : 'diesel',
             'pricing': {
-              'solar_rate_minor': _setupData.enableSolar
-                  ? (_setupData.solarHourlyRate * 100)
-                  : 0,
-              'well_diesel_rate_minor': _setupData.enableWellDiesel
-                  ? (_setupData.wellDieselHourlyRate * 100)
-                  : 0,
-              'farmer_diesel_rate_minor': _setupData.enableFarmerDiesel
-                  ? (_setupData.farmerDieselHourlyRate * 100)
-                  : 0,
+              ...buildWellSetupPricing(
+                enableSolar: _setupData.enableSolar,
+                solarHourlyRate: _setupData.solarHourlyRate,
+                enableWellDiesel: _setupData.enableWellDiesel,
+                wellDieselHourlyRate: _setupData.wellDieselHourlyRate,
+                enableFarmerDiesel: _setupData.enableFarmerDiesel,
+                farmerDieselHourlyRate: _setupData.farmerDieselHourlyRate,
+              ),
             },
             'owner_equity_share': _setupData.ownerEquityShare,
             'owner_profit_share': _setupData.ownerProfitShare,
@@ -298,6 +314,15 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
         }
       } catch (err) {
         debugPrint('Setup error: $err');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: AppColors.error,
+              content: Text('تعذر إنشاء البئر. تحقق من الاتصال وحاول مرة أخرى.'),
+            ),
+          );
+        }
+        return;
       } finally {
         // ضمان تنظيف كلمة المرور دائماً
         _setupData.ownerPassword = '';
@@ -305,7 +330,7 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
         _ownerPasswordConfirmController.clear();
       }
 
-      if (mounted) {
+      if (mounted && shouldCompleteWellSetup(databaseSaved: isDatabaseSaved)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: isDatabaseSaved ? AppColors.success : AppColors.warning,

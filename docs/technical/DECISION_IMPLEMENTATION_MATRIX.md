@@ -23,6 +23,7 @@
 | ق-77 | ريال كامل + باقي القسمة لأكبر حصة + إجراءات ذرية | 039/052/064-069 | permanent suite | منفذ بالكامل |
 | ق-78 | `api` عقد Data API وعزل schemas الداخلية | 071 + config | 071 + live PostgREST | مغلق |
 | ق-79 | RPC-only writes وDirect DML=0 | 072-074 | 072-074 + live audit | مغلق |
+| ق-120 / م-38..م-40 | بوابة صحة إنشاء البئر: صلاحية API، وحدات السعر، وفشل صريح | 087 + Flutter wizard | DB structural test + Flutter regression test (غير مشغّل) | Implemented؛ Verified local جزئي |
 
 ## القواعد النهائية التي تنسخ نصوصًا أقدم
 
