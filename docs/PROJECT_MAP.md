@@ -38,7 +38,20 @@
 ### القرارات
 `memory/DECISIONS.md`
 
-آخر قرار مرقم حاليًا: ق-117.
+آخر قرار مرقم حاليًا: ق-120.
+
+### الحالة التشغيلية الحالية — ق-120
+
+المشروع **Pre-Production**، ولا يوجد استخدام حقيقي حالي أو بيانات
+عملاء/تشغيل مالية حقيقية. المرحلة الحالية:
+
+**Audit → Inspection → Evaluation → Repair → Gap Closing**
+
+لا يبدأ أي Screen أو Feature أو وظيفة جديدة حتى اجتياز بوابة
+التثبيت. الاعتمادات السابقة لا تُلغى؛ التنفيذ الجديد مؤجل فقط.
+
+الأولوية الحالية: م-38 ثم م-39 ثم م-40، وبعدها Regression Testing
+وبقية Audit Queue.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -797,7 +810,7 @@ Current V1 commerce:
 - م-34.
 - م-35.
 
-### Next
+### Next (مؤجل مؤقتًا بق-120)
 
 UX-17 / Final Cross-Cutting Review.
 
@@ -841,7 +854,7 @@ PA-01..PA-04:
 
 هذا لا يعني أن Production UI منفذة.
 
-### Next
+### Next (بعد بوابة التثبيت بق-120)
 
 IMPLEMENTATION-01 / V1 Implementation Sequencing &
 Dependency Plan.
@@ -884,9 +897,9 @@ Dependency Plan.
 
 م-37.
 
-### Current Implementation Point
+### Current Implementation Point — محدّث بق-120
 
-**W2 — Offline & Background Sync Foundations.**
+**Stabilization / Audit Gate.**
 
 W1 مكتملة ومغلقة (W1-01 / W1-02 / W1-03a / W1-03b).
 
@@ -901,8 +914,15 @@ W2-02b مغلقة بق-117 — الإرسال الخلفي بلا فتح الت�
 (`background_sync_*`)، صفر تغيير DB؛ مُبرهَن في منطق القرار
 لا على جهاز.
 
-W2-02d (Device Readiness وشاشات المزامنة وعقد قراءة الأسماء)
-وقياسات بند 9 لم تبدأ.
+لا يعود W2-02d هو NEXT الحالي حتى إغلاق م-38 وم-39 وم-40
+والتحقق منها. بعد ذلك تعود خطة W2-02d وقياسات بند 9 إلى المسار.
+
+الترتيب الحالي:
+
+1. إصلاح صلاحيات `setup_well_full` وفق `api.*`.
+2. إصلاح ×100 وإضافة Regression Test.
+3. إزالة False Offline Success أو إثبات الحفظ المحلي.
+4. التحقق ثم استئناف Audit Queue.
 
 Migration 071–084 immutable.
 
