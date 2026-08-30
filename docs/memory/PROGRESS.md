@@ -26,6 +26,20 @@
   كان قراءة فقط.
 - النتيجة: **م-41 Confirmed Gap / Repair Now**.
 
+### م-41 — Regression Guard
+
+- أضيف `apps/mobile/test/core/api/data_api_boundary_test.dart`.
+- الاختبار يثبت Known Debt الحالي بدقة:
+  - internal schemas = **9**.
+  - bare RPC = **20**.
+  - dotted `from()` = **5**.
+- أي خرق جديد يفشل الاختبار؛ الدين الموثق لا يجوز إلا أن ينخفض.
+- Targeted Data API guard = **3/3 PASS**.
+- `flutter analyze` = **No issues found**.
+- لم يتغير Flutter production code.
+- لم تُنشأ Migration 088.
+- لم تحدث كتابة على Supabase.
+
 ## 2026-08-30 — P0 Create-Well Correctness — Closed
 
 - PR #3 دُمج بـSquash إلى `main` عند

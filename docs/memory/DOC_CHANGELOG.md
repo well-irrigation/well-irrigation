@@ -1914,3 +1914,15 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - لا Flutter code change في هذه الدفعة.
 - لا Migration 088 في هذه الدفعة.
 - Cloud inspection كان قراءة فقط.
+
+## 2026-08-30 — م-41 Data API Regression Guard
+
+- أضيف Regression Guard دائم لحد Flutter ↔ Data API.
+- Known Debt المثبت:
+  9 internal-schema accesses / 20 bare RPC / 5 dotted from.
+- Targeted guard = 3/3 PASS.
+- flutter analyze = No issues found.
+- لا Production code change.
+- لا Migration 088.
+- NEXT = م-41A — إصلاح 7 RPC موجودة أصلًا داخل api في
+  FinanceRepository.

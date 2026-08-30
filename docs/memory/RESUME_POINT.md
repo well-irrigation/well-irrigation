@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41 — Flutter Data API Boundary Repair**
+**NEXT = م-41A — FinanceRepository API RPC Boundary Repair**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -50,6 +50,30 @@
 لا يبدأ Audit Item #2 مستقلًا قبل إصلاح هذا الحد، لكن
 Production Mock fallbacks المكتشفة أثناء م-41 تدخل ضمن
 نفس التحقيق ولا تُعتبر سلوكًا مقبولًا.
+
+### Regression Guard — مثبت
+
+أضيف اختبار دائم يثبت Known Debt الحالي:
+9 internal-schema accesses + 20 bare RPC + 5 dotted from.
+
+الاختبار يمر حاليًا، لكنه يفشل إذا زاد أي نوع من هذه المخالفات.
+مع كل Repair يجب تقليص Known Debt في الاختبار.
+
+### NEXT — م-41A
+
+إصلاح الـ7 RPC الموجودة أصلًا داخل `api` في
+`FinanceRepository` فقط:
+
+- record_expense
+- decide_expense
+- calculate_profit_distribution
+- approve_profit_distribution
+- pay_partner_distribution
+- record_payment
+- allocate_payment
+
+هذه الشريحة لا تحتاج Migration جديدة؛ المطلوب أولًا توجيه
+الاستدعاءات إلى `schema('api')` والتحقق من مطابقة المعاملات.
 
 ### Audit Queue الحالية — بالترتيب
 
