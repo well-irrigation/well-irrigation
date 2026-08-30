@@ -10,8 +10,8 @@
 
 - Local: **87 migration file** مطبقة حتى 088؛ الرقم 067
   غير مستخدم تاريخيًا.
-- Cloud: Remote Migration History يتضمن 085 و086 و087،
-  وآخر Version هو `20260830010001`.
+- Cloud: Remote Migration History يتضمن 085 و086 و087 و088،
+  وآخر Version هو `20260830013000`.
 - **26** ملف اختبار دائم.
 - Full DB Suite محلي = **369 PASS / 0 FAIL / 0 ERROR**.
 - 071: ق-78 — Data API boundary.
@@ -27,13 +27,12 @@
   `setup_well_full`.
 - 087: إصلاح صلاحيات عبور `api.setup_well_full` إلى `core`.
 - 088: عقد تحديث اسم الملف الشخصي عبر `api.update_profile_name`؛
-  **Verified local / Cloud pending**.
+  **Verified local + Cloud contract/security**.
 - Cloud 087 verification:
   authenticated call = PASS؛ anon denied = PASS؛
   prices = 3500/7000/6000؛ ROLLBACK؛ residue = 0.
 
-Migration 071–087 immutable. Migration 088 هي الحالية قيد التحقق؛
-أي DB change تالٍ يبدأ 089+.
+Migration 071–088 immutable؛ أي DB change تالٍ يبدأ 089+.
 
 **مهم:** الجداول أدناه تسجل ما فعلته كل هجرة في وقتها.
 لذلك قد يظهر في هجرة قديمة وصف منسوخ لاحقًا، مثل
@@ -41,7 +40,7 @@ milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القا�
 
 المعنى المالي الحالي يحكمه ق-77: الريال الكامل.
 
-## 088 — Profile Name API — Local Verified
+## 088 — Profile Name API — Local + Cloud Contract Verified
 
 الملف:
 `20260830013000_088_update_profile_name_api.sql`
@@ -58,8 +57,14 @@ milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القا�
 - Target 088 = **7 PASS / 0 FAIL / 0 ERROR**.
 - Full suite = **26 files / 369 PASS / 0 FAIL / 0 ERROR**.
 - اختبار 074 بقي PASS بعد إضافة العقد.
-- Cloud Migration History ما زالت حتى 087؛ تطبيق 088 السحابي
-  **Pending**.
+- Cloud Migration History تتضمن 088.
+- Cloud Data API RPC = **35**.
+- Cloud API SECURITY DEFINER = **0**.
+- Cloud anon API EXECUTE = **0**.
+- Cloud Direct DML = **0**.
+- authenticated/service_role traversal = PASS.
+- verification residue = **0**.
+- لم يُنفذ success mutation على حساب Cloud حقيقي؛ النجاح الوظيفي مثبت محليًا.
 
 ## 085–087 — إغلاق فجوات Backend وCreate-Well
 

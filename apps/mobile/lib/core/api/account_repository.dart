@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_bootstrap_repository.dart';
 import '../session/offline_session_coordinator.dart';
-import '../utils/digit_utils.dart';
 
 /// نماذج بيانات الحساب والإعدادات والفريق والمزامنة (UX-16A / القرارات 527–600 / ق-101)
 
@@ -49,56 +48,6 @@ class UserProfileData {
       isPlatformAdmin: isPlatformAdmin ?? this.isPlatformAdmin,
       rolesSummary: rolesSummary ?? this.rolesSummary,
       farmerAccountLink: farmerAccountLink ?? this.farmerAccountLink,
-    );
-  }
-}
-
-class TeamMemberItem {
-  const TeamMemberItem({
-    required this.assignmentId,
-    required this.profileId,
-    required this.personId,
-    required this.fullName,
-    required this.phone,
-    required this.role,
-    required this.status, // active, inactive
-    this.hasActiveShiftOrSession = false,
-  });
-
-  final String assignmentId;
-  final String profileId;
-  final String personId;
-  final String fullName;
-  final String phone;
-  final String role; // owner, operator, accountant, partner, viewer
-  final String status;
-  final bool hasActiveShiftOrSession;
-
-  String get roleArabic {
-    switch (role) {
-      case 'owner':
-        return 'مالك';
-      case 'operator':
-        return 'مشغل ميداني';
-      case 'accountant':
-        return 'محاسب';
-      case 'partner':
-        return 'شريك';
-      default:
-        return 'مستعرض';
-    }
-  }
-
-  factory TeamMemberItem.fromJson(Map<String, dynamic> json) {
-    return TeamMemberItem(
-      assignmentId: json['assignment_id'] as String? ?? '',
-      profileId: json['profile_id'] as String? ?? '',
-      personId: json['person_id'] as String? ?? '',
-      fullName: json['full_name'] as String? ?? '',
-      phone: json['phone'] as String? ?? '',
-      role: json['role'] as String? ?? 'operator',
-      status: json['status'] as String? ?? 'active',
-      hasActiveShiftOrSession: json['has_active_work'] as bool? ?? false,
     );
   }
 }
@@ -255,64 +204,6 @@ class AccountRepository {
     }
   }
 
-  /// 4. جلب أعضاء فريق البئر
-  Future<List<TeamMemberItem>> fetchWellTeam(String wellId) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        final res = await client.rpc('get_well_team', params: {'p_well_id': wellId});
-        if (res is List) {
-          return res.map((e) => TeamMemberItem.fromJson(Map<String, dynamic>.from(e as Map))).toList();
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching well team: $e');
-    }
-    return _getMockTeam();
-  }
-
-  /// 5. إضافة عضو جديد للفريق
-  Future<void> addTeamMember({
-    required String wellId,
-    required String fullName,
-    required String phone,
-    required String role,
-  }) async {
-    final cleanPhone = normalizeArabicDigits(phone).trim();
-    final cleanName = fullName.trim();
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        await client.rpc('add_team_member', params: {
-          'p_well_id': wellId,
-          'p_name': cleanName,
-          'p_phone': cleanPhone,
-          'p_role': role,
-        });
-      }
-    } catch (e) {
-      debugPrint('Error adding team member: $e');
-    }
-  }
-
-  /// 6. تغيير حالة عضو الفريق (تفعيل / تعطيل)
-  Future<void> toggleTeamMemberStatus({
-    required String assignmentId,
-    required String newStatus,
-  }) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        await client.rpc('set_team_member_status', params: {
-          'p_assignment_id': assignmentId,
-          'p_status': newStatus,
-        });
-      }
-    } catch (e) {
-      debugPrint('Error toggling member status: $e');
-    }
-  }
-
   /// 7. جلب حالة الجهاز والمزامنة
   Future<DeviceSyncStatusModel> fetchDeviceSyncStatus() async {
     final client = _effectiveClient;
@@ -359,48 +250,5 @@ class AccountRepository {
       } catch (_) {}
     }
     return 0;
-  }
-
-  // --- Mock Data ---
-
-  List<TeamMemberItem> _getMockTeam() {
-    return const [
-      TeamMemberItem(
-        assignmentId: 'assign-1',
-        profileId: 'profile-1',
-        personId: 'person-1',
-        fullName: 'محمد عبدالله الشامي',
-        phone: '777123456',
-        role: 'owner',
-        status: 'active',
-      ),
-      TeamMemberItem(
-        assignmentId: 'assign-2',
-        profileId: 'profile-2',
-        personId: 'person-2',
-        fullName: 'أحمد علي الريمي',
-        phone: '771234567',
-        role: 'operator',
-        status: 'active',
-      ),
-      TeamMemberItem(
-        assignmentId: 'assign-3',
-        profileId: 'profile-3',
-        personId: 'person-3',
-        fullName: 'يحيى حمود العنسي',
-        phone: '777888999',
-        role: 'operator',
-        status: 'active',
-      ),
-      TeamMemberItem(
-        assignmentId: 'assign-4',
-        profileId: 'profile-4',
-        personId: 'person-4',
-        fullName: 'صالح أحمد المشرقي',
-        phone: '773344556',
-        role: 'accountant',
-        status: 'inactive',
-      ),
-    ];
   }
 }

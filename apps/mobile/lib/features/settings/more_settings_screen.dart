@@ -232,14 +232,13 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   icon: Icons.people_outline,
                   iconColor: AppColors.agriculturalGreen,
                   title: 'الفريق والصلاحيات',
-                  subtitle: 'إدارة المشغلين والمحاسبين وتعيينات البئر',
+                  subtitle: 'الربط الآمن لإدارة الفريق قيد الاستكمال',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => TeamPermissionsScreen(
                           wellId: _activeWellId ?? 'well-1',
                           wellName: _activeWellName,
-                          repository: _repo,
                         ),
                       ),
                     );
