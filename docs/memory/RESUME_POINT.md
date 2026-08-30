@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41B — Remaining Data API Contract Mapping**
+**NEXT = م-41B2 — Account Profile Read Boundary Repair**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -53,10 +53,13 @@ Production Mock fallbacks المكتشفة أثناء م-41 تدخل ضمن
 
 ### Regression Guard — مثبت
 
-أضيف اختبار دائم يثبت Known Debt الحالي:
+بدأ Regression Guard من:
 9 internal-schema accesses + 20 bare RPC + 5 dotted from.
 
-الاختبار يمر حاليًا، لكنه يفشل إذا زاد أي نوع من هذه المخالفات.
+بعد م-41A وم-41B1 أصبح Known Debt الحالي:
+9 internal-schema accesses + 12 bare RPC + 5 dotted from.
+
+الاختبار يفشل إذا زاد أي نوع من هذه المخالفات.
 مع كل Repair يجب تقليص Known Debt في الاختبار.
 
 ### م-41A — Verified local
@@ -72,14 +75,36 @@ Production Mock fallbacks المكتشفة أثناء م-41 تدخل ضمن
 - Cloud contract inspection = Verified read-only.
 - لا Migration 088، ولا Cloud write.
 
-### NEXT — م-41B
+### م-41B1 — Verified local
 
-حصر ومطابقة الـ13 Bare RPC المتبقية والقراءات الداخلية مع
-العقود الخادمية الموجودة قبل اتخاذ قرار بإنشاء أي عقد 088.
+أُصلح مسار الجرد الفعلي للوقود باستخدام عقد الخادم الموجود
+`api.record_physical_fuel_count`.
 
-لا تُنشأ RPC جديدة لمجرد مطابقة اسم Flutter قديم؛ نبحث أولًا
-عن عقد قائم مكافئ، ثم نصنف كل حالة إلى إصلاح الآن أو Gap
-موثق أو بند مستقبلي.
+من منظور المستخدم:
+- لا يظهر نجاح الجرد إلا بعد نجاح Backend.
+- فشل Backend يبقى فشلًا ظاهرًا ولا يتحول إلى نجاح وهمي.
+- التطبيق يرسل البئر والخزان الصحيحين.
+- التحويل من لتر إلى ملليلتر يتم داخليًا دون تغيير تجربة المستخدم.
+
+الإثبات:
+- Targeted = **9/9 PASS**.
+- flutter analyze = **No issues found**.
+- Full Flutter = **228/228 PASS**.
+- Bare RPC Debt: **13 → 12**.
+- Internal-schema debt: **9**.
+- Dotted-from debt: **5**.
+- لا Migration 088 ولا Cloud write.
+
+### NEXT — م-41B2
+
+إصلاح قراءة الملف الشخصي بحيث تستخدم عقد القراءة الموجود
+أصلًا في `api` بدل القراءة المباشرة من مخطط داخلي.
+
+نبدأ بفحص وإعادة استخدام `api.app_bootstrap` لأنه يوفر
+بيانات الملف الأساسية بالفعل.
+
+لا نضيف RPC جديدة، ولا نغيّر كتابة الاسم أو إدارة الفريق
+ضمن هذه الشريحة حتى يثبت احتياج مستقل لذلك.
 
 ### Audit Queue الحالية — بالترتيب
 

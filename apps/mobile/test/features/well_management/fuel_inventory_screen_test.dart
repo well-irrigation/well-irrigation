@@ -1,6 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/features/well_management/fuel_inventory_screen.dart';
+import 'package:well_irrigation_mobile/core/api/well_management_repository.dart';
+
+class _FakeWellManagementRepository
+    extends WellManagementRepository {
+  _FakeWellManagementRepository({
+    this.failPhysicalCount = false,
+  });
+
+  final bool failPhysicalCount;
+
+  String? recordedWellId;
+  String? recordedTankId;
+  int? recordedMeasuredBalanceLiters;
+  String? recordedReason;
+
+  @override
+  Future<List<FuelTankModel>> fetchFuelTanks(String wellId) async {
+    return [
+      FuelTankModel(
+        id: 'tank-test-1',
+        wellId: wellId,
+        name: 'خزان الاختبار',
+        capacityLiters: 1000,
+        currentBalanceLiters: 250,
+        measurementMethod: 'estimated',
+        status: 'active',
+        lastMeasuredAt: DateTime(2026, 8, 30),
+      ),
+    ];
+  }
+
+  @override
+  Future<void> recordPhysicalFuelCount({
+    required String wellId,
+    required String tankId,
+    required int measuredBalanceLiters,
+    required String adjustmentReason,
+  }) async {
+    recordedWellId = wellId;
+    recordedTankId = tankId;
+    recordedMeasuredBalanceLiters = measuredBalanceLiters;
+    recordedReason = adjustmentReason;
+
+    if (failPhysicalCount) {
+      throw Exception('backend unavailable');
+    }
+  }
+}
 
 void main() {
   group('FuelInventoryScreen Tests (UX-15 / 478–490)', () {
@@ -71,5 +119,104 @@ void main() {
       expect(find.text('سبب تسوية الفرق *'), findsOneWidget);
       expect(find.text('اعتماد الجرد والتسوية'), findsOneWidget);
     });
+    testWidgets(
+      '4. الجرد يمرر البئر والخزان والقياس الصحيح',
+      (tester) async {
+        final repository = _FakeWellManagementRepository();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ar'),
+            home: FuelInventoryScreen(
+              wellName: 'بئر الاختبار',
+              wellId: 'well-real-1',
+              repository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.text('جرد وقياس فعلي').first,
+        );
+        await tester.pumpAndSettle();
+
+        final fields = find.byType(TextFormField);
+        expect(fields, findsNWidgets(2));
+
+        await tester.enterText(fields.at(0), '321');
+        await tester.enterText(
+          fields.at(1),
+          'جرد ميداني',
+        );
+
+        await tester.tap(
+          find.text('اعتماد الجرد والتسوية'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(repository.recordedWellId, 'well-real-1');
+        expect(repository.recordedTankId, 'tank-test-1');
+        expect(
+          repository.recordedMeasuredBalanceLiters,
+          321,
+        );
+        expect(repository.recordedReason, 'جرد ميداني');
+
+        expect(
+          find.textContaining(
+            'تم تسجيل الجرد الفعلي واعتماد تسوية الفروقات',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      '5. فشل backend لا يغلق الحوار ولا يعرض نجاحًا',
+      (tester) async {
+        final repository = _FakeWellManagementRepository(
+          failPhysicalCount: true,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ar'),
+            home: FuelInventoryScreen(
+              wellName: 'بئر الاختبار',
+              wellId: 'well-real-1',
+              repository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.text('جرد وقياس فعلي').first,
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.text('اعتماد الجرد والتسوية'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('تسجيل جرد وقياس فعلي'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('backend unavailable'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'تم تسجيل الجرد الفعلي واعتماد تسوية الفروقات',
+          ),
+          findsNothing,
+        );
+      },
+    );
+
   });
 }

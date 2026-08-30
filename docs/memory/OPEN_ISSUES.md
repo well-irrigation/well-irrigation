@@ -1681,6 +1681,21 @@ Flutter يجب أن يصل إلى بيانات الأعمال عبر `api.*`.
 - Full Flutter = **225/225 PASS**.
 - م-41 ما تزال مفتوحة؛ م-41A فقط اكتملت محليًا.
 
+### تقدم الإصلاح — م-41B1
+
+- مسار الجرد الفعلي للوقود أصبح يستخدم العقد الموجود
+  `api.record_physical_fuel_count`.
+- لا يظهر نجاح الجرد عند فشل Backend.
+- اللتر في واجهة المستخدم يُحوّل إلى ملليلتر عند عقد الخادم.
+- Bare RPC Debt انخفض من **13 إلى 12**.
+- Internal-schema debt بقي **9**.
+- Dotted-from debt بقي **5**.
+- Targeted tests = **9/9 PASS**.
+- Full Flutter = **228/228 PASS**.
+- `flutter analyze` = **No issues found**.
+- لا Migration 088 ولا Cloud write.
+- م-41 ما تزال مفتوحة؛ م-41B1 فقط اكتملت محليًا.
+
 ### ترتيب الإصلاح
 
 1. إضافة Regression Guard يمنع direct internal-schema access
