@@ -7,6 +7,11 @@
 
 `DECISIONS.md` يبقى المصدر الكامل لكل القرارات.
 
+> **قاعدة الترقيم الحالية — 2026-08-30:** Migration 071–087
+> immutable؛ أي DB change جديد يبدأ 088+. أي خلية أقدم تشير
+> إلى 085+ بوصفها «الهجرة التالية» هي سجل تخطيط تاريخي تجاوزته
+> الهجرات 085–087 ولا تحدد الرقم الحالي.
+
 | القرار | القاعدة الحالية | التنفيذ | الإثبات | الحالة |
 | --- | --- | --- | --- | --- |
 | ق-01 / ق-12 | لا تقريب للوقت | 064/066 وما بعدها | 064/065 + 066 + 067 tests | منفذ |
@@ -23,7 +28,7 @@
 | ق-77 | ريال كامل + باقي القسمة لأكبر حصة + إجراءات ذرية | 039/052/064-069 | permanent suite | منفذ بالكامل |
 | ق-78 | `api` عقد Data API وعزل schemas الداخلية | 071 + config | 071 + live PostgREST | مغلق |
 | ق-79 | RPC-only writes وDirect DML=0 | 072-074 | 072-074 + live audit | مغلق |
-| ق-120 / م-38..م-40 | بوابة صحة إنشاء البئر: صلاحية API، وحدات السعر، وفشل صريح | 087 + Flutter wizard | DB 087: 8 PASS؛ full DB: 25/362؛ Flutter: 2/2 targeted + 222/222 full؛ analyze clean | Verified local؛ Cloud pending لم-38 |
+| ق-120 / م-38..م-40 | بوابة صحة إنشاء البئر: صلاحية API، وحدات السعر، وفشل صريح | 087 + Flutter wizard | DB 087 = 8 PASS؛ full DB = 25/362؛ Flutter = 2/2 targeted + 222/222 full + analyze clean؛ Cloud authenticated setup PASS؛ anon denied؛ الأسعار 3500/7000/6000؛ ROLLBACK + residue 0 | **P0 مغلق؛ م-38/م-39 Verified local + Cloud؛ م-40 Verified local (Cloud N/A). ق-120 Audit Gate مستمرة** |
 
 ## القواعد النهائية التي تنسخ نصوصًا أقدم
 
@@ -59,16 +64,17 @@
 | م-23 | منطق الخادم منجز، UI/scheduler متبقيان |
 | م-24 | مغلقة |
 | م-25 | مفتوحة — **ضُيِّقت أربع مرات:** بق-114 / 083+084 (الأساس الخادمي للـidempotency موصول ومُثبت)، وبق-115 (طابور الجهاز الدائم وstable command IDs منفَّذان ومُثبتان)، وبق-116 (سجل الجلسة النشطة والاستعادة بعد موت التطبيق منفَّذان ومُثبتان على قرص حقيقي)، وبق-117 (الإرسال الخلفي بلا فتح التطبيق منفَّذ ومُثبت في منطق القرار) — كلها **بلا أي تغيير على قاعدة البيانات**؛ شاشات الحالة والجاهزية وعرض التعارض وعقد أسماء العرض والواجهة الميدانية متبقية، وقياسات بند 9 غير موصولة، والإثبات على جهاز حقيقي (الإقلاع وForce Stop والمانيفست المدموج) باقٍ |
-| م-38 | مفتوحة — `api.setup_well_full` SECURITY INVOKER مع رفض `core.setup_well_full` للمستخدم authenticated؛ إنشاء البئر متعذر فعليًا؛ ق-120 | إصلاح صلاحيات مطابق لـ`api.*` + permission regression test | Confirmed Gap؛ لا Implemented/Verified |
-| م-39 | مفتوحة — Flutter يرسل السعر ×100 رغم أن ق-77 وق-119 يعتمدان ريالًا كاملًا؛ مثال 3500 → 350000؛ ق-120 | توحيد الوحدة + regression test للقيمة 3500 | Confirmed Gap؛ لا Implemented/Verified |
-| م-40 | مفتوحة — فشل Backend يتحول إلى رسالة حفظ محلي ونجاح دون دليل حفظ؛ ق-120 | إزالة false success أو إثبات local persistence وحالات pending | Confirmed Gap؛ لا Implemented/Verified |
+| م-38 | **مغلقة — Verified local + Cloud**؛ Migration 087؛ authenticated call PASS؛ anon denied؛ Direct DML=0؛ ROLLBACK بلا بقايا |
+| م-39 | **مغلقة — Verified local + Cloud**؛ ×100 أزيل؛ 3500/7000/6000 ثبتت محليًا وسحابيًا بالقيم نفسها |
+| م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
 
 ## baseline المرجعي
 
 ## ق-120 — بوابة التدقيق والتثبيت
 
-التنفيذ الجديد متوقف حتى إغلاق م-38 وم-39 وم-40 وإثباتها، ثم
-Regression Testing. لا يلغي القرار أي UX أو Architecture معتمد.
+مجموعة P0 م-38/م-39/م-40 أُغلقت بالأدلة المطلوبة.
+ق-120 نفسها لا تُغلق بذلك؛ تستمر بوابة Pre-Production Audit
+على التنفيذ الموجود قبل أي توسع وظيفي جديد.
 
 ### Audit Queue التالية
 
@@ -83,8 +89,8 @@ Regression Testing. لا يلغي القرار أي UX أو Architecture معت�
 
 **لقطة Stage 7 Readiness Gate — 2026-08-17. ليست الحالة
 الحالية.** الأرقام الحاكمة الآن في
-`technical/MIGRATIONS.md` (83 migration / 24 test file /
-354 PASS).
+`technical/MIGRATIONS.md` (86 migration / 25 test file /
+362 PASS).
 
 - migrations = 76
 - permanent tests = 17

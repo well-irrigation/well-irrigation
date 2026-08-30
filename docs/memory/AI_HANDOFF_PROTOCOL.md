@@ -1,7 +1,7 @@
 # AI Handoff Protocol — بروتوكول تسليم المشروع
 
 **القرارات الحاكمة:** ق-93، ق-95، ق-96، ق-97، ق-104
-**آخر تحديث:** 2026-08-19
+**آخر تحديث:** 2026-08-30
 **الحالة:** نافذ
 
 ## 1. الهدف
@@ -332,22 +332,29 @@ Governing sequence:
 
 `technical/V1_IMPLEMENTATION_SEQUENCE.md`
 
-Current point (superseded for sequencing by ق-120):
+Current point — ق-120:
 
-**المشروع في مرحلة Stabilization / Audit Gate وفق ق-120. لا يبدأ W2-02d ولا أي شاشة أو Feature جديدة حتى تُغلق فجوات P0 م-38 وم-39 وم-40 بالدليل.**
+**P0 Create-Well Correctness مغلق بالأدلة المطلوبة.**
+م-38 وم-39 = Verified local + Cloud.
+م-40 = Verified local وCloud verification غير منطبق على
+سلوك الواجهة.
 
-الترتيب الحالي:
+**NEXT = Pre-Production Audit Queue — Gap Closing.**
 
-1. إصلاح صلاحيات `setup_well_full` بما يطابق معمارية `api.*`.
-2. إصلاح خطأ السعر ×100 وإضافة Regression Test.
-3. إزالة False Offline Success أو ربطه بحفظ محلي حقيقي مثبت.
-4. تشغيل التحقق وRegression Testing، ثم استئناف بقية Audit Queue.
+الترتيب الحاكم يؤخذ من `memory/RESUME_POINT.md`:
+مراجعة حدود `api.*` في Flutter، ثم production mock fallbacks،
+ثم Auth/OTP/account lifecycle، ثم settings false-success،
+ثم Integration/E2E، ثم CI/branch protection.
+
+ق-120 تبقى نافذة؛ لا يبدأ W2-02d ولا أي Screen أو Feature
+جديدة قبل استمرار Audit → Inspection → Evaluation → Repair →
+Gap Closing.
 
 Do not start arbitrary screens.
 
-Do not edit migrations 071–084.
+Do not edit migrations 071–087.
 
-New DB changes begin 085+.
+New DB changes begin 088+.
 
 Use coherent domain-sized migrations and permanent tests.
 

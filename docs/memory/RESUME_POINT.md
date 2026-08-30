@@ -4,39 +4,56 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = P0 Create-Well Correctness — PR Review ثم Cloud Verification**
+**NEXT = Pre-Production Audit Queue — Gap Closing**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
-أو تشغيل مالية حقيقية. لا يبدأ أي Screen أو Feature أو وظيفة جديدة
-حتى اجتياز بوابة التثبيت. الاعتمادات السابقة باقية، والتنفيذ الجديد
-مؤجل فقط.
+أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
+أو Feature أو وظيفة جديدة لمجرد أن P0 أُغلق؛ نواصل تدقيق
+التنفيذ الموجود وسد فجواته أولًا.
 
-### الترتيب الإلزامي
+### P0 Create-Well Correctness — مغلق
 
-1. إصلاح صلاحيات `setup_well_full` وفق معمارية `api.*`.
-2. إصلاح خطأ السعر ×100 وإضافة Regression Test.
-3. إزالة False Offline Success أو ربطه بحفظ محلي حقيقي مثبت.
-4. التحقق وRegression Testing.
-
-ثم الانتقال إلى بقية Audit Queue:
-
-- مطابقة Flutter مع `api.*` وعدم الاعتماد على internal schemas.
-- إزالة silent production mock fallbacks.
-- مراجعة Auth/OTP/account lifecycle.
-- مراجعة settings false-success.
-- تحديث Integration/E2E tests.
-- مراجعة CI/branch protection.
-
-الفجوات م-38 وم-39 وم-40 **Verified local**:
-- DB target 087 = 8 PASS / 0 FAIL / 0 ERROR.
-- Full DB Suite = 25 files / 362 PASS / 0 FAIL / 0 ERROR.
+- **م-38: Verified local + Cloud.**
+  DB target 087 = 8 PASS، وFull DB = 25 files / 362 PASS.
+  على Cloud نجح استدعاء `api.setup_well_full` فعليًا بدور
+  `authenticated`، وبقي `anon` مرفوضًا.
+- **م-39: Verified local + Cloud.**
+  Flutter يرسل الريال الكامل بلا ×100، والتحقق السحابي أثبت
+  3500/7000/6000 مخزنة حرفيًا بالقيم نفسها.
+- **م-40: Verified local.**
+  فشل Backend لا يكمل ولا يغلق كنجاح ولا يدعي حفظًا محليًا.
+  Cloud verification غير منطبق على هذا السلوك الخاص بالواجهة.
 - Flutter targeted = 2/2 PASS.
 - Flutter full = 222/222 PASS.
 - `flutter analyze` = No issues found.
+- PR #3 دُمج إلى `main` عند
+  `0e3d46e873c4f6b1088b5d98b65c1b65316f17aa`.
+- التحقق السحابي المؤقت انتهى بـROLLBACK، وفحص البقايا = صفر.
 
-لم يحدث Cloud verification بعد. الخطوة التالية هي مراجعة ودمج PR،
-ثم تطبيق Migration 087 واختبار م-38 على البيئة السحابية قبل الانتقال
-إلى بقية Audit Queue.
+### Audit Queue الحالية — بالترتيب
+
+1. مطابقة Flutter مع `api.*` ومنع الاعتماد المباشر على
+   internal schemas.
+2. إزالة silent production mock fallbacks.
+3. مراجعة Auth / OTP / account lifecycle.
+4. مراجعة settings false-success والحفظ المحلي غير المثبت.
+5. تحديث Integration / E2E tests.
+6. مراجعة CI / branch protection.
+
+`W2-02d` وأي توسع وظيفي جديد يبقيان مؤجلين حتى تعالج
+Audit Queue وفق ق-120.
+
+### قاعدة الهجرات الحالية
+
+Migration 071–087 immutable.
+أي DB change جديد يبدأ **088+**.
+
+### قاعدة تفسير الأقسام القديمة أدناه
+
+أي عبارة لاحقة تقول إن W2-02d أو أي Feature هي «التالي» هي
+سجل سابق على ق-120 ولا تحدد NEXT الحالي. هذا القسم وحده،
+مع قاعدة `RESUME_POINT` في بروتوكول التسليم، هو نقطة العمل
+الحالية.
 
 ## Stage 7 Readiness Gate
 
@@ -62,28 +79,31 @@
 
 ## Final verified baseline
 
-### قاعدة البيانات — محدَّث 2026-08-25
+### قاعدة البيانات — محدَّث 2026-08-30
 
-- migrations = 85 file، آخرها 086_well_setup_full_and_profile_phone؛ 071–086 immutable.
-- permanent test files = 24.
-- PASS = 354.
+- migrations = **86 file**، آخرها
+  `20260830010001_087_setup_well_full_permissions`؛
+  071–087 immutable.
+- permanent test files = **25**.
+- PASS = **362**.
 - FAIL = 0.
 - ERROR = 0.
-- Data API RPC = 34 (إضافة `api.setup_well_full` للتهيئة الشاملة والذرية للبئر).
+- Data API RPC = **34**.
 - Direct DML = 0.
 - API SECURITY DEFINER = 0.
 - anon API EXECUTE = 0.
-- authenticated API EXECUTE = 34.
-- service_role API EXECUTE = 34.
 - exposed schemas = `api`, `graphql_public`.
-- `public` and internal business schemas are not exposed.
-- Cloud = `CLOUD_W2_01_ALL_PASS`؛ remote history = 83 through
-  `20260823013001`؛ `DATA_API_BOUNDARY=OK`.
+- `public` ومخططات الأعمال الداخلية غير مكشوفة.
+- Cloud remote history يتضمن Migration 087.
+- Cloud P0 verification:
+  authenticated setup = PASS؛ anon denied = PASS؛
+  الأسعار = 3500/7000/6000؛ Transaction = ROLLED BACK؛
+  test residue = 0.
 
-### كود الهاتف — محدَّث 2026-08-25
+### كود الهاتف — محدَّث 2026-08-30
 
 - `flutter analyze` = `No issues found!`.
-- `flutter test` = **220 PASS / 0 FAIL**.
+- `flutter test` = **222 PASS / 0 FAIL**.
 - الشاشات والمكونات المنفذة والمربوطة:
   - `SplashScreen`: شاشة البداية والختم الرسمي والهوية البصرية.
   - `LoginScreen` (UX-02): تسجيل الدخول الموحد مع `AuthRepository`.
