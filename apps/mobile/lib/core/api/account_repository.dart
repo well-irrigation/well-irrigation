@@ -222,18 +222,23 @@ class AccountRepository {
   /// 2. تحديث الاسم الشخصي
   Future<void> updateUserName(String newName) async {
     final cleanName = newName.trim();
-    try {
-      final client = _effectiveClient;
-      if (client != null && client.auth.currentUser != null) {
-        await client
-            .schema('iam')
-            .from('profiles')
-            .update({'full_name': cleanName})
-            .eq('id', client.auth.currentUser!.id);
-      }
-    } catch (e) {
-      debugPrint('Error updating user name: $e');
+    if (cleanName.isEmpty) {
+      throw ArgumentError.value(
+        newName,
+        'newName',
+        'Profile name is required',
+      );
     }
+
+    final client = _effectiveClient;
+    if (client == null || client.auth.currentSession == null) {
+      throw StateError('Authenticated session is required');
+    }
+
+    await client.schema('api').rpc(
+      'update_profile_name',
+      params: {'p_full_name': cleanName},
+    );
   }
 
   /// 3. تغيير كلمة المرور بأمان

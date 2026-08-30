@@ -67,7 +67,7 @@
 | م-38 | **مغلقة — Verified local + Cloud**؛ Migration 087؛ authenticated call PASS؛ anon denied؛ Direct DML=0؛ ROLLBACK بلا بقايا |
 | م-39 | **مغلقة — Verified local + Cloud**؛ ×100 أزيل؛ 3500/7000/6000 ثبتت محليًا وسحابيًا بالقيم نفسها |
 | م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
-| م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count ومنعت false success في هذا المسار؛ م-41B2 أصلحت account profile read عبر api.app_bootstrap ومنعت mock fallback؛ current debt = 8 internal + 12 bare + 5 dotted؛ Flutter 230/230 PASS؛ NEXT = remaining Account write/team mapping |
+| م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count ومنعت false success في هذا المسار؛ م-41B2 أصلحت account profile read عبر api.app_bootstrap ومنعت mock fallback؛ م-41B3A أضافت 088 وapi.update_profile_name ومنعت false-success في حفظ الاسم؛ current debt = 7 internal + 12 bare + 5 dotted؛ DB = 26/369 PASS؛ Flutter = 233/233 PASS؛ Team mapping أثبت read/add/status gaps؛ NEXT = م-41B3B Team Boundary Gap Closure |
 
 ## baseline المرجعي
 

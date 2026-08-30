@@ -1728,3 +1728,29 @@ Flutter يجب أن يصل إلى بيانات الأعمال عبر `api.*`.
 - `flutter analyze` = **No issues found**.
 - لا Migration 088 ولا Cloud write.
 - م-41 ما تزال مفتوحة.
+
+### تقدم الإصلاح — م-41B3A
+
+- أزيل direct write إلى `iam.profiles` من حفظ الاسم.
+- أضيف عقد `api.update_profile_name` في Migration 088.
+- Backend failure لم يعد يتحول إلى success في شاشة الاسم.
+- Internal-schema debt = **8 → 7**.
+- Bare RPC debt = **12**.
+- Dotted-from debt = **5**.
+- DB = **26 files / 369 PASS**.
+- Flutter targeted = **11/11 PASS**.
+- Full Flutter = **233/233 PASS**.
+- analyze = **No issues found**.
+- 088 = **Verified local / Cloud pending**.
+
+### فجوة Team Boundary المثبتة
+
+`get_well_team` و`add_team_member` و`set_team_member_status`
+ليست موجودة في `api` الحالية.
+
+لا يجوز Blind Remap:
+- إضافة العضو تعتمد على Account/Auth وربط الهوية.
+- تغيير الحالة يحتاج حماية Backend للمالك الوحيد وللعمل الجاري.
+- قراءة الفريق تحتاج عقد قراءة حقيقي بدل Production Mock.
+
+هذه تبقى ضمن م-41 حتى إغلاق Team Boundary بصورة صادقة.

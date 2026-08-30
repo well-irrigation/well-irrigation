@@ -64,7 +64,6 @@ void main() {
     );
 
     const expected = [
-      'lib/core/api/account_repository.dart|iam',
       'lib/core/api/operations_repository.dart|ops',
       'lib/core/api/operations_repository.dart|ops',
       'lib/core/api/operations_repository.dart|core',
@@ -107,6 +106,40 @@ void main() {
     );
     expect(section.contains(".schema('iam')"), isFalse);
     expect(section.contains('_getMockUserProfile'), isFalse);
+    expect(section.contains('catch ('), isFalse);
+  });
+
+  test('account profile name write uses the official api contract', () {
+    final source = File(
+      'lib/core/api/account_repository.dart',
+    ).readAsStringSync();
+
+    final start = source.indexOf(
+      'Future<void> updateUserName',
+    );
+    final end = source.indexOf(
+      '/// 3. تغيير كلمة المرور بأمان',
+      start,
+    );
+
+    expect(start, isNonNegative);
+    expect(end, greaterThan(start));
+
+    final section = source.substring(start, end);
+
+    expect(
+      RegExp(
+        r'''\.schema\s*\(\s*['"]api['"]\s*\)\s*\.rpc\s*\(\s*['"]update_profile_name['"]''',
+      ).hasMatch(section),
+      isTrue,
+    );
+
+    expect(
+      section.contains("'p_full_name': cleanName"),
+      isTrue,
+    );
+
+    expect(section.contains(".schema('iam')"), isFalse);
     expect(section.contains('catch ('), isFalse);
   });
 

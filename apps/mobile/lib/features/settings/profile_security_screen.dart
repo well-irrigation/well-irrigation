@@ -52,18 +52,32 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
     setState(() => _isSavingName = true);
     HapticFeedback.lightImpact();
 
-    await _repo.updateUserName(newName);
+    try {
+      await _repo.updateUserName(newName);
 
-    if (mounted) {
-      setState(() => _isSavingName = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تم تحديث الاسم المعتمد بنجاح ✅'),
-          backgroundColor: AppColors.agriculturalGreen,
-        ),
-      );
-      if (widget.onProfileUpdated != null) {
-        widget.onProfileUpdated!();
+      if (mounted) {
+        setState(() => _isSavingName = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تحديث الاسم المعتمد بنجاح ✅'),
+            backgroundColor: AppColors.agriculturalGreen,
+          ),
+        );
+        if (widget.onProfileUpdated != null) {
+          widget.onProfileUpdated!();
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isSavingName = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'تعذر تحديث الاسم. تحقق من الاتصال وأعد المحاولة.',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     }
   }
