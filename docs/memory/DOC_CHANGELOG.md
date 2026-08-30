@@ -1894,3 +1894,23 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
   Audit → Inspection → Evaluation → Repair → Gap Closing.
 - هذه الدفعة اللاحقة **توثيقية فقط**؛ لا تغيير كود ولا DB
   ولا إعادة تطبيق Migration.
+
+## 2026-08-30 — Audit Finding م-41
+
+- بدأ أول بند بعد إغلاق P0: Flutter ↔ Data API conformance.
+- المسح المحلي = 76 Dart files.
+- internal-schema access = 9.
+- bare RPC candidates = 20.
+- dotted `from()` candidates = 5.
+- live `api` inventory = 34 RPC.
+- من أسماء Bare RPC: 7 موجودة داخل `api` و13 غير موجودة
+  بهذا الاسم.
+- Server Data API boundary ما تزال صحيحة؛ الانحراف داخل Flutter.
+- وُثقت المسألة الجديدة:
+  **م-41 — Flutter Data API Boundary Drift**.
+- الحالة = Confirmed Gap / Repair Now.
+- `RESUME_POINT` أصبح:
+  **NEXT = م-41 — Flutter Data API Boundary Repair**.
+- لا Flutter code change في هذه الدفعة.
+- لا Migration 088 في هذه الدفعة.
+- Cloud inspection كان قراءة فقط.

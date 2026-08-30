@@ -67,6 +67,7 @@
 | م-38 | **مغلقة — Verified local + Cloud**؛ Migration 087؛ authenticated call PASS؛ anon denied؛ Direct DML=0؛ ROLLBACK بلا بقايا |
 | م-39 | **مغلقة — Verified local + Cloud**؛ ×100 أزيل؛ 3500/7000/6000 ثبتت محليًا وسحابيًا بالقيم نفسها |
 | م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
+| م-41 | **مفتوحة — Confirmed Gap**؛ Flutter Data API boundary drift: 9 internal-schema accesses + 20 bare RPC + 5 dotted from؛ live API check = 7 names exist / 13 missing؛ Regression Guard وrepair مطلوبان الآن |
 
 ## baseline المرجعي
 
@@ -80,7 +81,7 @@
 
 | العنصر | الحالة |
 | --- | --- |
-| مطابقة Flutter مع `api.*` وعدم الاعتماد على internal schemas | Audit Queue — مفتوحة |
+| مطابقة Flutter مع `api.*` وعدم الاعتماد على internal schemas | **Confirmed Gap — م-41 / Repair Now** |
 | إزالة silent production mock fallbacks | Audit Queue — مفتوحة |
 | مراجعة Auth/OTP/account lifecycle | Audit Queue — مفتوحة |
 | مراجعة settings false-success | Audit Queue — مفتوحة |

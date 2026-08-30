@@ -2,6 +2,30 @@
 
 **آخر تحديث:** 2026-08-30
 
+## 2026-08-30 — Audit 1: Flutter Data API Boundary
+
+- PR #4 دُمج إلى `main` عند
+  `7abcb52f3439e9f48b95442f3993571637e45eef`.
+- بدأ أول عنصر في Pre-Production Audit Queue.
+- Static scan محلي شمل **76 Dart file**.
+- وجد **9** internal-schema accesses.
+- وجد **20** Bare RPC candidates.
+- وجد **5** Dotted `from()` candidates.
+- Cloud read-only API inventory أثبت **34 RPC** حالية.
+- من أسماء Bare RPC العشرين: **7 موجودة داخل api / 13 غير
+  موجودة داخل api بهذا الاسم**.
+- `AccountRepository` و`OperationsRepository` و
+  `FinanceRepository` و`WellManagementRepository` تحتوي
+  انحرافات مؤكدة عن حد Data API المعتمد.
+- بعض الانحرافات مخفية حاليًا بـMock fallback أو catch صامت.
+- لا يوجد `apps/mobile/test/core/api` كشبكة Regression لهذه
+  الحدود.
+- لم يُعدل Flutter code.
+- لم تُنشأ Migration 088.
+- لم تحدث كتابة على Supabase ضمن هذا التدقيق؛ الفحص السحابي
+  كان قراءة فقط.
+- النتيجة: **م-41 Confirmed Gap / Repair Now**.
+
 ## 2026-08-30 — P0 Create-Well Correctness — Closed
 
 - PR #3 دُمج بـSquash إلى `main` عند
