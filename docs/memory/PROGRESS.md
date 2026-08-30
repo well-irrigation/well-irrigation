@@ -1546,3 +1546,22 @@ skipped > 0`. وأمرٌ يحتاج مراجعة يترك تابعيه `skipped`
 
 Migration 071–084 immutable.
 أي DB change جديد يبدأ 085+.
+
+### م-41B2 — Account Profile Read Boundary Repair
+
+- أصبحت قراءة بيانات الحساب تستخدم عقد القراءة الرسمي الموجود
+  `api.app_bootstrap` بدل القراءة المباشرة من `iam.profiles`.
+- عند نجاح Backend تظهر بيانات الحساب الحقيقية.
+- عند فشل Backend لا تُعرض بيانات حساب تجريبية أو بديلة.
+- تظهر للمستخدم حالة واضحة:
+  `تعذر تحميل بيانات الحساب` مع `إعادة المحاولة`.
+- بقية صفحة الإعدادات تبقى متاحة عند فشل بيانات الحساب.
+- Targeted tests = **8/8 PASS**.
+- `flutter analyze` = **No issues found**.
+- Full Flutter regression = **230/230 PASS**.
+- Known debt الحالي:
+  - internal schemas = **8**.
+  - bare RPC = **12**.
+  - dotted `from()` = **5**.
+- لا Migration 088.
+- لا Cloud write ضمن م-41B2.

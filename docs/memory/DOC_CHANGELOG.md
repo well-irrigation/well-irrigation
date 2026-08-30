@@ -1960,3 +1960,19 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - لا Migration 088.
 - لا Cloud write.
 - NEXT = م-41B2 — Account Profile Read Boundary Repair.
+
+## 2026-08-30 — م-41B2 Account Profile Read Boundary Repair
+
+- Profile read أصبح عبر `api.app_bootstrap`.
+- أزيل direct read من `iam.profiles`.
+- أزيل mock profile fallback عند فشل Backend.
+- أضيفت حالة خطأ واضحة وزر إعادة المحاولة.
+- Internal-schema debt = 9 → 8.
+- Bare RPC debt = 12.
+- Dotted-from debt = 5.
+- Targeted tests = 8/8 PASS.
+- flutter analyze = No issues found.
+- Full Flutter = 230/230 PASS.
+- لا Migration 088.
+- لا Cloud write.
+- NEXT = م-41B3 — Remaining Account Write / Team Contract Mapping.

@@ -1714,3 +1714,17 @@ Flutter يجب أن يصل إلى بيانات الأعمال عبر `api.*`.
 **شرط الإغلاق:** لا يبقى Flutter متصلًا مباشرة بمخطط أعمال
 داخلي، وكل اتصال Business Data يمر عبر عقد `api` مثبت،
 مع اختبارات تمنع عودة الانحراف.
+
+### تقدم الإصلاح — م-41B2
+
+- أُزيلت القراءة المباشرة للملف الشخصي من `iam.profiles`.
+- القراءة تستخدم الآن `api.app_bootstrap`.
+- لا توجد بيانات حساب وهمية كبديل عند فشل Backend.
+- Internal-schema debt انخفض من **9 إلى 8**.
+- Bare RPC debt بقي **12**.
+- Dotted-from debt بقي **5**.
+- Targeted tests = **8/8 PASS**.
+- Full Flutter = **230/230 PASS**.
+- `flutter analyze` = **No issues found**.
+- لا Migration 088 ولا Cloud write.
+- م-41 ما تزال مفتوحة.

@@ -52,12 +52,21 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
 
   Future<void> _loadProfile() async {
     setState(() => _isLoading = true);
-    final data = await _repo.fetchUserProfile();
-    if (mounted) {
-      setState(() {
-        _profile = data;
-        _isLoading = false;
-      });
+    try {
+      final data = await _repo.fetchUserProfile();
+      if (mounted) {
+        setState(() {
+          _profile = data;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _profile = null;
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -193,10 +202,22 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   title: 'حسابي والملف الشخصي',
                   subtitle: 'تعديل الاسم، إدارة الهاتف المعتمد، والأمان',
                   onTap: () {
+                    final profile = _profile;
+                    if (profile == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'تعذر تحميل بيانات الحساب. أعد المحاولة أولاً.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => ProfileSecurityScreen(
-                          profile: _profile!,
+                          profile: profile,
                           repository: _repo,
                           onProfileUpdated: _loadProfile,
                         ),
@@ -292,6 +313,34 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
   }
 
   Widget _buildAccountHeader() {
+    if (_profile == null) {
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        child: ListTile(
+          leading: const Icon(
+            Icons.cloud_off_outlined,
+            color: AppColors.warning,
+          ),
+          title: const Text(
+            'تعذر تحميل بيانات الحساب',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: const Text(
+            'لم نعرض بيانات بديلة. تحقق من الاتصال ثم أعد المحاولة.',
+          ),
+          trailing: TextButton(
+            onPressed: _loadProfile,
+            child: const Text('إعادة المحاولة'),
+          ),
+        ),
+      );
+    }
+
+    final profile = _profile!;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -313,7 +362,7 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _profile?.fullName ?? 'محمد عبدالله الشامي',
+                    profile.fullName,
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
@@ -322,7 +371,7 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                       const Icon(Icons.phone_android, size: 14, color: AppColors.textSecondary),
                       const SizedBox(width: 4),
                       Text(
-                        _profile?.phone.isNotEmpty == true ? _profile!.phone : '777123456',
+                        profile.phone,
                         style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                       ),
                     ],
@@ -331,7 +380,7 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   Wrap(
                     spacing: 6,
                     runSpacing: 4,
-                    children: (_profile?.rolesSummary ?? ['مالك بئر الخير الرئيسي']).map((role) {
+                    children: profile.rolesSummary.map((role) {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(

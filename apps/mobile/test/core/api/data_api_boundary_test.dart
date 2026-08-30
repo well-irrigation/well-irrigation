@@ -65,7 +65,6 @@ void main() {
 
     const expected = [
       'lib/core/api/account_repository.dart|iam',
-      'lib/core/api/account_repository.dart|iam',
       'lib/core/api/operations_repository.dart|ops',
       'lib/core/api/operations_repository.dart|ops',
       'lib/core/api/operations_repository.dart|core',
@@ -80,6 +79,35 @@ void main() {
       actual: actual,
       expected: expected,
     );
+  });
+
+  test('account profile read uses the official bootstrap contract', () {
+    final source = File(
+      'lib/core/api/account_repository.dart',
+    ).readAsStringSync();
+
+    final start = source.indexOf(
+      'Future<UserProfileData> fetchUserProfile',
+    );
+    final end = source.indexOf(
+      '/// 2. تحديث الاسم الشخصي',
+      start,
+    );
+
+    expect(start, isNonNegative);
+    expect(end, greaterThan(start));
+
+    final section = source.substring(start, end);
+
+    expect(
+      section.contains(
+        'AppBootstrapRepository(client).fetchBootstrap()',
+      ),
+      isTrue,
+    );
+    expect(section.contains(".schema('iam')"), isFalse);
+    expect(section.contains('_getMockUserProfile'), isFalse);
+    expect(section.contains('catch ('), isFalse);
   });
 
   test('known bare-RPC debt does not grow', () {

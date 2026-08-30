@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41B2 — Account Profile Read Boundary Repair**
+**NEXT = م-41B3 — Remaining Account Write / Team Contract Mapping**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -843,3 +843,34 @@ W1-01 «Prepared / Pending Owner Verification» وهي مكتملة ومغلقة
 أو `db:reset` أو Docker verification.
 
 المالك يشغّل التحقق ويرسل الناتج.
+
+### م-41B2 — Verified local
+
+أصبحت قراءة الملف الشخصي تستخدم عقد القراءة الرسمي الموجود
+`api.app_bootstrap`.
+
+من منظور المستخدم:
+- تظهر بيانات الحساب الحقيقية عند نجاح Backend.
+- لا تظهر بيانات تجريبية عند فشل التحميل.
+- تظهر حالة خطأ واضحة وزر إعادة المحاولة.
+- بقية الإعدادات لا تختفي بسبب فشل بيانات الحساب.
+
+الإثبات:
+- Targeted = **8/8 PASS**.
+- flutter analyze = **No issues found**.
+- Full Flutter = **230/230 PASS**.
+- Internal-schema debt: **9 → 8**.
+- Bare RPC debt: **12**.
+- Dotted-from debt: **5**.
+- لا Migration 088 ولا Cloud write.
+
+### NEXT — م-41B3
+
+مراجعة ما تبقى في AccountRepository، خصوصًا:
+- تحديث الاسم.
+- قراءة وإدارة الفريق.
+- تغيير حالة عضو الفريق.
+
+لا يتم إنشاء عقد جديد لمجرد مطابقة Flutter القديم.
+يُبحث أولًا عن عقد قائم، ثم تصنيف كل حالة إلى Repair الآن
+أو Gap موثق أو بند مؤجل.

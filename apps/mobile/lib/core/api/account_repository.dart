@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app_bootstrap_repository.dart';
 import '../session/offline_session_coordinator.dart';
 import '../utils/digit_utils.dart';
 
@@ -180,33 +181,42 @@ class AccountRepository {
 
   /// 1. جلب الملف الشخصي للمستخدم
   Future<UserProfileData> fetchUserProfile() async {
-    try {
-      final client = _effectiveClient;
-      if (client != null && client.auth.currentSession != null) {
-        final userId = client.auth.currentUser?.id;
-        if (userId != null) {
-          final res = await client
-              .schema('iam')
-              .from('profiles')
-              .select('id, full_name, phone, is_platform_admin')
-              .eq('id', userId)
-              .maybeSingle();
-
-          if (res != null) {
-            return UserProfileData(
-              id: res['id'] as String? ?? userId,
-              fullName: res['full_name'] as String? ?? 'مستخدم النظام',
-              phone: res['phone'] as String? ?? '',
-              isPlatformAdmin: res['is_platform_admin'] as bool? ?? false,
-              rolesSummary: const ['مالك بئر الخير الرئيسي', 'مشغل ميداني'],
-            );
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching user profile: $e');
+    final client = _effectiveClient;
+    if (client == null || client.auth.currentSession == null) {
+      throw StateError('Authenticated session is required');
     }
-    return _getMockUserProfile();
+
+    final bootstrap =
+        await AppBootstrapRepository(client).fetchBootstrap();
+
+    String roleLabel(String role) {
+      switch (role) {
+        case 'owner':
+          return 'مالك';
+        case 'operator':
+          return 'مشغل ميداني';
+        case 'accountant':
+          return 'محاسب';
+        case 'partner':
+          return 'شريك';
+        case 'viewer':
+          return 'مستعرض';
+        default:
+          return role;
+      }
+    }
+
+    return UserProfileData(
+      id: bootstrap.profile.id,
+      fullName: bootstrap.profile.fullName,
+      phone: bootstrap.profile.phone,
+      isPlatformAdmin: bootstrap.profile.isPlatformAdmin,
+      rolesSummary: [
+        for (final well in bootstrap.wells)
+          for (final role in well.roles)
+            '${well.name} — ${roleLabel(role)}',
+      ],
+    );
   }
 
   /// 2. تحديث الاسم الشخصي
@@ -347,20 +357,6 @@ class AccountRepository {
   }
 
   // --- Mock Data ---
-
-  UserProfileData _getMockUserProfile() {
-    return const UserProfileData(
-      id: 'profile-1',
-      fullName: 'محمد عبدالله الشامي',
-      phone: '777123456',
-      isPlatformAdmin: false,
-      rolesSummary: [
-        'بئر الخير الرئيسي — مالك ومسؤول تشغيلي',
-        'بئر النور الحديث — شريك بنسبة 25%',
-      ],
-      farmerAccountLink: 'F-001 (أرض الوادي)',
-    );
-  }
 
   List<TeamMemberItem> _getMockTeam() {
     return const [

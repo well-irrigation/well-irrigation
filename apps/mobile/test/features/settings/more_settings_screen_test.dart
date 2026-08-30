@@ -1,8 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:well_irrigation_mobile/core/api/account_repository.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/features/settings/more_settings_screen.dart';
+
+class _FakeAccountRepository extends AccountRepository {
+  _FakeAccountRepository({this.failProfile = false});
+
+  final bool failProfile;
+
+  @override
+  Future<UserProfileData> fetchUserProfile() async {
+    if (failProfile) {
+      throw Exception('backend unavailable');
+    }
+
+    return const UserProfileData(
+      id: 'user-real-1',
+      fullName: 'مستخدم الاختبار الحقيقي',
+      phone: '777000111',
+      rolesSummary: ['بئر الاختبار — مالك'],
+    );
+  }
+
+  @override
+  Future<int> checkPendingOperationsBeforeLogout() async => 0;
+}
 
 void main() {
   group('MoreSettingsScreen Tests (UX-16A / القرار 527 / ق-101)', () {
@@ -21,6 +45,7 @@ void main() {
           home: MoreSettingsScreen(
             wellName: 'بئر الخير الرئيسي',
             wellId: 'well-1',
+            repository: _FakeAccountRepository(),
             wells: const [
               WellSummary(id: 'well-1', tenantId: 't-1', name: 'بئر الخير الرئيسي', status: 'active', roles: ['owner']),
             ],
@@ -28,6 +53,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+
+      expect(find.text('مستخدم الاختبار الحقيقي'), findsOneWidget);
+      expect(find.text('777000111'), findsOneWidget);
+      expect(find.text('محمد عبدالله الشامي'), findsNothing);
+      expect(find.text('777123456'), findsNothing);
 
       expect(find.text('حسابي والملف الشخصي'), findsOneWidget);
       expect(find.text('الفريق والصلاحيات'), findsOneWidget);
@@ -50,6 +80,7 @@ void main() {
           home: MoreSettingsScreen(
             wellName: 'بئر الخير الرئيسي',
             wellId: 'well-1',
+            repository: _FakeAccountRepository(),
             onLogout: () => loggedOut = true,
           ),
         ),
@@ -67,5 +98,52 @@ void main() {
 
       expect(loggedOut, isTrue);
     });
+    testWidgets(
+      '3. فشل تحميل الحساب لا يعرض بيانات وهمية',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ar'),
+            home: MoreSettingsScreen(
+              wellName: 'بئر الاختبار',
+              wellId: 'well-1',
+              repository: _FakeAccountRepository(
+                failProfile: true,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('تعذر تحميل بيانات الحساب'),
+          findsOneWidget,
+        );
+        expect(find.text('إعادة المحاولة'), findsOneWidget);
+        expect(find.text('محمد عبدالله الشامي'), findsNothing);
+        expect(find.text('777123456'), findsNothing);
+
+        expect(
+          find.text('تفضيلات التطبيق والطباعة'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('حسابي والملف الشخصي'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'تعذر تحميل بيانات الحساب. أعد المحاولة أولاً.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
   });
 }
