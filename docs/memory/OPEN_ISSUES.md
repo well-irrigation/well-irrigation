@@ -1741,7 +1741,9 @@ Flutter يجب أن يصل إلى بيانات الأعمال عبر `api.*`.
 - Flutter targeted = **11/11 PASS**.
 - Full Flutter = **233/233 PASS**.
 - analyze = **No issues found**.
-- 088 = **Verified local / Cloud pending**.
+- 088 = **Verified local + Cloud contract/security**.
+- Cloud: Migration 088 موجودة؛ Data API = 35؛ anon API EXECUTE = 0؛ Direct DML = 0؛ residue = 0.
+- نجاح mutation على حساب Cloud حقيقي لم يُنفذ.
 
 ### فجوة Team Boundary المثبتة
 
@@ -1754,3 +1756,25 @@ Flutter يجب أن يصل إلى بيانات الأعمال عبر `api.*`.
 - قراءة الفريق تحتاج عقد قراءة حقيقي بدل Production Mock.
 
 هذه تبقى ضمن م-41 حتى إغلاق Team Boundary بصورة صادقة.
+
+
+### تقدم الإصلاح — م-41B3B
+
+- أزيلت Team RPC الثلاثة غير الموجودة من Production code.
+- أزيل Production Mock team.
+- شاشة الفريق أصبحت fail-closed بحالة واضحة بدل بيانات أو نجاح
+  غير مثبت.
+- Bare RPC debt = **12 → 9**.
+- Internal-schema debt = **7**.
+- Dotted-from debt = **5**.
+- Targeted Flutter = **12/12 PASS**.
+- Full Flutter = **234/234 PASS**.
+- analyze = **No issues found**.
+- لا Migration جديدة ولا DB/Cloud write.
+
+الوظيفة الفعلية لإدارة الفريق لم تُنفذ:
+- Team read contract مفقود.
+- Add member مرتبط بـAuth/Account lifecycle.
+- Status mutation تحتاج Backend invariants.
+
+NEXT = **م-41C — Operations Read Boundary Repair**.

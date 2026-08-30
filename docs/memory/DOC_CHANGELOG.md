@@ -1991,7 +1991,26 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - Internal-schema debt = 8 → 7.
 - Bare RPC debt = 12.
 - Dotted-from debt = 5.
-- Cloud 088 = Pending.
+- Cloud 088 = موجودة في Remote Migration History؛ contract/security verified، residue = 0؛ لم يُنفذ نجاح mutation على حساب حقيقي.
 - Team mapping أثبت غياب عقود read/add/status وعدم صلاحية
   إعادة التسمية العمياء.
 - NEXT = م-41B3B — Team Boundary Gap Closure.
+
+
+## 2026-08-30 — م-41B3B Team Boundary Gap Closure
+
+- أزيلت `get_well_team`.
+- أزيلت `add_team_member`.
+- أزيلت `set_team_member_status`.
+- أزيل Production Mock team.
+- شاشة الفريق لا تعرض نجاحًا أو أعضاء وهميين.
+- تظهر حالة صريحة أن إدارة الفريق لم تُفعّل بعد.
+- Bare RPC debt = 12 → 9.
+- Internal-schema debt = 7.
+- Dotted-from debt = 5.
+- Targeted Flutter = 12/12 PASS.
+- flutter analyze = No issues found.
+- Full Flutter = 234/234 PASS.
+- لا Migration جديدة ولا DB/Cloud write.
+- Team feature نفسها ما زالت Backend/Auth Gap وليست منفذة.
+- NEXT = م-41C — Operations Read Boundary Repair.

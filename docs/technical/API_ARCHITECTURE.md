@@ -89,7 +89,7 @@ Flutter لا يرسل `actor_profile_id` أو `created_by`
 
 بحسب الفحص السحابي في 2026-08-30:
 
-- Data API RPC = **34**.
+- Data API RPC = **35**.
 - مخطط الأعمال المكشوف للعميل = `api`.
 - `graphql_public` مكشوف لأغراض GraphQL.
 - مخططات الأعمال الداخلية غير مكشوفة مباشرة.
@@ -97,7 +97,7 @@ Flutter لا يرسل `actor_profile_id` أو `created_by`
 السطح يتضمن `health` وعقود التشغيل والمال والمزامنة
 و`app_bootstrap` و`setup_well_full`.
 
-وجود 34 RPC على الخادم لا يعني أن كل مستودعات Flutter تستخدمها
+وجود 35 RPC على الخادم لا يعني أن كل مستودعات Flutter تستخدمها
 صحيحًا؛ م-41 هي فجوة المطابقة الحالية.
 
 ## 7. العمليات المؤجلة عمدًا
@@ -130,7 +130,7 @@ Flutter لا يرسل `actor_profile_id` أو `created_by`
 - Direct DML لأدوار التطبيق = 0.
 - API SECURITY DEFINER = 0.
 - anon API EXECUTE = 0.
-- Data API RPC = 34.
+- Data API RPC = 35.
 - exposed business schema = `api`.
 - internal business schemas غير مكشوفة.
 
@@ -853,7 +853,7 @@ Trusted Contract صريح؛ لا يفتح Direct DML للعميل.
 
 ## م-41B3A / 088 — Profile Name Write Contract
 
-العقد المحلي الجديد:
+العقد المنفذ محليًا وعلى Cloud:
 
 `api.update_profile_name(text)`
 
@@ -875,11 +875,44 @@ Trusted Contract صريح؛ لا يفتح Direct DML للعميل.
 - anon محجوب.
 - Direct DML لأدوار التطبيق بقي صفرًا.
 
-بعد 088 محليًا:
-- Data API RPC = **35 local candidate**.
-- Cloud المثبت يبقى **34** حتى تطبيق 088 سحابيًا.
-- Full DB local = **26 files / 369 PASS**.
+بعد 088:
+- Local Full DB = **26 files / 369 PASS**.
+- Cloud Data API RPC = **35**.
+- Cloud API SECURITY DEFINER = **0**.
+- Cloud anon API EXECUTE = **0**.
+- Cloud Direct DML = **0**.
+- Cloud contract/security path = Verified.
+- Success mutation على حساب Cloud حقيقي لم يُنفذ.
 
 إدارة الفريق ليست جزءًا من 088:
 عقود read/add/status غير موجودة بعد، ولا يجوز تجاوز ذلك
 بـDirect DML أو Bare RPC أو Blind Remap.
+
+
+## م-41B3B — Team Client Boundary
+
+العقود القديمة التالية لم تكن موجودة في `api`:
+- `get_well_team`
+- `add_team_member`
+- `set_team_member_status`
+
+أزيلت من Flutter بدل محاولة Blind Remap.
+
+السلوك الحالي:
+- لا Production Mock team.
+- لا Team success message بلا Backend contract.
+- شاشة الفريق fail-closed وتشرح أن الإدارة غير متاحة.
+- لا Direct DML ولا Migration جديدة.
+
+هذا لا يعني أن Team Management منفذة.
+العقود الحقيقية للقراءة والإضافة وتغيير الحالة ما زالت Gap
+تحتاج تصميم Backend/Auth وحمايات Domain قبل تفعيلها.
+
+بعد B3B Known Flutter debt:
+- internal schemas = **7**.
+- bare RPC = **9**.
+- dotted `from()` = **5**.
+
+NEXT في م-41:
+`OperationsRepository`، لأنه يحمل كل الوصولات الداخلية
+السبعة المتبقية.

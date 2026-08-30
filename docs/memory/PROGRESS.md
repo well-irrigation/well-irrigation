@@ -1591,7 +1591,16 @@ Migration 071–084 immutable.
 - Internal-schema debt = **8 → 7**.
 - Bare RPC debt = **12**.
 - Dotted-from debt = **5**.
-- Cloud = **Pending**؛ لم تُطبّق 088 سحابيًا بعد.
+- Cloud Migration History تتضمن **088**.
+- Cloud contract/security verification:
+  - `api.update_profile_name(text)` موجودة.
+  - Data API RPC = **35**.
+  - API SECURITY DEFINER = **0**.
+  - anon API EXECUTE = **0**.
+  - Direct DML = **0**.
+  - authenticated/service_role traversal = PASS.
+  - verification residue = **0**.
+- لم يُنفذ نجاح mutation على حساب Cloud حقيقي؛ النجاح الوظيفي مثبت محليًا.
 
 ### نتيجة Mapping الفريق ضمن م-41B3
 
@@ -1613,3 +1622,37 @@ Migration 071–084 immutable.
   `core.well_assignments` لا تفرض هذه القواعد وحدها.
 
 لذلك لا تُنشأ RPC سريعة لمجرد مطابقة Flutter القديم.
+
+
+### م-41B3B — Team Boundary Gap Closure
+
+من منظور المستخدم:
+- لم تعد شاشة الفريق تعرض أسماء أو هواتف تجريبية.
+- لا يظهر زر إضافة عضو بينما Backend لا يملك عقد إضافة آمنًا.
+- لا يظهر تفعيل/تعطيل يوحي بنجاح غير مثبت.
+- الشاشة تعرض بوضوح أن إدارة الفريق غير متاحة في هذه النسخة
+  حتى يكتمل عقد الخادم الآمن.
+- لم تُغيّر الشاشة أي بيانات فريق.
+
+التنفيذ:
+- أزيلت `get_well_team`.
+- أزيلت `add_team_member`.
+- أزيلت `set_team_member_status`.
+- أزيل `_getMockTeam`.
+- لا Migration جديدة ولا DB/Cloud write.
+
+الإثبات المحلي:
+- Targeted Flutter = **12/12 PASS**.
+- `flutter analyze` = **No issues found**.
+- Full Flutter = **234/234 PASS**.
+- Internal-schema debt = **7**.
+- Bare RPC debt = **12 → 9**.
+- Dotted-from debt = **5**.
+- فحص production code أكد صفر Team RPC قديمة وصفر Mock team.
+
+مهم:
+م-41B3B تغلق السلوك الكاذب في العميل فقط.
+إدارة الفريق الفعلية تبقى فجوة Backend/Auth موثقة، ولا تعتبر
+Feature منفذة أو Verified.
+
+NEXT = **م-41C — Operations Read Boundary Repair**.

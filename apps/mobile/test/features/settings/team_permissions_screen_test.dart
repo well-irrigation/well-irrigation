@@ -3,47 +3,86 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/features/settings/team_permissions_screen.dart';
 
 void main() {
-  group('TeamPermissionsScreen Tests (UX-16A / القرارات 546–555)', () {
-    testWidgets('1. عرض قائمة أعضاء الفريق وحالاتهم وضوابط البئر', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          locale: Locale('ar'),
-          home: TeamPermissionsScreen(
-            wellId: 'well-1',
-            wellName: 'بئر الخير الرئيسي',
+  group('TeamPermissionsScreen — Stabilization Gate', () {
+    testWidgets(
+      '1. لا يعرض أعضاء وهميين عند غياب عقد الفريق',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            locale: Locale('ar'),
+            home: TeamPermissionsScreen(
+              wellId: 'well-1',
+              wellName: 'بئر الاختبار',
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('الفريق والصلاحيات'), findsOneWidget);
-      expect(find.text('بئر الخير الرئيسي'), findsOneWidget);
-      expect(find.text('أعضاء الفريق المسجلون (4)'), findsOneWidget);
-      expect(find.text('محمد عبدالله الشامي'), findsOneWidget);
-      expect(find.text('أحمد علي الريمي'), findsOneWidget);
-    });
-
-    testWidgets('2. فتح نافذة إضافة وتعيين عضو فريق جديد', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          locale: Locale('ar'),
-          home: TeamPermissionsScreen(
-            wellId: 'well-1',
-            wellName: 'بئر الخير الرئيسي',
+        expect(
+          find.text('الفريق والصلاحيات'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('بئر الاختبار'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('إدارة الفريق غير متاحة في هذه النسخة'),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            'لم يتم تغيير أي بيانات فريق من هذه الشاشة.',
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+          findsOneWidget,
+        );
 
-      final addBtn = find.text('إضافة عضو للفريق');
-      await tester.tap(addBtn);
-      await tester.pumpAndSettle();
+        expect(
+          find.text('محمد عبدالله الشامي'),
+          findsNothing,
+        );
+        expect(
+          find.text('أحمد علي الريمي'),
+          findsNothing,
+        );
+        expect(
+          find.textContaining('أعضاء الفريق المسجلون'),
+          findsNothing,
+        );
+      },
+    );
 
-      expect(find.text('إضافة عضو جديد للفريق'), findsOneWidget);
-      expect(find.text('الاسم الكامل *'), findsOneWidget);
-      expect(find.text('رقم الهاتف (7xxxxxxxx) *'), findsOneWidget);
-      expect(find.text('الدور التشغيلي بالبئر *'), findsOneWidget);
-      expect(find.text('إضافة وتعيين'), findsOneWidget);
-    });
+    testWidgets(
+      '2. لا يعرض أزرار إضافة أو تعطيل غير مدعومة',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            locale: Locale('ar'),
+            home: TeamPermissionsScreen(
+              wellId: 'well-1',
+              wellName: 'بئر الاختبار',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('إضافة عضو للفريق'),
+          findsNothing,
+        );
+        expect(
+          find.text('إضافة وتعيين'),
+          findsNothing,
+        );
+        expect(
+          find.byIcon(Icons.pause_circle_outline),
+          findsNothing,
+        );
+        expect(
+          find.byIcon(Icons.play_circle_outline),
+          findsNothing,
+        );
+      },
+    );
   });
 }

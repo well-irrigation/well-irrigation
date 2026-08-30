@@ -67,7 +67,7 @@
 | م-38 | **مغلقة — Verified local + Cloud**؛ Migration 087؛ authenticated call PASS؛ anon denied؛ Direct DML=0؛ ROLLBACK بلا بقايا |
 | م-39 | **مغلقة — Verified local + Cloud**؛ ×100 أزيل؛ 3500/7000/6000 ثبتت محليًا وسحابيًا بالقيم نفسها |
 | م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
-| م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count ومنعت false success في هذا المسار؛ م-41B2 أصلحت account profile read عبر api.app_bootstrap ومنعت mock fallback؛ م-41B3A أضافت 088 وapi.update_profile_name ومنعت false-success في حفظ الاسم؛ current debt = 7 internal + 12 bare + 5 dotted؛ DB = 26/369 PASS؛ Flutter = 233/233 PASS؛ Team mapping أثبت read/add/status gaps؛ NEXT = م-41B3B Team Boundary Gap Closure |
+| م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count؛ م-41B2 أصلحت account profile read؛ م-41B3A أضافت 088 وapi.update_profile_name ومنعت false-success في حفظ الاسم؛ 088 موجودة Cloud وعقدها الأمني Verified؛ م-41B3B أزالت Team RPC/Mock غير المدعومة وجعلت الشاشة fail-closed؛ current debt = 7 internal + 9 bare + 5 dotted؛ DB = 26/369 PASS؛ Flutter = 234/234 PASS؛ Team management الفعلية تبقى Backend/Auth Gap؛ NEXT = م-41C Operations Read Boundary Repair |
 
 ## baseline المرجعي
 
@@ -90,8 +90,8 @@
 
 **لقطة Stage 7 Readiness Gate — 2026-08-17. ليست الحالة
 الحالية.** الأرقام الحاكمة الآن في
-`technical/MIGRATIONS.md` (86 migration / 25 test file /
-362 PASS).
+`technical/MIGRATIONS.md` (87 migration / 26 test file /
+369 PASS).
 
 - migrations = 76
 - permanent tests = 17

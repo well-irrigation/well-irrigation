@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41B3B — Team Boundary Gap Closure**
+**NEXT = م-41C — Operations Read Boundary Repair**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -122,8 +122,8 @@ Audit Queue وفق ق-120.
 
 ### قاعدة الهجرات الحالية
 
-Migration 071–087 immutable.
-أي DB change جديد يبدأ **088+**.
+Migration 071–088 immutable.
+أي DB change جديد يبدأ **089+**.
 
 ### قاعدة تفسير الأقسام القديمة أدناه
 
@@ -158,20 +158,20 @@ Migration 071–087 immutable.
 
 ### قاعدة البيانات — محدَّث 2026-08-30
 
-- migrations = **86 file**، آخرها
-  `20260830010001_087_setup_well_full_permissions`؛
-  071–087 immutable.
-- permanent test files = **25**.
-- PASS = **362**.
+- migrations = **87 file**، آخرها
+  `20260830013000_088_update_profile_name_api`؛
+  071–088 immutable.
+- permanent test files = **26**.
+- PASS = **369**.
 - FAIL = 0.
 - ERROR = 0.
-- Data API RPC = **34**.
+- Data API RPC = **35**.
 - Direct DML = 0.
 - API SECURITY DEFINER = 0.
 - anon API EXECUTE = 0.
 - exposed schemas = `api`, `graphql_public`.
 - `public` ومخططات الأعمال الداخلية غير مكشوفة.
-- Cloud remote history يتضمن Migration 087.
+- Cloud remote history يتضمن Migration 088.
 - Cloud P0 verification:
   authenticated setup = PASS؛ anon denied = PASS؛
   الأسعار = 3500/7000/6000؛ Transaction = ROLLED BACK؛
@@ -180,7 +180,7 @@ Migration 071–087 immutable.
 ### كود الهاتف — محدَّث 2026-08-30
 
 - `flutter analyze` = `No issues found!`.
-- `flutter test` = **222 PASS / 0 FAIL**.
+- `flutter test` = **234 PASS / 0 FAIL**.
 - الشاشات والمكونات المنفذة والمربوطة:
   - `SplashScreen`: شاشة البداية والختم الرسمي والهوية البصرية.
   - `LoginScreen` (UX-02): تسجيل الدخول الموحد مع `AuthRepository`.
@@ -895,7 +895,9 @@ W1-01 «Prepared / Pending Owner Verification» وهي مكتملة ومغلقة
 - Internal schema debt = **8 → 7**.
 - Bare RPC debt = **12**.
 - Dotted-from debt = **5**.
-- Cloud verification = **Pending**.
+- Cloud contract/security = **Verified**:
+  Migration 088 موجودة، Data API RPC = 35، anon API EXECUTE = 0، Direct DML = 0، residue = 0.
+- نجاح mutation على حساب Cloud حقيقي لم يُنفذ؛ النجاح الوظيفي مثبت محليًا.
 
 ### Mapping الفريق — نتيجة م-41B3
 
@@ -911,11 +913,44 @@ W1-01 «Prepared / Pending Owner Verification» وهي مكتملة ومغلقة
 - تغيير الحالة يحتاج Backend invariants لحماية المالك الوحيد
   والمشغل ذي العمل الجاري.
 
-### NEXT — م-41B3B
+### م-41B3B — Verified local
 
-إغلاق فجوة Team Boundary دون اختراع نجاح وهمي:
+أُغلق السلوك الكاذب في شاشة الفريق دون اختراع Backend جديد.
 
-1. إزالة/عزل mock team وbare RPC غير الموجودة.
-2. تحديد السلوك الصادق للشاشة عند غياب عقد Backend.
-3. عدم إنشاء Add/Status RPC قبل تثبيت قواعد الهوية والحماية.
-4. أي عقد Team جديد يحتاج Migration 089+ واختبارات دائمة.
+من منظور المستخدم:
+- لا أعضاء تجريبيين.
+- لا إضافة عضو وهمية.
+- لا تفعيل/تعطيل وهمي.
+- تظهر حالة صريحة أن إدارة الفريق غير متاحة حتى يكتمل
+  العقد الآمن.
+- لا يتم تغيير أي بيانات فريق من الشاشة الحالية.
+
+الإثبات:
+- Targeted = **12/12 PASS**.
+- flutter analyze = **No issues found**.
+- Full Flutter = **234/234 PASS**.
+- Internal schema debt = **7**.
+- Bare RPC debt = **12 → 9**.
+- Dotted-from debt = **5**.
+- Production Team RPC القديمة = **0**.
+- Production Mock team = **0**.
+- لا Migration جديدة ولا DB/Cloud write.
+
+إدارة الفريق الفعلية ما زالت Gap موثقة:
+- القراءة تحتاج Read Contract حقيقيًا.
+- الإضافة مرتبطة بـAuth/Account lifecycle.
+- تغيير الحالة يحتاج Backend invariants.
+B3B لا تعتبر هذه الوظائف منفذة.
+
+### NEXT — م-41C
+
+Operations Read Boundary Repair.
+
+Regression Guard يثبت أن الوصولات الداخلية السبعة المتبقية
+كلها في `OperationsRepository`.
+
+نبدأ بمطابقة قراءات المزارعين والأراضي والمضخات والجلسات
+مع العقود الموجودة فعلًا، وإزالة أي Production Mock fallback
+يخفي فشل Backend.
+
+لا Blind Remap ولا Direct DML.

@@ -143,6 +143,46 @@ void main() {
     expect(section.contains('catch ('), isFalse);
   });
 
+  test('unsupported team contracts are not simulated in production', () {
+    final repositorySource = File(
+      'lib/core/api/account_repository.dart',
+    ).readAsStringSync();
+
+    final screenSource = File(
+      'lib/features/settings/team_permissions_screen.dart',
+    ).readAsStringSync();
+
+    for (final legacyName in const [
+      'get_well_team',
+      'add_team_member',
+      'set_team_member_status',
+      '_getMockTeam',
+    ]) {
+      expect(
+        repositorySource.contains(legacyName),
+        isFalse,
+        reason: 'Legacy team contract returned: $legacyName',
+      );
+    }
+
+    expect(
+      screenSource.contains(
+        'إدارة الفريق غير متاحة في هذه النسخة',
+      ),
+      isTrue,
+    );
+
+    expect(
+      screenSource.contains('تمت إضافة عضو الفريق بنجاح'),
+      isFalse,
+    );
+
+    expect(
+      screenSource.contains('تم تعطيل تعيين العضو'),
+      isFalse,
+    );
+  });
+
   test('known bare-RPC debt does not grow', () {
     final actual = _collectMatches(
       RegExp(
@@ -152,9 +192,6 @@ void main() {
     );
 
     const expected = [
-      'lib/core/api/account_repository.dart|get_well_team',
-      'lib/core/api/account_repository.dart|add_team_member',
-      'lib/core/api/account_repository.dart|set_team_member_status',
 
       'lib/core/api/well_management_repository.dart|get_well_details',
       'lib/core/api/well_management_repository.dart|update_well_details',
