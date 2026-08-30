@@ -22,6 +22,26 @@
 - لا Migration 088.
 - لا كتابة على Supabase ضمن م-41A.
 
+
+### م-41B1 — Physical Fuel Count Repair
+
+- رُبط تسجيل الجرد الفعلي للوقود بالعقد الموجود أصلًا:
+  `api.record_physical_fuel_count`.
+- التطبيق يرسل البئر والخزان الصحيحين.
+- تحويل وحدة القياس يتم عند الحد:
+  اللتر في واجهة المستخدم → الملليلتر في عقد الخادم.
+- فشل Backend لم يعد يتحول إلى نجاح وهمي في مسار الجرد.
+- Targeted M-41B1 tests = **9/9 PASS**.
+- `flutter analyze` = **No issues found**.
+- Full Flutter regression = **228/228 PASS**.
+- Known debt الحالي:
+  - internal schemas = **9**.
+  - bare RPC = **12**.
+  - dotted `from()` = **5**.
+- فحص عقد الخادم كان قراءة فقط.
+- لا Migration 088.
+- لا Cloud write ضمن م-41B1.
+
 - PR #4 دُمج إلى `main` عند
   `7abcb52f3439e9f48b95442f3993571637e45eef`.
 - بدأ أول عنصر في Pre-Production Audit Queue.

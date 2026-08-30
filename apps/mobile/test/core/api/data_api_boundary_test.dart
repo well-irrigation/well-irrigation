@@ -103,7 +103,6 @@ void main() {
       'lib/core/api/well_management_repository.dart|create_price_schedule',
       'lib/core/api/well_management_repository.dart|get_fuel_tanks',
       'lib/core/api/well_management_repository.dart|record_fuel_purchase',
-      'lib/core/api/well_management_repository.dart|record_fuel_physical_count',
       'lib/core/api/well_management_repository.dart|get_reports_summary',
     ];
 
@@ -112,6 +111,52 @@ void main() {
       actual: actual,
       expected: expected,
     );
+  });
+
+  test('physical fuel count uses the approved api contract', () {
+    final source = File(
+      'lib/core/api/well_management_repository.dart',
+    ).readAsStringSync();
+
+    final start = source.indexOf(
+      'Future<void> recordPhysicalFuelCount',
+    );
+    final end = source.indexOf(
+      '/// 10.',
+      start,
+    );
+
+    expect(start, isNonNegative);
+    expect(end, greaterThan(start));
+
+    final section = source.substring(start, end);
+
+    expect(
+      RegExp(
+        r'''\.schema\s*\(\s*['"]api['"]\s*\)\s*\.rpc\s*\(\s*['"]record_physical_fuel_count['"]''',
+      ).hasMatch(section),
+      isTrue,
+    );
+    expect(section.contains("'p_well_id': wellId"), isTrue);
+    expect(
+      section.contains("'p_fuel_tank_id': tankId"),
+      isTrue,
+    );
+    expect(
+      section.contains(
+        "'p_measured_balance_ml': measuredBalanceLiters * 1000",
+      ),
+      isTrue,
+    );
+    expect(
+      section.contains("'p_notes': adjustmentReason"),
+      isTrue,
+    );
+    expect(
+      section.contains("rpc('record_fuel_physical_count'"),
+      isFalse,
+    );
+    expect(section.contains('catch ('), isFalse);
   });
 
   test('known dotted-from debt does not grow', () {

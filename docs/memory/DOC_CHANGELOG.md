@@ -1942,3 +1942,21 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - لا Migration 088.
 - لا Cloud write.
 - NEXT = م-41B — Remaining Data API Contract Mapping.
+
+## 2026-08-30 — م-41B1 Physical Fuel Count Repair
+
+- رُبط الجرد الفعلي للوقود بـ
+  `api.record_physical_fuel_count`.
+- أصبح التطبيق يرسل well + tank الصحيحين.
+- تحويل القياس: liters → milliliters عند API boundary.
+- Backend failure لم يعد يتحول إلى success في مسار الجرد.
+- Bare RPC debt = 13 → 12.
+- Internal-schema debt = 9.
+- Dotted-from debt = 5.
+- Targeted tests = 9/9 PASS.
+- flutter analyze = No issues found.
+- Full Flutter = 228/228 PASS.
+- Cloud contract inspection = read-only.
+- لا Migration 088.
+- لا Cloud write.
+- NEXT = م-41B2 — Account Profile Read Boundary Repair.

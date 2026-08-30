@@ -660,6 +660,7 @@ class _PhysicalCountAdjustmentDialogState extends State<_PhysicalCountAdjustment
                   final scaffold = ScaffoldMessenger.of(context);
                   try {
                     await widget.repository.recordPhysicalFuelCount(
+                      wellId: widget.tank.wellId,
                       tankId: widget.tank.id,
                       measuredBalanceLiters: measured,
                       adjustmentReason: _reasonController.text.trim(),

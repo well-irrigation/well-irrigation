@@ -441,22 +441,22 @@ class WellManagementRepository {
 
   /// 9. تسجيل جرد وقياس فعلي مع تسوية الفروقات (القرارات 485–487)
   Future<void> recordPhysicalFuelCount({
+    required String wellId,
     required String tankId,
     required int measuredBalanceLiters,
     required String adjustmentReason,
   }) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        await client.rpc('record_fuel_physical_count', params: {
-          'p_tank_id': tankId,
-          'p_measured_balance': measuredBalanceLiters,
-          'p_reason': adjustmentReason,
-        });
-      }
-    } catch (e) {
-      debugPrint('Error recording physical count: $e');
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
     }
+
+    await client.schema('api').rpc('record_physical_fuel_count', params: {
+      'p_well_id': wellId,
+      'p_fuel_tank_id': tankId,
+      'p_measured_balance_ml': measuredBalanceLiters * 1000,
+      'p_notes': adjustmentReason,
+    });
   }
 
   /// 10. جلب التقرير الشامل والمؤشرات (القرارات 498–521)
