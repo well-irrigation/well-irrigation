@@ -8,7 +8,7 @@
 
 ---
 
-## فهرس الحالة الحالية — 2026-08-17
+## فهرس الحالة الحالية — 2026-08-30
 
 هذا الفهرس هو المرجع السريع للحالة النهائية.
 التحديثات القديمة أسفل الملف تحفظ كسجل زمني.
@@ -30,6 +30,7 @@
 - م-38: **مغلقة — Verified local + Cloud** — Migration 087 أصلحت مسار `authenticated/service_role → api.setup_well_full → core.setup_well_full`؛ محليًا 087 = 8 PASS والحزمة = 25 files / 362 PASS. سحابيًا نجح الاستدعاء الفعلي كمستخدم `authenticated`، وبقي `anon` مرفوضًا، وانتهى الاختبار بـROLLBACK بلا بقايا.
 - م-39: **مغلقة — Verified local + Cloud** — أزيل ×100؛ Flutter يمرر 3500/7000/6000 كما هي، والتحقق السحابي أثبت تخزينها حرفيًا 3500/7000/6000 داخل المعاملة المؤقتة.
 - م-40: **مغلقة — Verified local** — فشل Backend لا يستدعي completion ولا يغلق المعالج ولا يدعي حفظًا محليًا، ويحافظ على البيانات غير الحساسة لإعادة المحاولة؛ Cloud verification غير منطبق على هذا السلوك الخاص بالواجهة.
+- م-41: **مفتوحة — Confirmed Gap / Repair Now** — Flutter يخالف حد `api.*`: المسح المحلي وجد 9 internal-schema accesses و20 bare RPC candidates و5 dotted `from()` candidates؛ الفحص الحي أثبت أن 13 من أسماء الـ20 غير موجودة داخل `api`، و7 موجودة لكن الاستدعاء لا يختار `api` صراحةً.
 
 ### مغلقة ذات صلة مباشرة بالحالة الحالية
 
@@ -1582,3 +1583,119 @@ Cloud verification غير منطبق على م-40 لأنها تصف سلوك
 واجهة التطبيق عند فشل Backend، لا خاصية مستقلة في قاعدة البيانات.
 
 **النتيجة:** م-40 مغلقة ضمن نطاقها المعتمد.
+
+## م-41 — Flutter Data API Boundary Drift
+
+**الحالة:** **مفتوحة — Confirmed Gap — 2026-08-30**
+**التصنيف:** Defect / Documented Gap يجب إصلاحها الآن ضمن ق-120
+**الأولوية:** Audit Blocker قبل أي توسع وظيفي
+**القرارات الحاكمة:** ق-78، ق-79، ق-120
+
+### العقد المعتمد
+
+Flutter يجب أن يصل إلى بيانات الأعمال عبر `api.*`.
+المخططات الداخلية مثل `core` و`iam` و`ops` و`billing`
+و`finance` ليست عقد Data API مباشرًا للتطبيق.
+
+### الدليل المحلي
+
+تم مسح جميع ملفات Dart تحت `apps/mobile/lib`:
+
+- Dart files scanned = **76**.
+- ملفات تحمل استخدامًا شبيهًا بـSupabase/Data API = **17**.
+- Internal schema access = **9**.
+- Bare RPC candidates = **20**.
+- Dotted `from()` candidates = **5**.
+- Explicit `api` RPC scan hits = **13**.
+
+المواضع المؤكدة تشمل:
+
+- `AccountRepository`: وصول مباشر إلى `iam.profiles`.
+- `OperationsRepository`: وصول مباشر إلى `ops` و`core`
+  و`billing`.
+- `FinanceRepository`: قراءات بأسماء
+  `finance.*` و`iam.*` و`billing.*`.
+- `AccountRepository` و`FinanceRepository` و
+  `WellManagementRepository`: استدعاءات RPC لا تختار
+  `schema('api')` صراحةً.
+
+### الدليل السحابي — قراءة فقط
+
+الفحص الحي لسطح `api` أثبت:
+
+- إجمالي سطح API الحالي = **34 RPC**.
+- من أسماء الـ20 Bare RPC التي يستدعيها Flutter:
+  - **7** أسماء موجودة داخل `api`.
+  - **13** اسمًا غير موجود داخل `api`.
+
+الأسماء الموجودة تشمل عقودًا مالية مثل:
+
+- `record_expense`
+- `decide_expense`
+- `calculate_profit_distribution`
+- `approve_profit_distribution`
+- `pay_partner_distribution`
+- `record_payment`
+- `allocate_payment`
+
+بينما أسماء مثل:
+
+- `get_well_team`
+- `add_team_member`
+- `set_team_member_status`
+- `get_well_details`
+- `update_well_details`
+- `get_well_pumps`
+- `save_pump`
+- `get_active_price_schedule`
+- `create_price_schedule`
+- `get_fuel_tanks`
+- `record_fuel_purchase`
+- `record_fuel_physical_count`
+- `get_reports_summary`
+
+ليست عقودًا موجودة بهذا الاسم داخل `api` الحية.
+
+### الأثر
+
+هذه ليست فجوة شكلية فقط.
+
+بعض مسارات القراءة تفشل عند محاولة استخدام مخطط داخلي ثم
+تتحول إلى بيانات Mock. وبعض مسارات الكتابة تمسك الخطأ ولا
+تعيده للمستخدم، مما قد يصنع False Success أو واجهة تعرض
+بيانات غير حقيقية في وضع Production.
+
+### شبكة الأمان
+
+لا يوجد حاليًا مجلد اختبارات
+`apps/mobile/test/core/api` يغطي حدود Data API لهذه المستودعات.
+
+### تقدم الإصلاح — م-41A
+
+- الـ7 Bare RPC المالية الموجودة أصلًا داخل `api` تم توجيهها
+  صراحة إلى `schema('api')`.
+- Known Bare RPC Debt الحالي = **13** بدل 20.
+- Internal-schema debt = **9**.
+- Dotted-from debt = **5**.
+- Regression Guard = **3/3 PASS**.
+- Full Flutter = **225/225 PASS**.
+- م-41 ما تزال مفتوحة؛ م-41A فقط اكتملت محليًا.
+
+### ترتيب الإصلاح
+
+1. إضافة Regression Guard يمنع direct internal-schema access
+   ويكشف Bare RPC غير المعتمد.
+2. تحويل الـ7 RPC الموجودة فعلًا إلى `schema('api').rpc(...)`
+   بعد التحقق من العقود والمعاملات.
+3. مطابقة الـ13 اسمًا غير الموجود مع العقود الحالية؛ لا نضيف
+   RPC جديدة إذا كان عقد معتمد مكافئ موجودًا باسم آخر.
+4. عند وجود عقد مفقود فعلًا، يضاف ضمن Migration 088+
+   بحزم Domain صغيرة واختبارات DB دائمة.
+5. إزالة أو عزل Production Mock fallbacks التي تخفي فشل
+   Data API؛ هذا يتقاطع مع العنصر الثاني من Audit Queue.
+6. تشغيل Flutter + DB regression ثم Cloud verification
+   للعقود الجديدة فقط عند الحاجة.
+
+**شرط الإغلاق:** لا يبقى Flutter متصلًا مباشرة بمخطط أعمال
+داخلي، وكل اتصال Business Data يمر عبر عقد `api` مثبت،
+مع اختبارات تمنع عودة الانحراف.

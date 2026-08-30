@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = Pre-Production Audit Queue — Gap Closing**
+**NEXT = م-41B — Remaining Data API Contract Mapping**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -30,10 +30,62 @@
   `0e3d46e873c4f6b1088b5d98b65c1b65316f17aa`.
 - التحقق السحابي المؤقت انتهى بـROLLBACK، وفحص البقايا = صفر.
 
+### Audit 1 — م-41 Flutter Data API Boundary Drift
+
+**النتيجة: Confirmed Gap / Repair Now.**
+
+المسح المحلي على 76 ملف Dart وجد:
+
+- 9 وصولات مباشرة إلى internal schemas.
+- 20 Bare RPC candidates.
+- 5 Dotted `from()` candidates.
+
+الفحص السحابي للقراءة فقط أثبت أن 7 من أسماء Bare RPC
+موجودة داخل `api` الحالية، بينما 13 غير موجودة بهذا الاسم.
+
+الخادم نفسه ما يزال يحافظ على حد Data API:
+`api` هو مخطط الأعمال المكشوف، وDirect DML بقي صفرًا.
+الفجوة في مطابقة Flutter للعقد.
+
+لا يبدأ Audit Item #2 مستقلًا قبل إصلاح هذا الحد، لكن
+Production Mock fallbacks المكتشفة أثناء م-41 تدخل ضمن
+نفس التحقيق ولا تُعتبر سلوكًا مقبولًا.
+
+### Regression Guard — مثبت
+
+أضيف اختبار دائم يثبت Known Debt الحالي:
+9 internal-schema accesses + 20 bare RPC + 5 dotted from.
+
+الاختبار يمر حاليًا، لكنه يفشل إذا زاد أي نوع من هذه المخالفات.
+مع كل Repair يجب تقليص Known Debt في الاختبار.
+
+### م-41A — Verified local
+
+أُصلحت الـ7 RPC المالية الموجودة أصلًا داخل `api`.
+
+- Bare RPC Debt: **20 → 13**.
+- Internal-schema debt: **9**.
+- Dotted-from debt: **5**.
+- Regression Guard = **3/3 PASS**.
+- flutter analyze = **No issues found**.
+- Full Flutter regression = **225/225 PASS**.
+- Cloud contract inspection = Verified read-only.
+- لا Migration 088، ولا Cloud write.
+
+### NEXT — م-41B
+
+حصر ومطابقة الـ13 Bare RPC المتبقية والقراءات الداخلية مع
+العقود الخادمية الموجودة قبل اتخاذ قرار بإنشاء أي عقد 088.
+
+لا تُنشأ RPC جديدة لمجرد مطابقة اسم Flutter قديم؛ نبحث أولًا
+عن عقد قائم مكافئ، ثم نصنف كل حالة إلى إصلاح الآن أو Gap
+موثق أو بند مستقبلي.
+
 ### Audit Queue الحالية — بالترتيب
 
-1. مطابقة Flutter مع `api.*` ومنع الاعتماد المباشر على
-   internal schemas.
+1. **م-41 — Confirmed Gap / Repair Now:** مطابقة Flutter
+   مع `api.*` وإزالة الوصول المباشر إلى internal schemas،
+   مع Regression Guard دائم.
 2. إزالة silent production mock fallbacks.
 3. مراجعة Auth / OTP / account lifecycle.
 4. مراجعة settings false-success والحفظ المحلي غير المثبت.

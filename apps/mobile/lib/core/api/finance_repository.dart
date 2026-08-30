@@ -365,7 +365,7 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('record_expense', params: {
+    await client.schema('api').rpc('record_expense', params: {
       'p_well_id': wellId,
       'p_category_code': categoryCode,
       'p_amount_minor': amountYER,
@@ -387,7 +387,7 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('decide_expense', params: {
+    await client.schema('api').rpc('decide_expense', params: {
       'p_expense_id': expenseId,
       'p_approve': approve,
       'p_note': note,
@@ -473,7 +473,7 @@ class FinanceRepository {
     if (client == null) {
       return 'mock-cycle-new';
     }
-    final res = await client.rpc('calculate_profit_distribution', params: {
+    final res = await client.schema('api').rpc('calculate_profit_distribution', params: {
       'p_well_id': wellId,
       'p_period_start': periodStart.toIso8601String(),
       'p_period_end': periodEnd.toIso8601String(),
@@ -487,7 +487,7 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('approve_profit_distribution', params: {
+    await client.schema('api').rpc('approve_profit_distribution', params: {
       'p_cycle_id': cycleId,
     });
   }
@@ -500,7 +500,7 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('pay_partner_distribution', params: {
+    await client.schema('api').rpc('pay_partner_distribution', params: {
       'p_distribution_line_id': distributionLineId,
       'p_amount_minor': amountYER,
     });
@@ -570,7 +570,7 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('record_payment', params: {
+    await client.schema('api').rpc('record_payment', params: {
       'p_well_id': wellId,
       'p_farmer_well_account_id': farmerAccountId,
       'p_amount_minor': amountYER,
@@ -588,7 +588,7 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('allocate_payment', params: {
+    await client.schema('api').rpc('allocate_payment', params: {
       'p_payment_id': paymentId,
       'p_allocations': allocations,
     });

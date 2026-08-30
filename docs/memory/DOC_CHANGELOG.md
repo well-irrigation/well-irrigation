@@ -1894,3 +1894,51 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
   Audit → Inspection → Evaluation → Repair → Gap Closing.
 - هذه الدفعة اللاحقة **توثيقية فقط**؛ لا تغيير كود ولا DB
   ولا إعادة تطبيق Migration.
+
+## 2026-08-30 — Audit Finding م-41
+
+- بدأ أول بند بعد إغلاق P0: Flutter ↔ Data API conformance.
+- المسح المحلي = 76 Dart files.
+- internal-schema access = 9.
+- bare RPC candidates = 20.
+- dotted `from()` candidates = 5.
+- live `api` inventory = 34 RPC.
+- من أسماء Bare RPC: 7 موجودة داخل `api` و13 غير موجودة
+  بهذا الاسم.
+- Server Data API boundary ما تزال صحيحة؛ الانحراف داخل Flutter.
+- وُثقت المسألة الجديدة:
+  **م-41 — Flutter Data API Boundary Drift**.
+- الحالة = Confirmed Gap / Repair Now.
+- `RESUME_POINT` أصبح:
+  **NEXT = م-41 — Flutter Data API Boundary Repair**.
+- لا Flutter code change في هذه الدفعة.
+- لا Migration 088 في هذه الدفعة.
+- Cloud inspection كان قراءة فقط.
+
+## 2026-08-30 — م-41 Data API Regression Guard
+
+- أضيف Regression Guard دائم لحد Flutter ↔ Data API.
+- Known Debt المثبت:
+  9 internal-schema accesses / 20 bare RPC / 5 dotted from.
+- Targeted guard = 3/3 PASS.
+- flutter analyze = No issues found.
+- لا Production code change.
+- لا Migration 088.
+- NEXT = م-41A — إصلاح 7 RPC موجودة أصلًا داخل api في
+  FinanceRepository.
+
+## 2026-08-30 — م-41A Finance API RPC Boundary Repair
+
+- أصلحت 7 Bare RPC في FinanceRepository بتوجيهها إلى
+  `schema('api').rpc(...)`.
+- Cloud read-only inspection أثبت وجود العقود السبعة وتوافق
+  توقيعاتها مع الاستدعاءات الحالية.
+- Bare RPC debt = 20 → 13.
+- Internal-schema debt = 9.
+- Dotted-from debt = 5.
+- Data API Regression Guard = 3/3 PASS.
+- flutter analyze = No issues found.
+- Full Flutter regression = 225/225 PASS.
+- لا Migration 088.
+- لا Cloud write.
+- NEXT = م-41B — Remaining Data API Contract Mapping.
