@@ -1565,3 +1565,51 @@ Migration 071–084 immutable.
   - dotted `from()` = **5**.
 - لا Migration 088.
 - لا Cloud write ضمن م-41B2.
+
+### م-41B3A — Profile Name Write Boundary Repair
+
+من منظور المستخدم:
+- حفظ الاسم لا يعرض نجاحًا إلا بعد نجاح Backend فعليًا.
+- عند فشل Backend تبقى الشاشة متاحة وتظهر رسالة فشل صريحة.
+- لم يعد Flutter يكتب مباشرة إلى `iam.profiles`.
+
+العقد:
+- Migration 088 تضيف `api.update_profile_name(text)`.
+- غلاف `api` = SECURITY INVOKER.
+- التنفيذ الداخلي `iam.update_own_profile_name(text)` =
+  SECURITY DEFINER ومحصور في `auth.uid()`.
+- `authenticated` و`service_role` يملكان traversal المتناظر.
+- `anon` محجوب.
+- Direct DML لأدوار التطبيق بقي صفرًا.
+
+الإثبات المحلي:
+- 088 target = **7/7 PASS**.
+- Full DB = **26 files / 369 PASS / 0 FAIL / 0 ERROR**.
+- Flutter targeted = **11/11 PASS**.
+- `flutter analyze` = **No issues found**.
+- Full Flutter = **233/233 PASS**.
+- Internal-schema debt = **8 → 7**.
+- Bare RPC debt = **12**.
+- Dotted-from debt = **5**.
+- Cloud = **Pending**؛ لم تُطبّق 088 سحابيًا بعد.
+
+### نتيجة Mapping الفريق ضمن م-41B3
+
+الفحص الحي أثبت أن الأسماء القديمة التالية ليست عقود `api`
+موجودة:
+- `get_well_team`
+- `add_team_member`
+- `set_team_member_status`
+
+كما لا توجد إجراءات داخلية جاهزة مكافئة يمكن إعادة تغليفها
+بصورة عمياء.
+
+التصنيف:
+- Team read: عقد قراءة Backend مفقود.
+- Add member: مرتبط بدورة حياة Account/Auth وربط الهوية
+  برقم الهاتف؛ ليس مجرد INSERT أو إعادة تسمية RPC.
+- Toggle status: يحتاج حمايات Backend للمالك الوحيد
+  وللمشغل المرتبط بجلسة/مناوبة جارية؛ القيود الحالية على
+  `core.well_assignments` لا تفرض هذه القواعد وحدها.
+
+لذلك لا تُنشأ RPC سريعة لمجرد مطابقة Flutter القديم.

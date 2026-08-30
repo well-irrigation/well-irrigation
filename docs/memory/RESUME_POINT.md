@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41B3 — Remaining Account Write / Team Contract Mapping**
+**NEXT = م-41B3B — Team Boundary Gap Closure**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -95,7 +95,7 @@ Production Mock fallbacks المكتشفة أثناء م-41 تدخل ضمن
 - Dotted-from debt: **5**.
 - لا Migration 088 ولا Cloud write.
 
-### NEXT — م-41B2
+### م-41B2 — خطة تاريخية قبل التنفيذ
 
 إصلاح قراءة الملف الشخصي بحيث تستخدم عقد القراءة الموجود
 أصلًا في `api` بدل القراءة المباشرة من مخطط داخلي.
@@ -864,7 +864,7 @@ W1-01 «Prepared / Pending Owner Verification» وهي مكتملة ومغلقة
 - Dotted-from debt: **5**.
 - لا Migration 088 ولا Cloud write.
 
-### NEXT — م-41B3
+### م-41B3 — خطة المطابقة قبل التنفيذ
 
 مراجعة ما تبقى في AccountRepository، خصوصًا:
 - تحديث الاسم.
@@ -874,3 +874,48 @@ W1-01 «Prepared / Pending Owner Verification» وهي مكتملة ومغلقة
 لا يتم إنشاء عقد جديد لمجرد مطابقة Flutter القديم.
 يُبحث أولًا عن عقد قائم، ثم تصنيف كل حالة إلى Repair الآن
 أو Gap موثق أو بند مؤجل.
+
+### م-41B3A — Verified local
+
+أصبح حفظ الاسم يمر عبر:
+`api.update_profile_name` → `iam.update_own_profile_name`.
+
+من منظور المستخدم:
+- نجاح الحفظ يعني نجاح Backend فعليًا.
+- فشل Backend لا يتحول إلى رسالة نجاح وهمية.
+- الاسم الفارغ مرفوض.
+- المستخدم لا يستطيع عبر العقد تعديل ملف مستخدم آخر.
+
+الإثبات:
+- Migration 088 target = **7/7 PASS**.
+- Full DB = **26 files / 369 PASS**.
+- Flutter targeted = **11/11 PASS**.
+- flutter analyze = **No issues found**.
+- Full Flutter = **233/233 PASS**.
+- Internal schema debt = **8 → 7**.
+- Bare RPC debt = **12**.
+- Dotted-from debt = **5**.
+- Cloud verification = **Pending**.
+
+### Mapping الفريق — نتيجة م-41B3
+
+لا توجد عقود `api` حالية لـ:
+- `get_well_team`
+- `add_team_member`
+- `set_team_member_status`
+
+ولا توجد إجراءات داخلية جاهزة مكافئة لإعادة تغليفها مباشرة.
+
+- القراءة تحتاج Read Contract مستقلًا.
+- إضافة العضو مرتبطة بـAuth/Account lifecycle وربط الهوية.
+- تغيير الحالة يحتاج Backend invariants لحماية المالك الوحيد
+  والمشغل ذي العمل الجاري.
+
+### NEXT — م-41B3B
+
+إغلاق فجوة Team Boundary دون اختراع نجاح وهمي:
+
+1. إزالة/عزل mock team وbare RPC غير الموجودة.
+2. تحديد السلوك الصادق للشاشة عند غياب عقد Backend.
+3. عدم إنشاء Add/Status RPC قبل تثبيت قواعد الهوية والحماية.
+4. أي عقد Team جديد يحتاج Migration 089+ واختبارات دائمة.

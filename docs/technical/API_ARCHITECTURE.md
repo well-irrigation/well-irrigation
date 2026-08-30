@@ -850,3 +850,36 @@ Migration 078 لا تضيف `api.*` endpoint.
 
 أي Link Mutation خارج Migration/Tests ستحتاج لاحقًا
 Trusted Contract صريح؛ لا يفتح Direct DML للعميل.
+
+## م-41B3A / 088 — Profile Name Write Contract
+
+العقد المحلي الجديد:
+
+`api.update_profile_name(text)`
+
+المسار:
+
+    Flutter
+      ↓
+    api.update_profile_name
+      ↓
+    iam.update_own_profile_name
+      ↓
+    iam.profiles صف auth.uid() فقط
+
+القواعد:
+- `api.update_profile_name` = SECURITY INVOKER.
+- الإجراء الداخلي = SECURITY DEFINER مع `search_path` مثبت.
+- هوية الملف مشتقة من `auth.uid()` ولا يرسلها Flutter.
+- authenticated/service_role grants متناظرة.
+- anon محجوب.
+- Direct DML لأدوار التطبيق بقي صفرًا.
+
+بعد 088 محليًا:
+- Data API RPC = **35 local candidate**.
+- Cloud المثبت يبقى **34** حتى تطبيق 088 سحابيًا.
+- Full DB local = **26 files / 369 PASS**.
+
+إدارة الفريق ليست جزءًا من 088:
+عقود read/add/status غير موجودة بعد، ولا يجوز تجاوز ذلك
+بـDirect DML أو Bare RPC أو Blind Remap.

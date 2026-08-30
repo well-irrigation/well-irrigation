@@ -3,6 +3,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/account_repository.dart';
 import 'package:well_irrigation_mobile/features/settings/profile_security_screen.dart';
 
+class _ProfileNameRepository extends AccountRepository {
+  _ProfileNameRepository({
+    this.fail = false,
+  });
+
+  final bool fail;
+  String? savedName;
+
+  @override
+  Future<void> updateUserName(String newName) async {
+    if (fail) {
+      throw Exception('backend unavailable');
+    }
+    savedName = newName;
+  }
+}
+
 void main() {
   group('ProfileSecurityScreen Tests (UX-16A / القرارات 528–545)', () {
     testWidgets('1. عرض الاسم والهاتف وأزرار تغيير كلمة المرور والهاتف', (tester) async {
@@ -92,5 +109,95 @@ void main() {
       expect(find.text('كلمة المرور الجديدة *'), findsOneWidget);
       expect(find.text('تأكيد كلمة المرور الجديدة *'), findsOneWidget);
     });
+    testWidgets(
+      '4. نجاح الخادم هو وحده الذي يعرض نجاح حفظ الاسم',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final repository = _ProfileNameRepository();
+
+        const profile = UserProfileData(
+          id: 'user-1',
+          fullName: 'الاسم القديم',
+          phone: '777123456',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ar'),
+            home: ProfileSecurityScreen(
+              profile: profile,
+              repository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final nameField = find.byType(TextFormField).first;
+        await tester.enterText(nameField, 'الاسم الجديد');
+        await tester.tap(find.text('حفظ الاسم'));
+        await tester.pumpAndSettle();
+
+        expect(repository.savedName, 'الاسم الجديد');
+        expect(
+          find.text('تم تحديث الاسم المعتمد بنجاح ✅'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      '5. فشل الخادم لا يتحول إلى نجاح وهمي عند حفظ الاسم',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final repository = _ProfileNameRepository(
+          fail: true,
+        );
+
+        const profile = UserProfileData(
+          id: 'user-1',
+          fullName: 'الاسم القديم',
+          phone: '777123456',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ar'),
+            home: ProfileSecurityScreen(
+              profile: profile,
+              repository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final nameField = find.byType(TextFormField).first;
+        await tester.enterText(nameField, 'اسم لن يحفظ');
+        await tester.tap(find.text('حفظ الاسم'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'تعذر تحديث الاسم. تحقق من الاتصال وأعد المحاولة.',
+          ),
+          findsOneWidget,
+        );
+
+        expect(
+          find.text('تم تحديث الاسم المعتمد بنجاح ✅'),
+          findsNothing,
+        );
+
+        expect(find.text('حفظ الاسم'), findsOneWidget);
+      },
+    );
+
   });
 }

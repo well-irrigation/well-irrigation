@@ -1976,3 +1976,22 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - لا Migration 088.
 - لا Cloud write.
 - NEXT = م-41B3 — Remaining Account Write / Team Contract Mapping.
+
+## 2026-08-30 — م-41B3A Profile Name Write Boundary Repair
+
+- أضيفت Migration 088 محليًا.
+- أضيف `api.update_profile_name(text)`.
+- Flutter لم يعد يكتب الاسم مباشرة إلى `iam.profiles`.
+- فشل Backend لا يعرض نجاحًا وهميًا عند حفظ الاسم.
+- 088 = 7/7 PASS.
+- Full DB = 26 files / 369 PASS.
+- Flutter targeted = 11/11 PASS.
+- flutter analyze = No issues found.
+- Full Flutter = 233/233 PASS.
+- Internal-schema debt = 8 → 7.
+- Bare RPC debt = 12.
+- Dotted-from debt = 5.
+- Cloud 088 = Pending.
+- Team mapping أثبت غياب عقود read/add/status وعدم صلاحية
+  إعادة التسمية العمياء.
+- NEXT = م-41B3B — Team Boundary Gap Closure.

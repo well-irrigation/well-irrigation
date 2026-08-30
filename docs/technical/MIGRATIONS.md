@@ -8,12 +8,12 @@
 
 ## الحالة الحالية الحاكمة — 2026-08-30
 
-- Local: **86 migration file** مطبقة حتى 087؛ الرقم 067
+- Local: **87 migration file** مطبقة حتى 088؛ الرقم 067
   غير مستخدم تاريخيًا.
 - Cloud: Remote Migration History يتضمن 085 و086 و087،
   وآخر Version هو `20260830010001`.
-- **25** ملف اختبار دائم.
-- Full DB Suite محلي = **362 PASS / 0 FAIL / 0 ERROR**.
+- **26** ملف اختبار دائم.
+- Full DB Suite محلي = **369 PASS / 0 FAIL / 0 ERROR**.
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
 - 073+074: عقد الكتابة داخل `api`.
@@ -26,17 +26,40 @@
 - 086: حفظ هاتف الملف الشخصي + عقد التهيئة الشاملة
   `setup_well_full`.
 - 087: إصلاح صلاحيات عبور `api.setup_well_full` إلى `core`.
+- 088: عقد تحديث اسم الملف الشخصي عبر `api.update_profile_name`؛
+  **Verified local / Cloud pending**.
 - Cloud 087 verification:
   authenticated call = PASS؛ anon denied = PASS؛
   prices = 3500/7000/6000؛ ROLLBACK؛ residue = 0.
 
-Migration 071–087 immutable. أي DB change جديد يبدأ 088+.
+Migration 071–087 immutable. Migration 088 هي الحالية قيد التحقق؛
+أي DB change تالٍ يبدأ 089+.
 
 **مهم:** الجداول أدناه تسجل ما فعلته كل هجرة في وقتها.
 لذلك قد يظهر في هجرة قديمة وصف منسوخ لاحقًا، مثل
 milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القاعدة الحالية.
 
 المعنى المالي الحالي يحكمه ق-77: الريال الكامل.
+
+## 088 — Profile Name API — Local Verified
+
+الملف:
+`20260830013000_088_update_profile_name_api.sql`
+
+يضيف:
+- `iam.update_own_profile_name(text)` كإجراء داخلي
+  SECURITY DEFINER محصور في `auth.uid()`.
+- `api.update_profile_name(text)` كغلاف SECURITY INVOKER.
+- منحًا متناظرة لـauthenticated/service_role على مسار العقد.
+- حجب anon.
+- بلا أي Direct DML جديد لأدوار التطبيق.
+
+التحقق المحلي:
+- Target 088 = **7 PASS / 0 FAIL / 0 ERROR**.
+- Full suite = **26 files / 369 PASS / 0 FAIL / 0 ERROR**.
+- اختبار 074 بقي PASS بعد إضافة العقد.
+- Cloud Migration History ما زالت حتى 087؛ تطبيق 088 السحابي
+  **Pending**.
 
 ## 085–087 — إغلاق فجوات Backend وCreate-Well
 
