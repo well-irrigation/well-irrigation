@@ -1926,3 +1926,19 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - لا Migration 088.
 - NEXT = م-41A — إصلاح 7 RPC موجودة أصلًا داخل api في
   FinanceRepository.
+
+## 2026-08-30 — م-41A Finance API RPC Boundary Repair
+
+- أصلحت 7 Bare RPC في FinanceRepository بتوجيهها إلى
+  `schema('api').rpc(...)`.
+- Cloud read-only inspection أثبت وجود العقود السبعة وتوافق
+  توقيعاتها مع الاستدعاءات الحالية.
+- Bare RPC debt = 20 → 13.
+- Internal-schema debt = 9.
+- Dotted-from debt = 5.
+- Data API Regression Guard = 3/3 PASS.
+- flutter analyze = No issues found.
+- Full Flutter regression = 225/225 PASS.
+- لا Migration 088.
+- لا Cloud write.
+- NEXT = م-41B — Remaining Data API Contract Mapping.

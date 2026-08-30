@@ -1670,6 +1670,17 @@ Flutter يجب أن يصل إلى بيانات الأعمال عبر `api.*`.
 لا يوجد حاليًا مجلد اختبارات
 `apps/mobile/test/core/api` يغطي حدود Data API لهذه المستودعات.
 
+### تقدم الإصلاح — م-41A
+
+- الـ7 Bare RPC المالية الموجودة أصلًا داخل `api` تم توجيهها
+  صراحة إلى `schema('api')`.
+- Known Bare RPC Debt الحالي = **13** بدل 20.
+- Internal-schema debt = **9**.
+- Dotted-from debt = **5**.
+- Regression Guard = **3/3 PASS**.
+- Full Flutter = **225/225 PASS**.
+- م-41 ما تزال مفتوحة؛ م-41A فقط اكتملت محليًا.
+
 ### ترتيب الإصلاح
 
 1. إضافة Regression Guard يمنع direct internal-schema access

@@ -67,7 +67,7 @@
 | م-38 | **مغلقة — Verified local + Cloud**؛ Migration 087؛ authenticated call PASS؛ anon denied؛ Direct DML=0؛ ROLLBACK بلا بقايا |
 | م-39 | **مغلقة — Verified local + Cloud**؛ ×100 أزيل؛ 3500/7000/6000 ثبتت محليًا وسحابيًا بالقيم نفسها |
 | م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
-| م-41 | **مفتوحة — Confirmed Gap**؛ Flutter Data API boundary drift: 9 internal-schema accesses + 20 bare RPC + 5 dotted from؛ live API check = 7 names exist / 13 missing؛ Regression Guard وrepair مطلوبان الآن |
+| م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC الموجودة داخل api؛ current debt = 9 internal + 13 bare + 5 dotted؛ Regression Guard PASS؛ NEXT = contract mapping |
 
 ## baseline المرجعي
 

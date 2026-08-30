@@ -4,7 +4,7 @@
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41A — FinanceRepository API RPC Boundary Repair**
+**NEXT = م-41B — Remaining Data API Contract Mapping**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -59,21 +59,27 @@ Production Mock fallbacks المكتشفة أثناء م-41 تدخل ضمن
 الاختبار يمر حاليًا، لكنه يفشل إذا زاد أي نوع من هذه المخالفات.
 مع كل Repair يجب تقليص Known Debt في الاختبار.
 
-### NEXT — م-41A
+### م-41A — Verified local
 
-إصلاح الـ7 RPC الموجودة أصلًا داخل `api` في
-`FinanceRepository` فقط:
+أُصلحت الـ7 RPC المالية الموجودة أصلًا داخل `api`.
 
-- record_expense
-- decide_expense
-- calculate_profit_distribution
-- approve_profit_distribution
-- pay_partner_distribution
-- record_payment
-- allocate_payment
+- Bare RPC Debt: **20 → 13**.
+- Internal-schema debt: **9**.
+- Dotted-from debt: **5**.
+- Regression Guard = **3/3 PASS**.
+- flutter analyze = **No issues found**.
+- Full Flutter regression = **225/225 PASS**.
+- Cloud contract inspection = Verified read-only.
+- لا Migration 088، ولا Cloud write.
 
-هذه الشريحة لا تحتاج Migration جديدة؛ المطلوب أولًا توجيه
-الاستدعاءات إلى `schema('api')` والتحقق من مطابقة المعاملات.
+### NEXT — م-41B
+
+حصر ومطابقة الـ13 Bare RPC المتبقية والقراءات الداخلية مع
+العقود الخادمية الموجودة قبل اتخاذ قرار بإنشاء أي عقد 088.
+
+لا تُنشأ RPC جديدة لمجرد مطابقة اسم Flutter قديم؛ نبحث أولًا
+عن عقد قائم مكافئ، ثم نصنف كل حالة إلى إصلاح الآن أو Gap
+موثق أو بند مستقبلي.
 
 ### Audit Queue الحالية — بالترتيب
 

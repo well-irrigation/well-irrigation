@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// بند المصروف المالي
@@ -46,7 +47,9 @@ class ExpenseItem {
       amountYER: (json['amount_minor'] as num?)?.toInt() ?? 0,
       description: (json['description'] as String?) ?? '',
       status: (json['status'] as String?) ?? 'posted',
-      spentAt: DateTime.tryParse(json['spent_at'] as String? ?? '') ?? DateTime.now(),
+      spentAt:
+          DateTime.tryParse(json['spent_at'] as String? ?? '') ??
+          DateTime.now(),
       paymentSource: (json['payment_source'] as String?) ?? 'cashbox',
       partnerId: json['partner_id'] as String?,
       partnerName: json['partner_name'] as String?,
@@ -93,13 +96,15 @@ class PartnerFinancialItem {
   factory PartnerFinancialItem.fromJson(Map<String, dynamic> json) {
     final earnings = (json['total_earnings_minor'] as num?)?.toInt() ?? 0;
     final outOfPocket = (json['out_of_pocket_minor'] as num?)?.toInt() ?? 0;
-    final irrigation = (json['irrigation_deduction_minor'] as num?)?.toInt() ?? 0;
+    final irrigation =
+        (json['irrigation_deduction_minor'] as num?)?.toInt() ?? 0;
     final netPayable = earnings + outOfPocket - irrigation;
     final paid = (json['total_paid_minor'] as num?)?.toInt() ?? 0;
 
     return PartnerFinancialItem(
       id: json['id'] as String,
-      partnerPersonId: (json['partner_person_id'] as String?) ?? json['id'] as String,
+      partnerPersonId:
+          (json['partner_person_id'] as String?) ?? json['id'] as String,
       fullName: (json['full_name'] as String?) ?? 'شريك',
       phone: (json['phone'] as String?) ?? '',
       ownershipPercent: (json['ownership_percent'] as num?)?.toInt() ?? 0,
@@ -150,8 +155,10 @@ class DistributionPartnerLine {
       partnerName: (json['partner_name'] as String?) ?? 'شريك',
       profitPercent: (json['profit_percent'] as num?)?.toInt() ?? 0,
       grossShareYER: (json['gross_share_minor'] as num?)?.toInt() ?? 0,
-      outOfPocketReimbursementYER: (json['out_of_pocket_minor'] as num?)?.toInt() ?? 0,
-      irrigationDeductionYER: (json['irrigation_deduction_minor'] as num?)?.toInt() ?? 0,
+      outOfPocketReimbursementYER:
+          (json['out_of_pocket_minor'] as num?)?.toInt() ?? 0,
+      irrigationDeductionYER:
+          (json['irrigation_deduction_minor'] as num?)?.toInt() ?? 0,
       netShareYER: (json['net_share_minor'] as num?)?.toInt() ?? 0,
       paidAmountYER: (json['paid_amount_minor'] as num?)?.toInt() ?? 0,
       remainingYER: (json['remaining_minor'] as num?)?.toInt() ?? 0,
@@ -195,16 +202,31 @@ class ProfitDistributionCycleItem {
     return ProfitDistributionCycleItem(
       id: json['id'] as String,
       wellId: json['well_id'] as String,
-      periodStart: DateTime.tryParse(json['period_start'] as String? ?? '') ?? DateTime.now(),
-      periodEnd: DateTime.tryParse(json['period_end'] as String? ?? '') ?? DateTime.now(),
+      periodStart:
+          DateTime.tryParse(json['period_start'] as String? ?? '') ??
+          DateTime.now(),
+      periodEnd:
+          DateTime.tryParse(json['period_end'] as String? ?? '') ??
+          DateTime.now(),
       status: (json['status'] as String?) ?? 'calculated',
-      eligibleRevenueYER: (json['eligible_revenue_minor'] as num?)?.toInt() ?? 0,
-      eligibleExpensesYER: (json['eligible_expenses_minor'] as num?)?.toInt() ?? 0,
-      retainedLiabilitiesYER: (json['retained_liabilities_minor'] as num?)?.toInt() ?? 0,
-      maintenanceReserveYER: (json['maintenance_reserve_minor'] as num?)?.toInt() ?? 0,
-      distributableProfitYER: (json['distributable_profit_minor'] as num?)?.toInt() ?? 0,
-      approvedAt: json['approved_at'] != null ? DateTime.tryParse(json['approved_at'] as String) : null,
-      partnerLines: linesJson.map((e) => DistributionPartnerLine.fromJson(e as Map<String, dynamic>)).toList(),
+      eligibleRevenueYER:
+          (json['eligible_revenue_minor'] as num?)?.toInt() ?? 0,
+      eligibleExpensesYER:
+          (json['eligible_expenses_minor'] as num?)?.toInt() ?? 0,
+      retainedLiabilitiesYER:
+          (json['retained_liabilities_minor'] as num?)?.toInt() ?? 0,
+      maintenanceReserveYER:
+          (json['maintenance_reserve_minor'] as num?)?.toInt() ?? 0,
+      distributableProfitYER:
+          (json['distributable_profit_minor'] as num?)?.toInt() ?? 0,
+      approvedAt: json['approved_at'] != null
+          ? DateTime.tryParse(json['approved_at'] as String)
+          : null,
+      partnerLines: linesJson
+          .map(
+            (e) => DistributionPartnerLine.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(),
     );
   }
 }
@@ -239,7 +261,9 @@ class FarmerInvoiceItem {
     return FarmerInvoiceItem(
       id: json['id'] as String,
       invoiceNumber: (json['invoice_number'] as String?) ?? 'INV-000',
-      issueDate: DateTime.tryParse(json['issue_date'] as String? ?? '') ?? DateTime.now(),
+      issueDate:
+          DateTime.tryParse(json['issue_date'] as String? ?? '') ??
+          DateTime.now(),
       sessionId: json['session_id'] as String?,
       farmName: (json['farm_name'] as String?) ?? 'أرض زراعية',
       originalAmountYER: orig,
@@ -274,11 +298,16 @@ class FarmerPaymentReceiptItem {
     return FarmerPaymentReceiptItem(
       id: json['id'] as String,
       receiptNumber: (json['receipt_number'] as String?) ?? 'REC-000',
-      paidAt: DateTime.tryParse(json['paid_at'] as String? ?? '') ?? DateTime.now(),
+      paidAt:
+          DateTime.tryParse(json['paid_at'] as String? ?? '') ?? DateTime.now(),
       amountYER: (json['amount_minor'] as num?)?.toInt() ?? 0,
       method: (json['method'] as String?) ?? 'cash',
       note: json['note'] as String?,
-      allocatedInvoiceNumbers: (json['allocated_invoices'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      allocatedInvoiceNumbers:
+          (json['allocated_invoices'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 }
@@ -365,17 +394,24 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('record_expense', params: {
-      'p_well_id': wellId,
-      'p_category_code': categoryCode,
-      'p_amount_minor': amountYER,
-      'p_description': description,
-      'p_attachment_url': attachmentUrl,
-      'p_attachment_skipped': attachmentSkipped,
-      'p_payment_source': paymentSource,
-      'p_note': skipReason != null && skipReason.isNotEmpty ? 'تخطي المرفق: $skipReason | $note' : note,
-      'p_partner_id': partnerId,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'record_expense',
+          params: {
+            'p_well_id': wellId,
+            'p_category_code': categoryCode,
+            'p_amount_minor': amountYER,
+            'p_description': description,
+            'p_attachment_url': attachmentUrl,
+            'p_attachment_skipped': attachmentSkipped,
+            'p_payment_source': paymentSource,
+            'p_note': skipReason != null && skipReason.isNotEmpty
+                ? 'تخطي المرفق: $skipReason | $note'
+                : note,
+            'p_partner_id': partnerId,
+          },
+        );
   }
 
   Future<void> decideExpense({
@@ -387,11 +423,16 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('decide_expense', params: {
-      'p_expense_id': expenseId,
-      'p_approve': approve,
-      'p_note': note,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'decide_expense',
+          params: {
+            'p_expense_id': expenseId,
+            'p_approve': approve,
+            'p_note': note,
+          },
+        );
   }
 
   // ---------------------------------------------------------------------------
@@ -432,10 +473,15 @@ class FinanceRepository {
     }
   }
 
-  Future<PartnerFinancialItem?> fetchPartnerDetailFinancial(String wellId, String partnerId) async {
+  Future<PartnerFinancialItem?> fetchPartnerDetailFinancial(
+    String wellId,
+    String partnerId,
+  ) async {
     final partners = await fetchPartners(wellId);
     try {
-      return partners.firstWhere((p) => p.id == partnerId || p.partnerPersonId == partnerId);
+      return partners.firstWhere(
+        (p) => p.id == partnerId || p.partnerPersonId == partnerId,
+      );
     } catch (_) {
       return partners.isNotEmpty ? partners.first : null;
     }
@@ -445,7 +491,9 @@ class FinanceRepository {
   // 3. دورات توزيع الأرباح (Profit Distribution Cycles)
   // ---------------------------------------------------------------------------
 
-  Future<List<ProfitDistributionCycleItem>> fetchProfitDistributionCycles(String wellId) async {
+  Future<List<ProfitDistributionCycleItem>> fetchProfitDistributionCycles(
+    String wellId,
+  ) async {
     final client = _effectiveClient;
     if (client == null) {
       return _getMockCycles(wellId);
@@ -457,7 +505,12 @@ class FinanceRepository {
           .eq('well_id', wellId)
           .order('period_end', ascending: false);
 
-      return (res as List<dynamic>).map((e) => ProfitDistributionCycleItem.fromJson(e as Map<String, dynamic>)).toList();
+      return (res as List<dynamic>)
+          .map(
+            (e) =>
+                ProfitDistributionCycleItem.fromJson(e as Map<String, dynamic>),
+          )
+          .toList();
     } catch (_) {
       return _getMockCycles(wellId);
     }
@@ -473,12 +526,17 @@ class FinanceRepository {
     if (client == null) {
       return 'mock-cycle-new';
     }
-    final res = await client.rpc('calculate_profit_distribution', params: {
-      'p_well_id': wellId,
-      'p_period_start': periodStart.toIso8601String(),
-      'p_period_end': periodEnd.toIso8601String(),
-      'p_manual_reserve_minor': manualReserveYER,
-    });
+    final res = await client
+        .schema('api')
+        .rpc(
+          'calculate_profit_distribution',
+          params: {
+            'p_well_id': wellId,
+            'p_period_start': periodStart.toIso8601String(),
+            'p_period_end': periodEnd.toIso8601String(),
+            'p_manual_reserve_minor': manualReserveYER,
+          },
+        );
     return res as String? ?? 'cycle-id';
   }
 
@@ -487,9 +545,9 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('approve_profit_distribution', params: {
-      'p_cycle_id': cycleId,
-    });
+    await client
+        .schema('api')
+        .rpc('approve_profit_distribution', params: {'p_cycle_id': cycleId});
   }
 
   Future<void> payPartnerDistribution({
@@ -500,17 +558,25 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('pay_partner_distribution', params: {
-      'p_distribution_line_id': distributionLineId,
-      'p_amount_minor': amountYER,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'pay_partner_distribution',
+          params: {
+            'p_distribution_line_id': distributionLineId,
+            'p_amount_minor': amountYER,
+          },
+        );
   }
 
   // ---------------------------------------------------------------------------
   // 4. الحساب المالي للمزارع (Farmer Financial Account)
   // ---------------------------------------------------------------------------
 
-  Future<FarmerFinancialAccountData> fetchFarmerFinancialAccount(String wellId, String farmerAccountId) async {
+  Future<FarmerFinancialAccountData> fetchFarmerFinancialAccount(
+    String wellId,
+    String farmerAccountId,
+  ) async {
     final client = _effectiveClient;
     if (client == null) {
       return _getMockFarmerFinancialAccount(farmerAccountId);
@@ -539,9 +605,15 @@ class FinanceRepository {
           .eq('farmer_well_account_id', farmerAccountId)
           .order('paid_at', ascending: false);
 
-      final payments = (paymentsRes as List<dynamic>).map((e) => FarmerPaymentReceiptItem.fromJson(e as Map<String, dynamic>)).toList();
+      final payments = (paymentsRes as List<dynamic>)
+          .map(
+            (e) => FarmerPaymentReceiptItem.fromJson(e as Map<String, dynamic>),
+          )
+          .toList();
 
-      final totalDebt = invoices.where((i) => i.status != 'paid').fold<int>(0, (sum, i) => sum + i.remainingAmountYER);
+      final totalDebt = invoices
+          .where((i) => i.status != 'paid')
+          .fold<int>(0, (sum, i) => sum + i.remainingAmountYER);
 
       return FarmerFinancialAccountData(
         farmerAccountId: farmerAccountId,
@@ -570,14 +642,19 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('record_payment', params: {
-      'p_well_id': wellId,
-      'p_farmer_well_account_id': farmerAccountId,
-      'p_amount_minor': amountYER,
-      'p_method': method,
-      'p_allocations': allocations,
-      'p_note': note,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'record_payment',
+          params: {
+            'p_well_id': wellId,
+            'p_farmer_well_account_id': farmerAccountId,
+            'p_amount_minor': amountYER,
+            'p_method': method,
+            'p_allocations': allocations,
+            'p_note': note,
+          },
+        );
   }
 
   Future<void> allocateAdvance({
@@ -588,10 +665,12 @@ class FinanceRepository {
     if (client == null) {
       return;
     }
-    await client.rpc('allocate_payment', params: {
-      'p_payment_id': paymentId,
-      'p_allocations': allocations,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'allocate_payment',
+          params: {'p_payment_id': paymentId, 'p_allocations': allocations},
+        );
   }
 
   // ---------------------------------------------------------------------------
@@ -754,7 +833,9 @@ class FinanceRepository {
     ];
   }
 
-  FarmerFinancialAccountData _getMockFarmerFinancialAccount(String farmerAccountId) {
+  FarmerFinancialAccountData _getMockFarmerFinancialAccount(
+    String farmerAccountId,
+  ) {
     final now = DateTime.now();
     return FarmerFinancialAccountData(
       farmerAccountId: farmerAccountId,

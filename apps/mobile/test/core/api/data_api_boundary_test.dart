@@ -95,14 +95,6 @@ void main() {
       'lib/core/api/account_repository.dart|add_team_member',
       'lib/core/api/account_repository.dart|set_team_member_status',
 
-      'lib/core/api/finance_repository.dart|record_expense',
-      'lib/core/api/finance_repository.dart|decide_expense',
-      'lib/core/api/finance_repository.dart|calculate_profit_distribution',
-      'lib/core/api/finance_repository.dart|approve_profit_distribution',
-      'lib/core/api/finance_repository.dart|pay_partner_distribution',
-      'lib/core/api/finance_repository.dart|record_payment',
-      'lib/core/api/finance_repository.dart|allocate_payment',
-
       'lib/core/api/well_management_repository.dart|get_well_details',
       'lib/core/api/well_management_repository.dart|update_well_details',
       'lib/core/api/well_management_repository.dart|get_well_pumps',
