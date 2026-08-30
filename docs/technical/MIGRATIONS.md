@@ -1,34 +1,86 @@
 # الهجرات
 
-**آخر تحديث:** 2026-08-22
+**آخر تحديث:** 2026-08-30
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
 ---
 
-## الحالة الحالية الحاكمة — 2026-08-22
+## الحالة الحالية الحاكمة — 2026-08-30
 
-- Local: 83 migration file مطبقة حتى 084؛ الترقيم التاريخي
-  لا يحتوي Migration 067.
-- Cloud: 83 migration مطبقة حتى 084؛ remote history = 83
-  through `20260823013001`؛ Cloud verification مكتمل.
-- 24 ملف اختبار دائم.
-- 354 PASS / 0 FAIL / 0 ERROR محليًا.
+- Local: **86 migration file** مطبقة حتى 087؛ الرقم 067
+  غير مستخدم تاريخيًا.
+- Cloud: Remote Migration History يتضمن 085 و086 و087،
+  وآخر Version هو `20260830010001`.
+- **25** ملف اختبار دائم.
+- Full DB Suite محلي = **362 PASS / 0 FAIL / 0 ERROR**.
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
-- 073: عقد الكتابة الأساسي داخل api.
-- 074: استكمال تدفقات MVP الحرجة داخل api.
+- 073+074: عقد الكتابة داخل `api`.
 - 080: ق-112 — Permission Authority Foundation.
-- 081+082: ق-113 — Permission Enforcement Wiring؛ م-18 مغلقة.
-- 083+084: ق-114 — Server-side Idempotency؛ م-25 تضيق.
+- 081+082: ق-113 — Permission Enforcement Wiring.
+- 083+084: ق-114 — Server-side Idempotency.
+- 085: إصلاح Backend gaps، ومنها Fuel Billing وسياسة قراءة
+  الدفعات وسحب PUBLIC من الدوال الداخلية وإزالة
+  `operation_plus_fuel`.
+- 086: حفظ هاتف الملف الشخصي + عقد التهيئة الشاملة
+  `setup_well_full`.
+- 087: إصلاح صلاحيات عبور `api.setup_well_full` إلى `core`.
+- Cloud 087 verification:
+  authenticated call = PASS؛ anon denied = PASS؛
+  prices = 3500/7000/6000؛ ROLLBACK؛ residue = 0.
 
-Migration 071–085 immutable. أي DB change جديد يبدأ 086+.
+Migration 071–087 immutable. أي DB change جديد يبدأ 088+.
 
 **مهم:** الجداول أدناه تسجل ما فعلته كل هجرة في وقتها.
 لذلك قد يظهر في هجرة قديمة وصف منسوخ لاحقًا، مثل
 milli-riyal في 009. هذا وصف تاريخي للهجرة وليس القاعدة الحالية.
 
 المعنى المالي الحالي يحكمه ق-77: الريال الكامل.
+
+## 085–087 — إغلاق فجوات Backend وCreate-Well
+
+### 085 — Backend Gap Fixes
+
+الملف `20260823200001_085_backend_gap_fixes.sql` عالج أربع
+فجوات قائمة:
+
+1. سياسة قراءة الدفعات المقدمة والديون القديمة.
+2. تصحيح Fuel Billing وفق ق-17 وق-91 بحيث الوقود رقابي ولا
+   يضاف كسعر مستقل على المزارع.
+3. سحب EXECUTE الافتراضي من PUBLIC على الدوال الداخلية.
+4. إزالة نموذج التسعير الملغى `operation_plus_fuel`.
+
+### 086 — Well Setup Full + Profile Phone
+
+الملف `20260825040001_086_well_setup_full_and_profile_phone.sql`:
+
+- يحدّث `iam.handle_new_user()` لحفظ الهاتف في `iam.profiles`.
+- يبني `core.setup_well_full(jsonb)` كتهيئة ذرية للبئر
+  والمضخة والتسعير والمالك والشركاء والمشغلين.
+- يضيف عقد `api.setup_well_full` الذي يستخدمه Flutter.
+
+### 087 — setup_well_full permissions
+
+الملف `20260830010001_087_setup_well_full_permissions.sql`
+يعالج فجوة الصلاحية بين غلاف `api` الـINVOKER والدالة
+الداخلية، مع إبقاء حدود الأمان وDirect DML كما هي.
+
+### التحقق
+
+- 087 local target = **8 PASS / 0 FAIL / 0 ERROR**.
+- Full local suite = **25 files / 362 PASS / 0 FAIL / 0 ERROR**.
+- Cloud: 087 موجودة في Remote Migration History.
+- Cloud authenticated `api.setup_well_full` = PASS.
+- Cloud anon invocation = denied.
+- Cloud prices = **3500 / 7000 / 6000** دون ×100.
+- Cloud verification transaction = **ROLLED BACK**.
+- Residue after rollback = **0**.
+
+Migration 071–087 أصبحت immutable.
+أي تغيير DB لاحق يبدأ **088+**.
+
+---
 
 ## تحديث جوهري — إعادة بناء كاملة بتاريخ 2026-08-13 (ق-51 وق-57)
 

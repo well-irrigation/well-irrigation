@@ -2,25 +2,43 @@
 
 **آخر تحديث:** 2026-08-30
 
-## 2026-08-30 — P0 Create-Well Correctness
+## 2026-08-30 — P0 Create-Well Correctness — Closed
 
-- **م-38 Verified local:** Migration 087 تحافظ على `api.setup_well_full` كـSECURITY INVOKER و`core.setup_well_full` كـSECURITY DEFINER، وتمنح مسار التنفيذ المطلوب لـ`authenticated` و`service_role` مع بقاء `anon` محجوبًا وDirect DML = 0.
-- اختبار DB المستهدف 087 = **8 PASS / 0 FAIL / 0 ERROR** مع استدعاء فعلي لـ`api.setup_well_full` كمستخدم `authenticated` ومعاملة تنتهي بـROLLBACK.
-- Full DB Suite = **25 files / 362 PASS / 0 FAIL / 0 ERROR** بعد `supabase db reset` محلي ناجح.
-- **م-39 Verified local:** أزيل ×100؛ القيم 3500/7000/6000 تصل كما أُدخلت.
-- **م-40 Verified local:** فشل Backend لا يؤدي إلى completion أو إغلاق ناجح أو ادعاء حفظ Offline، مع بقاء البيانات غير الحساسة لإعادة المحاولة.
-- Flutter targeted tests = **2/2 PASS**.
-- Full Flutter tests = **222/222 PASS**.
+- PR #3 دُمج بـSquash إلى `main` عند
+  `0e3d46e873c4f6b1088b5d98b65c1b65316f17aa`
+  بعنوان `fix: stabilize create-well correctness (#3)`.
+- **م-38 Verified local + Cloud:** Migration 087 تحافظ على
+  `api.setup_well_full` كـSECURITY INVOKER و
+  `core.setup_well_full` كـSECURITY DEFINER، وتسمح
+  لـ`authenticated` و`service_role` بالمسار المطلوب مع
+  بقاء `anon` محجوبًا وDirect DML = 0.
+- اختبار DB المستهدف 087 = **8 PASS / 0 FAIL / 0 ERROR**.
+- Full DB Suite = **25 files / 362 PASS / 0 FAIL / 0 ERROR**.
+- **م-39 Verified local + Cloud:** أزيل ×100؛ التحقق السحابي
+  الفعلي أثبت 3500/7000/6000 مخزنة حرفيًا بالقيم نفسها.
+- **م-40 Verified local:** فشل Backend لا يؤدي إلى completion
+  أو إغلاق ناجح أو ادعاء حفظ Offline؛ Cloud verification
+  غير منطبق على سلوك الواجهة.
+- Flutter targeted = **2/2 PASS**.
+- Full Flutter Suite = **222/222 PASS**.
 - `flutter analyze` = **No issues found**.
-- **Cloud verification لم يُنفذ بعد**؛ لا تُعد م-38 متحققة سحابيًا حتى تطبيق Migration 087 واختبارها بعد مراجعة ودمج PR.
+- التحقق السحابي استخدم مستخدمًا وبئرًا مؤقتين داخل Transaction:
+  الاستدعاء كـ`authenticated` نجح، وإنشاء البئر نجح،
+  و`anon` رُفض، ثم انتهت المعاملة بـ**ROLLBACK**.
+- فحص ما بعد التراجع = **0 residues** في المستخدم والملف
+  والجهة والبئر.
+- Migration 087 كانت موجودة بالفعل في Remote Migration History
+  عند فحص ما بعد الدمج؛ لم تُعد تطبيقها.
+- **P0 Create-Well Correctness مغلق.**
+  ق-120 تبقى نافذة، وNEXT ينتقل إلى **Pre-Production Audit Queue**.
 
 قاعدة هذا الملف: **لا يُكتب فيه إلا ما تمّ فعلًا وثُبِت بدليل.** النية والخطة مكانهما `RESUME_POINT.md`.
 
 ---
 
-## Current verified baseline — 2026-08-25
+## Baseline قبل إغلاق P0 — 2026-08-25 (تاريخي للمقارنة)
 
-هذا Snapshot للحالة المثبتة فقط.
+هذا Snapshot تاريخي؛ الحالة الحالية المثبتة هي قسم P0 أعلاه و`RESUME_POINT.md`.
 
 ### التنفيذ التقني المثبت
 

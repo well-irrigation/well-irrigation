@@ -1866,3 +1866,31 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - Full DB Suite بعد reset محلي = 25 files / 362 PASS / 0 FAIL / 0 ERROR.
 - Flutter: targeted = 2/2 PASS؛ full = 222/222 PASS؛ analyze = No issues found.
 - لم يحدث Cloud verification بعد؛ م-38 تبقى Cloud pending حتى ما بعد مراجعة ودمج PR.
+
+## 2026-08-30 — P0 Cloud Verification Closure
+
+- PR #3 دُمج بـSquash إلى `main` عند
+  `0e3d46e873c4f6b1088b5d98b65c1b65316f17aa`.
+- Remote Migration History يتضمن
+  `20260830010001_087_setup_well_full_permissions`.
+- فحص Cloud البنيوي أثبت:
+  `api.setup_well_full` = SECURITY INVOKER،
+  `core.setup_well_full` = SECURITY DEFINER،
+  authenticated/service_role مسموحان، anon ممنوع،
+  Direct DML = 0.
+- تحقق سحابي مؤقت استدعى `api.setup_well_full` فعليًا
+  كمستخدم `authenticated` ونجح في إنشاء البئر داخل Transaction.
+- قيم التسعير المرصودة سحابيًا:
+  Solar = 3500، Well Diesel = 7000، Farmer Diesel = 6000.
+- `anon` رُفض كما هو مقصود.
+- Transaction انتهت بـ`ROLLBACK`، وفحص ما بعدها وجد
+  صفر بقايا في auth/profile/tenant/well.
+- م-38 = Verified local + Cloud.
+- م-39 = Verified local + Cloud.
+- م-40 = Verified local؛ Cloud verification غير منطبق.
+- P0 Create-Well Correctness مغلق.
+- `RESUME_POINT` انتقل إلى **Pre-Production Audit Queue**.
+- ق-120 تبقى نافذة: لا Feature/Screen جديدة قبل استمرار
+  Audit → Inspection → Evaluation → Repair → Gap Closing.
+- هذه الدفعة اللاحقة **توثيقية فقط**؛ لا تغيير كود ولا DB
+  ولا إعادة تطبيق Migration.

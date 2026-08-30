@@ -1,6 +1,6 @@
 # خريطة المشروع — مصادر الحقيقة الحالية
 
-**آخر تحديث:** 2026-08-23
+**آخر تحديث:** 2026-08-30
 
 هذه الوثيقة تحدد أي ملف يفوز عند التعارض، وتفصل بين
 الحالة الحالية والسجل التاريخي.
@@ -50,8 +50,10 @@
 لا يبدأ أي Screen أو Feature أو وظيفة جديدة حتى اجتياز بوابة
 التثبيت. الاعتمادات السابقة لا تُلغى؛ التنفيذ الجديد مؤجل فقط.
 
-الأولوية الحالية: م-38 ثم م-39 ثم م-40، وبعدها Regression Testing
-وبقية Audit Queue.
+P0 م-38/م-39/م-40 أُغلقت بالأدلة المطلوبة:
+م-38 وم-39 Verified local + Cloud، وم-40 Verified local
+(Cloud غير منطبق). الأولوية الحالية هي **Pre-Production Audit Queue**
+المحددة في `memory/RESUME_POINT.md`.
 
 ### أين توقف العمل
 `memory/RESUME_POINT.md` فقط.
@@ -143,7 +145,7 @@
 - مخططات الأعمال الداخلية غير مكشوفة.
 - Direct DML لأدوار التطبيق = صفر.
 - Flutter يكتب عبر `api.*`.
-- سطح Data API المثبت حاليًا = 33 RPC.
+- سطح Data API المثبت حاليًا = 34 RPC.
 
 ### الهوية البصرية
 
@@ -196,11 +198,8 @@
 - ق-91 / Active Session وBilling Consistency: معتمد.
 - ق-92 / Session Completion وSettlement Consistency: معتمد.
 
-الخطوة التالية:
-
-PA-03 / Sales, Activation, Operations & Financial Control.
-
-UX-17 مؤجلة حتى إكمال سلسلة Platform Administration.
+هذا ترتيب تصميمي تاريخي سابق على ق-120، ولا يحدد NEXT الحالي.
+نقطة العمل الحالية تؤخذ حصريًا من `memory/RESUME_POINT.md`.
 
 لا تعتبر أي شاشة إنتاجية منفذة لمجرد اعتماد UX.
 
@@ -348,8 +347,9 @@ UX-17 مؤجلة حتى إكمال سلسلة Platform Administration.
   وق-117 (الإرسال الخلفي بلا فتح التطبيق).
   الباقي: شاشات المزامنة والجاهزية، وقياسات بند 9،
   والإثبات على جهاز حقيقي.
-- م-26 وم-27: `Migration 066` تجمع `fuel_charge_minor` خلافًا
-  لق-17؛ يُصحَّح في Migration 085+ ولا تُعدَّل 066.
+- م-26 وم-27: تعارض Fuel Billing التاريخي في Migration 066
+  صُحّح في Migration 085 وفق ق-17 وق-91؛ تبقى بقية عقود
+  Active Session/Settlement المفتوحة كما يحدد `OPEN_ISSUES.md`.
 
 ### التدقيق المستقل القديم
 `technical/CONFORMANCE_AUDIT_CODEX.md` وثيقة تاريخية.
@@ -359,28 +359,29 @@ UX-17 مؤجلة حتى إكمال سلسلة Platform Administration.
 
 ## 3. baseline الحالي المثبت
 
-اعتبارًا من 2026-08-23:
+اعتبارًا من 2026-08-30:
 
 ### قاعدة البيانات
 
-- 83 ملف migration — آخرها 084؛ 071–084 immutable.
-- 24 permanent database test file.
-- 354 PASS.
-- 0 FAIL.
-- 0 ERROR.
-- 33 RPC داخل `api`.
+- **86** ملف migration — آخرها 087؛ 071–087 immutable.
+- **25** permanent database test file.
+- **362 PASS / 0 FAIL / 0 ERROR**.
+- **34 RPC** داخل `api`.
 - Direct DML = 0.
 - `anon` EXECUTE داخل `api` = 0.
 - SECURITY DEFINER داخل `api` = 0.
-- Cloud = `CLOUD_W2_01_ALL_PASS`؛ Remote history = 83
-  through `20260823013001`.
+- Remote history يتضمن 087.
+- Cloud P0 verification:
+  authenticated setup PASS؛ anon denied؛
+  3500/7000/6000 محفوظة دون ×100؛
+  Transaction ROLLED BACK؛ residue = 0.
 
 ### كود الهاتف
 
 - `flutter analyze` = `No issues found!`.
-- `flutter test` = **155 PASS / 0 FAIL** (خط الأساس السابق 115).
-- بلا هاتف وبلا شبكة وبلا قاعدة بيانات؛ ومنها ملفات على SQL
-  حقيقي عبر `sqflite_common_ffi` وملف قرص حقيقي للاستعادة.
+- `flutter test` = **222 PASS / 0 FAIL**.
+- Create-Well targeted regression = **2/2 PASS**.
+- م-40 failure behavior مثبت محليًا.
 - المصدر الحاكم للأرقام: `memory/PROGRESS.md`.
 
 ### baseline التاريخي — 2026-08-17
