@@ -30,7 +30,7 @@
 | ق-79 | RPC-only writes وDirect DML=0 | 072-074 | 072-074 + live audit | مغلق |
 | ق-120 / م-38..م-40 | بوابة صحة إنشاء البئر: صلاحية API، وحدات السعر، وفشل صريح | 087 + Flutter wizard | DB 087 = 8 PASS؛ full DB = 25/362؛ Flutter = 2/2 targeted + 222/222 full + analyze clean؛ Cloud authenticated setup PASS؛ anon denied؛ الأسعار 3500/7000/6000؛ ROLLBACK + residue 0 | **P0 مغلق؛ م-38/م-39 Verified local + Cloud؛ م-40 Verified local (Cloud N/A). ق-120 Audit Gate مستمرة** |
 | ق-98 / م-41C1 | عقود قراءة العمليات: المزارعون والأراضي والمضخات عبر `api` بدل المخططات الداخلية | 089 + `OperationsRepository` + 4 نقاط واجهة | DB 089 = 20 PASS؛ full DB = **27 files / 389 PASS / 0 FAIL / 0 ERROR** (خط الأساس 369، بلا انحدار)؛ Flutter = 237/237 full + analyze clean؛ Internal-schema debt 7 → 4؛ صفر mock fallback في هذا المسار؛ anon مرفوض والبئر غير المرئي مرفوض بـ42501 | **Implemented + Verified local؛ Cloud غير منشورة**. م-41C2 يغلق الوصولات الأربعة المتبقية |
-| ق-98 / ق-99 / م-41C2 | عقدا قراءة الجلسات: السجل والتفصيل عبر `api`، بأعمدة القاعدة الحقيقية وبلا حساب مال في القراءة | 090 (`api.list_well_sessions` + `api.get_session_detail`) + `OperationsRepository` + شاشتا السجل والتفصيل | Flutter = **258/258 PASS** + analyze clean؛ Internal-schema debt **4 → 0**؛ الأعمدة الوهمية الخمسة = 0 ويحرسها اختبار الحدود؛ `_getMockSessionHistory`/`_getMockSessionDetail` = 0؛ الجلسة غير المفوترة تعود `null` + `not_billed` ولا تُطبع؛ اختبار DB مكتوب بـ25 تحققًا **ولم يُشغَّل بعد** | **Implemented؛ Verified على Flutter فقط. DB 090 وCloud بانتظار المالك** |
+
 
 ## القواعد النهائية التي تنسخ نصوصًا أقدم
 

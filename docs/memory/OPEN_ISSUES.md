@@ -1796,14 +1796,8 @@ NEXT = **م-41C — Operations Read Boundary Repair**.
 2. **تخطيط أعمدة خاطئ في العميل** — `SessionSegmentItem` يستخدم
    `segment_index` و`duration_seconds` و`hourly_rate_minor` و
    `is_paused` و`pause_reason`، وهي أعمدة غير موجودة. الأعمدة
-   الحقيقية: `sequence_number` و`actual_seconds` و
-   `billable_seconds` و`applied_operation_rate_minor` /
-   `applied_hourly_rate_minor` وأعمدة المبالغ
-   `time_charge_minor` / `fuel_charge_minor` / `total_charge_minor`.
-
-   **تصحيح لما ورد سابقًا:** الحصر على `actual_minutes` و
-   `raw_billable_minutes` كان ناقصًا — 066 أضاف أعمدة الثواني
-   والمبالغ، وهي التي يستعملها التسعير فعلًا، لا أعمدة الدقائق.
+   الحقيقية: `sequence_number` و`actual_minutes` و
+   `raw_billable_minutes` و`applied_hourly_rate_minor`.
 3. **قيم مصدر الطاقة** — قاعدة البيانات تخزن
    `solar` / `well_diesel` / `farmer_diesel`، والعميل يتوقع نصوصًا
    عربية. يجب تخطيط صريح لا Blind Remap.
