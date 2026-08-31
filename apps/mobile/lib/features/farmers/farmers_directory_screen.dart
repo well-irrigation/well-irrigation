@@ -40,6 +40,7 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   bool _isLoading = true;
+  String? _loadError;
   List<FarmerAccount> _farmers = [];
   Map<String, int> _farmCounts = {};
 
@@ -61,7 +62,10 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
 
   Future<void> _loadData() async {
     if (_activeWellId == null) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
 
     try {
       final farmers = await _repo.fetchFarmers(_activeWellId!);
@@ -82,8 +86,14 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
         });
       }
     } catch (_) {
+      // ق-99 / م-41C1: لا بيانات بديلة — الفشل يظهر للمستخدم صريحًا.
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _farmers = [];
+          _farmCounts = {};
+          _isLoading = false;
+          _loadError = 'تعذّر تحميل المزارعين والأراضي. تحقق من الاتصال ثم أعد المحاولة.';
+        });
       }
     }
   }
@@ -344,9 +354,11 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : displayedFarmers.isEmpty
-                      ? _buildEmptyState()
-                      : RefreshIndicator(
+                  : _loadError != null
+                      ? _buildErrorState()
+                      : displayedFarmers.isEmpty
+                          ? _buildEmptyState()
+                          : RefreshIndicator(
                           onRefresh: _loadData,
                           child: ListView.builder(
                             padding: const EdgeInsets.all(16),
@@ -358,6 +370,36 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
                             },
                           ),
                         ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 56,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _loadError!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('إعادة المحاولة'),
             ),
           ],
         ),

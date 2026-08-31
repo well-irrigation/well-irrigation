@@ -1778,3 +1778,32 @@ Flutter يجب أن يصل إلى بيانات الأعمال عبر `api.*`.
 - Status mutation تحتاج Backend invariants.
 
 NEXT = **م-41C — Operations Read Boundary Repair**.
+
+## م-41C1 — ما أُغلق وما بقي مفتوحًا
+
+أُغلق:
+- غياب عقود قراءة المزارعين والأراضي والمضخات في `api`
+  (Migration 089).
+- Production Mock fallback في هذا المسار = **0**.
+- النجاح الكاذب في `createFarmer`/`createFarm` = **0**.
+- Internal-schema debt = **7 → 4**.
+
+بقي مفتوحًا:
+1. **م-41C2** — `fetchSessionHistory` و`fetchSessionDetail` ما زالت
+   تقرأ `ops.irrigation_sessions` و`ops.session_segments` و
+   `billing.payments` مباشرة، وما زالت تسقط على mock. تحتاج
+   Migration 090.
+2. **تخطيط أعمدة خاطئ في العميل** — `SessionSegmentItem` يستخدم
+   `segment_index` و`duration_seconds` و`hourly_rate_minor` و
+   `is_paused` و`pause_reason`، وهي أعمدة غير موجودة. الأعمدة
+   الحقيقية: `sequence_number` و`actual_minutes` و
+   `raw_billable_minutes` و`applied_hourly_rate_minor`.
+3. **قيم مصدر الطاقة** — قاعدة البيانات تخزن
+   `solar` / `well_diesel` / `farmer_diesel`، والعميل يتوقع نصوصًا
+   عربية. يجب تخطيط صريح لا Blind Remap.
+4. **089 غير منشورة سحابيًا** — أُثبتت محليًا (20 PASS، وFull DB
+   27 files / 389 PASS) لكن النشر إلى السحابة لم يجرِ بعد.
+5. الفجوات السابقة كما هي: إدارة الفريق، Auth/OTP،
+   settings false-success، Integration/E2E، CI/branch protection.
+
+NEXT = **م-41C2 — Session History & Detail Read Contracts**.

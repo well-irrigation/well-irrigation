@@ -198,171 +198,80 @@ class OperationsRepository {
     }
   }
 
+  /// استخراج عناصر عقد قراءة من مغلّف `{contract, version, items}` (ق-98)
+  List<Map<String, dynamic>> _contractItems(dynamic response) {
+    if (response is! Map) {
+      throw StateError('استجابة عقد القراءة غير متوقعة');
+    }
+    final items = response['items'];
+    if (items is! List) {
+      throw StateError('عقد القراءة لم يُعِد قائمة عناصر');
+    }
+    return items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
   /// جلب قائمة المزارعين المسجلين في البئر مع إمكانية البحث بالاسم أو الهاتف
+  /// عبر عقد `api.list_well_farmers` (م-41C1 / ق-98). لا بيانات تجريبية:
+  /// أي فشل يصل إلى الشاشة كخطأ صريح.
   Future<List<FarmerAccount>> fetchFarmers(
     String wellId, {
     String? query,
   }) async {
     final cleanQuery = query != null ? normalizeArabicDigits(query).trim() : null;
     final client = _effectiveClient;
-
     if (client == null) {
-      return _getMockFarmers(cleanQuery);
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final response = await client
-          .schema('ops')
-          .from('farmer_well_accounts')
-          .select('''
-            id,
-            public_code,
-            status,
-            farmer_profiles!inner (
-              id,
-              persons!inner (
-                id,
-                full_name,
-                person_contacts (
-                  contact_value,
-                  is_primary
-                )
-              )
-            )
-          ''')
-          .eq('well_id', wellId)
-          .eq('status', 'active');
+    final response = await client.schema('api').rpc(
+      'list_well_farmers',
+      params: {
+        'p_well_id': wellId,
+        'p_query': (cleanQuery != null && cleanQuery.isNotEmpty) ? cleanQuery : null,
+      },
+    );
 
-      final list = (response as List<dynamic>).map((row) {
-        final r = row as Map<String, dynamic>;
-        final fp = r['farmer_profiles'] as Map<String, dynamic>? ?? {};
-        final p = fp['persons'] as Map<String, dynamic>? ?? {};
-        final contacts = p['person_contacts'] as List<dynamic>? ?? [];
-
-        String? phone;
-        for (final c in contacts) {
-          final contactMap = c as Map<String, dynamic>;
-          if (contactMap['is_primary'] == true || phone == null) {
-            phone = contactMap['contact_value'] as String?;
-          }
-        }
-
-        return FarmerAccount(
-          id: r['id'] as String? ?? '',
-          fullName: p['full_name'] as String? ?? '',
-          publicCode: r['public_code'] as String? ?? '',
-          phone: phone,
-          status: r['status'] as String? ?? 'active',
-        );
-      }).toList();
-
-      if (cleanQuery != null && cleanQuery.isNotEmpty) {
-        return list.where((item) {
-          final matchesName =
-              item.fullName.toLowerCase().contains(cleanQuery.toLowerCase());
-          final matchesPhone = item.phone != null && item.phone!.contains(cleanQuery);
-          final matchesCode = item.publicCode.contains(cleanQuery);
-          return matchesName || matchesPhone || matchesCode;
-        }).toList();
-      }
-
-      return list;
-    } catch (_) {
-      return _getMockFarmers(cleanQuery);
-    }
+    return _contractItems(response).map(FarmerAccount.fromJson).toList();
   }
 
-  List<FarmerAccount> _getMockFarmers(String? cleanQuery) {
-    final list = const [
-      FarmerAccount(id: 'f-1', fullName: 'محمد علي الحبيشي', publicCode: 'F-001', phone: '777111222'),
-      FarmerAccount(id: 'f-2', fullName: 'صالح أحمد الشامي', publicCode: 'F-002', phone: '777333444'),
-      FarmerAccount(id: 'f-3', fullName: 'عبدالله مسعد القادري', publicCode: 'F-003', phone: '777555666'),
-      FarmerAccount(id: 'f-4', fullName: 'يحيى حمود العنسي', publicCode: 'F-004', phone: '777888999'),
-    ];
-    if (cleanQuery != null && cleanQuery.isNotEmpty) {
-      return list.where((f) =>
-        f.fullName.toLowerCase().contains(cleanQuery.toLowerCase()) ||
-        f.publicCode.contains(cleanQuery) ||
-        (f.phone != null && f.phone!.contains(cleanQuery))
-      ).toList();
-    }
-    return list;
-  }
-
-  /// جلب أراضي البئر أو أراضي مزارع معين
+  /// جلب أراضي البئر أو أراضي مزارع معين عبر عقد `api.list_well_farms`
   Future<List<Farm>> fetchFarms(
     String wellId, {
     String? farmerAccountId,
   }) async {
     final client = _effectiveClient;
     if (client == null) {
-      return _getMockFarms(farmerAccountId);
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      var queryBuilder = client
-          .schema('ops')
-          .from('farms')
-          .select('id, well_id, name, farmer_well_account_id, status')
-          .eq('well_id', wellId)
-          .eq('status', 'active');
+    final response = await client.schema('api').rpc(
+      'list_well_farms',
+      params: {
+        'p_well_id': wellId,
+        'p_farmer_well_account_id':
+            (farmerAccountId != null && farmerAccountId.isNotEmpty) ? farmerAccountId : null,
+      },
+    );
 
-      if (farmerAccountId != null && farmerAccountId.isNotEmpty) {
-        queryBuilder =
-            queryBuilder.eq('farmer_well_account_id', farmerAccountId);
-      }
-
-      final response = await queryBuilder.order('name');
-      return (response as List<dynamic>)
-          .map((f) => Farm.fromJson(f as Map<String, dynamic>))
-          .toList();
-    } catch (_) {
-      return _getMockFarms(farmerAccountId);
-    }
+    return _contractItems(response).map(Farm.fromJson).toList();
   }
 
-  List<Farm> _getMockFarms(String? farmerAccountId) {
-    final allFarms = const [
-      Farm(id: 'farm-1', wellId: 'well-1', name: 'مزرعة الوادي الشرقية', farmerAccountId: 'f-1'),
-      Farm(id: 'farm-2', wellId: 'well-1', name: 'حقل القات الغربي', farmerAccountId: 'f-1'),
-      Farm(id: 'farm-3', wellId: 'well-1', name: 'مزرعة الرمان الشمالية', farmerAccountId: 'f-2'),
-      Farm(id: 'farm-4', wellId: 'well-1', name: 'حقل الذرة الكبير', farmerAccountId: 'f-3'),
-      Farm(id: 'farm-5', wellId: 'well-1', name: 'مزرعة النخيل', farmerAccountId: 'f-4'),
-    ];
-    if (farmerAccountId != null && farmerAccountId.isNotEmpty) {
-      return allFarms.where((f) => f.farmerAccountId == farmerAccountId).toList();
-    }
-    return allFarms;
-  }
-
-  /// جلب مضخات البئر
+  /// جلب مضخات البئر عبر عقد `api.list_well_pumps`
   Future<List<Pump>> fetchPumps(String wellId) async {
     final client = _effectiveClient;
     if (client == null) {
-      return const [
-        Pump(id: 'pump-1', wellId: 'well-1', name: 'المضخة الرئيسية 1', publicCode: 'P-01'),
-        Pump(id: 'pump-2', wellId: 'well-1', name: 'المضخة الغاطسة 2', publicCode: 'P-02'),
-      ];
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final response = await client
-          .schema('core')
-          .from('pumps')
-          .select('id, well_id, name, public_code, status')
-          .eq('well_id', wellId)
-          .eq('status', 'active')
-          .order('name');
+    final response = await client.schema('api').rpc(
+      'list_well_pumps',
+      params: {'p_well_id': wellId},
+    );
 
-      return (response as List<dynamic>)
-          .map((p) => Pump.fromJson(p as Map<String, dynamic>))
-          .toList();
-    } catch (_) {
-      return const [
-        Pump(id: 'pump-1', wellId: 'well-1', name: 'المضخة الرئيسية 1', publicCode: 'P-01'),
-        Pump(id: 'pump-2', wellId: 'well-1', name: 'المضخة الغاطسة 2', publicCode: 'P-02'),
-      ];
-    }
+    return _contractItems(response).map(Pump.fromJson).toList();
   }
 
   /// إنشاء مزارع جديد في البئر ذرياً (api.create_farmer - ق-80 / ق-84)
@@ -378,43 +287,31 @@ class OperationsRepository {
 
     final client = _effectiveClient;
     if (client == null) {
-      return FarmerAccount(
-        id: 'farmer-${DateTime.now().millisecondsSinceEpoch}',
-        fullName: fullName.trim(),
-        publicCode: 'F-NEW',
-        phone: cleanPhone,
-      );
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final result = await client.schema('api').rpc(
-        'create_farmer',
-        params: {
-          'p_well_id': wellId,
-          'p_full_name': fullName.trim(),
-          'p_phone': cleanPhone,
-          'p_notes': notes,
-        },
-      );
+    final result = await client.schema('api').rpc(
+      'create_farmer',
+      params: {
+        'p_well_id': wellId,
+        'p_full_name': fullName.trim(),
+        'p_phone': cleanPhone,
+        'p_notes': notes,
+      },
+    );
 
-      final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
-      final accountId = resMap['farmer_well_account_id'] as String? ?? '';
-      final publicCode = resMap['public_code'] as String? ?? '';
-
-      return FarmerAccount(
-        id: accountId,
-        fullName: fullName.trim(),
-        publicCode: publicCode,
-        phone: cleanPhone,
-      );
-    } catch (_) {
-      return FarmerAccount(
-        id: 'farmer-${DateTime.now().millisecondsSinceEpoch}',
-        fullName: fullName.trim(),
-        publicCode: 'F-NEW',
-        phone: cleanPhone,
-      );
+    final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
+    final accountId = resMap['farmer_well_account_id'] as String? ?? '';
+    if (accountId.isEmpty) {
+      throw StateError('عقد create_farmer لم يُعِد معرّف حساب المزارع');
     }
+
+    return FarmerAccount(
+      id: accountId,
+      fullName: fullName.trim(),
+      publicCode: resMap['public_code'] as String? ?? '',
+      phone: cleanPhone,
+    );
   }
 
   /// إنشاء أرض زراعية جديدة وربطها بالمزارع (api.create_farm - ق-80)
@@ -425,41 +322,30 @@ class OperationsRepository {
   }) async {
     final client = _effectiveClient;
     if (client == null) {
-      return Farm(
-        id: 'farm-${DateTime.now().millisecondsSinceEpoch}',
-        wellId: wellId,
-        name: name.trim(),
-        farmerAccountId: farmerAccountId,
-      );
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final result = await client.schema('api').rpc(
-        'create_farm',
-        params: {
-          'p_well_id': wellId,
-          'p_name': name.trim(),
-          'p_farmer_well_account_id': farmerAccountId,
-        },
-      );
+    final result = await client.schema('api').rpc(
+      'create_farm',
+      params: {
+        'p_well_id': wellId,
+        'p_name': name.trim(),
+        'p_farmer_well_account_id': farmerAccountId,
+      },
+    );
 
-      final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
-      final farmId = resMap['farm_id'] as String? ?? '';
-
-      return Farm(
-        id: farmId,
-        wellId: wellId,
-        name: name.trim(),
-        farmerAccountId: farmerAccountId,
-      );
-    } catch (_) {
-      return Farm(
-        id: 'farm-${DateTime.now().millisecondsSinceEpoch}',
-        wellId: wellId,
-        name: name.trim(),
-        farmerAccountId: farmerAccountId,
-      );
+    final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
+    final farmId = resMap['farm_id'] as String? ?? '';
+    if (farmId.isEmpty) {
+      throw StateError('عقد create_farm لم يُعِد معرّف الأرض');
     }
+
+    return Farm(
+      id: farmId,
+      wellId: wellId,
+      name: name.trim(),
+      farmerAccountId: farmerAccountId,
+    );
   }
 
   /// بدء جلسة سقي جديدة (api.start_irrigation_session - ق-114)
@@ -1010,12 +896,7 @@ class OperationsRepository {
     final farmers = await fetchFarmers(wellId);
     final account = farmers.firstWhere(
       (f) => f.id == farmerAccountId,
-      orElse: () => const FarmerAccount(
-        id: 'mock-farmer-1',
-        fullName: 'محمد علي الحبيشي',
-        publicCode: 'F-001',
-        phone: '771234567',
-      ),
+      orElse: () => throw StateError('حساب المزارع غير موجود في هذا البئر'),
     );
 
     final farms = await fetchFarms(wellId, farmerAccountId: farmerAccountId);

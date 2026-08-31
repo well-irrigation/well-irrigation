@@ -942,15 +942,58 @@ W1-01 «Prepared / Pending Owner Verification» وهي مكتملة ومغلقة
 - تغيير الحالة يحتاج Backend invariants.
 B3B لا تعتبر هذه الوظائف منفذة.
 
-### NEXT — م-41C
+### م-41C1 — Verified local (السحابة غير منشورة)
 
-Operations Read Boundary Repair.
+Operations Read Boundary Repair — الشريحة الأولى
+(المزارعون / الأراضي / المضخات).
 
-Regression Guard يثبت أن الوصولات الداخلية السبعة المتبقية
-كلها في `OperationsRepository`.
+الاكتشاف الحاكم: لم تكن في `api` أي عقد قراءة غير
+`app_bootstrap`، والمخططات الداخلية غير مكشوفة في Data API،
+فكل قراءة مباشرة كانت ميتة وتُستبدل بـmock على الشاشة.
+العقود الجديدة مصرَّح بها في ق-98.
 
-نبدأ بمطابقة قراءات المزارعين والأراضي والمضخات والجلسات
-مع العقود الموجودة فعلًا، وإزالة أي Production Mock fallback
-يخفي فشل Backend.
+ما نُفّذ:
+- Migration **089** — `api.list_well_farmers` و
+  `api.list_well_farms` و`api.list_well_pumps`، كلها
+  INVOKER + STABLE + `search_path = pg_catalog, pg_temp`،
+  fail-closed بـ42501، حد نتائج مثبت، ترتيب حتمي، anon محجوب.
+- اختبار دائم `20260831_089_operations_read_contracts.test.sql`
+  بـ20 تحققًا.
+- `fetchFarmers`/`fetchFarms`/`fetchPumps` تمر الآن عبر
+  `schema('api').rpc(...)`.
+- صفر mock fallback وصفر نجاح كاذب في هذا المسار.
+- حالات فشل صريحة مع إعادة المحاولة في أربع نقاط واجهة.
+
+الإثبات:
+- `flutter analyze` = **No issues found**.
+- Full Flutter = **237/237 PASS**.
+- Internal schema debt = **7 → 4**.
+- Bare RPC debt = **9**.
+- Dotted-from debt = **5**.
+- Target 089 = **20 PASS / 0 FAIL / 0 ERROR**.
+- Full DB = **27 files / 389 PASS / 0 FAIL / 0 ERROR**
+  (خط الأساس السابق 369، صفر انحدار).
+
+غير مثبت:
+النشر السحابي لـ089 لم يجرِ؛ العقود الثلاثة محلية فقط.
+الحالة = Verified local وليست Cloud Verified.
+
+### NEXT — م-41C2
+
+Session History & Detail Read Contracts (Migration 090).
+
+الوصولات الداخلية الأربعة المتبقية كلها في
+`OperationsRepository`: `fetchSessionHistory` (ops) و
+`fetchSessionDetail` (ops + ops + billing).
+
+يجب أن تتضمن الجولة:
+1. عقدَي قراءة في `api` لسجل الجلسات وتفصيلها بنفس قواعد 089.
+2. تصحيح تخطيط أعمدة `ops.session_segments`
+   (`sequence_number` / `actual_minutes` / `raw_billable_minutes` /
+   `applied_hourly_rate_minor`) بدل الأسماء غير الموجودة.
+3. تخطيط صريح لقيم `energy_source`
+   (`solar` / `well_diesel` / `farmer_diesel`) إلى النص العربي.
+4. إزالة `_getMockSessionHistory` و`_getMockSessionDetail`.
+5. تقليص Internal-schema debt من **4 → 0**.
 
 لا Blind Remap ولا Direct DML.

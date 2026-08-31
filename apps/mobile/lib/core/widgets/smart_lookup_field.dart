@@ -193,6 +193,7 @@ class _SmartLookupBottomSheetState<T> extends State<_SmartLookupBottomSheet<T>> 
   final TextEditingController _searchController = TextEditingController();
   List<T> _results = [];
   bool _isLoading = true;
+  String? _searchError;
   String _currentQuery = '';
 
   @override
@@ -216,12 +217,18 @@ class _SmartLookupBottomSheetState<T> extends State<_SmartLookupBottomSheet<T>> 
       if (mounted && _currentQuery == query) {
         setState(() {
           _results = items;
+          _searchError = null;
           _isLoading = false;
         });
       }
     } catch (_) {
+      // م-41C1: فشل عقد القراءة يظهر صريحًا بدل قائمة فارغة مضلِّلة.
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _results = [];
+          _searchError = 'تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.';
+          _isLoading = false;
+        });
       }
     }
   }
@@ -328,7 +335,34 @@ class _SmartLookupBottomSheetState<T> extends State<_SmartLookupBottomSheet<T>> 
                           child: CircularProgressIndicator(),
                         ),
                       )
-                    : _results.isEmpty
+                    : _searchError != null
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.cloud_off_rounded,
+                                    size: 48, color: AppColors.error),
+                                const SizedBox(height: 10),
+                                Text(
+                                  _searchError!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                OutlinedButton.icon(
+                                  onPressed: () => _performSearch(_currentQuery),
+                                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                                  label: const Text('إعادة المحاولة'),
+                                ),
+                              ],
+                            ),
+                          )
+                        : _results.isEmpty
                         ? Padding(
                             padding: const EdgeInsets.symmetric(vertical: 32),
                             child: Column(

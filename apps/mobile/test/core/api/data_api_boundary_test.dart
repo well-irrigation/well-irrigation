@@ -66,9 +66,6 @@ void main() {
     const expected = [
       'lib/core/api/operations_repository.dart|ops',
       'lib/core/api/operations_repository.dart|ops',
-      'lib/core/api/operations_repository.dart|core',
-      'lib/core/api/operations_repository.dart|ops',
-      'lib/core/api/operations_repository.dart|ops',
       'lib/core/api/operations_repository.dart|ops',
       'lib/core/api/operations_repository.dart|billing',
     ];
@@ -78,6 +75,89 @@ void main() {
       actual: actual,
       expected: expected,
     );
+  });
+
+  test('operations reads use the official api read contracts', () {
+    final source = File(
+      'lib/core/api/operations_repository.dart',
+    ).readAsStringSync();
+
+    final start = source.indexOf(
+      'Future<List<FarmerAccount>> fetchFarmers',
+    );
+    final end = source.indexOf(
+      '/// إنشاء مزارع جديد في البئر',
+      start,
+    );
+
+    expect(start, isNonNegative);
+    expect(end, greaterThan(start));
+
+    final section = source.substring(start, end);
+
+    for (final contract in const [
+      'list_well_farmers',
+      'list_well_farms',
+      'list_well_pumps',
+    ]) {
+      expect(
+        RegExp(
+          '''\\.schema\\s*\\(\\s*['"]api['"]\\s*\\)\\s*\\.rpc\\s*\\(\\s*\\n?\\s*['"]$contract['"]''',
+        ).hasMatch(section),
+        isTrue,
+        reason: 'Read contract not routed through api: $contract',
+      );
+    }
+
+    expect(section.contains("'p_well_id': wellId"), isTrue);
+    expect(section.contains(".schema('ops')"), isFalse);
+    expect(section.contains(".schema('core')"), isFalse);
+    expect(section.contains('catch ('), isFalse);
+  });
+
+  test('operations mock fallbacks are gone', () {
+    final repositorySource = File(
+      'lib/core/api/operations_repository.dart',
+    ).readAsStringSync();
+
+    for (final legacyName in const [
+      '_getMockFarmers',
+      '_getMockFarms',
+      'F-NEW',
+    ]) {
+      expect(
+        repositorySource.contains(legacyName),
+        isFalse,
+        reason: 'Production mock fallback still present: $legacyName',
+      );
+    }
+
+    // ملفّ المزارع لم يعد يصطنع حسابًا عند غياب المزارع في البئر.
+    // (بقايا mock الجلسات تُغلق في م-41C2.)
+    final detailStart = repositorySource.indexOf(
+      'Future<FarmerDetailData> fetchFarmerDetail',
+    );
+    expect(detailStart, isNonNegative);
+    expect(
+      repositorySource.substring(detailStart).contains('mock-farmer-1'),
+      isFalse,
+    );
+
+    final operationsScreen = File(
+      'lib/features/operations/operations_screen.dart',
+    ).readAsStringSync();
+
+    for (final legacyName in const [
+      'mock-pump-1',
+      'mock-farmer-1',
+      'mock-farm-1',
+    ]) {
+      expect(
+        operationsScreen.contains(legacyName),
+        isFalse,
+        reason: 'Screen still fabricates data: $legacyName',
+      );
+    }
   });
 
   test('account profile read uses the official bootstrap contract', () {

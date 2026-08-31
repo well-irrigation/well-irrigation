@@ -62,6 +62,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   int _secondsElapsed = 0;
   String? _activeSessionId;
   bool _isLoadingPumps = false;
+  String? _pumpsError;
   bool _isSubmitting = false;
 
   @override
@@ -140,7 +141,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   Future<void> _loadPumps() async {
     if (_activeWellId == null) return;
-    setState(() => _isLoadingPumps = true);
+    setState(() {
+      _isLoadingPumps = true;
+      _pumpsError = null;
+    });
 
     try {
       final pumps = await _repo.fetchPumps(_activeWellId!);
@@ -154,18 +158,13 @@ class _OperationsScreenState extends State<OperationsScreen> {
         });
       }
     } catch (_) {
+      // م-41C1: لا مضخة وهمية — الفشل يمنع بدء الجلسة ويظهر صريحًا.
       if (mounted) {
         setState(() {
-          _pumps = [
-            const Pump(
-              id: 'mock-pump-1',
-              wellId: 'well-1',
-              name: 'المضخة الرئيسية 1',
-              publicCode: 'P-01',
-            ),
-          ];
-          _selectedPump = _pumps.first;
+          _pumps = [];
+          _selectedPump = null;
           _isLoadingPumps = false;
+          _pumpsError = 'تعذّر تحميل المضخات. تحقق من الاتصال ثم أعد المحاولة.';
         });
       }
     }
@@ -173,69 +172,21 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   Future<List<FarmerAccount>> _searchFarmers(String query) async {
     if (_activeWellId == null) {
-      return [
-        const FarmerAccount(
-          id: 'mock-farmer-1',
-          fullName: 'محمد علي الحبيشي',
-          publicCode: 'F-001',
-          phone: '771234567',
-        ),
-        const FarmerAccount(
-          id: 'mock-farmer-2',
-          fullName: 'صالح أحمد الشامي',
-          publicCode: 'F-002',
-          phone: '772345678',
-        ),
-      ];
+      throw StateError('لا يوجد بئر نشط لقراءة المزارعين');
     }
-
-    try {
-      return await _repo.fetchFarmers(_activeWellId!, query: query);
-    } catch (_) {
-      return [
-        const FarmerAccount(
-          id: 'mock-farmer-1',
-          fullName: 'محمد علي الحبيشي',
-          publicCode: 'F-001',
-          phone: '771234567',
-        ),
-        const FarmerAccount(
-          id: 'mock-farmer-2',
-          fullName: 'صالح أحمد الشامي',
-          publicCode: 'F-002',
-          phone: '772345678',
-        ),
-      ];
-    }
+    return _repo.fetchFarmers(_activeWellId!, query: query);
   }
 
   Future<List<Farm>> _searchFarms(String query) async {
     if (_activeWellId == null) {
-      return [
-        const Farm(
-          id: 'mock-farm-1',
-          wellId: 'well-1',
-          name: 'مزرعة الوادي الكبير',
-        ),
-      ];
+      throw StateError('لا يوجد بئر نشط لقراءة الأراضي');
     }
-
-    try {
-      final farms = await _repo.fetchFarms(
-        _activeWellId!,
-        farmerAccountId: _selectedFarmer?.id,
-      );
-      if (query.isEmpty) return farms;
-      return farms.where((f) => f.name.contains(query)).toList();
-    } catch (_) {
-      return [
-        const Farm(
-          id: 'mock-farm-1',
-          wellId: 'well-1',
-          name: 'مزرعة الوادي الكبير',
-        ),
-      ];
-    }
+    final farms = await _repo.fetchFarms(
+      _activeWellId!,
+      farmerAccountId: _selectedFarmer?.id,
+    );
+    if (query.isEmpty) return farms;
+    return farms.where((f) => f.name.contains(query)).toList();
   }
 
   Future<FarmerAccount?> _showAddFarmerDialog() async {
@@ -851,6 +802,31 @@ class _OperationsScreenState extends State<OperationsScreen> {
                               padding: EdgeInsets.all(8),
                               child: CircularProgressIndicator(),
                             ),
+                          )
+                        : _pumpsError != null
+                        ? Row(
+                            children: [
+                              const Icon(
+                                Icons.error_outline_rounded,
+                                color: AppColors.error,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _pumpsError!,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _loadPumps,
+                                child: const Text('إعادة'),
+                              ),
+                            ],
                           )
                         : DropdownButtonFormField<Pump>(
                             initialValue: _selectedPump,

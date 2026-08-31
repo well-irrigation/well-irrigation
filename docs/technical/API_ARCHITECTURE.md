@@ -916,3 +916,45 @@ Trusted Contract صريح؛ لا يفتح Direct DML للعميل.
 NEXT في م-41:
 `OperationsRepository`، لأنه يحمل كل الوصولات الداخلية
 السبعة المتبقية.
+
+## م-41C1 — عقود قراءة العمليات (Migration 089)
+
+قبل هذه الجولة لم يكن في `api` أي عقد قراءة غير
+`api.app_bootstrap`. تطبيق Flutter كان يقرأ المزارعين والأراضي
+والمضخات من `ops`/`core` مباشرة، وهي مخططات غير مكشوفة في
+Data API، فكل نداء يفشل ويُستبدل ببيانات تجريبية على الشاشة.
+
+بموجب ق-98 (المصرِّح بعقود قراءة العمليات) أُضيفت ثلاث دوال في
+Migration 089:
+
+| العقد | الوسائط | يعيد |
+|---|---|---|
+| `api.list_well_farmers` | `p_well_id uuid`, `p_query text default null`, `p_limit integer default 200` | `{contract, version, items[]}` |
+| `api.list_well_farms` | `p_well_id uuid`, `p_farmer_well_account_id uuid default null` | `{contract, version, items[]}` |
+| `api.list_well_pumps` | `p_well_id uuid` | `{contract, version, items[]}` |
+
+خصائص ملزمة لكل الثلاثة:
+
+1. `security invoker` + `stable` + `set search_path = pg_catalog, pg_temp`.
+   لا `SECURITY DEFINER` داخل `api` (ق-82).
+2. نطاق البيانات مشتق من الجلسة عبر RLS القائمة
+   (`iam.has_well_role` / سياسات 079)، لا من وسيط يرسله العميل،
+   ولم يُخترع أي Permission code للقراءة لأن كتالوج الصلاحيات
+   يخص الكتابة فقط ودور farmer خارج الحِزَم عمدًا.
+3. Fail-closed: البئر غير المرئي للجلسة يرفع `42501` صريحًا بدل
+   إرجاع قائمة فارغة غامضة. المعرّف الفارغ يرفع `22023`.
+4. حد النتائج مثبت `least(greatest(limit,1),500)`، والترتيب حتمي
+   (`full_name,id` / `name,id`) حتى لا تتغير الشاشة بين نداءين.
+5. `revoke all … from public, anon, authenticated, service_role`
+   ثم `grant execute … to authenticated, service_role`. anon محجوب.
+6. لا جداول ولا Views داخل `api` — دوال فقط.
+
+الهاتف في `list_well_farmers` يُختار من `core.person_contacts`
+بترتيب: الأساسي أولًا، ثم `mobile`/`whatsapp`، ثم `created_at`
+ثم `id` — فلا يعتمد على ترتيب الصفوف العشوائي.
+
+الاختبار الدائم: `supabase/tests/20260831_089_operations_read_contracts.test.sql`
+(20 تحققًا: وجود/توقيع، INVOKER+STABLE+search_path، ACL، صفر
+SECURITY DEFINER في api، صفر كائن علائقي في api، Direct DML = 0،
+عزل بين بئرين، البحث بالاسم وبالرقم المطبّع، تثبيت الحد،
+الأراضي/المضخات النشطة فقط، رفض anon).

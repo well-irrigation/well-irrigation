@@ -2014,3 +2014,32 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - لا Migration جديدة ولا DB/Cloud write.
 - Team feature نفسها ما زالت Backend/Auth Gap وليست منفذة.
 - NEXT = م-41C — Operations Read Boundary Repair.
+
+
+## 2026-08-31 — م-41C1 Operations Read Contracts (farmers / farms / pumps)
+
+- Migration جديدة **089** — أول عقود قراءة للعمليات في `api`:
+  `list_well_farmers` و`list_well_farms` و`list_well_pumps`.
+- الثلاثة INVOKER + STABLE + `search_path = pg_catalog, pg_temp`،
+  fail-closed بـ42501، حد نتائج مثبت، ترتيب حتمي، anon محجوب.
+- اختبار دائم جديد: `20260831_089_operations_read_contracts.test.sql`
+  (20 تحققًا).
+- `OperationsRepository`: `fetchFarmers`/`fetchFarms`/`fetchPumps`
+  تحوّلت إلى `schema('api').rpc(...)`.
+- أزيلت `_getMockFarmers` و`_getMockFarms` وmock المضخات
+  وmock حساب المزارع في `fetchFarmerDetail`.
+- أزيل النجاح الكاذب في `createFarmer`/`createFarm`.
+- Internal-schema debt = **7 → 4** (الباقي: سجل الجلسات وتفصيلها).
+- Bare RPC debt = **9** بلا تغيير.
+- Dotted-from debt = **5** بلا تغيير.
+- شاشات المزارعين وملف المزارع والعمليات وحقل البحث الذكي
+  تعرض الآن حالة فشل صريحة مع إعادة المحاولة بدل بيانات مصطنعة.
+- flutter analyze = **No issues found**.
+- Full Flutter = **237/237 PASS** (كان 234؛ +3 اختبارات جديدة).
+- DB (شغّلها المالك: `db:reset` ثم `db:test`): Target 089 =
+  **20 PASS / 0 FAIL / 0 ERROR**؛ Full DB = **27 files / 389 PASS /
+  0 FAIL / 0 ERROR** (كان 26 files / 369 PASS — صفر انحدار)؛
+  Local migrations = **88** مطبقة حتى 089.
+- Cloud = **غير منشورة**؛ الحالة Verified local لا Cloud Verified.
+  ولا Direct DML جديد.
+- NEXT = م-41C2 — قراءة سجل الجلسات وتفصيلها (Migration 090).
