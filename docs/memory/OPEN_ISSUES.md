@@ -1,6 +1,6 @@
 # المسائل المفتوحة
 
-**آخر تحديث:** 2026-08-30
+**آخر تحديث:** 2026-08-31
 
 مسائل معروفة لم تُحسم بعد. وبموجب ق-120 تمنع الفجوات الحرجة
 بدء أي توسع وظيفي حتى اجتياز بوابة التثبيت.
@@ -1807,3 +1807,34 @@ NEXT = **م-41C — Operations Read Boundary Repair**.
    settings false-success، Integration/E2E، CI/branch protection.
 
 NEXT = **م-41C2 — Session History & Detail Read Contracts**.
+
+## م-41C2 — ما أُغلق وما بقي مفتوحًا
+
+أُغلق:
+- غياب عقدي قراءة الجلسات في `api`: `api.list_well_sessions` و
+  `api.get_session_detail` (Migration 090).
+- **البند 1 أعلاه** — لم يبقَ أي وصول من Flutter إلى
+  `ops` / `billing`: **Internal-schema debt = 4 → 0**.
+- **البند 2 أعلاه** — الأعمدة الوهمية الخمسة أُزيلت من العميل
+  واستُبدلت بأعمدة القاعدة الحقيقية، ويحرسها اختبار الحدود.
+- **البند 3 أعلاه** — تخطيط صريح في
+  `kEnergySourceLabels` و`kSegmentTypeLabels` (٩ أنواع)،
+  والرمز المجهول يُعاد كما هو.
+- `_getMockSessionHistory` و`_getMockSessionDetail` = **0**، وشاشتا
+  السجل والتفصيل تعرضان فشلًا صريحًا مع «إعادة المحاولة».
+- حساب المال المحلي في العميل: التسعيرة الاحتياطية `3500` في
+  معاينة الطباعة أُزيلت، والجلسة غير المفوترة لم تعد قابلة للطباعة.
+
+بقي مفتوحًا:
+1. **089 و090 غير منشورتين سحابيًا** — التحقق محلي فقط، والنشر
+   بيد المالك عبر قناة `6543`.
+2. **عقد حدود اليوم على الخادم** — لا منطقة زمنية محسومة في
+   القاعدة، فالنافذة تُحسب في الجهاز وتُرسل كوسيطين. القرار
+   الدائم (منطقة زمنية للبئر؟ للمستأجر؟) ما زال مفتوحًا.
+3. **Bare RPC debt = 9** و**dotted-from debt = 5** كما هي؛
+   `well_management_repository` و`finance_repository` هما التاليان.
+4. الفجوات السابقة كما هي: إدارة الفريق، Auth/OTP،
+   settings false-success، Integration/E2E، CI/branch protection.
+
+NEXT = **م-41D — Well Management & Finance Boundary Repair**
+(9 bare RPC + 5 dotted `from()`).

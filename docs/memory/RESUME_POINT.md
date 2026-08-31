@@ -1,10 +1,10 @@
-# نقطة الاستئناف — 2026-08-30
+# نقطة الاستئناف — 2026-08-31
 
 ## بوابة التثبيت الحالية — ق-120
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41C — Operations Read Boundary Repair**
+**NEXT = م-41D — Well Management & Finance Boundary Repair**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -978,22 +978,75 @@ Operations Read Boundary Repair — الشريحة الأولى
 النشر السحابي لـ089 لم يجرِ؛ العقود الثلاثة محلية فقط.
 الحالة = Verified local وليست Cloud Verified.
 
-### NEXT — م-41C2
+### م-41C2 — Implemented (تحقق Flutter فقط؛ DB 090 لم يُشغَّل)
 
 Session History & Detail Read Contracts (Migration 090).
 
-الوصولات الداخلية الأربعة المتبقية كلها في
-`OperationsRepository`: `fetchSessionHistory` (ops) و
-`fetchSessionDetail` (ops + ops + billing).
+الاكتشاف الحاكم: القراءة القديمة لم تكن معطلة بسبب المخطط المحجوب
+وحده — كانت تطلب خمسة أعمدة لا وجود لها في القاعدة
+(`segment_index`, `duration_seconds`, `hourly_rate_minor`,
+`is_paused`, `pause_reason`). وتبيّن أن ما سُجّل سابقًا عن أعمدة
+المقاطع ناقص: 066 أضاف `actual_seconds` و`billable_seconds`
+وأعمدة المبالغ `time_charge_minor` / `fuel_charge_minor` /
+`total_charge_minor`، وهي التي يستعملها التسعير فعلًا، لا أعمدة
+الدقائق. صُحّح ذلك في `OPEN_ISSUES`.
 
-يجب أن تتضمن الجولة:
-1. عقدَي قراءة في `api` لسجل الجلسات وتفصيلها بنفس قواعد 089.
-2. تصحيح تخطيط أعمدة `ops.session_segments`
-   (`sequence_number` / `actual_minutes` / `raw_billable_minutes` /
-   `applied_hourly_rate_minor`) بدل الأسماء غير الموجودة.
-3. تخطيط صريح لقيم `energy_source`
-   (`solar` / `well_diesel` / `farmer_diesel`) إلى النص العربي.
-4. إزالة `_getMockSessionHistory` و`_getMockSessionDetail`.
-5. تقليص Internal-schema debt من **4 → 0**.
+ما نُفّذ:
+- Migration **090** — `api.list_well_sessions` و
+  `api.get_session_detail`، INVOKER + STABLE +
+  `search_path = pg_catalog, pg_temp`، fail-closed بـ42501/22023،
+  حد مثبت، ترتيب حتمي `started_at desc, id`، anon محجوب.
+- **لا حساب مال داخل العقد**: المبالغ كما خُزّنت؛ والمدفوع
+  بأسبقية `invoices.paid_minor` ثم مجموع `payments` المرحّلة.
+- الجلسة غير المفوترة = مبالغ `null` + `not_billed`، لا صفر
+  ولا `settled`.
+- النافذة الزمنية وسيطان من العميل (`historyWindow`) لأن عقد
+  حدود اليوم على الخادم ما زال مفتوحًا.
+- كل انضمامات التزويق LEFT JOIN إجباري.
+- اختبار دائم `20260831_090_session_read_contracts.test.sql`
+  بـ25 تحققًا.
+- `fetchSessionHistory` و`fetchSessionDetail` عبر
+  `schema('api').rpc(...)`؛ وأزيلت
+  `_getMockSessionHistory` و`_getMockSessionDetail` و
+  `_applyHistoryFilter`.
+- تخطيط صريح `kEnergySourceLabels` و`kSegmentTypeLabels` (٩ أنواع)؛
+  الرمز المجهول يُعاد كما هو.
+- أزيلت التسعيرة الاحتياطية 3500 من معاينة الطباعة، والجلسة غير
+  المفوترة لم تعد قابلة للطباعة.
+- حالتا فشل صريحتان مع إعادة المحاولة في شاشتي السجل والتفصيل،
+  وحالة سداد رابعة «غير مفوترة بعد».
+
+الإثبات:
+- `flutter analyze` = **No issues found**.
+- Full Flutter = **258/258 PASS** (كان 237).
+- Internal schema debt = **4 → 0**.
+- Bare RPC debt = **9**؛ Dotted-from debt = **5**.
+
+غير مثبت:
+- **DB 090 لم يُشغَّل** — `npm run db:reset` ثم `npm run db:test`
+  بيد المالك؛ حالة العقدين على القاعدة = مكتوبة لا مُتحقَّقة.
+- النشر السحابي لـ089 و090 لم يجرِ.
+
+### NEXT — م-41D
+
+Well Management & Finance Boundary Repair.
+
+الدين المتبقي على حدّ Data API:
+- **Bare RPC = 9**، كلها في `well_management_repository`:
+  `get_well_details`، `update_well_details`، `get_well_pumps`،
+  `save_pump`، `get_active_price_schedule`، `create_price_schedule`،
+  `get_fuel_tanks`، `record_fuel_purchase`، `get_reports_summary`.
+- **Dotted `from()` = 5**، كلها في `finance_repository`:
+  `finance.expenses`، `iam.well_memberships`،
+  `finance.profit_distribution_cycles`، `billing.invoices`،
+  `billing.payments`.
+
+يجب أن تبدأ الجولة بفحص أيٍّ من الأسماء التسعة موجود فعلًا داخل
+`api` وأيها غير موجود — 41B أثبت أن كثيرًا من أسماء RPC المفترضة
+غير موجودة أصلًا. لا يُوجَّه نداء إلى عقد قبل إثبات وجوده.
+
+مسألتان مفتوحتان تنتظران قرار المالك:
+1. عقد حدود اليوم / المنطقة الزمنية على الخادم (للبئر؟ للمستأجر؟).
+2. نشر 089 و090 سحابيًا عبر قناة `6543`.
 
 لا Blind Remap ولا Direct DML.

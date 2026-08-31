@@ -55,7 +55,7 @@ void _expectKnownDebt({
 }
 
 void main() {
-  test('known internal-schema debt does not grow', () {
+  test('internal schemas are never addressed from Flutter', () {
     final actual = _collectMatches(
       RegExp(
         r'''\.schema\s*\(\s*['"](core|iam|ops|billing|finance|inventory|audit|sync|reporting|public)['"]\s*\)''',
@@ -63,12 +63,7 @@ void main() {
       captureGroup: 1,
     );
 
-    const expected = [
-      'lib/core/api/operations_repository.dart|ops',
-      'lib/core/api/operations_repository.dart|ops',
-      'lib/core/api/operations_repository.dart|ops',
-      'lib/core/api/operations_repository.dart|billing',
-    ];
+
 
     _expectKnownDebt(
       label: 'Internal-schema debt',
