@@ -6,6 +6,20 @@ import '../../core/utils/digit_utils.dart';
 import '../../core/widgets/currency_text_form_field.dart';
 import '../../core/widgets/top_well_selector.dart';
 
+/// الخزانات تُقاس بالمليلتر في القاعدة (inventory.fuel_tanks)، والتحويل
+/// إلى لتر تخطيط عرض صريح يجري هنا وحده — لا في المستودع ولا في العقد.
+const int _mlPerLiter = 1000;
+
+double _mlToLiters(int ml) => ml / _mlPerLiter;
+
+/// تنسيق اللتر: عدد صحيح إن كان الرصيد مضاعفًا للتر، وإلا منزلة واحدة.
+String _formatLiters(int ml) {
+  final liters = _mlToLiters(ml);
+  return liters == liters.roundToDouble()
+      ? liters.toStringAsFixed(0)
+      : liters.toStringAsFixed(1);
+}
+
 /// شاشة إدارة الوقود والخزانات والجرد والتسويات (UX-15 / القرارات 478–490)
 class FuelInventoryScreen extends StatefulWidget {
   final String wellName;
@@ -45,21 +59,30 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
 
   Future<void> _loadTanks() async {
     setState(() => _isLoading = true);
-    final list = await _repo.fetchFuelTanks(_activeWellId ?? 'well-1');
-    if (mounted) {
+    try {
+      final list = await _repo.fetchFuelTanks(_activeWellId ?? 'well-1');
+      if (!mounted) return;
       setState(() {
         _tanks = list;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _tanks = const [];
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل خزانات الوقود: $e')),
+      );
     }
   }
 
   void _showRecordPurchaseDialog() {
-    if (_tanks.isEmpty) return;
     showDialog(
       context: context,
       builder: (dialogCtx) => _RecordFuelPurchaseDialog(
-        tanks: _tanks,
+        wellId: _activeWellId ?? 'well-1',
         repository: _repo,
         onPurchaseRecorded: () {
           _loadTanks();
@@ -89,8 +112,8 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final totalFuelBalance = _tanks.fold<int>(0, (sum, t) => sum + t.currentBalanceLiters);
-    final totalCapacity = _tanks.fold<int>(0, (sum, t) => sum + t.capacityLiters);
+    final totalBalanceMl = _tanks.fold<int>(0, (sum, t) => sum + t.currentBalanceMl);
+    final totalCapacityMl = _tanks.fold<int>(0, (sum, t) => sum + t.capacityMl);
 
     final activeWellSummary = widget.wells.firstWhere(
       (w) => w.id == _activeWellId,
@@ -182,7 +205,7 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  'السعة: $totalCapacity لتر',
+                                  'السعة: ${_formatLiters(totalCapacityMl)} لتر',
                                   style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                 ),
                               ),
@@ -194,7 +217,7 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
                             textBaseline: TextBaseline.alphabetic,
                             children: [
                               Text(
-                                '$totalFuelBalance',
+                                _formatLiters(totalBalanceMl),
                                 style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
                               ),
                               const SizedBox(width: 8),
@@ -205,7 +228,7 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(6),
                             child: LinearProgressIndicator(
-                              value: totalCapacity > 0 ? (totalFuelBalance / totalCapacity) : 0,
+                              value: totalCapacityMl > 0 ? (totalBalanceMl / totalCapacityMl) : 0,
                               backgroundColor: Colors.white24,
                               valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                               minHeight: 8,
@@ -276,7 +299,7 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
   }
 
   Widget _buildTankCard(FuelTankModel tank) {
-    final percent = tank.capacityLiters > 0 ? (tank.currentBalanceLiters / tank.capacityLiters) : 0.0;
+    final percent = tank.capacityMl > 0 ? (tank.currentBalanceMl / tank.capacityMl) : 0.0;
     final isActual = tank.measurementMethod == 'actual';
 
     return Card(
@@ -309,7 +332,7 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'السعة الكلية: ${tank.capacityLiters} لتر',
+                        'السعة الكلية: ${_formatLiters(tank.capacityMl)} لتر',
                         style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                       ),
                     ],
@@ -333,7 +356,7 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'الرصيد الحالي: ${tank.currentBalanceLiters} لتر (${(percent * 100).toStringAsFixed(0)}%)',
+                  'الرصيد الحالي: ${_formatLiters(tank.currentBalanceMl)} لتر (${(percent * 100).toStringAsFixed(0)}%)',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.deepBlue),
                 ),
                 OutlinedButton.icon(
@@ -355,14 +378,18 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
   }
 }
 
-/// نافذة تسجيل شراء وقود جديد
+/// نافذة تسجيل شراء وقود جديد.
+///
+/// العقد api.purchase_fuel يأخذ البئر لا الخزان، ولا يقبل اسم مورّد ولا
+/// ملاحظة؛ فلا يُعرض حقل لهما لأن حفظهما غير ممكن (ق-82: لا وعد بما لا
+/// يخزّنه العقد).
 class _RecordFuelPurchaseDialog extends StatefulWidget {
-  final List<FuelTankModel> tanks;
+  final String wellId;
   final WellManagementRepository repository;
   final VoidCallback onPurchaseRecorded;
 
   const _RecordFuelPurchaseDialog({
-    required this.tanks,
+    required this.wellId,
     required this.repository,
     required this.onPurchaseRecorded,
   });
@@ -375,24 +402,13 @@ class _RecordFuelPurchaseDialogState extends State<_RecordFuelPurchaseDialog> {
   final _formKey = GlobalKey<FormState>();
   final _quantityController = TextEditingController();
   final _costController = TextEditingController();
-  final _supplierController = TextEditingController();
-  final _noteController = TextEditingController();
 
-  late String _selectedTankId;
   bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedTankId = widget.tanks.first.id;
-  }
 
   @override
   void dispose() {
     _quantityController.dispose();
     _costController.dispose();
-    _supplierController.dispose();
-    _noteController.dispose();
     super.dispose();
   }
 
@@ -414,36 +430,22 @@ class _RecordFuelPurchaseDialogState extends State<_RecordFuelPurchaseDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _selectedTankId,
-                decoration: const InputDecoration(
-                  labelText: 'الخزان المستهدف *',
-                  border: OutlineInputBorder(),
-                ),
-                items: widget.tanks.map((t) {
-                  return DropdownMenuItem(
-                    value: t.id,
-                    child: Text(
-                      '${t.name} (${t.currentBalanceLiters} لتر متاح)',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _selectedTankId = val ?? widget.tanks.first.id),
-              ),
-              const SizedBox(height: 12),
-
               TextFormField(
                 controller: _quantityController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [ArabicToEnglishDigitsFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'الكمية المشتراة (باللتر) *',
                   hintText: 'مثال: 1000',
                   border: OutlineInputBorder(),
                 ),
-                validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                validator: (val) {
+                  final text = val?.trim() ?? '';
+                  if (text.isEmpty) return 'مطلوب';
+                  final liters = double.tryParse(text);
+                  if (liters == null || liters <= 0) return 'كمية غير صحيحة';
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
 
@@ -455,12 +457,10 @@ class _RecordFuelPurchaseDialogState extends State<_RecordFuelPurchaseDialog> {
               ),
               const SizedBox(height: 12),
 
-              TextFormField(
-                controller: _supplierController,
-                decoration: const InputDecoration(
-                  labelText: 'اسم المورد / المحطة (اختياري)',
-                  border: OutlineInputBorder(),
-                ),
+              // شرح صريح لحدود العقد بدل حقول لا تُحفظ (ق-82)
+              const Text(
+                'الشراء يُسجَّل على مستوى البئر ويوزَّع على مخزونه؛ العقد الحالي لا يحفظ اسم المورّد ولا ملاحظة، فلم يُطلب أيٌّ منهما.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
               ),
             ],
           ),
@@ -481,7 +481,7 @@ class _RecordFuelPurchaseDialogState extends State<_RecordFuelPurchaseDialog> {
               ? null
               : () async {
                   if (!_formKey.currentState!.validate()) return;
-                  final qty = int.parse(_quantityController.text.trim());
+                  final qty = double.parse(_quantityController.text.trim());
                   final cost = int.parse(_costController.text.replaceAll(',', '').trim());
 
                   setState(() => _isSubmitting = true);
@@ -489,11 +489,9 @@ class _RecordFuelPurchaseDialogState extends State<_RecordFuelPurchaseDialog> {
                   final scaffold = ScaffoldMessenger.of(context);
                   try {
                     await widget.repository.recordFuelPurchase(
-                      tankId: _selectedTankId,
-                      quantityLiters: qty,
-                      totalCostYER: cost,
-                      supplierName: _supplierController.text.trim(),
-                      note: _noteController.text.trim(),
+                      wellId: widget.wellId,
+                      liters: qty,
+                      totalCostMinor: cost,
                     );
                     if (mounted) {
                       nav.pop();
@@ -538,13 +536,14 @@ class _PhysicalCountAdjustmentDialogState extends State<_PhysicalCountAdjustment
   final _measuredController = TextEditingController();
   final _reasonController = TextEditingController();
 
-  int _difference = 0;
+  /// الفرق بالمليلتر كما ستحسبه القاعدة، ويُعرض باللتر.
+  int _differenceMl = 0;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _measuredController.text = '${widget.tank.currentBalanceLiters}';
+    _measuredController.text = _formatLiters(widget.tank.currentBalanceMl);
     _reasonController.text = 'مطابقة الجرد الفعلي بالمسطرة';
   }
 
@@ -555,10 +554,17 @@ class _PhysicalCountAdjustmentDialogState extends State<_PhysicalCountAdjustment
     super.dispose();
   }
 
+  static int? _litersTextToMl(String text) {
+    final liters = double.tryParse(text.trim());
+    if (liters == null) return null;
+    return (liters * _mlPerLiter).round();
+  }
+
   void _calculateDiff() {
-    final measured = int.tryParse(_measuredController.text.trim()) ?? widget.tank.currentBalanceLiters;
+    final measuredMl = _litersTextToMl(_measuredController.text) ??
+        widget.tank.currentBalanceMl;
     setState(() {
-      _difference = measured - widget.tank.currentBalanceLiters;
+      _differenceMl = measuredMl - widget.tank.currentBalanceMl;
     });
   }
 
@@ -582,19 +588,28 @@ class _PhysicalCountAdjustmentDialogState extends State<_PhysicalCountAdjustment
             children: [
               Text('الخزان: ${widget.tank.name}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              Text('الرصيد المسجل بالنظام: ${widget.tank.currentBalanceLiters} لتر', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Text('الرصيد المسجل بالنظام: ${_formatLiters(widget.tank.currentBalanceMl)} لتر', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               const SizedBox(height: 14),
 
               TextFormField(
                 controller: _measuredController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [ArabicToEnglishDigitsFormatter()],
                 onChanged: (_) => _calculateDiff(),
                 decoration: const InputDecoration(
                   labelText: 'القياس الفعلي بالخزان (لتر) *',
                   border: OutlineInputBorder(),
                 ),
-                validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                validator: (val) {
+                  final text = val?.trim() ?? '';
+                  if (text.isEmpty) return 'مطلوب';
+                  final ml = _litersTextToMl(text);
+                  if (ml == null || ml < 0) return 'قياس غير صحيح';
+                  if (ml > widget.tank.capacityMl) {
+                    return 'القياس يتجاوز سعة الخزان';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 10),
 
@@ -602,9 +617,9 @@ class _PhysicalCountAdjustmentDialogState extends State<_PhysicalCountAdjustment
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: _difference == 0
+                  color: _differenceMl == 0
                       ? AppColors.agriculturalGreen.withValues(alpha: 0.1)
-                      : (_difference > 0 ? Colors.purple.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1)),
+                      : (_differenceMl > 0 ? Colors.purple.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1)),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -612,13 +627,13 @@ class _PhysicalCountAdjustmentDialogState extends State<_PhysicalCountAdjustment
                   children: [
                     const Text('فرق التسوية المحتسب:', style: TextStyle(fontSize: 12)),
                     Text(
-                      '$_difference لتر',
+                      '${_formatLiters(_differenceMl)} لتر',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: _difference == 0
+                        color: _differenceMl == 0
                             ? AppColors.agriculturalGreen
-                            : (_difference > 0 ? Colors.purple : Colors.red),
+                            : (_differenceMl > 0 ? Colors.purple : Colors.red),
                       ),
                     ),
                   ],
@@ -653,7 +668,7 @@ class _PhysicalCountAdjustmentDialogState extends State<_PhysicalCountAdjustment
               ? null
               : () async {
                   if (!_formKey.currentState!.validate()) return;
-                  final measured = int.parse(_measuredController.text.trim());
+                  final measuredMl = _litersTextToMl(_measuredController.text)!;
 
                   setState(() => _isSubmitting = true);
                   final nav = Navigator.of(context);
@@ -662,8 +677,8 @@ class _PhysicalCountAdjustmentDialogState extends State<_PhysicalCountAdjustment
                     await widget.repository.recordPhysicalFuelCount(
                       wellId: widget.tank.wellId,
                       tankId: widget.tank.id,
-                      measuredBalanceLiters: measured,
-                      adjustmentReason: _reasonController.text.trim(),
+                      measuredBalanceMl: measuredMl,
+                      notes: _reasonController.text.trim(),
                     );
                     if (mounted) {
                       nav.pop();

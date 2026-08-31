@@ -44,12 +44,22 @@ class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
 
   Future<void> _loadPumps() async {
     setState(() => _isLoading = true);
-    final list = await _repo.fetchPumps(_activeWellId ?? 'well-1');
-    if (mounted) {
+    try {
+      final list = await _repo.fetchPumps(_activeWellId ?? 'well-1');
+      if (!mounted) return;
       setState(() {
         _pumps = list;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _pumps = [];
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل المضخات: $e')),
+      );
     }
   }
 
@@ -184,10 +194,11 @@ class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
     Color statusColor;
     String statusText;
 
+    // الحالات الأربع هي حالات القاعدة نفسها؛ لا running ولا standby.
     switch (pump.status) {
-      case 'running':
+      case 'active':
         statusColor = AppColors.agriculturalGreen;
-        statusText = 'تعمل وجاهزة ✅';
+        statusText = 'جاهزة للعمل ✅';
         break;
       case 'maintenance':
         statusColor = Colors.orange;
@@ -195,16 +206,27 @@ class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
         break;
       case 'retired':
         statusColor = Colors.grey;
-        statusText = 'خارج الخدمة 🚫';
+        statusText = 'مسحوبة من الخدمة 🚫';
         break;
       default:
         statusColor = AppColors.deepBlue;
-        statusText = 'متوقفة / احتياط ⏸️';
+        statusText = 'موقوفة ⏸️';
     }
 
-    String typeLabel = pump.pumpType == 'submersible'
-        ? 'مضخة غاطسة'
-        : (pump.pumpType == 'surface' ? 'مضخة سطحية' : 'مضخة توربين');
+    // النوع نص حر في القاعدة: تُعرض القيمة المخزَّنة كما هي، ولا يُخترع
+    // نوع افتراضي عند غيابها.
+    final typeLabel = switch (pump.pumpType) {
+      'submersible' => 'مضخة غاطسة',
+      'surface' => 'مضخة سطحية',
+      'turbine' => 'مضخة توربين',
+      null => 'النوع غير مسجَّل',
+      final other => other,
+    };
+
+    // power_rating نص حر («25 HP») لا رقم قدرة، فيُعرض حرفيًا.
+    final subtitle = pump.powerRating == null
+        ? typeLabel
+        : '$typeLabel • ${pump.powerRating}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -240,7 +262,7 @@ class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$typeLabel • ${pump.horsepower} حصان',
+                          subtitle,
                           style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                         ),
                       ],
@@ -264,18 +286,19 @@ class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
               const Divider(height: 1, color: AppColors.surfaceSubtle),
               const SizedBox(height: 8),
 
-              // المواصفات التقديرية
+              // المواصفات التقديرية بوحدات القاعدة: لتر/دقيقة ومل/ساعة.
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (pump.flowRateLitersPerSecond != null)
+                  if (pump.estimatedWaterFlowLitersPerMinute != null)
                     Text(
-                      'التدفق: ${pump.flowRateLitersPerSecond} لتر/ث',
+                      'التدفق: ${pump.estimatedWaterFlowLitersPerMinute} لتر/دقيقة',
                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
-                  if (pump.fuelConsumptionLitersPerHour != null && pump.fuelConsumptionLitersPerHour! > 0)
+                  if (pump.estimatedFuelMlPerHour != null &&
+                      pump.estimatedFuelMlPerHour! > 0)
                     Text(
-                      'الاستهلاك: ${pump.fuelConsumptionLitersPerHour} لتر/ساعة',
+                      'الاستهلاك: ${pump.estimatedFuelMlPerHour} مل/ساعة',
                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
                   TextButton.icon(
@@ -315,36 +338,36 @@ class _AddEditPumpDialog extends StatefulWidget {
 class _AddEditPumpDialogState extends State<_AddEditPumpDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _hpController = TextEditingController();
+  final _powerRatingController = TextEditingController();
   final _flowController = TextEditingController();
   final _fuelController = TextEditingController();
   final _notesController = TextEditingController();
 
-  String _pumpType = 'submersible';
-  String _status = 'standby';
+  // القيم الافتراضية قيم القاعدة: النوع غير مسجَّل والحالة active.
+  String? _pumpType;
+  String _status = 'active';
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.existingPump != null) {
-      final p = widget.existingPump!;
+    final p = widget.existingPump;
+    if (p != null) {
       _nameController.text = p.name;
-      _hpController.text = p.horsepower.toString();
-      _flowController.text = p.flowRateLitersPerSecond?.toString() ?? '';
-      _fuelController.text = p.fuelConsumptionLitersPerHour?.toString() ?? '';
+      _powerRatingController.text = p.powerRating ?? '';
+      _flowController.text =
+          p.estimatedWaterFlowLitersPerMinute?.toString() ?? '';
+      _fuelController.text = p.estimatedFuelMlPerHour?.toString() ?? '';
       _notesController.text = p.notes ?? '';
       _pumpType = p.pumpType;
       _status = p.status;
-    } else {
-      _hpController.text = '50';
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _hpController.dispose();
+    _powerRatingController.dispose();
     _flowController.dispose();
     _fuelController.dispose();
     _notesController.dispose();
@@ -387,18 +410,19 @@ class _AddEditPumpDialogState extends State<_AddEditPumpDialog> {
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<String>(
+                    child: DropdownButtonFormField<String?>(
                       initialValue: _pumpType,
                       decoration: const InputDecoration(
                         labelText: 'نوع المضخة',
                         border: OutlineInputBorder(),
                       ),
                       items: const [
+                        DropdownMenuItem(value: null, child: Text('غير محدد')),
                         DropdownMenuItem(value: 'submersible', child: Text('غاطسة')),
                         DropdownMenuItem(value: 'surface', child: Text('سطحية')),
                         DropdownMenuItem(value: 'turbine', child: Text('توربين')),
                       ],
-                      onChanged: (val) => setState(() => _pumpType = val ?? 'submersible'),
+                      onChanged: (val) => setState(() => _pumpType = val),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -409,42 +433,41 @@ class _AddEditPumpDialogState extends State<_AddEditPumpDialog> {
                         labelText: 'الحالة',
                         border: OutlineInputBorder(),
                       ),
+                      // الحالات الأربع المسموحة في القاعدة فقط.
                       items: const [
-                        DropdownMenuItem(value: 'running', child: Text('تعمل ✅')),
-                        DropdownMenuItem(value: 'standby', child: Text('احتياط ⏸️')),
+                        DropdownMenuItem(value: 'active', child: Text('جاهزة ✅')),
+                        DropdownMenuItem(value: 'inactive', child: Text('موقوفة ⏸️')),
                         DropdownMenuItem(value: 'maintenance', child: Text('صيانة 🛠️')),
-                        DropdownMenuItem(value: 'retired', child: Text('خارج الخدمة')),
+                        DropdownMenuItem(value: 'retired', child: Text('مسحوبة من الخدمة')),
                       ],
-                      onChanged: (val) => setState(() => _status = val ?? 'standby'),
+                      onChanged: (val) => setState(() => _status = val ?? 'active'),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
 
-              // القدرة بالحصان والتدفق
+              // القدرة نص حر في القاعدة، والتدفق لتر/دقيقة.
               Row(
                 children: [
                   Expanded(
                     child: TextFormField(
-                      controller: _hpController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [ArabicToEnglishDigitsFormatter()],
+                      controller: _powerRatingController,
                       decoration: const InputDecoration(
-                        labelText: 'القدرة (حصان) *',
+                        labelText: 'القدرة (نص حر)',
+                        hintText: 'مثال: 75 HP',
                         border: OutlineInputBorder(),
                       ),
-                      validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextFormField(
                       controller: _flowController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [ArabicToEnglishDigitsFormatter()],
                       decoration: const InputDecoration(
-                        labelText: 'التدفق (لتر/ث)',
+                        labelText: 'التدفق (لتر/دقيقة)',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -453,14 +476,14 @@ class _AddEditPumpDialogState extends State<_AddEditPumpDialog> {
               ),
               const SizedBox(height: 12),
 
-              // معدل استهلاك الوقود
+              // معدل استهلاك الوقود بالمليلتر/ساعة كما في القاعدة
               TextFormField(
                 controller: _fuelController,
                 keyboardType: TextInputType.number,
                 inputFormatters: [ArabicToEnglishDigitsFormatter()],
                 decoration: const InputDecoration(
-                  labelText: 'معدل استهلاك الديزل التقديري (لتر/ساعة)',
-                  hintText: 'مثال: 14',
+                  labelText: 'معدل استهلاك الديزل التقديري (مل/ساعة)',
+                  hintText: 'مثال: 14000',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -494,9 +517,10 @@ class _AddEditPumpDialogState extends State<_AddEditPumpDialog> {
               ? null
               : () async {
                   if (!_formKey.currentState!.validate()) return;
-                  final hp = int.tryParse(_hpController.text.trim()) ?? 50;
-                  final flow = int.tryParse(_flowController.text.trim());
+                  final powerRating = _powerRatingController.text.trim();
+                  final flow = double.tryParse(_flowController.text.trim());
                   final fuel = int.tryParse(_fuelController.text.trim());
+                  final notes = _notesController.text.trim();
 
                   setState(() => _isSubmitting = true);
                   final nav = Navigator.of(context);
@@ -507,11 +531,12 @@ class _AddEditPumpDialogState extends State<_AddEditPumpDialog> {
                       pumpId: widget.existingPump?.id,
                       name: _nameController.text.trim(),
                       pumpType: _pumpType,
-                      horsepower: hp,
-                      flowRateLps: flow,
-                      fuelRateLph: fuel,
+                      powerRating: powerRating.isEmpty ? null : powerRating,
+                      estimatedWaterFlowLitersPerMinute: flow,
+                      estimatedFuelMlPerHour: fuel,
                       status: _status,
-                      notes: _notesController.text.trim(),
+                      installedAt: widget.existingPump?.installedAt,
+                      notes: notes.isEmpty ? null : notes,
                     );
                     if (mounted) {
                       nav.pop();

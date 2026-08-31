@@ -1,10 +1,10 @@
-# نقطة الاستئناف — 2026-08-31
+# نقطة الاستئناف — 2026-09-01
 
 ## بوابة التثبيت الحالية — ق-120
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41D — Well Management & Finance Boundary Repair**
+**NEXT = م-41D2 — Finance Boundary Repair + عقد مؤشرات التقارير**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -1027,26 +1027,71 @@ Session History & Detail Read Contracts (Migration 090).
   بيد المالك؛ حالة العقدين على القاعدة = مكتوبة لا مُتحقَّقة.
 - النشر السحابي لـ089 و090 لم يجرِ.
 
-### NEXT — م-41D
+### م-41D1 — Implemented (تحقق Flutter فقط؛ DB 091 لم يُشغَّل)
 
-Well Management & Finance Boundary Repair.
+Well Management Boundary Repair (Migration 091).
+
+ما نُفّذ:
+- Migration **091** — أربعة عقود قراءة
+  (`api.get_well_details`، `api.list_well_pumps_detail`،
+  `api.get_active_price_schedule`، `api.list_well_fuel_tanks`)
+  وثلاثة أزواج كتابة:
+  `api.update_well_details` → `core.update_well_details` / `well.update`،
+  `api.save_well_pump` → `core.save_well_pump` / `pump.manage`،
+  `api.create_price_schedule` → `ops.create_price_schedule` / `price.manage`.
+- الزوج إجباري لأن 072 سحب DML من `authenticated`؛ فالـINVOKER
+  لا يكتب، والـDEFINER يتجاوز RLS فيصير فحص
+  `iam.has_well_permission` داخل الإجراء هو التصريح الحقيقي.
+- ثلاثة أعمدة جديدة على `core.wells` بقيود عدم سلبية، ورمزا
+  صلاحية جديدان مُمنوحان لـ`tenant_owner` وحده.
+- **ثلاث حرّاس عدد عُدِّلت عن قصد** في ملفَّي الحقبة المقفلة:
+  080 (الفهرس 39→41، الإجمالي 73→75، `tenant_owner` 39→41) و
+  081 (الفهرس 39→41، `role_permissions` 73→75).
+- اختبار دائم `20260831_091_well_management_contracts.test.sql`
+  بـ34 تحققًا.
+- Flutter: تسعة نداءات صارت عبر `schema('api').rpc(...)`، وأُزيلت
+  كل مولِّدات المحاكاة في `well_management_repository`.
+- وحدات القاعدة صريحة: القدرة نص حر، التدفق لتر/دقيقة، الوقود
+  مل/ساعة، والخزانات بالمليلتر مع تحويل عرضٍ وحيد في
+  `fuel_inventory_screen.dart`.
+- حالات المضخة الأربع وحدها تُعرض (لا `running` ولا `standby`)،
+  وغياب جدول تسعير ساري حالة صريحة لا أسعار صفرية.
+- `recordFuelPurchase` **ضاق سلوكه**: العقد القائم
+  `api.purchase_fuel` يأخذ البئر لا الخزان ولا يقبل مورّدًا ولا
+  ملاحظة، فحُذف الحقلان من الشاشة وشُرح السبب فيها بدل تلفيقهما.
+
+الإثبات:
+- `flutter analyze` = **No issues found**.
+- Full Flutter = **258/258 PASS**.
+- Bare RPC debt = **9 → 1** (بقي `get_reports_summary` وحده).
+- Internal schema debt = **0**؛ Dotted-from debt = **5**
+  (كلها `finance_repository`، مؤجّلة إلى م-41D2).
+
+غير مثبت:
+- **DB 091 لم يُشغَّل** — `npm run db:reset` ثم `npm run db:test`
+  بيد المالك.
+- النشر السحابي لـ089 و090 و091 لم يجرِ.
+
+### NEXT — م-41D2
+
+Finance Boundary Repair + عقد مؤشرات التقارير.
 
 الدين المتبقي على حدّ Data API:
-- **Bare RPC = 9**، كلها في `well_management_repository`:
-  `get_well_details`، `update_well_details`، `get_well_pumps`،
-  `save_pump`، `get_active_price_schedule`، `create_price_schedule`،
-  `get_fuel_tanks`، `record_fuel_purchase`، `get_reports_summary`.
+- **Bare RPC = 1**: `get_reports_summary` في
+  `well_management_repository` — لا عقد `api` له بعد، وما زال
+  يعيد بيانات تجريبية معلَّمة صراحة. مطلوب عقد قراءة حقيقي ثم
+  إزالة `_getMockReportSummary`.
 - **Dotted `from()` = 5**، كلها في `finance_repository`:
   `finance.expenses`، `iam.well_memberships`،
   `finance.profit_distribution_cycles`، `billing.invoices`،
   `billing.payments`.
 
-يجب أن تبدأ الجولة بفحص أيٍّ من الأسماء التسعة موجود فعلًا داخل
+يجب أن تبدأ الجولة بفحص أيٍّ من العقود المفترضة موجود فعلًا داخل
 `api` وأيها غير موجود — 41B أثبت أن كثيرًا من أسماء RPC المفترضة
 غير موجودة أصلًا. لا يُوجَّه نداء إلى عقد قبل إثبات وجوده.
 
 مسألتان مفتوحتان تنتظران قرار المالك:
 1. عقد حدود اليوم / المنطقة الزمنية على الخادم (للبئر؟ للمستأجر؟).
-2. نشر 089 و090 سحابيًا عبر قناة `6543`.
+2. نشر 089 و090 و091 سحابيًا عبر قناة `6543`.
 
 لا Blind Remap ولا Direct DML.

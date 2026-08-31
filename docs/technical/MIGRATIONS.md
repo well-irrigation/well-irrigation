@@ -8,7 +8,7 @@
 
 ## الحالة الحالية الحاكمة — 2026-08-31
 
-- Local: **88 migration file** مطبقة حتى 089؛ الرقم 067
+- Local: **91 migration file** مطبقة حتى 091؛ الرقم 067
 
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
@@ -27,6 +27,11 @@
 - Cloud 087 verification:
   authenticated call = PASS؛ anon denied = PASS؛
   prices = 3500/7000/6000؛ ROLLBACK؛ residue = 0.
+
+- 089: ق-98 — عقود قراءة العمليات (مزارعون/أراضٍ/مضخات).
+- 090: عقود قراءة الجلسة.
+- 091: عقود إدارة البئر قراءةً وكتابةً + أول توسيع لكتالوج
+  الصلاحيات بعد 081 (`well.update` و`pump.manage`).
 
 Migration 071–088 immutable؛ أي DB change تالٍ يبدأ 089+.
 
@@ -1056,4 +1061,52 @@ Data API، فكل قراءة مباشرة منها تفشل ويستبدلها �
 - `api` SECURITY DEFINER = **0**؛ `api` بلا جداول/Views؛
   Direct DML = **0** بعد إضافة العقود.
 - anon مرفوض على العقود الثلاثة؛ البئر غير المرئي مرفوض بـ`42501`.
+- Cloud: **غير منشورة** — النشر السحابي خطوة مستقلة لاحقة.
+
+## 091 — 20260831030001_091_well_management_contracts.sql
+
+**الهدف:** إغلاق حدود إدارة البئر: أربعة عقود قراءة وثلاثة أزواج
+كتابة في `api`، بدل قراءات مباشرة من `core`/`ops`/`inventory` كانت
+تفشل ويستبدلها العميل ببيانات تجريبية.
+
+**السبب:** شاشات إعدادات البئر والمضخات والتسعير والوقود كانت آخر
+كتلة تعتمد mock في المستودع، ولم يكن في القاعدة عمود لموقع البئر
+ولا عمقه ولا منسوب ماءه الساكن.
+
+**ما تفعله:**
+1. `core.wells` + ثلاثة أعمدة: `location text`,
+   `depth_meters numeric`, `static_water_level_meters numeric`،
+   مع قيدَي تحقق يمنعان السالب.
+2. كتالوج الصلاحيات: `well.update` و`pump.manage`، ممنوحتان
+   لـ`tenant_owner` وحده.
+3. قراءة: `api.get_well_details(uuid)`,
+   `api.list_well_pumps_detail(uuid, boolean)`,
+   `api.get_active_price_schedule(uuid, timestamptz)`,
+   `api.list_well_fuel_tanks(uuid, boolean)`.
+4. كتابة كأزواج (ق-79): `core.update_well_details`,
+   `core.save_well_pump`, `ops.create_price_schedule` إجراءات
+   `security definer` تحمل فحص `iam.has_well_permission`، يتقدمها
+   ثلاثة أغلفة `api.*` رقيقة `security invoker` لا تفعل إلا بناء
+   المظروف.
+
+**لماذا أزواج ولا كتابة مباشرة من `api`:** Migration 072 سحبت
+`insert/update/delete` على كل جداول المخططات الداخلية من
+`authenticated`، فدالة `security invoker` لا تستطيع الكتابة أصلًا.
+الفحص الاسمي يسكن الإجراء الداخلي لأن `security definer` يتجاوز
+RLS، فهو التفويض الفعلي لا تحسينًا.
+
+**أثر على ملفات اختبار محسومة سابقًا:** ثلاثة عدّادات صلاحيات
+حُدِّثت بقصد، كل تحديث بتعليق يسمّي 091 سببًا:
+- `20260819_080…`: الكتالوج 39 → 41، والإجمالي 73 → 75،
+  ونصيب `tenant_owner` 39 → 41.
+- `20260822_081…`: الكتالوج 39 → 41، و`role_permissions` 73 → 75.
+
+**الاختبار:** `supabase/tests/20260831_091_well_management_contracts.test.sql`.
+
+**التحقق المحلي (2026-09-01، بعد `db:reset` + `db:test`):**
+- Target 091 = **34 PASS / 0 FAIL / 0 ERROR**.
+- Full suite = **29 files / 448 PASS / 0 FAIL / 0 ERROR**.
+- `api` SECURITY DEFINER = **0**؛ الأغلفة كلها INVOKER؛ الإجراءات
+  الداخلية الثلاثة DEFINER بـ`search_path` مثبت.
+- `iam.has_well_role` في أجساد الدوال = **0** (م-18 محفوظة).
 - Cloud: **غير منشورة** — النشر السحابي خطوة مستقلة لاحقة.

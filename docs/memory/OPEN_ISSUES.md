@@ -1836,5 +1836,43 @@ NEXT = **م-41C2 — Session History & Detail Read Contracts**.
 4. الفجوات السابقة كما هي: إدارة الفريق، Auth/OTP،
    settings false-success، Integration/E2E، CI/branch protection.
 
-NEXT = **م-41D — Well Management & Finance Boundary Repair**
-(9 bare RPC + 5 dotted `from()`).
+NEXT = **م-41D1 — Well Management Boundary Repair** (Migration 091).
+
+## م-41D1 — ما أُغلق وما بقي مفتوحًا
+
+أُغلق:
+- غياب عقود إدارة البئر في `api`: أربعة عقود قراءة وثلاثة أزواج
+  كتابة (Migration 091).
+- **Bare RPC debt = 9 → 1**: كل نداءات
+  `well_management_repository` صارت عبر `schema('api').rpc(...)`
+  إلا `get_reports_summary`.
+- مولِّدات المحاكاة `_getMockWellDetails` و`_getMockPumps` و
+  `_getMockPriceSchedule` و`_getMockFuelTanks` = **0**، والفشل
+  يُرفع إلى الشاشة بدل نجاح كاذب.
+- الوحدات الوهمية: القدرة صارت نصًّا حرًّا كما في القاعدة، والتدفق
+  لتر/دقيقة، والوقود مل/ساعة، والخزانات بالمليلتر مع تحويل عرض
+  وحيد صريح في `fuel_inventory_screen.dart`.
+- حالات المضخة: `running` و`standby` غير الموجودتين في القاعدة
+  أُزيلتا؛ الحالات الأربع المعتمدة وحدها تُعرض.
+- غياب جدول تسعير ساري صار حالة صريحة «غير مُسعَّر» لا أسعار
+  صفرية.
+
+بقي مفتوحًا:
+1. **089 و090 و091 غير منشورة سحابيًا** — التحقق محلي فقط، والنشر
+   بيد المالك عبر قناة `6543`. و**091 نفسها لم تُشغَّل محليًا بعد**
+   (`db:reset` ثم `db:test` بيد المالك).
+2. **حرّاس عدد عُدِّلت عن قصد في الحقبة المقفلة**: 080 و081
+   (الفهرس 39→41، الإجمالي 73→75). أي مراجعة يجب أن تتحقق أن
+   السبب هو رمزا الصلاحية الجديدان لا انزلاق غير مقصود.
+3. **`recordFuelPurchase` ضاق سلوكه**: العقد القائم
+   `api.purchase_fuel` يأخذ البئر لا الخزان، ولا يقبل اسم مورّد
+   ولا ملاحظة. الحقلان أُزيلا من الشاشة وشُرح السبب فيها. توسيع
+   العقد قرار مستقل.
+4. **عقد حدود اليوم على الخادم** — ما زال مفتوحًا كما هو.
+5. **Bare RPC debt = 1** (`get_reports_summary`، لا عقد له بعد) و
+   **dotted-from debt = 5** (كلها `finance_repository`).
+6. الفجوات السابقة كما هي: إدارة الفريق، Auth/OTP،
+   settings false-success، Integration/E2E، CI/branch protection.
+
+NEXT = **م-41D2 — Finance Boundary Repair + عقد مؤشرات التقارير**
+(1 bare RPC + 5 dotted `from()`).

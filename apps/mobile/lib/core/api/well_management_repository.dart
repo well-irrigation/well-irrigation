@@ -1,187 +1,240 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// نموذج بيانات البئر التشغيلية والتفصيلية
+/// نموذج بيانات البئر كما تعيده api.get_well_details حرفيًا.
+///
+/// الوحدات والأسماء أسماء قاعدة البيانات نفسها (ق-99): العمق ومستوى
+/// الماء أرقام عشرية بالأمتار، وغيابهما null لا صفر مصطنع.
 class WellDetailsModel {
   final String id;
   final String tenantId;
   final String name;
-  final String status; // active, maintenance, inactive
-  final String? locationDescription;
-  final int? depthMeters;
-  final int? staticWaterLevelMeters;
+  final String status;
+  final String? location;
+  final double? depthMeters;
+  final double? staticWaterLevelMeters;
   final String? notes;
-  final bool hasActiveSession;
+  final bool hasOpenSession;
 
   const WellDetailsModel({
     required this.id,
     required this.tenantId,
     required this.name,
     required this.status,
-    this.locationDescription,
+    this.location,
     this.depthMeters,
     this.staticWaterLevelMeters,
     this.notes,
-    this.hasActiveSession = false,
+    this.hasOpenSession = false,
   });
 
   factory WellDetailsModel.fromJson(Map<String, dynamic> json) {
     return WellDetailsModel(
       id: json['id'] as String,
-      tenantId: json['tenant_id'] as String? ?? 'tenant-1',
+      tenantId: json['tenant_id'] as String,
       name: json['name'] as String,
-      status: json['status'] as String? ?? 'active',
-      locationDescription: json['location_description'] as String?,
-      depthMeters: json['depth_meters'] as int?,
-      staticWaterLevelMeters: json['static_water_level_meters'] as int?,
+      status: json['status'] as String,
+      location: json['location'] as String?,
+      depthMeters: _asDouble(json['depth_meters']),
+      staticWaterLevelMeters: _asDouble(json['static_water_level_meters']),
       notes: json['notes'] as String?,
-      hasActiveSession: json['has_active_session'] as bool? ?? false,
+      hasOpenSession: json['has_open_session'] as bool? ?? false,
     );
   }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'tenant_id': tenantId,
-        'name': name,
-        'status': status,
-        'location_description': locationDescription,
-        'depth_meters': depthMeters,
-        'static_water_level_meters': staticWaterLevelMeters,
-        'notes': notes,
-        'has_active_session': hasActiveSession,
-      };
 }
 
-/// نموذج بيانات المضخة
+double? _asDouble(Object? value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
+}
+
+int? _asInt(Object? value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.round();
+  return int.tryParse(value.toString());
+}
+
+DateTime? _asDate(Object? value) {
+  if (value == null) return null;
+  return DateTime.tryParse(value.toString());
+}
+
+/// نموذج المضخة بأسماء ووحدات core.pumps نفسها.
+///
+/// power_rating نص حر في القاعدة («25 HP») ولا يوجد عمود قدرة رقمي،
+/// والتدفق لتر/دقيقة والوقود مل/ساعة. الحالات المسموحة أربع:
+/// active / inactive / maintenance / retired — ولا وجود لـ running
+/// أو standby، فأي ترجمة ضمنية لها ممنوعة (لا Blind Remap).
 class PumpModel {
   final String id;
   final String wellId;
+  final String publicCode;
   final String name;
-  final String pumpType; // submersible, surface, turbine
-  final int horsepower;
-  final int? flowRateLitersPerSecond;
-  final int? fuelConsumptionLitersPerHour;
-  final String status; // running, standby, maintenance, retired
+  final String? pumpType;
+  final String? powerRating;
+  final double? estimatedWaterFlowLitersPerMinute;
+  final int? estimatedFuelMlPerHour;
+  final String status;
+  final DateTime? installedAt;
   final String? notes;
-  final DateTime? installationDate;
-  final bool isInActiveSession;
+  final bool isInOpenSession;
 
   const PumpModel({
     required this.id,
     required this.wellId,
+    required this.publicCode,
     required this.name,
-    required this.pumpType,
-    required this.horsepower,
-    this.flowRateLitersPerSecond,
-    this.fuelConsumptionLitersPerHour,
+    this.pumpType,
+    this.powerRating,
+    this.estimatedWaterFlowLitersPerMinute,
+    this.estimatedFuelMlPerHour,
     required this.status,
+    this.installedAt,
     this.notes,
-    this.installationDate,
-    this.isInActiveSession = false,
+    this.isInOpenSession = false,
   });
 
   factory PumpModel.fromJson(Map<String, dynamic> json) {
     return PumpModel(
       id: json['id'] as String,
       wellId: json['well_id'] as String,
+      publicCode: json['public_code'] as String,
       name: json['name'] as String,
-      pumpType: json['pump_type'] as String? ?? 'submersible',
-      horsepower: json['horsepower'] as int? ?? 50,
-      flowRateLitersPerSecond: json['flow_rate_lps'] as int?,
-      fuelConsumptionLitersPerHour: json['fuel_rate_lph'] as int?,
-      status: json['status'] as String? ?? 'standby',
+      pumpType: json['pump_type'] as String?,
+      powerRating: json['power_rating'] as String?,
+      estimatedWaterFlowLitersPerMinute:
+          _asDouble(json['estimated_water_flow_liters_per_minute']),
+      estimatedFuelMlPerHour: _asInt(json['estimated_fuel_ml_per_hour']),
+      status: json['status'] as String,
+      installedAt: _asDate(json['installed_at']),
       notes: json['notes'] as String?,
-      installationDate: json['installation_date'] != null
-          ? DateTime.tryParse(json['installation_date'].toString())
-          : null,
-      isInActiveSession: json['is_in_active_session'] as bool? ?? false,
+      isInOpenSession: json['is_in_open_session'] as bool? ?? false,
     );
   }
 }
 
-/// نموذج تعرفة أسعار السقي التاريخية والنشطة
+/// جدول تسعير ساري مع قواعده كما في ops.price_schedules/price_rules.
 class PriceScheduleModel {
   final String id;
   final String wellId;
-  final String scheduleName;
+  final String name;
+  final String status;
+  final String? reason;
   final DateTime effectiveFrom;
   final DateTime? effectiveTo;
-  final String status; // active, draft, archived
-  final String changeReason;
   final List<PriceRuleModel> rules;
 
   const PriceScheduleModel({
     required this.id,
     required this.wellId,
-    required this.scheduleName,
+    required this.name,
+    required this.status,
+    this.reason,
     required this.effectiveFrom,
     this.effectiveTo,
-    required this.status,
-    required this.changeReason,
     required this.rules,
   });
+
+  factory PriceScheduleModel.fromJson(
+    Map<String, dynamic> json,
+    List<PriceRuleModel> rules,
+  ) {
+    return PriceScheduleModel(
+      id: json['id'] as String,
+      wellId: json['well_id'] as String,
+      name: json['name'] as String,
+      status: json['status'] as String,
+      reason: json['reason'] as String?,
+      effectiveFrom: DateTime.parse(json['effective_from'].toString()),
+      effectiveTo: _asDate(json['effective_to']),
+      rules: rules,
+    );
+  }
 }
 
+/// قاعدة سعر واحدة. المبالغ *_minor بريالات كاملة (ق-77) ولا يجري
+/// عليها أي حساب في طبقة القراءة.
 class PriceRuleModel {
-  final String energySource; // solar, well_diesel, farmer_diesel
-  final int hourlyRateYER; // سعر الساعة بالأعداد الصحيحة بالريال
-  final String label;
+  final String id;
+  final String energySource;
+  final String? dieselPricingModel;
+  final int? hourlyRateMinor;
+  final int? operationHourlyRateMinor;
+  final int? fuelPricePerLiterMinor;
 
   const PriceRuleModel({
+    required this.id,
     required this.energySource,
-    required this.hourlyRateYER,
-    required this.label,
+    this.dieselPricingModel,
+    this.hourlyRateMinor,
+    this.operationHourlyRateMinor,
+    this.fuelPricePerLiterMinor,
   });
+
+  factory PriceRuleModel.fromJson(Map<String, dynamic> json) {
+    return PriceRuleModel(
+      id: json['id'] as String,
+      energySource: json['energy_source'] as String,
+      dieselPricingModel: json['diesel_pricing_model'] as String?,
+      hourlyRateMinor: _asInt(json['hourly_rate_minor']),
+      operationHourlyRateMinor: _asInt(json['operation_hourly_rate_minor']),
+      fuelPricePerLiterMinor: _asInt(json['fuel_price_per_liter_minor']),
+    );
+  }
 }
 
-/// نموذج خزان الوقود
+/// خزان وقود. السعة والرصيد بالمليلتر كما في inventory.fuel_tanks،
+/// والتحويل إلى لتر مسؤولية طبقة العرض بتخطيط صريح.
 class FuelTankModel {
   final String id;
   final String wellId;
+  final String publicCode;
   final String name;
-  final int capacityLiters;
-  final int currentBalanceLiters;
-  final String measurementMethod; // actual, estimated
-  final String status; // active, maintenance
-  final DateTime lastMeasuredAt;
+  final int capacityMl;
+  final int currentBalanceMl;
+  final int? avgCostPerLiterMinor;
+  final String measurementMethod;
+  final String status;
+  final String? notes;
+  final DateTime? lastMeasuredAt;
 
   const FuelTankModel({
     required this.id,
     required this.wellId,
+    required this.publicCode,
     required this.name,
-    required this.capacityLiters,
-    required this.currentBalanceLiters,
+    required this.capacityMl,
+    required this.currentBalanceMl,
+    this.avgCostPerLiterMinor,
     required this.measurementMethod,
     required this.status,
-    required this.lastMeasuredAt,
+    this.notes,
+    this.lastMeasuredAt,
   });
+
+  factory FuelTankModel.fromJson(Map<String, dynamic> json) {
+    return FuelTankModel(
+      id: json['id'] as String,
+      wellId: json['well_id'] as String,
+      publicCode: json['public_code'] as String,
+      name: json['name'] as String,
+      capacityMl: _asInt(json['capacity_ml']) ?? 0,
+      currentBalanceMl: _asInt(json['current_balance_ml']) ?? 0,
+      avgCostPerLiterMinor: _asInt(json['avg_cost_per_liter_minor']),
+      measurementMethod: json['measurement_method'] as String,
+      status: json['status'] as String,
+      notes: json['notes'] as String?,
+      lastMeasuredAt: _asDate(json['last_measured_at']),
+    );
+  }
 }
 
-/// نموذج معاملة/حركة وقود
-class FuelTransactionModel {
-  final String id;
-  final String tankId;
-  final String type; // purchase, consumption, adjustment, return
-  final int quantityLiters;
-  final int totalCostYER;
-  final String? supplierName;
-  final String? note;
-  final DateTime recordedAt;
-
-  const FuelTransactionModel({
-    required this.id,
-    required this.tankId,
-    required this.type,
-    required this.quantityLiters,
-    required this.totalCostYER,
-    this.supplierName,
-    this.note,
-    required this.recordedAt,
-  });
-}
-
-/// نموذج مؤشرات التقرير المالي والتشغيلي
+/// نموذج مؤشرات التقرير. لا عقد api له بعد (م-41D2)، فما زال يعتمد
+/// بيانات تجريبية معلَّمة صراحة — وهي آخر ثغرة باقية في هذا المستودع.
 class ReportSummaryModel {
   final String period;
   final int totalSessions;
@@ -250,352 +303,264 @@ class EnergyDistributionMetric {
   });
 }
 
-/// مستودع بيانات إدارة البئر، المعدات، الوقود، التسعير، والتقارير
+/// مستودع إدارة البئر. كل نداء يمر عبر مخطط api وحده (ق-82): لا وصول
+/// مباشر لجدول داخلي عبر `from` بمخطط منقّط، ولا `.schema('<internal>')`
+/// ولا نداء RPC مجرّد. وحين يفشل العقد يُرفع الخطأ إلى الشاشة كما هو — لا
+/// بيانات تجريبية تُخفي الفشل وتُظهر نجاحًا كاذبًا.
 class WellManagementRepository {
   final SupabaseClient? _client;
 
   WellManagementRepository([this._client]);
 
-  SupabaseClient? get _effectiveClient {
-    try {
-      return _client ?? Supabase.instance.client;
-    } catch (_) {
-      return null;
-    }
+  SupabaseClient get _requireClient {
+    final client = _client ?? Supabase.instance.client;
+    return client;
   }
 
-  /// 1. جلب تفاصيل البئر
+  static Map<String, dynamic> _asMap(Object? payload) {
+    final data = payload is String ? jsonDecode(payload) : payload;
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    throw StateError('استجابة العقد ليست كائنًا: $payload');
+  }
+
+  static List<Map<String, dynamic>> _asList(Object? payload) {
+    if (payload is List) {
+      return payload
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(growable: false);
+    }
+    return const <Map<String, dynamic>>[];
+  }
+
+  /// 1. تفاصيل البئر — api.get_well_details
   Future<WellDetailsModel> fetchWellDetails(String wellId) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        final res = await client.rpc('get_well_details', params: {'p_well_id': wellId});
-        if (res != null) {
-          final data = res is String ? jsonDecode(res) : res;
-          return WellDetailsModel.fromJson(Map<String, dynamic>.from(data as Map));
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching well details from Supabase: $e');
-    }
-    return _getMockWellDetails(wellId);
+    final res = await _requireClient.schema('api').rpc(
+      'get_well_details',
+      params: {'p_well_id': wellId},
+    );
+    final envelope = _asMap(res);
+    return WellDetailsModel.fromJson(_asMap(envelope['well']));
   }
 
-  /// 2. تحديث بيانات البئر (حفظ صريح - القرار 463)
-  Future<void> updateWellDetails({
+  /// 2. تحديث بيانات البئر — api.update_well_details
+  ///
+  /// دلالة الحقول الاختيارية «مرسَل = يُحدَّث»: تمرير null يمحو القيمة
+  /// المخزَّنة، فالشاشة ترسل الحالة الكاملة للنموذج لا فرقًا جزئيًا.
+  Future<String> updateWellDetails({
     required String wellId,
     required String name,
-    String? locationDescription,
-    int? depthMeters,
-    int? staticWaterLevelMeters,
+    String? location,
+    double? depthMeters,
+    double? staticWaterLevelMeters,
     String? notes,
   }) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        await client.rpc('update_well_details', params: {
-          'p_well_id': wellId,
-          'p_name': name,
-          'p_location': locationDescription,
-          'p_depth': depthMeters,
-          'p_static_water': staticWaterLevelMeters,
-          'p_notes': notes,
-        });
-      }
-    } catch (e) {
-      debugPrint('Error updating well details: $e');
-    }
+    final res = await _requireClient.schema('api').rpc(
+      'update_well_details',
+      params: {
+        'p_well_id': wellId,
+        'p_name': name,
+        'p_location': location,
+        'p_depth_meters': depthMeters,
+        'p_static_water_level_meters': staticWaterLevelMeters,
+        'p_notes': notes,
+      },
+    );
+    return _asMap(res)['well_id'] as String;
   }
 
-  /// 3. جلب قائمة المضخات
-  Future<List<PumpModel>> fetchPumps(String wellId) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        final res = await client.rpc('get_well_pumps', params: {'p_well_id': wellId});
-        if (res is List) {
-          return res.map((e) => PumpModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching pumps: $e');
-    }
-    return _getMockPumps(wellId);
+  /// 3. مضخات البئر — api.list_well_pumps_detail
+  Future<List<PumpModel>> fetchPumps(
+    String wellId, {
+    bool includeInactive = true,
+  }) async {
+    final res = await _requireClient.schema('api').rpc(
+      'list_well_pumps_detail',
+      params: {
+        'p_well_id': wellId,
+        'p_include_inactive': includeInactive,
+      },
+    );
+    return _asList(_asMap(res)['items'])
+        .map(PumpModel.fromJson)
+        .toList(growable: false);
   }
 
-  /// 4. إضافة أو تعديل مضخة
-  Future<void> savePump({
+  /// 4. حفظ مضخة (إضافة أو تعديل) — api.save_well_pump
+  ///
+  /// الحالة يجب أن تكون إحدى حالات القاعدة الأربع؛ أي قيمة أخرى
+  /// يرفضها العقد بـ22023 ولا تُترجم ضمنيًا هنا.
+  Future<({String pumpId, bool created})> savePump({
     required String wellId,
+    required String name,
     String? pumpId,
-    required String name,
-    required String pumpType,
-    required int horsepower,
-    int? flowRateLps,
-    int? fuelRateLph,
-    required String status,
+    String? pumpType,
+    String? powerRating,
+    double? estimatedWaterFlowLitersPerMinute,
+    int? estimatedFuelMlPerHour,
+    String status = 'active',
+    DateTime? installedAt,
     String? notes,
   }) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        await client.rpc('save_pump', params: {
-          'p_well_id': wellId,
-          'p_pump_id': pumpId,
-          'p_name': name,
-          'p_type': pumpType,
-          'p_hp': horsepower,
-          'p_flow': flowRateLps,
-          'p_fuel_rate': fuelRateLph,
-          'p_status': status,
-          'p_notes': notes,
-        });
-      }
-    } catch (e) {
-      debugPrint('Error saving pump: $e');
-    }
+    final res = await _requireClient.schema('api').rpc(
+      'save_well_pump',
+      params: {
+        'p_well_id': wellId,
+        'p_name': name,
+        'p_pump_id': pumpId,
+        'p_pump_type': pumpType,
+        'p_power_rating': powerRating,
+        'p_estimated_water_flow_liters_per_minute':
+            estimatedWaterFlowLitersPerMinute,
+        'p_estimated_fuel_ml_per_hour': estimatedFuelMlPerHour,
+        'p_status': status,
+        'p_installed_at': installedAt?.toIso8601String().split('T').first,
+        'p_notes': notes,
+      },
+    );
+    final envelope = _asMap(res);
+    return (
+      pumpId: envelope['pump_id'] as String,
+      created: envelope['created'] as bool? ?? false,
+    );
   }
 
-  /// 5. جلب جدول الأسعار الحالي والنشط
-  Future<PriceScheduleModel> fetchActivePriceSchedule(String wellId) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        final res = await client.rpc('get_active_price_schedule', params: {'p_well_id': wellId});
-        if (res != null) {
-          // parse from server
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching price schedule: $e');
-    }
-    return _getMockPriceSchedule(wellId);
+  /// 5. جدول التسعير الساري — api.get_active_price_schedule
+  ///
+  /// غياب جدول ساري حالة مشروعة تُعاد كـnull، لا خطأ ولا أسعار صفرية.
+  Future<PriceScheduleModel?> fetchActivePriceSchedule(
+    String wellId, {
+    DateTime? at,
+  }) async {
+    final res = await _requireClient.schema('api').rpc(
+      'get_active_price_schedule',
+      params: {
+        'p_well_id': wellId,
+        'p_at': at?.toIso8601String(),
+      },
+    );
+    final envelope = _asMap(res);
+    final schedule = envelope['schedule'];
+    if (schedule == null) return null;
+
+    final rules = _asList(envelope['rules'])
+        .map(PriceRuleModel.fromJson)
+        .toList(growable: false);
+    return PriceScheduleModel.fromJson(_asMap(schedule), rules);
   }
 
-  /// 6. إنشاء وتطبيق جدول أسعار جديد (القرار 492)
-  Future<void> updatePriceSchedule({
+  /// 6. إنشاء جدول تسعير جديد — api.create_price_schedule
+  Future<({String scheduleId, DateTime effectiveFrom})> createPriceSchedule({
     required String wellId,
-    required String scheduleName,
-    required String changeReason,
-    required DateTime effectiveFrom,
-    required int solarHourlyRateYER,
-    required int wellDieselHourlyRateYER,
-    required int farmerDieselHourlyRateYER,
+    required String name,
+    DateTime? effectiveFrom,
+    String? reason,
+    int? solarRateMinor,
+    int? wellDieselRateMinor,
+    int? farmerDieselRateMinor,
   }) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        await client.rpc('create_price_schedule', params: {
-          'p_well_id': wellId,
-          'p_name': scheduleName,
-          'p_reason': changeReason,
-          'p_effective_from': effectiveFrom.toIso8601String(),
-          'p_solar_rate': solarHourlyRateYER,
-          'p_well_diesel_rate': wellDieselHourlyRateYER,
-          'p_farmer_diesel_rate': farmerDieselHourlyRateYER,
-        });
-      }
-    } catch (e) {
-      debugPrint('Error updating price schedule: $e');
-    }
+    final res = await _requireClient.schema('api').rpc(
+      'create_price_schedule',
+      params: {
+        'p_well_id': wellId,
+        'p_name': name,
+        'p_effective_from': effectiveFrom?.toIso8601String(),
+        'p_reason': reason,
+        'p_solar_rate_minor': solarRateMinor,
+        'p_well_diesel_rate_minor': wellDieselRateMinor,
+        'p_farmer_diesel_rate_minor': farmerDieselRateMinor,
+      },
+    );
+    final envelope = _asMap(res);
+    return (
+      scheduleId: envelope['schedule_id'] as String,
+      effectiveFrom: DateTime.parse(envelope['effective_from'].toString()),
+    );
   }
 
-  /// 7. جلب خزانات الوقود والرصيد
-  Future<List<FuelTankModel>> fetchFuelTanks(String wellId) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        final res = await client.rpc('get_fuel_tanks', params: {'p_well_id': wellId});
-        if (res is List) {
-          // parse from server
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching fuel tanks: $e');
-    }
-    return _getMockFuelTanks(wellId);
-  }
-
-  /// 8. تسجيل شراء ديزل جديد (القرار 481)
-  Future<void> recordFuelPurchase({
-    required String tankId,
-    required int quantityLiters,
-    required int totalCostYER,
-    String? supplierName,
-    String? note,
+  /// 7. خزانات الوقود — api.list_well_fuel_tanks
+  Future<List<FuelTankModel>> fetchFuelTanks(
+    String wellId, {
+    bool includeInactive = false,
   }) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null) {
-        await client.rpc('record_fuel_purchase', params: {
-          'p_tank_id': tankId,
-          'p_quantity': quantityLiters,
-          'p_cost': totalCostYER,
-          'p_supplier': supplierName,
-          'p_note': note,
-        });
-      }
-    } catch (e) {
-      debugPrint('Error recording fuel purchase: $e');
-    }
+    final res = await _requireClient.schema('api').rpc(
+      'list_well_fuel_tanks',
+      params: {
+        'p_well_id': wellId,
+        'p_include_inactive': includeInactive,
+      },
+    );
+    return _asList(_asMap(res)['items'])
+        .map(FuelTankModel.fromJson)
+        .toList(growable: false);
   }
 
-  /// 9. تسجيل جرد وقياس فعلي مع تسوية الفروقات (القرارات 485–487)
+  /// 8. شراء وقود — api.purchase_fuel
+  ///
+  /// العقد القائم يأخذ البئر لا الخزان، ولا يقبل اسم مورّد ولا ملاحظة.
+  /// لذلك لا تُرسل هذه الحقول: إرسالها كان سيفشل، وتلفيقها محليًا كان
+  /// سيوهم المستخدم بحفظها.
+  Future<Map<String, dynamic>> recordFuelPurchase({
+    required String wellId,
+    required double liters,
+    required int totalCostMinor,
+    DateTime? purchasedAt,
+  }) async {
+    final res = await _requireClient.schema('api').rpc(
+      'purchase_fuel',
+      params: {
+        'p_well_id': wellId,
+        'p_liters': liters,
+        'p_cost_minor': totalCostMinor,
+        'p_purchased_at': purchasedAt?.toIso8601String(),
+      },
+    );
+    return _asMap(res);
+  }
+
+  /// 9. جرد فعلي مع تسوية الفروقات — api.record_physical_fuel_count
   Future<void> recordPhysicalFuelCount({
     required String wellId,
     required String tankId,
-    required int measuredBalanceLiters,
-    required String adjustmentReason,
+    required int measuredBalanceMl,
+    String? notes,
   }) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      throw StateError('Supabase client is unavailable');
-    }
-
-    await client.schema('api').rpc('record_physical_fuel_count', params: {
-      'p_well_id': wellId,
-      'p_fuel_tank_id': tankId,
-      'p_measured_balance_ml': measuredBalanceLiters * 1000,
-      'p_notes': adjustmentReason,
-    });
+    await _requireClient.schema('api').rpc(
+      'record_physical_fuel_count',
+      params: {
+        'p_well_id': wellId,
+        'p_fuel_tank_id': tankId,
+        'p_measured_balance_ml': measuredBalanceMl,
+        'p_notes': notes,
+      },
+    );
   }
 
-  /// 10. جلب التقرير الشامل والمؤشرات (القرارات 498–521)
+  /// 10. مؤشرات التقارير — دين معروف: لا عقد api بعد (م-41D2).
+  ///
+  /// النداء المجرّد باقٍ مؤقتًا مع بيانات احتياطية، وهو آخر بند في
+  /// قائمة الدين المعلَن في data_api_boundary_test.dart.
   Future<ReportSummaryModel> fetchReportsSummary({
     required String wellId,
-    required String periodCode, // today, this_week, this_month, custom
+    required String periodCode,
     DateTime? startDate,
     DateTime? endDate,
   }) async {
     try {
-      final client = _effectiveClient;
-      if (client != null) {
-        final res = await client.rpc('get_reports_summary', params: {
-          'p_well_id': wellId,
-          'p_period': periodCode,
-          'p_start': startDate?.toIso8601String(),
-          'p_end': endDate?.toIso8601String(),
-        });
-        if (res != null) {
-          // parse from server
-        }
+      final res = await _requireClient.rpc('get_reports_summary', params: {
+        'p_well_id': wellId,
+        'p_period': periodCode,
+        'p_start': startDate?.toIso8601String(),
+        'p_end': endDate?.toIso8601String(),
+      });
+      if (res != null) {
+        // لا عقد مستقر بعد؛ التحليل يأتي مع م-41D2.
       }
     } catch (e) {
-      debugPrint('Error fetching reports summary: $e');
+      debugPrint('get_reports_summary غير متوفر بعد (م-41D2): $e');
     }
     return _getMockReportSummary(periodCode);
-  }
-
-  // --- Mock Data Generators (Offline-First Fallbacks) ---
-
-  WellDetailsModel _getMockWellDetails(String wellId) {
-    return WellDetailsModel(
-      id: wellId,
-      tenantId: 'tenant-1',
-      name: 'بئر الخير الرئيسي',
-      status: 'active',
-      locationDescription: 'وادي حضرموت - منطقة الغرفة - حوض 4',
-      depthMeters: 180,
-      staticWaterLevelMeters: 45,
-      notes: 'البئر الرئيسي المشترك يغذي 24 مزرعة نخيل ومحاصيل حقلية.',
-      hasActiveSession: false,
-    );
-  }
-
-  List<PumpModel> _getMockPumps(String wellId) {
-    return [
-      PumpModel(
-        id: 'pump-1',
-        wellId: wellId,
-        name: 'مضخة غاطسة رئيسية (Frankline 75HP)',
-        pumpType: 'submersible',
-        horsepower: 75,
-        flowRateLitersPerSecond: 28,
-        fuelConsumptionLitersPerHour: 14,
-        status: 'running',
-        notes: 'تعمل بالطاقة الشمسية نهاراً ومولد الديزل ليلاً.',
-        installationDate: DateTime(2023, 5, 10),
-        isInActiveSession: false,
-      ),
-      PumpModel(
-        id: 'pump-2',
-        wellId: wellId,
-        name: 'مضخة احتياطية سطحية (Caprari 50HP)',
-        pumpType: 'surface',
-        horsepower: 50,
-        flowRateLitersPerSecond: 18,
-        fuelConsumptionLitersPerHour: 10,
-        status: 'standby',
-        notes: 'مضخة تعزيز احتياطية عند انخفاض المنسوب.',
-        installationDate: DateTime(2024, 1, 15),
-        isInActiveSession: false,
-      ),
-      PumpModel(
-        id: 'pump-3',
-        wellId: wellId,
-        name: 'مضخة الطاقة الشمسية التجريبية',
-        pumpType: 'submersible',
-        horsepower: 40,
-        flowRateLitersPerSecond: 14,
-        fuelConsumptionLitersPerHour: 0,
-        status: 'maintenance',
-        notes: 'تخضع لصيانة وفحص الإنفرتر الشمسي.',
-        installationDate: DateTime(2022, 11, 20),
-        isInActiveSession: false,
-      ),
-    ];
-  }
-
-  PriceScheduleModel _getMockPriceSchedule(String wellId) {
-    return PriceScheduleModel(
-      id: 'sched-1',
-      wellId: wellId,
-      scheduleName: 'تعرفة الموسم الزراعي الصيفي 2026',
-      effectiveFrom: DateTime(2026, 6, 1),
-      status: 'active',
-      changeReason: 'تحديث أسعار تشغيل الديزل وتعديل تعرفة الطاقة الشمسية.',
-      rules: const [
-        PriceRuleModel(
-          energySource: 'solar',
-          hourlyRateYER: 6000,
-          label: 'الطاقة الشمسية (نظام نهاري)',
-        ),
-        PriceRuleModel(
-          energySource: 'well_diesel',
-          hourlyRateYER: 18000,
-          label: 'ديزل البئر (شامل الوقود والتشغيل)',
-        ),
-        PriceRuleModel(
-          energySource: 'farmer_diesel',
-          hourlyRateYER: 8000,
-          label: 'ديزل المزارع (وقود المزارع الخاص + أجرة تشغيل البئر)',
-        ),
-      ],
-    );
-  }
-
-  List<FuelTankModel> _getMockFuelTanks(String wellId) {
-    return [
-      FuelTankModel(
-        id: 'tank-1',
-        wellId: wellId,
-        name: 'الخزان الرئيسي لمولد الديزل',
-        capacityLiters: 5000,
-        currentBalanceLiters: 2850,
-        measurementMethod: 'actual',
-        status: 'active',
-        lastMeasuredAt: DateTime.now().subtract(const Duration(hours: 4)),
-      ),
-      FuelTankModel(
-        id: 'tank-2',
-        wellId: wellId,
-        name: 'خزان الديزل الاحتياطي',
-        capacityLiters: 2000,
-        currentBalanceLiters: 1400,
-        measurementMethod: 'estimated',
-        status: 'active',
-        lastMeasuredAt: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-    ];
   }
 
   ReportSummaryModel _getMockReportSummary(String periodCode) {
@@ -607,7 +572,7 @@ class WellManagementRepository {
               ? 'هذا الأسبوع'
               : (periodCode == 'this_month' ? 'هذا الشهر' : 'فترة مخصصة')),
       totalSessions: 24,
-      totalDurationSeconds: 78 * 3600 + 1800, // 78h 30m
+      totalDurationSeconds: 78 * 3600 + 1800,
       totalRevenueYER: 945000,
       totalCollectedYER: 720000,
       totalExpensesYER: 285000,

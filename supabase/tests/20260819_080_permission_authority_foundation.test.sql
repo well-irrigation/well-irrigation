@@ -84,8 +84,11 @@ begin
   -- الكتالوج صار 39 بعد Migration 081 التي أضافت
   -- `session.energy.change` (الثغرة الوحيدة التي كشفها إثبات
   -- التكافؤ في ق-113). Migration 080 نفسها لم تُعدل.
-  if v_count = 39 and v_count_2 = 17 then
-    raise notice 'PASS 2: Permission catalog = 39 ويغطي تدفقات V1 الحالية';
+  -- ثم صار 41 بعد Migration 091 التي أضافت `well.update`
+  -- و`pump.manage`: عقود الكتابة صارت إجراءات SECURITY DEFINER
+  -- بسبب ق-79، فاحتاجت صلاحية مسمّاة للتفويض الصريح.
+  if v_count = 41 and v_count_2 = 17 then
+    raise notice 'PASS 2: Permission catalog = 41 ويغطي تدفقات V1 الحالية';
   else
     raise notice 'FAIL 2: permission_total=% new_codes=%', v_count, v_count_2;
   end if;
@@ -102,13 +105,15 @@ begin
   -- +3 منح بعد Migration 081: `session.energy.change` مُنحت
   -- للثلاثة الذين كان الحرس النصي يسمح لهم بها أصلًا
   -- (owner + manager + operator) — بلا توسيع ولا تضييق.
-  if v_count = 73
+  -- +2 منح بعد Migration 091: `well.update` و`pump.manage`
+  -- للمالك وحده، مطابقةً لسياسات RLS على core.wells وcore.pumps.
+  if v_count = 75
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'tenant_owner'
-     ) = 39
+     ) = 41
      and (
        select count(*)
        from iam.role_permissions rp
@@ -122,7 +127,7 @@ begin
        where r.code = 'operator'
      ) = 21
   then
-    raise notice 'PASS 3: Role permission seed = owner 39 / manager 13 / operator 21';
+    raise notice 'PASS 3: Role permission seed = owner 41 / manager 13 / operator 21';
   else
     raise notice 'FAIL 3: role_permissions total=%', v_count;
   end if;

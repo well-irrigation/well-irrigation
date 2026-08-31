@@ -958,3 +958,59 @@ Migration 089:
 SECURITY DEFINER في api، صفر كائن علائقي في api، Direct DML = 0،
 عزل بين بئرين، البحث بالاسم وبالرقم المطبّع، تثبيت الحد،
 الأراضي/المضخات النشطة فقط، رفض anon).
+
+## م-41D1 — عقود إدارة البئر (Migration 091)
+
+هذه الجولة أغلقت آخر كتلة mock في المستودع: إعدادات البئر
+والمضخات والتسعير والوقود.
+
+### القراءة
+
+| العقد | الوسائط | يعيد |
+|---|---|---|
+| `api.get_well_details` | `p_well_id uuid` | `{contract, version, well{}}` |
+| `api.list_well_pumps_detail` | `p_well_id uuid`, `p_include_inactive boolean default true` | `{contract, version, items[]}` |
+| `api.get_active_price_schedule` | `p_well_id uuid`, `p_at timestamptz default null` | `{contract, version, schedule{}|null, rules[]}` |
+| `api.list_well_fuel_tanks` | `p_well_id uuid`, `p_include_inactive boolean default false` | `{contract, version, items[]}` |
+
+الأربعة `security invoker` + `stable` + `search_path` مثبت،
+fail-closed بـ`28000`/`22023`/`42501`، ترتيب حتمي، ولا كائن
+علائقي في `api`. `get_active_price_schedule` وحده يفحص
+`price.manage` لأن الأسعار بيانات إدارية لا تشغيلية، وغياب جدول
+ساري يعيد `schedule: null` — حالة مشروعة لا خطأ ولا أسعار صفرية.
+
+### الكتابة كأزواج (ق-79)
+
+| الغلاف في `api` | الإجراء الداخلي | الصلاحية المفحوصة |
+|---|---|---|
+| `api.update_well_details` | `core.update_well_details` | `well.update` |
+| `api.save_well_pump` | `core.save_well_pump` | `pump.manage` |
+| `api.create_price_schedule` | `ops.create_price_schedule` | `price.manage` |
+
+الغلاف لا يفعل إلا التحقق من الجلسة وبناء `{contract, version}`
+ودمجه بـ`||` مع ما يعيده الإجراء. سبب هذا الفصل أن Migration 072
+سحبت DML من `authenticated`، فلا يمكن لدالة INVOKER أن تكتب؛
+وبما أن `security definer` يتجاوز RLS فإن فحص
+`iam.has_well_permission` داخل الإجراء هو التفويض الفعلي.
+
+### مطابقة Flutter
+
+`WellManagementRepository` صار يمر عبر `.schema('api').rpc(...)`
+في تسعة نداءات، وحُذفت كل مولّدات البيانات التجريبية الخمسة.
+النماذج تحمل أسماء القاعدة ووحداتها حرفيًا: قدرة المضخة نص حر،
+والتدفق لتر/دقيقة، والوقود مل/ساعة، وسعة الخزان ورصيده
+بالمليلتر — والتحويل إلى لتر تخطيط عرض صريح في الشاشة وحدها.
+حالات المضخة أربع فقط (`active/inactive/maintenance/retired`)،
+فلا `running` ولا `standby` ولا أي Blind Remap.
+
+### دَينٌ باقٍ معلَن
+
+- `get_reports_summary` وحده ما زال نداءً مجرّدًا مع بيانات
+  احتياطية، لأنه بلا عقد بعد (م-41D2). وهو البند الأخير في قائمة
+  الدين داخل `test/core/api/data_api_boundary_test.dart` بعد
+  انكماشها من تسعة إلى واحد.
+- خمس قراءات منقّطة في `finance_repository.dart` مؤجلة إلى
+  م-41D2.
+- `api.purchase_fuel` القائم يأخذ البئر لا الخزان، ولا يقبل اسم
+  مورّد ولا ملاحظة. فحُذف الحقلان من الشاشة وشُرح ذلك للمستخدم
+  نصًّا بدل إرسال وسيط غير موجود أو تلفيق حفظ لم يحدث.

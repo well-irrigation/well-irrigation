@@ -63,18 +63,38 @@ class _WellSettingsScreenState extends State<WellSettingsScreen> {
 
   Future<void> _loadDetails() async {
     setState(() => _isLoading = true);
-    final data = await _repo.fetchWellDetails(_activeWellId ?? 'well-1');
-    if (mounted) {
+    try {
+      final data = await _repo.fetchWellDetails(_activeWellId ?? 'well-1');
+      if (!mounted) return;
       setState(() {
         _details = data;
         _nameController.text = data.name;
-        _locationController.text = data.locationDescription ?? '';
-        _depthController.text = data.depthMeters?.toString() ?? '';
-        _staticWaterController.text = data.staticWaterLevelMeters?.toString() ?? '';
+        _locationController.text = data.location ?? '';
+        _depthController.text = _formatMeters(data.depthMeters);
+        _staticWaterController.text =
+            _formatMeters(data.staticWaterLevelMeters);
         _notesController.text = data.notes ?? '';
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _details = null;
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل بيانات البئر: $e')),
+      );
     }
+  }
+
+  /// العمق ومستوى الماء عشريان في القاعدة؛ الحقل الفارغ يعني «غير
+  /// مسجَّل» ولا يُستبدل بصفر.
+  static String _formatMeters(double? value) {
+    if (value == null) return '';
+    return value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toString();
   }
 
   Future<void> _saveChanges() async {
@@ -83,17 +103,19 @@ class _WellSettingsScreenState extends State<WellSettingsScreen> {
     setState(() => _isSaving = true);
     final scaffold = ScaffoldMessenger.of(context);
 
-    final depth = int.tryParse(_depthController.text.trim());
-    final staticWater = int.tryParse(_staticWaterController.text.trim());
+    final location = _locationController.text.trim();
+    final notes = _notesController.text.trim();
+    final depth = double.tryParse(_depthController.text.trim());
+    final staticWater = double.tryParse(_staticWaterController.text.trim());
 
     try {
       await _repo.updateWellDetails(
         wellId: _activeWellId ?? 'well-1',
         name: _nameController.text.trim(),
-        locationDescription: _locationController.text.trim(),
+        location: location.isEmpty ? null : location,
         depthMeters: depth,
         staticWaterLevelMeters: staticWater,
-        notes: _notesController.text.trim(),
+        notes: notes.isEmpty ? null : notes,
       );
 
       if (mounted) {

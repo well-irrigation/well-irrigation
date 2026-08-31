@@ -45,22 +45,32 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
 
   Future<void> _loadSchedule() async {
     setState(() => _isLoading = true);
-    final item = await _repo.fetchActivePriceSchedule(_activeWellId ?? 'well-1');
-    if (mounted) {
+    try {
+      final item =
+          await _repo.fetchActivePriceSchedule(_activeWellId ?? 'well-1');
+      if (!mounted) return;
       setState(() {
         _schedule = item;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _schedule = null;
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل التسعير: $e')),
+      );
     }
   }
 
   void _showUpdateTariffDialog() {
-    if (_schedule == null) return;
     showDialog(
       context: context,
       builder: (dialogCtx) => _UpdateTariffDialog(
         wellId: _activeWellId ?? 'well-1',
-        currentSchedule: _schedule!,
+        currentSchedule: _schedule,
         repository: _repo,
         onScheduleUpdated: () {
           _loadSchedule();
@@ -160,30 +170,36 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: AppColors.agriculturalGreen,
+                                  color: _schedule == null
+                                      ? Colors.grey.shade600
+                                      : AppColors.agriculturalGreen,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Text(
-                                  'معتمدة وسارية ✅',
-                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                child: Text(
+                                  _schedule == null
+                                      ? 'غير مُسعَّر ⚠️'
+                                      : 'معتمدة وسارية ✅',
+                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            _schedule?.scheduleName ?? 'تعرفة الموسم الزراعي',
+                            _schedule?.name ?? 'لا يوجد جدول تسعير ساري',
                             style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'تاريخ السريان: ${_formatDate(_schedule?.effectiveFrom ?? DateTime.now())}',
+                            _schedule == null
+                                ? 'لم يُعتمد أي جدول تسعير لهذا البئر بعد'
+                                : 'تاريخ السريان: ${_formatDate(_schedule!.effectiveFrom)}',
                             style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
-                          if (_schedule?.changeReason.isNotEmpty == true) ...[
+                          if (_schedule?.reason != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              'السبب: ${_schedule!.changeReason}',
+                              'السبب: ${_schedule!.reason}',
                               style: const TextStyle(color: Colors.white70, fontSize: 11),
                             ),
                           ],
@@ -200,7 +216,16 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
                     const SizedBox(height: 12),
 
                     // بطاقات أسعار مصادر الطاقة
-                    if (_schedule != null) ..._schedule!.rules.map((rule) => _buildRateCard(rule)),
+                    if (_schedule == null)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'لا توجد أسعار مسجَّلة لهذا البئر. اعتمد جدول تعرفة أولًا.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      )
+                    else
+                      ..._schedule!.rules.map((rule) => _buildRateCard(rule)),
 
                     const SizedBox(height: 16),
 
@@ -236,19 +261,29 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
   Widget _buildRateCard(PriceRuleModel rule) {
     IconData icon;
     Color color;
+    String label;
 
+    // تخطيط صريح من رمز القاعدة إلى الاسم العربي — لا ترجمة ضمنية.
     switch (rule.energySource) {
       case 'solar':
         icon = Icons.wb_sunny_outlined;
         color = Colors.amber.shade800;
+        label = 'الطاقة الشمسية';
         break;
       case 'well_diesel':
         icon = Icons.local_gas_station_outlined;
         color = Colors.deepOrange;
+        label = 'ديزل البئر (شامل الوقود)';
         break;
-      default:
+      case 'farmer_diesel':
         icon = Icons.agriculture_outlined;
         color = AppColors.agriculturalGreen;
+        label = 'ديزل المزارع (أجرة تشغيل)';
+        break;
+      default:
+        icon = Icons.bolt_outlined;
+        color = AppColors.deepBlue;
+        label = rule.energySource;
     }
 
     return Card(
@@ -276,7 +311,7 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    rule.label,
+                    label,
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 2),
@@ -284,12 +319,18 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
                 ],
               ),
             ),
-            CurrencyDisplay(
-              amount: rule.hourlyRateYER,
-              showTafqeet: false,
-              amountStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
-              unitStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-            ),
+            if (rule.hourlyRateMinor == null)
+              const Text(
+                'غير مُسعَّر',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              )
+            else
+              CurrencyDisplay(
+                amount: rule.hourlyRateMinor!,
+                showTafqeet: false,
+                amountStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+                unitStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
           ],
         ),
       ),
@@ -304,13 +345,13 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
 /// نافذة تحديث التعرفة والأسعار
 class _UpdateTariffDialog extends StatefulWidget {
   final String wellId;
-  final PriceScheduleModel currentSchedule;
+  final PriceScheduleModel? currentSchedule;
   final WellManagementRepository repository;
   final VoidCallback onScheduleUpdated;
 
   const _UpdateTariffDialog({
     required this.wellId,
-    required this.currentSchedule,
+    this.currentSchedule,
     required this.repository,
     required this.onScheduleUpdated,
   });
@@ -336,10 +377,16 @@ class _UpdateTariffDialogState extends State<_UpdateTariffDialog> {
     _nameController.text = 'تعرفة ${DateTime.now().year} المحدثة';
     _reasonController.text = 'تعديل أسعار الوقود ومعدلات التشغيل';
 
-    for (final r in widget.currentSchedule.rules) {
-      if (r.energySource == 'solar') _solarController.text = '${r.hourlyRateYER}';
-      if (r.energySource == 'well_diesel') _wellDieselController.text = '${r.hourlyRateYER}';
-      if (r.energySource == 'farmer_diesel') _farmerDieselController.text = '${r.hourlyRateYER}';
+    // الأسعار الحالية تُعرض كنقطة بداية إن وُجد جدول ساري، وتبقى
+    // فارغة إن لم يوجد — لا صفر مصطنع.
+    for (final r in widget.currentSchedule?.rules ?? const []) {
+      final rate = r.hourlyRateMinor;
+      if (rate == null) continue;
+      if (r.energySource == 'solar') _solarController.text = '$rate';
+      if (r.energySource == 'well_diesel') _wellDieselController.text = '$rate';
+      if (r.energySource == 'farmer_diesel') {
+        _farmerDieselController.text = '$rate';
+      }
     }
   }
 
@@ -440,14 +487,17 @@ class _UpdateTariffDialogState extends State<_UpdateTariffDialog> {
                   final nav = Navigator.of(context);
                   final scaffold = ScaffoldMessenger.of(context);
                   try {
-                    await widget.repository.updatePriceSchedule(
+                    // العقد ينشئ جدولًا جديدًا ويُنهي السابق؛ لا تعديل
+                    // في المكان حفاظًا على أثر التسعير التاريخي.
+                    final reason = _reasonController.text.trim();
+                    await widget.repository.createPriceSchedule(
                       wellId: widget.wellId,
-                      scheduleName: _nameController.text.trim(),
-                      changeReason: _reasonController.text.trim(),
+                      name: _nameController.text.trim(),
+                      reason: reason.isEmpty ? null : reason,
                       effectiveFrom: _effectiveFrom,
-                      solarHourlyRateYER: solar,
-                      wellDieselHourlyRateYER: wellDiesel,
-                      farmerDieselHourlyRateYER: farmerDiesel,
+                      solarRateMinor: solar,
+                      wellDieselRateMinor: wellDiesel,
+                      farmerDieselRateMinor: farmerDiesel,
                     );
                     if (mounted) {
                       nav.pop();

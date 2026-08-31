@@ -63,7 +63,8 @@ void main() {
       captureGroup: 1,
     );
 
-
+    // لا دين هنا: كل النداءات تمر عبر مخطط api وحده (ق-82).
+    const expected = <String>[];
 
     _expectKnownDebt(
       label: 'Internal-schema debt',
@@ -266,16 +267,10 @@ void main() {
       captureGroup: 1,
     );
 
+    // انكمش الدين من تسعة نداءات إلى نداء واحد بعد هجرة 091: كل عقود
+    // إدارة البئر صارت تمر عبر api، ولم يبقَ إلا مؤشرات التقارير التي
+    // لا عقد لها بعد (م-41D2).
     const expected = [
-
-      'lib/core/api/well_management_repository.dart|get_well_details',
-      'lib/core/api/well_management_repository.dart|update_well_details',
-      'lib/core/api/well_management_repository.dart|get_well_pumps',
-      'lib/core/api/well_management_repository.dart|save_pump',
-      'lib/core/api/well_management_repository.dart|get_active_price_schedule',
-      'lib/core/api/well_management_repository.dart|create_price_schedule',
-      'lib/core/api/well_management_repository.dart|get_fuel_tanks',
-      'lib/core/api/well_management_repository.dart|record_fuel_purchase',
       'lib/core/api/well_management_repository.dart|get_reports_summary',
     ];
 
@@ -284,6 +279,47 @@ void main() {
       actual: actual,
       expected: expected,
     );
+  });
+
+  test('well management contracts are routed through api', () {
+    final source = File(
+      'lib/core/api/well_management_repository.dart',
+    ).readAsStringSync();
+
+    for (final contract in const [
+      'get_well_details',
+      'update_well_details',
+      'list_well_pumps_detail',
+      'save_well_pump',
+      'get_active_price_schedule',
+      'create_price_schedule',
+      'list_well_fuel_tanks',
+      'purchase_fuel',
+      'record_physical_fuel_count',
+    ]) {
+      expect(
+        RegExp(
+          '''\\.schema\\s*\\(\\s*['"]api['"]\\s*\\)\\s*\\.rpc\\s*\\(\\s*\\n?\\s*['"]$contract['"]''',
+        ).hasMatch(source),
+        isTrue,
+        reason: 'Contract not routed through api: $contract',
+      );
+    }
+
+    // البيانات التجريبية المحلية لإدارة البئر أُزيلت؛ لم يبقَ إلا مؤشرات
+    // التقارير المعلَّمة كدين م-41D2.
+    for (final legacyName in const [
+      '_getMockWellDetails',
+      '_getMockPumps',
+      '_getMockPriceSchedule',
+      '_getMockFuelTanks',
+    ]) {
+      expect(
+        source.contains(legacyName),
+        isFalse,
+        reason: 'Production mock fallback still present: $legacyName',
+      );
+    }
   });
 
   test('physical fuel count uses the approved api contract', () {
@@ -315,14 +351,16 @@ void main() {
       section.contains("'p_fuel_tank_id': tankId"),
       isTrue,
     );
+    // الوحدة صارت مليلترًا في كل الطبقة: العقد يستلم القياس كما هو،
+    // والتحويل من اللتر يجري في الشاشة وحدها.
     expect(
       section.contains(
-        "'p_measured_balance_ml': measuredBalanceLiters * 1000",
+        "'p_measured_balance_ml': measuredBalanceMl",
       ),
       isTrue,
     );
     expect(
-      section.contains("'p_notes': adjustmentReason"),
+      section.contains("'p_notes': notes"),
       isTrue,
     );
     expect(
