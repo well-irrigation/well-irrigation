@@ -1,6 +1,6 @@
 # سجل تغييرات الوثائق
 
-**آخر تحديث:** 2026-08-30
+**آخر تحديث:** 2026-08-31
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 
@@ -2014,3 +2014,78 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - لا Migration جديدة ولا DB/Cloud write.
 - Team feature نفسها ما زالت Backend/Auth Gap وليست منفذة.
 - NEXT = م-41C — Operations Read Boundary Repair.
+
+
+## 2026-08-31 — م-41C1 Operations Read Contracts (farmers / farms / pumps)
+
+- Migration جديدة **089** — أول عقود قراءة للعمليات في `api`:
+  `list_well_farmers` و`list_well_farms` و`list_well_pumps`.
+- الثلاثة INVOKER + STABLE + `search_path = pg_catalog, pg_temp`،
+  fail-closed بـ42501، حد نتائج مثبت، ترتيب حتمي، anon محجوب.
+- اختبار دائم جديد: `20260831_089_operations_read_contracts.test.sql`
+  (20 تحققًا).
+- `OperationsRepository`: `fetchFarmers`/`fetchFarms`/`fetchPumps`
+  تحوّلت إلى `schema('api').rpc(...)`.
+- أزيلت `_getMockFarmers` و`_getMockFarms` وmock المضخات
+  وmock حساب المزارع في `fetchFarmerDetail`.
+- أزيل النجاح الكاذب في `createFarmer`/`createFarm`.
+- Internal-schema debt = **7 → 4** (الباقي: سجل الجلسات وتفصيلها).
+- Bare RPC debt = **9** بلا تغيير.
+- Dotted-from debt = **5** بلا تغيير.
+- شاشات المزارعين وملف المزارع والعمليات وحقل البحث الذكي
+  تعرض الآن حالة فشل صريحة مع إعادة المحاولة بدل بيانات مصطنعة.
+- flutter analyze = **No issues found**.
+- Full Flutter = **237/237 PASS** (كان 234؛ +3 اختبارات جديدة).
+- DB (شغّلها المالك: `db:reset` ثم `db:test`): Target 089 =
+  **20 PASS / 0 FAIL / 0 ERROR**؛ Full DB = **27 files / 389 PASS /
+  0 FAIL / 0 ERROR** (كان 26 files / 369 PASS — صفر انحدار)؛
+  Local migrations = **88** مطبقة حتى 089.
+- Cloud = **غير منشورة**؛ الحالة Verified local لا Cloud Verified.
+  ولا Direct DML جديد.
+- NEXT = م-41C2 — قراءة سجل الجلسات وتفصيلها (Migration 090).
+
+
+## 2026-08-31 — م-41C2 Session Read Contracts (history / detail)
+
+- Migration جديدة **090** — عقدا قراءة الجلسات في `api`:
+  `list_well_sessions` و`get_session_detail`.
+- الاثنان INVOKER + STABLE + `search_path = pg_catalog, pg_temp`،
+  fail-closed بـ42501/22023، حد نتائج مثبت، ترتيب حتمي
+  `started_at desc, id`، anon محجوب.
+- لا حساب مال داخل العقد (ق-99 + القرار 341): المبالغ من
+  `session_charges` و`invoices` و`session_segments` كما خُزّنت.
+- المدفوع بأسبقية صريحة: `invoices.paid_minor` إن وُجدت فاتورة،
+  وإلا مجموع `payments` بحالة `posted` — بلا احتساب مزدوج.
+- الجلسة غير المفوترة تعود بمبالغ null وحالة `not_billed`.
+- النافذة الزمنية وسيطان من العميل (`p_from`/`p_to`، والأعلى حصري)
+  لأن عقد حدود اليوم على الخادم ما زال مفتوحًا.
+- كل انضمامات التزويق LEFT JOIN إجباري (الحساب قابل للعدم وRLS
+  قد تحجب صف تزويق).
+- اختبار دائم جديد: `20260831_090_session_read_contracts.test.sql`
+  (25 تحققًا).
+- `OperationsRepository`: `fetchSessionHistory` و
+  `fetchSessionDetail` تحوّلتا إلى `schema('api').rpc(...)`،
+  وأُضيفت `historyWindow` لحساب النافذة في الجهاز.
+- أزيلت `_getMockSessionHistory` و`_getMockSessionDetail`
+  و`_applyHistoryFilter`.
+- أزيلت الأعمدة الوهمية الخمسة من العميل: `segment_index` و
+  `duration_seconds` و`hourly_rate_minor` و`is_paused` و
+  `pause_reason` — واستُبدلت بأعمدة 066 الحقيقية.
+- أزيلت التسعيرة الاحتياطية 3500 من معاينة الطباعة، وصارت
+  الجلسة غير المفوترة غير قابلة للطباعة.
+- تخطيط صريح: `kEnergySourceLabels` و`kSegmentTypeLabels`
+  (٩ أنواع)؛ الرمز المجهول يُعاد كما هو، لا Blind Remap.
+- Internal-schema debt = **4 → 0**، ويحرسها اختبار الحدود
+  بقائمة معروفة فارغة.
+- Bare RPC debt = **9** بلا تغيير.
+- Dotted-from debt = **5** بلا تغيير.
+- شاشتا سجل الجلسات وتفصيل الجلسة تعرضان حالة فشل صريحة مع
+  إعادة المحاولة، وحالة سداد رابعة «غير مفوترة بعد».
+- flutter analyze = **No issues found**.
+- Full Flutter = **258/258 PASS** (كان 237؛ +21 اختبارًا).
+- DB 090 = **لم يُشغَّل بعد** — `db:reset` + `db:test` بيد المالك.
+- Cloud = **غير منشورة** لـ089 ولا لـ090.
+- تصحيح موثّق: ما سُجّل سابقًا عن أعمدة المقاطع
+  (`actual_minutes` / `raw_billable_minutes`) ناقص؛ 066 أضاف
+  `actual_seconds` و`billable_seconds` وأعمدة المبالغ.
+- NEXT = م-41D — Well Management & Finance Boundary Repair.

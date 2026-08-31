@@ -1,10 +1,10 @@
-# نقطة الاستئناف — 2026-08-30
+# نقطة الاستئناف — 2026-08-31
 
 ## بوابة التثبيت الحالية — ق-120
 
 **CURRENT = Stabilization / Audit Gate**
 
-**NEXT = م-41C — Operations Read Boundary Repair**
+**NEXT = م-41D — Well Management & Finance Boundary Repair**
 
 المشروع Pre-Production، ولا يوجد استخدام حقيقي أو بيانات عملاء
 أو تشغيل مالية حقيقية. ق-120 ما زالت نافذة: لا يبدأ أي Screen
@@ -942,15 +942,111 @@ W1-01 «Prepared / Pending Owner Verification» وهي مكتملة ومغلقة
 - تغيير الحالة يحتاج Backend invariants.
 B3B لا تعتبر هذه الوظائف منفذة.
 
-### NEXT — م-41C
+### م-41C1 — Verified local (السحابة غير منشورة)
 
-Operations Read Boundary Repair.
+Operations Read Boundary Repair — الشريحة الأولى
+(المزارعون / الأراضي / المضخات).
 
-Regression Guard يثبت أن الوصولات الداخلية السبعة المتبقية
-كلها في `OperationsRepository`.
+الاكتشاف الحاكم: لم تكن في `api` أي عقد قراءة غير
+`app_bootstrap`، والمخططات الداخلية غير مكشوفة في Data API،
+فكل قراءة مباشرة كانت ميتة وتُستبدل بـmock على الشاشة.
+العقود الجديدة مصرَّح بها في ق-98.
 
-نبدأ بمطابقة قراءات المزارعين والأراضي والمضخات والجلسات
-مع العقود الموجودة فعلًا، وإزالة أي Production Mock fallback
-يخفي فشل Backend.
+ما نُفّذ:
+- Migration **089** — `api.list_well_farmers` و
+  `api.list_well_farms` و`api.list_well_pumps`، كلها
+  INVOKER + STABLE + `search_path = pg_catalog, pg_temp`،
+  fail-closed بـ42501، حد نتائج مثبت، ترتيب حتمي، anon محجوب.
+- اختبار دائم `20260831_089_operations_read_contracts.test.sql`
+  بـ20 تحققًا.
+- `fetchFarmers`/`fetchFarms`/`fetchPumps` تمر الآن عبر
+  `schema('api').rpc(...)`.
+- صفر mock fallback وصفر نجاح كاذب في هذا المسار.
+- حالات فشل صريحة مع إعادة المحاولة في أربع نقاط واجهة.
+
+الإثبات:
+- `flutter analyze` = **No issues found**.
+- Full Flutter = **237/237 PASS**.
+- Internal schema debt = **7 → 4**.
+- Bare RPC debt = **9**.
+- Dotted-from debt = **5**.
+- Target 089 = **20 PASS / 0 FAIL / 0 ERROR**.
+- Full DB = **27 files / 389 PASS / 0 FAIL / 0 ERROR**
+  (خط الأساس السابق 369، صفر انحدار).
+
+غير مثبت:
+النشر السحابي لـ089 لم يجرِ؛ العقود الثلاثة محلية فقط.
+الحالة = Verified local وليست Cloud Verified.
+
+### م-41C2 — Implemented (تحقق Flutter فقط؛ DB 090 لم يُشغَّل)
+
+Session History & Detail Read Contracts (Migration 090).
+
+الاكتشاف الحاكم: القراءة القديمة لم تكن معطلة بسبب المخطط المحجوب
+وحده — كانت تطلب خمسة أعمدة لا وجود لها في القاعدة
+(`segment_index`, `duration_seconds`, `hourly_rate_minor`,
+`is_paused`, `pause_reason`). وتبيّن أن ما سُجّل سابقًا عن أعمدة
+المقاطع ناقص: 066 أضاف `actual_seconds` و`billable_seconds`
+وأعمدة المبالغ `time_charge_minor` / `fuel_charge_minor` /
+`total_charge_minor`، وهي التي يستعملها التسعير فعلًا، لا أعمدة
+الدقائق. صُحّح ذلك في `OPEN_ISSUES`.
+
+ما نُفّذ:
+- Migration **090** — `api.list_well_sessions` و
+  `api.get_session_detail`، INVOKER + STABLE +
+  `search_path = pg_catalog, pg_temp`، fail-closed بـ42501/22023،
+  حد مثبت، ترتيب حتمي `started_at desc, id`، anon محجوب.
+- **لا حساب مال داخل العقد**: المبالغ كما خُزّنت؛ والمدفوع
+  بأسبقية `invoices.paid_minor` ثم مجموع `payments` المرحّلة.
+- الجلسة غير المفوترة = مبالغ `null` + `not_billed`، لا صفر
+  ولا `settled`.
+- النافذة الزمنية وسيطان من العميل (`historyWindow`) لأن عقد
+  حدود اليوم على الخادم ما زال مفتوحًا.
+- كل انضمامات التزويق LEFT JOIN إجباري.
+- اختبار دائم `20260831_090_session_read_contracts.test.sql`
+  بـ25 تحققًا.
+- `fetchSessionHistory` و`fetchSessionDetail` عبر
+  `schema('api').rpc(...)`؛ وأزيلت
+  `_getMockSessionHistory` و`_getMockSessionDetail` و
+  `_applyHistoryFilter`.
+- تخطيط صريح `kEnergySourceLabels` و`kSegmentTypeLabels` (٩ أنواع)؛
+  الرمز المجهول يُعاد كما هو.
+- أزيلت التسعيرة الاحتياطية 3500 من معاينة الطباعة، والجلسة غير
+  المفوترة لم تعد قابلة للطباعة.
+- حالتا فشل صريحتان مع إعادة المحاولة في شاشتي السجل والتفصيل،
+  وحالة سداد رابعة «غير مفوترة بعد».
+
+الإثبات:
+- `flutter analyze` = **No issues found**.
+- Full Flutter = **258/258 PASS** (كان 237).
+- Internal schema debt = **4 → 0**.
+- Bare RPC debt = **9**؛ Dotted-from debt = **5**.
+
+غير مثبت:
+- **DB 090 لم يُشغَّل** — `npm run db:reset` ثم `npm run db:test`
+  بيد المالك؛ حالة العقدين على القاعدة = مكتوبة لا مُتحقَّقة.
+- النشر السحابي لـ089 و090 لم يجرِ.
+
+### NEXT — م-41D
+
+Well Management & Finance Boundary Repair.
+
+الدين المتبقي على حدّ Data API:
+- **Bare RPC = 9**، كلها في `well_management_repository`:
+  `get_well_details`، `update_well_details`، `get_well_pumps`،
+  `save_pump`، `get_active_price_schedule`، `create_price_schedule`،
+  `get_fuel_tanks`، `record_fuel_purchase`، `get_reports_summary`.
+- **Dotted `from()` = 5**، كلها في `finance_repository`:
+  `finance.expenses`، `iam.well_memberships`،
+  `finance.profit_distribution_cycles`، `billing.invoices`،
+  `billing.payments`.
+
+يجب أن تبدأ الجولة بفحص أيٍّ من الأسماء التسعة موجود فعلًا داخل
+`api` وأيها غير موجود — 41B أثبت أن كثيرًا من أسماء RPC المفترضة
+غير موجودة أصلًا. لا يُوجَّه نداء إلى عقد قبل إثبات وجوده.
+
+مسألتان مفتوحتان تنتظران قرار المالك:
+1. عقد حدود اليوم / المنطقة الزمنية على الخادم (للبئر؟ للمستأجر؟).
+2. نشر 089 و090 سحابيًا عبر قناة `6543`.
 
 لا Blind Remap ولا Direct DML.

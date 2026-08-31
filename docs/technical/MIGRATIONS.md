@@ -1,19 +1,20 @@
 # الهجرات
 
-**آخر تحديث:** 2026-08-30
+**آخر تحديث:** 2026-08-31
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
 ---
 
-## الحالة الحالية الحاكمة — 2026-08-30
+## الحالة الحالية الحاكمة — 2026-08-31
 
-- Local: **87 migration file** مطبقة حتى 088؛ الرقم 067
-  غير مستخدم تاريخيًا.
+- Local: **88 migration file** مطبقة حتى 089؛ الرقم 067
+  غير مستخدم تاريخيًا. **090 مكتوبة ولم تُطبَّق بعد** (تنتظر
+  `db:reset` + `db:test` بيد المالك).
 - Cloud: Remote Migration History يتضمن 085 و086 و087 و088،
-  وآخر Version هو `20260830013000`.
-- **26** ملف اختبار دائم.
-- Full DB Suite محلي = **369 PASS / 0 FAIL / 0 ERROR**.
+  وآخر Version هو `20260830013000`. **089 و090 لم تُنشرا سحابيًا.**
+- **28** ملف اختبار دائم (بإضافة اختبار 090).
+- Full DB Suite محلي = **389 PASS / 0 FAIL / 0 ERROR** (قبل 090).
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
 - 073+074: عقد الكتابة داخل `api`.
@@ -1027,3 +1028,77 @@ login → build → set Exposed schemas → verify.
 2. **تصحيح احتساب الوقود (ق-17 / ق-91):** قصر `total_charge_minor` على `time_charge_minor` فقط في جدول `ops.session_segments` وإلغاء إضافة الوقود كرسوم على المزارع مع إبقائه كقيد رقابي في `fuel_charge_minor`.
 3. **سحب صلاحية التنفيذ:** سحب `EXECUTE` على كافة دوال المخططات الداخلية الحالية والمستقبلية من دور `anon` وحمايتها عبر `alter default privileges`.
 4. **إلغاء نموذج التسعير المتقاعد:** إلغاء `operation_plus_fuel` وحصر نموذج الديزل على `inclusive_hourly` فقط في قيود جدول `ops.price_rules`.
+
+## 089 — 20260831010001_089_operations_read_contracts.sql
+
+**الهدف:** إضافة أول عقود قراءة للعمليات في `api` وإغلاق سبب
+اعتماد شاشات المزارعين والأراضي والمضخات على بيانات تجريبية.
+
+**السبب:** المخططات الداخلية (`ops` / `core`) غير مكشوفة في
+Data API، فكل قراءة مباشرة منها تفشل ويستبدلها العميل بـmock.
+
+**ما تفعله:**
+1. `api.list_well_farmers(uuid, text, integer)` — مزارعو البئر
+   النشطون، مع بحث اختياري بالاسم أو الرمز أو رقم الاتصال
+   (`contact_value` و`normalized_value`)، وحد نتائج مثبت.
+2. `api.list_well_farms(uuid, uuid)` — أراضي البئر النشطة، مع
+   تصفية اختيارية بحساب المزارع.
+3. `api.list_well_pumps(uuid)` — مضخات البئر النشطة.
+
+**الخصائص:** الثلاثة `security invoker` + `stable` +
+`set search_path = pg_catalog, pg_temp`، لا `SECURITY DEFINER`،
+لا وسيط جدول/مخطط ديناميكي، التفويض من RLS القائمة، fail-closed
+بـ`42501` على بئر غير مرئي و`22023` على معرّف فارغ، ترتيب حتمي،
+`revoke` شامل ثم `grant execute` لـ`authenticated`/`service_role`
+فقط. لا جدول ولا View جديد، ولا توسيع Direct DML.
+
+**الاختبار:** `supabase/tests/20260831_089_operations_read_contracts.test.sql`.
+
+**التحقق المحلي (2026-08-31، بعد `db:reset` + `db:test`):**
+- Target 089 = **20 PASS / 0 FAIL / 0 ERROR**.
+- Full suite = **27 files / 389 PASS / 0 FAIL / 0 ERROR**
+  (خط الأساس السابق 369، بلا أي انحدار).
+- `api` SECURITY DEFINER = **0**؛ `api` بلا جداول/Views؛
+  Direct DML = **0** بعد إضافة العقود.
+- anon مرفوض على العقود الثلاثة؛ البئر غير المرئي مرفوض بـ`42501`.
+- Cloud: **غير منشورة** — النشر السحابي خطوة مستقلة لاحقة.
+
+## 090 — 20260831020001_090_session_read_contracts.sql
+
+**الهدف:** عقدا قراءة سجل الجلسات وتفصيلها، وإغلاق آخر وصول من
+Flutter إلى `ops` و`billing`.
+
+**السبب:** القراءة القديمة كانت مزدوجة الخطأ: مخططات غير مكشوفة
+في Data API، **وأسماء أعمدة غير موجودة في القاعدة** (`segment_index`،
+`duration_seconds`، `hourly_rate_minor`، `is_paused`، `pause_reason`).
+فكان كل نداء يفشل ويسقط على mock يعرض مبالغ لا أصل لها.
+
+**ما تفعله:**
+1. `api.list_well_sessions(uuid, uuid, timestamptz, timestamptz,
+   boolean, integer)` — سجل جلسات البئر مع ترشيح اختياري بحساب
+   المزارع وبنافذة زمنية صريحة (`p_to` حصري) وبغير المسدَّد،
+   وحد نتائج مثبت، وترتيب حتمي `started_at desc, id`.
+2. `api.get_session_detail(uuid)` — الجلسة ومقاطعها مرتبة بـ
+   `sequence_number`، وآخر دفعة مرحّلة (`method` / `public_code` /
+   `paid_at`) في مفتاح `payment` مستقل.
+
+**الخصائص:** كخصائص 089، مضافًا إليها:
+- **لا حساب مال داخل العقد** (ق-99 + القرار 341): المبالغ من
+  `billing.session_charges` و`billing.invoices` و
+  `ops.session_segments` كما خُزّنت.
+- المدفوع بأسبقية صريحة: `invoices.paid_minor` إن وُجدت فاتورة،
+  وإلا مجموع `billing.payments` بحالة `posted` — بلا احتساب مزدوج.
+- الجلسة غير المفوترة تعود بمبالغ `null` وحالة `not_billed`،
+  لا صفر ولا `settled` مصطنعة.
+- النافذة الزمنية وسيط من العميل: لا افتراض منطقة زمنية للخادم.
+- رموز `segment_type` و`energy_source` تعود كما هي؛ الترجمة في
+  طبقة العرض بتخطيط صريح.
+- كل انضمامات التزويق `LEFT JOIN` إجباري حتى لا يمحو صفٌّ محجوب
+  أو غير معيّن جلسةً مرئية.
+
+**الاختبار:** `supabase/tests/20260831_090_session_read_contracts.test.sql`
+(25 تحققًا).
+
+**التحقق:** DB لم يُشغَّل بعد لهذه الهجرة — `db:reset` + `db:test`
+بيد المالك. Flutter محليًا = **analyze نظيف** و**258/258 PASS**،
+وInternal-schema debt = **4 → 0**.

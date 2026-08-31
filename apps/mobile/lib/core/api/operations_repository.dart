@@ -81,6 +81,38 @@ class Pump {
   final String status;
 }
 
+/// تخطيط صريح لرموز مصدر الطاقة كما تُخزَّن في `ops.session_segments`
+/// (م-41C2). لا Blind Remap: الرمز غير المعروف يُعاد كما هو حتى يظهر
+/// النقص في الشاشة بدل أن يُترجم بالتخمين.
+const Map<String, String> kEnergySourceLabels = {
+  'solar': 'طاقة شمسية',
+  'well_diesel': 'ديزل البئر',
+  'farmer_diesel': 'ديزل المزارع',
+};
+
+String energySourceLabel(String? code) {
+  if (code == null || code.isEmpty) return 'غير محدد';
+  return kEnergySourceLabels[code] ?? code;
+}
+
+/// تخطيط صريح لرموز `segment_type` التسعة المسموح بها في القاعدة.
+const Map<String, String> kSegmentTypeLabels = {
+  'solar_run': 'تشغيل بالطاقة الشمسية',
+  'well_diesel_run': 'تشغيل بديزل البئر',
+  'farmer_diesel_run': 'تشغيل بديزل المزارع',
+  'billable_stop': 'توقف محسوب على المزارع',
+  'non_billable_stop': 'توقف غير محسوب',
+  'breakdown': 'تعطل',
+  'operator_pause': 'إيقاف من المشغل',
+  'farmer_requested_pause': 'إيقاف بطلب المزارع',
+  'source_change_pause': 'إيقاف لتغيير مصدر الطاقة',
+};
+
+String segmentTypeLabel(String? code) {
+  if (code == null || code.isEmpty) return 'مقطع غير محدد';
+  return kSegmentTypeLabels[code] ?? code;
+}
+
 class SessionHistoryItem {
   const SessionHistoryItem({
     required this.id,
@@ -94,13 +126,45 @@ class SessionHistoryItem {
     required this.startedAt,
     this.endedAt,
     this.status = 'closed',
-    this.energySource = 'طاقة شمسية',
+    this.energySourceCode,
     this.billableSeconds = 0,
     this.totalAmountYER = 0,
     this.paidAmountYER = 0,
-    this.paymentStatus = 'settled', // 'settled', 'partial', 'unpaid'
+    this.paymentStatus = 'not_billed',
+    this.hasCharge = false,
+    this.hasInvoice = false,
     this.isSynced = true,
   });
+
+  /// بناء العنصر من عقد `api.list_well_sessions` / `api.get_session_detail`.
+  /// الجلسة غير المفوترة تصل بمبالغ null، فتبقى أصفارًا مع `hasCharge=false`
+  /// وحالة `not_billed` — لا مبلغ مخترع ولا حالة سداد مصطنعة (ق-99).
+  factory SessionHistoryItem.fromContract(Map<String, dynamic> json) {
+    return SessionHistoryItem(
+      id: json['id'] as String? ?? '',
+      wellId: json['well_id'] as String? ?? '',
+      farmerName: json['farmer_name'] as String? ?? 'غير محدد',
+      farmerCode: json['farmer_public_code'] as String? ?? '',
+      farmerAccountId: json['farmer_well_account_id'] as String? ?? '',
+      farmName: json['farm_name'] as String? ?? 'غير محددة',
+      pumpName: json['pump_name'] as String? ?? 'غير محددة',
+      operatorName: json['operator_name'] as String? ?? 'غير محدد',
+      startedAt:
+          DateTime.tryParse(json['started_at'] as String? ?? '')?.toLocal() ??
+              DateTime.now(),
+      endedAt: json['ended_at'] != null
+          ? DateTime.tryParse(json['ended_at'] as String)?.toLocal()
+          : null,
+      status: json['status'] as String? ?? 'closed',
+      energySourceCode: json['energy_source'] as String?,
+      billableSeconds: (json['billable_seconds'] as num?)?.toInt() ?? 0,
+      totalAmountYER: (json['total_amount_minor'] as num?)?.toInt() ?? 0,
+      paidAmountYER: (json['paid_amount_minor'] as num?)?.toInt() ?? 0,
+      paymentStatus: json['payment_status'] as String? ?? 'not_billed',
+      hasCharge: json['has_charge'] as bool? ?? false,
+      hasInvoice: json['has_invoice'] as bool? ?? false,
+    );
+  }
 
   final String id;
   final String wellId;
@@ -113,39 +177,88 @@ class SessionHistoryItem {
   final DateTime startedAt;
   final DateTime? endedAt;
   final String status;
-  final String energySource;
+
+  /// رمز القاعدة كما هو (`solar` / `well_diesel` / `farmer_diesel`)
+  final String? energySourceCode;
   final int billableSeconds;
   final int totalAmountYER;
   final int paidAmountYER;
+
+  /// `not_billed` / `unpaid` / `partial` / `settled` كما يحسمها العقد
   final String paymentStatus;
+  final bool hasCharge;
+  final bool hasInvoice;
   final bool isSynced;
 
-  int get remainingAmountYER => (totalAmountYER - paidAmountYER) > 0 ? (totalAmountYER - paidAmountYER) : 0;
-  bool get isFullySettled => paymentStatus == 'settled' || (totalAmountYER > 0 && paidAmountYER >= totalAmountYER);
+  String get energySource => energySourceLabel(energySourceCode);
+
+  bool get isBilled => hasCharge;
+
+  int get remainingAmountYER =>
+      (totalAmountYER - paidAmountYER) > 0 ? (totalAmountYER - paidAmountYER) : 0;
+
+  bool get isFullySettled => hasCharge && paymentStatus == 'settled';
 }
 
 class SessionSegmentItem {
   const SessionSegmentItem({
-    required this.segmentIndex,
-    required this.energySource,
+    required this.sequenceNumber,
+    required this.segmentType,
+    required this.isStop,
+    required this.isBillable,
     required this.startedAt,
     this.endedAt,
-    required this.durationSeconds,
-    required this.hourlyRateYER,
-    required this.amountYER,
-    this.isPaused = false,
-    this.pauseReason,
+    this.energySourceCode,
+    this.actualSeconds = 0,
+    this.billableSeconds = 0,
+    this.appliedRateYER = 0,
+    this.timeChargeYER = 0,
+    this.fuelChargeYER = 0,
+    this.totalChargeYER = 0,
+    this.notes,
   });
 
-  final int segmentIndex;
-  final String energySource;
+  /// المقطع كما تعيده القاعدة: أعمدة الثواني والمبالغ المخزّنة، لا حساب محلي.
+  factory SessionSegmentItem.fromContract(Map<String, dynamic> json) {
+    return SessionSegmentItem(
+      sequenceNumber: (json['sequence_number'] as num?)?.toInt() ?? 0,
+      segmentType: json['segment_type'] as String? ?? '',
+      isStop: json['is_stop'] as bool? ?? false,
+      isBillable: json['is_billable'] as bool? ?? false,
+      startedAt:
+          DateTime.tryParse(json['started_at'] as String? ?? '')?.toLocal() ??
+              DateTime.now(),
+      endedAt: json['ended_at'] != null
+          ? DateTime.tryParse(json['ended_at'] as String)?.toLocal()
+          : null,
+      energySourceCode: json['energy_source'] as String?,
+      actualSeconds: (json['actual_seconds'] as num?)?.toInt() ?? 0,
+      billableSeconds: (json['billable_seconds'] as num?)?.toInt() ?? 0,
+      appliedRateYER: (json['applied_rate_minor'] as num?)?.toInt() ?? 0,
+      timeChargeYER: (json['time_charge_minor'] as num?)?.toInt() ?? 0,
+      fuelChargeYER: (json['fuel_charge_minor'] as num?)?.toInt() ?? 0,
+      totalChargeYER: (json['total_charge_minor'] as num?)?.toInt() ?? 0,
+      notes: json['notes'] as String?,
+    );
+  }
+
+  final int sequenceNumber;
+  final String segmentType;
+  final bool isStop;
+  final bool isBillable;
   final DateTime startedAt;
   final DateTime? endedAt;
-  final int durationSeconds;
-  final int hourlyRateYER;
-  final int amountYER;
-  final bool isPaused;
-  final String? pauseReason;
+  final String? energySourceCode;
+  final int actualSeconds;
+  final int billableSeconds;
+  final int appliedRateYER;
+  final int timeChargeYER;
+  final int fuelChargeYER;
+  final int totalChargeYER;
+  final String? notes;
+
+  String get energySource => energySourceLabel(energySourceCode);
+  String get typeLabel => segmentTypeLabel(segmentType);
 }
 
 class SessionDetailData {
@@ -198,171 +311,80 @@ class OperationsRepository {
     }
   }
 
+  /// استخراج عناصر عقد قراءة من مغلّف `{contract, version, items}` (ق-98)
+  List<Map<String, dynamic>> _contractItems(dynamic response) {
+    if (response is! Map) {
+      throw StateError('استجابة عقد القراءة غير متوقعة');
+    }
+    final items = response['items'];
+    if (items is! List) {
+      throw StateError('عقد القراءة لم يُعِد قائمة عناصر');
+    }
+    return items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
   /// جلب قائمة المزارعين المسجلين في البئر مع إمكانية البحث بالاسم أو الهاتف
+  /// عبر عقد `api.list_well_farmers` (م-41C1 / ق-98). لا بيانات تجريبية:
+  /// أي فشل يصل إلى الشاشة كخطأ صريح.
   Future<List<FarmerAccount>> fetchFarmers(
     String wellId, {
     String? query,
   }) async {
     final cleanQuery = query != null ? normalizeArabicDigits(query).trim() : null;
     final client = _effectiveClient;
-
     if (client == null) {
-      return _getMockFarmers(cleanQuery);
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final response = await client
-          .schema('ops')
-          .from('farmer_well_accounts')
-          .select('''
-            id,
-            public_code,
-            status,
-            farmer_profiles!inner (
-              id,
-              persons!inner (
-                id,
-                full_name,
-                person_contacts (
-                  contact_value,
-                  is_primary
-                )
-              )
-            )
-          ''')
-          .eq('well_id', wellId)
-          .eq('status', 'active');
+    final response = await client.schema('api').rpc(
+      'list_well_farmers',
+      params: {
+        'p_well_id': wellId,
+        'p_query': (cleanQuery != null && cleanQuery.isNotEmpty) ? cleanQuery : null,
+      },
+    );
 
-      final list = (response as List<dynamic>).map((row) {
-        final r = row as Map<String, dynamic>;
-        final fp = r['farmer_profiles'] as Map<String, dynamic>? ?? {};
-        final p = fp['persons'] as Map<String, dynamic>? ?? {};
-        final contacts = p['person_contacts'] as List<dynamic>? ?? [];
-
-        String? phone;
-        for (final c in contacts) {
-          final contactMap = c as Map<String, dynamic>;
-          if (contactMap['is_primary'] == true || phone == null) {
-            phone = contactMap['contact_value'] as String?;
-          }
-        }
-
-        return FarmerAccount(
-          id: r['id'] as String? ?? '',
-          fullName: p['full_name'] as String? ?? '',
-          publicCode: r['public_code'] as String? ?? '',
-          phone: phone,
-          status: r['status'] as String? ?? 'active',
-        );
-      }).toList();
-
-      if (cleanQuery != null && cleanQuery.isNotEmpty) {
-        return list.where((item) {
-          final matchesName =
-              item.fullName.toLowerCase().contains(cleanQuery.toLowerCase());
-          final matchesPhone = item.phone != null && item.phone!.contains(cleanQuery);
-          final matchesCode = item.publicCode.contains(cleanQuery);
-          return matchesName || matchesPhone || matchesCode;
-        }).toList();
-      }
-
-      return list;
-    } catch (_) {
-      return _getMockFarmers(cleanQuery);
-    }
+    return _contractItems(response).map(FarmerAccount.fromJson).toList();
   }
 
-  List<FarmerAccount> _getMockFarmers(String? cleanQuery) {
-    final list = const [
-      FarmerAccount(id: 'f-1', fullName: 'محمد علي الحبيشي', publicCode: 'F-001', phone: '777111222'),
-      FarmerAccount(id: 'f-2', fullName: 'صالح أحمد الشامي', publicCode: 'F-002', phone: '777333444'),
-      FarmerAccount(id: 'f-3', fullName: 'عبدالله مسعد القادري', publicCode: 'F-003', phone: '777555666'),
-      FarmerAccount(id: 'f-4', fullName: 'يحيى حمود العنسي', publicCode: 'F-004', phone: '777888999'),
-    ];
-    if (cleanQuery != null && cleanQuery.isNotEmpty) {
-      return list.where((f) =>
-        f.fullName.toLowerCase().contains(cleanQuery.toLowerCase()) ||
-        f.publicCode.contains(cleanQuery) ||
-        (f.phone != null && f.phone!.contains(cleanQuery))
-      ).toList();
-    }
-    return list;
-  }
-
-  /// جلب أراضي البئر أو أراضي مزارع معين
+  /// جلب أراضي البئر أو أراضي مزارع معين عبر عقد `api.list_well_farms`
   Future<List<Farm>> fetchFarms(
     String wellId, {
     String? farmerAccountId,
   }) async {
     final client = _effectiveClient;
     if (client == null) {
-      return _getMockFarms(farmerAccountId);
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      var queryBuilder = client
-          .schema('ops')
-          .from('farms')
-          .select('id, well_id, name, farmer_well_account_id, status')
-          .eq('well_id', wellId)
-          .eq('status', 'active');
+    final response = await client.schema('api').rpc(
+      'list_well_farms',
+      params: {
+        'p_well_id': wellId,
+        'p_farmer_well_account_id':
+            (farmerAccountId != null && farmerAccountId.isNotEmpty) ? farmerAccountId : null,
+      },
+    );
 
-      if (farmerAccountId != null && farmerAccountId.isNotEmpty) {
-        queryBuilder =
-            queryBuilder.eq('farmer_well_account_id', farmerAccountId);
-      }
-
-      final response = await queryBuilder.order('name');
-      return (response as List<dynamic>)
-          .map((f) => Farm.fromJson(f as Map<String, dynamic>))
-          .toList();
-    } catch (_) {
-      return _getMockFarms(farmerAccountId);
-    }
+    return _contractItems(response).map(Farm.fromJson).toList();
   }
 
-  List<Farm> _getMockFarms(String? farmerAccountId) {
-    final allFarms = const [
-      Farm(id: 'farm-1', wellId: 'well-1', name: 'مزرعة الوادي الشرقية', farmerAccountId: 'f-1'),
-      Farm(id: 'farm-2', wellId: 'well-1', name: 'حقل القات الغربي', farmerAccountId: 'f-1'),
-      Farm(id: 'farm-3', wellId: 'well-1', name: 'مزرعة الرمان الشمالية', farmerAccountId: 'f-2'),
-      Farm(id: 'farm-4', wellId: 'well-1', name: 'حقل الذرة الكبير', farmerAccountId: 'f-3'),
-      Farm(id: 'farm-5', wellId: 'well-1', name: 'مزرعة النخيل', farmerAccountId: 'f-4'),
-    ];
-    if (farmerAccountId != null && farmerAccountId.isNotEmpty) {
-      return allFarms.where((f) => f.farmerAccountId == farmerAccountId).toList();
-    }
-    return allFarms;
-  }
-
-  /// جلب مضخات البئر
+  /// جلب مضخات البئر عبر عقد `api.list_well_pumps`
   Future<List<Pump>> fetchPumps(String wellId) async {
     final client = _effectiveClient;
     if (client == null) {
-      return const [
-        Pump(id: 'pump-1', wellId: 'well-1', name: 'المضخة الرئيسية 1', publicCode: 'P-01'),
-        Pump(id: 'pump-2', wellId: 'well-1', name: 'المضخة الغاطسة 2', publicCode: 'P-02'),
-      ];
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final response = await client
-          .schema('core')
-          .from('pumps')
-          .select('id, well_id, name, public_code, status')
-          .eq('well_id', wellId)
-          .eq('status', 'active')
-          .order('name');
+    final response = await client.schema('api').rpc(
+      'list_well_pumps',
+      params: {'p_well_id': wellId},
+    );
 
-      return (response as List<dynamic>)
-          .map((p) => Pump.fromJson(p as Map<String, dynamic>))
-          .toList();
-    } catch (_) {
-      return const [
-        Pump(id: 'pump-1', wellId: 'well-1', name: 'المضخة الرئيسية 1', publicCode: 'P-01'),
-        Pump(id: 'pump-2', wellId: 'well-1', name: 'المضخة الغاطسة 2', publicCode: 'P-02'),
-      ];
-    }
+    return _contractItems(response).map(Pump.fromJson).toList();
   }
 
   /// إنشاء مزارع جديد في البئر ذرياً (api.create_farmer - ق-80 / ق-84)
@@ -378,43 +400,31 @@ class OperationsRepository {
 
     final client = _effectiveClient;
     if (client == null) {
-      return FarmerAccount(
-        id: 'farmer-${DateTime.now().millisecondsSinceEpoch}',
-        fullName: fullName.trim(),
-        publicCode: 'F-NEW',
-        phone: cleanPhone,
-      );
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final result = await client.schema('api').rpc(
-        'create_farmer',
-        params: {
-          'p_well_id': wellId,
-          'p_full_name': fullName.trim(),
-          'p_phone': cleanPhone,
-          'p_notes': notes,
-        },
-      );
+    final result = await client.schema('api').rpc(
+      'create_farmer',
+      params: {
+        'p_well_id': wellId,
+        'p_full_name': fullName.trim(),
+        'p_phone': cleanPhone,
+        'p_notes': notes,
+      },
+    );
 
-      final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
-      final accountId = resMap['farmer_well_account_id'] as String? ?? '';
-      final publicCode = resMap['public_code'] as String? ?? '';
-
-      return FarmerAccount(
-        id: accountId,
-        fullName: fullName.trim(),
-        publicCode: publicCode,
-        phone: cleanPhone,
-      );
-    } catch (_) {
-      return FarmerAccount(
-        id: 'farmer-${DateTime.now().millisecondsSinceEpoch}',
-        fullName: fullName.trim(),
-        publicCode: 'F-NEW',
-        phone: cleanPhone,
-      );
+    final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
+    final accountId = resMap['farmer_well_account_id'] as String? ?? '';
+    if (accountId.isEmpty) {
+      throw StateError('عقد create_farmer لم يُعِد معرّف حساب المزارع');
     }
+
+    return FarmerAccount(
+      id: accountId,
+      fullName: fullName.trim(),
+      publicCode: resMap['public_code'] as String? ?? '',
+      phone: cleanPhone,
+    );
   }
 
   /// إنشاء أرض زراعية جديدة وربطها بالمزارع (api.create_farm - ق-80)
@@ -425,41 +435,30 @@ class OperationsRepository {
   }) async {
     final client = _effectiveClient;
     if (client == null) {
-      return Farm(
-        id: 'farm-${DateTime.now().millisecondsSinceEpoch}',
-        wellId: wellId,
-        name: name.trim(),
-        farmerAccountId: farmerAccountId,
-      );
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final result = await client.schema('api').rpc(
-        'create_farm',
-        params: {
-          'p_well_id': wellId,
-          'p_name': name.trim(),
-          'p_farmer_well_account_id': farmerAccountId,
-        },
-      );
+    final result = await client.schema('api').rpc(
+      'create_farm',
+      params: {
+        'p_well_id': wellId,
+        'p_name': name.trim(),
+        'p_farmer_well_account_id': farmerAccountId,
+      },
+    );
 
-      final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
-      final farmId = resMap['farm_id'] as String? ?? '';
-
-      return Farm(
-        id: farmId,
-        wellId: wellId,
-        name: name.trim(),
-        farmerAccountId: farmerAccountId,
-      );
-    } catch (_) {
-      return Farm(
-        id: 'farm-${DateTime.now().millisecondsSinceEpoch}',
-        wellId: wellId,
-        name: name.trim(),
-        farmerAccountId: farmerAccountId,
-      );
+    final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
+    final farmId = resMap['farm_id'] as String? ?? '';
+    if (farmId.isEmpty) {
+      throw StateError('عقد create_farm لم يُعِد معرّف الأرض');
     }
+
+    return Farm(
+      id: farmId,
+      wellId: wellId,
+      name: name.trim(),
+      farmerAccountId: farmerAccountId,
+    );
   }
 
   /// بدء جلسة سقي جديدة (api.start_irrigation_session - ق-114)
@@ -570,7 +569,29 @@ class OperationsRepository {
     return {'raw': result};
   }
 
-  /// جلب سجل جلسات السقي للبئر مع دعم الفلترة (UX-13 / ق-98)
+  /// حدود النافذة الزمنية للمرشّح بالتوقيت المحلي للجهاز.
+  ///
+  /// عقد حدود اليوم على الخادم ما زال مفتوحًا (لا منطقة زمنية محسومة في
+  /// القاعدة)، فالنافذة تُحسب هنا صراحةً وتُرسل كوسيطين للعقد بدل أن
+  /// يفترض الخادم منطقة زمنية أو يفلتر العميل بعد الجلب.
+  static (DateTime?, DateTime?) historyWindow(String? filter, {DateTime? now}) {
+    final ref = now ?? DateTime.now();
+    switch (filter) {
+      case 'today':
+        final start = DateTime(ref.year, ref.month, ref.day);
+        return (start, start.add(const Duration(days: 1)));
+      case 'week':
+        return (ref.subtract(const Duration(days: 7)), null);
+      case 'month':
+        return (ref.subtract(const Duration(days: 30)), null);
+      default:
+        return (null, null);
+    }
+  }
+
+  /// جلب سجل جلسات السقي للبئر عبر عقد `api.list_well_sessions`
+  /// (م-41C2 / ق-98). لا بيانات تجريبية ولا فلترة مالية محلية: المبالغ
+  /// وحالة السداد تصل محسومة من القاعدة، والفشل يصل إلى الشاشة صريحًا.
   Future<List<SessionHistoryItem>> fetchSessionHistory({
     required String wellId,
     String? farmerAccountId,
@@ -578,427 +599,74 @@ class OperationsRepository {
   }) async {
     final client = _effectiveClient;
     if (client == null) {
-      return _getMockSessionHistory(wellId, farmerAccountId, filter);
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final response = await client
-          .schema('ops')
-          .from('irrigation_sessions')
-          .select('''
-            id,
-            well_id,
-            status,
-            started_at,
-            ended_at,
-            farmer_well_accounts!inner (
-              id,
-              public_code,
-              farmer_profiles!inner (
-                persons!inner (
-                  full_name
-                )
-              )
-            ),
-            farms!inner (
-              id,
-              name
-            ),
-            core_pumps:core!pumps!inner (
-              id,
-              name
-            ),
-            session_charges (
-              billable_seconds,
-              total_amount_minor
-            ),
-            session_segments (
-              energy_source
-            ),
-            payments:billing!payments (
-              amount_minor
-            )
-          ''')
-          .eq('well_id', wellId)
-          .order('started_at', ascending: false);
+    final (from, to) = historyWindow(filter);
 
-      final list = (response as List<dynamic>).map((row) {
-        final r = row as Map<String, dynamic>;
-        final fa = r['farmer_well_accounts'] as Map<String, dynamic>? ?? {};
-        final fp = fa['farmer_profiles'] as Map<String, dynamic>? ?? {};
-        final p = fp['persons'] as Map<String, dynamic>? ?? {};
-        final farm = r['farms'] as Map<String, dynamic>? ?? {};
-        final pump = r['core_pumps'] as Map<String, dynamic>? ?? {};
-        final charges = r['session_charges'] as List<dynamic>? ?? [];
-        final segments = r['session_segments'] as List<dynamic>? ?? [];
-        final payments = r['payments'] as List<dynamic>? ?? [];
+    final response = await client.schema('api').rpc(
+      'list_well_sessions',
+      params: {
+        'p_well_id': wellId,
+        'p_farmer_well_account_id':
+            (farmerAccountId != null && farmerAccountId.isNotEmpty)
+                ? farmerAccountId
+                : null,
+        'p_from': from?.toUtc().toIso8601String(),
+        'p_to': to?.toUtc().toIso8601String(),
+        'p_unpaid_only': filter == 'unpaid',
+      },
+    );
 
-        int billableSecs = 0;
-        int totalAmount = 0;
-        if (charges.isNotEmpty) {
-          final c = charges.first as Map<String, dynamic>;
-          billableSecs = (c['billable_seconds'] as num?)?.toInt() ?? 0;
-          totalAmount = (c['total_amount_minor'] as num?)?.toInt() ?? 0;
-        }
-
-        int paidTotal = 0;
-        for (final pay in payments) {
-          final payMap = pay as Map<String, dynamic>;
-          paidTotal += (payMap['amount_minor'] as num?)?.toInt() ?? 0;
-        }
-
-        String energy = 'طاقة شمسية';
-        if (segments.isNotEmpty) {
-          energy = (segments.first as Map<String, dynamic>)['energy_source'] as String? ?? 'طاقة شمسية';
-        }
-
-        String payStatus = 'unpaid';
-        if (totalAmount > 0) {
-          if (paidTotal >= totalAmount) {
-            payStatus = 'settled';
-          } else if (paidTotal > 0) {
-            payStatus = 'partial';
-          }
-        }
-
-        return SessionHistoryItem(
-          id: r['id'] as String? ?? '',
-          wellId: r['well_id'] as String? ?? wellId,
-          farmerName: p['full_name'] as String? ?? 'مزارع',
-          farmerCode: fa['public_code'] as String? ?? 'F-000',
-          farmerAccountId: fa['id'] as String? ?? '',
-          farmName: farm['name'] as String? ?? 'أرض زراعية',
-          pumpName: pump['name'] as String? ?? 'المضخة 1',
-          operatorName: 'المشغل',
-          startedAt: DateTime.tryParse(r['started_at'] as String? ?? '') ?? DateTime.now(),
-          endedAt: r['ended_at'] != null ? DateTime.tryParse(r['ended_at'] as String) : null,
-          status: r['status'] as String? ?? 'closed',
-          energySource: energy,
-          billableSeconds: billableSecs,
-          totalAmountYER: totalAmount,
-          paidAmountYER: paidTotal,
-          paymentStatus: payStatus,
-        );
-      }).toList();
-
-      return _applyHistoryFilter(list, filter: filter, farmerAccountId: farmerAccountId);
-    } catch (_) {
-      return _getMockSessionHistory(wellId, farmerAccountId, filter);
-    }
+    return _contractItems(response)
+        .map(SessionHistoryItem.fromContract)
+        .toList();
   }
 
-  List<SessionHistoryItem> _getMockSessionHistory(String wellId, String? farmerAccountId, String? filter) {
-    final now = DateTime.now();
-    final mockList = [
-      SessionHistoryItem(
-        id: 'mock-session-1',
-        wellId: wellId,
-        farmerName: 'محمد علي الحبيشي',
-        farmerCode: 'F-001',
-        farmerAccountId: 'mock-farmer-1',
-        farmName: 'مزرعة الوادي الكبير',
-        pumpName: 'المضخة الرئيسية 1',
-        operatorName: 'خالد النجحي',
-        startedAt: now.subtract(const Duration(hours: 3)),
-        endedAt: now.subtract(const Duration(hours: 2)),
-        status: 'closed',
-        energySource: 'طاقة شمسية',
-        billableSeconds: 3600,
-        totalAmountYER: 3500,
-        paidAmountYER: 3500,
-        paymentStatus: 'settled',
-      ),
-      SessionHistoryItem(
-        id: 'mock-session-2',
-        wellId: wellId,
-        farmerName: 'صالح أحمد الشامي',
-        farmerCode: 'F-002',
-        farmerAccountId: 'mock-farmer-2',
-        farmName: 'أرض الجبل الغربي',
-        pumpName: 'المضخة الرئيسية 1',
-        operatorName: 'خالد النجحي',
-        startedAt: now.subtract(const Duration(days: 1, hours: 4)),
-        endedAt: now.subtract(const Duration(days: 1, hours: 1)),
-        status: 'closed',
-        energySource: 'ديزل',
-        billableSeconds: 10800,
-        totalAmountYER: 15000,
-        paidAmountYER: 10000,
-        paymentStatus: 'partial',
-      ),
-      SessionHistoryItem(
-        id: 'mock-session-3',
-        wellId: wellId,
-        farmerName: 'عبدالله مسعد القادري',
-        farmerCode: 'F-003',
-        farmerAccountId: 'mock-farmer-3',
-        farmName: 'مزرعة النخيل',
-        pumpName: 'المضخة الرئيسية 1',
-        operatorName: 'خالد النجحي',
-        startedAt: now.subtract(const Duration(days: 2, hours: 5)),
-        endedAt: now.subtract(const Duration(days: 2, hours: 2)),
-        status: 'closed',
-        energySource: 'طاقة شمسية',
-        billableSeconds: 7200,
-        totalAmountYER: 7000,
-        paidAmountYER: 0,
-        paymentStatus: 'unpaid',
-      ),
-      SessionHistoryItem(
-        id: 'mock-session-4',
-        wellId: wellId,
-        farmerName: 'محمد علي الحبيشي',
-        farmerCode: 'F-001',
-        farmerAccountId: 'mock-farmer-1',
-        farmName: 'مزرعة الوادي الكبير',
-        pumpName: 'المضخة الرئيسية 1',
-        operatorName: 'خالد النجحي',
-        startedAt: now.subtract(const Duration(days: 4, hours: 6)),
-        endedAt: now.subtract(const Duration(days: 4, hours: 3)),
-        status: 'closed',
-        energySource: 'طاقة شمسية',
-        billableSeconds: 9000,
-        totalAmountYER: 8750,
-        paidAmountYER: 8750,
-        paymentStatus: 'settled',
-      ),
-    ];
-
-    return _applyHistoryFilter(mockList, filter: filter, farmerAccountId: farmerAccountId);
-  }
-
-  List<SessionHistoryItem> _applyHistoryFilter(
-    List<SessionHistoryItem> list, {
-    String? filter,
-    String? farmerAccountId,
-  }) {
-    var result = list;
-    if (farmerAccountId != null && farmerAccountId.isNotEmpty) {
-      result = result.where((s) => s.farmerAccountId == farmerAccountId).toList();
-    }
-
-    final now = DateTime.now();
-    if (filter == 'today') {
-      result = result.where((s) =>
-          s.startedAt.year == now.year &&
-          s.startedAt.month == now.month &&
-          s.startedAt.day == now.day).toList();
-    } else if (filter == 'week') {
-      final weekAgo = now.subtract(const Duration(days: 7));
-      result = result.where((s) => s.startedAt.isAfter(weekAgo)).toList();
-    } else if (filter == 'month') {
-      final monthAgo = now.subtract(const Duration(days: 30));
-      result = result.where((s) => s.startedAt.isAfter(monthAgo)).toList();
-    } else if (filter == 'unpaid') {
-      result = result.where((s) => !s.isFullySettled).toList();
-    }
-
-    return result;
-  }
-
-  /// جلب تفاصيل جلسة كاملة مع المقاطع والخط الزمني والدفعات (UX-13 / 377)
+  /// جلب تفصيل الجلسة ومقاطعها عبر عقد `api.get_session_detail`
+  /// (م-41C2). المقاطع تُقرأ بأعمدتها الحقيقية: `sequence_number` و
+  /// `actual_seconds` و`billable_seconds` والمبالغ المخزّنة — لا حساب
+  /// محلي ولا تخمين لتسعيرة مفقودة.
   Future<SessionDetailData> fetchSessionDetail(String sessionId) async {
     final client = _effectiveClient;
     if (client == null) {
-      return _getMockSessionDetail(sessionId);
+      throw StateError('Supabase client is unavailable');
     }
 
-    try {
-      final sessionRow = await client
-          .schema('ops')
-          .from('irrigation_sessions')
-          .select('''
-            id,
-            well_id,
-            status,
-            started_at,
-            ended_at,
-            farmer_well_accounts!inner (
-              id,
-              public_code,
-              farmer_profiles!inner (
-                persons!inner (
-                  full_name
-                )
-              )
-            ),
-            farms!inner (
-              name
-            ),
-            core_pumps:core!pumps!inner (
-              name
-            ),
-            session_charges (
-              billable_seconds,
-              total_amount_minor
-            )
-          ''')
-          .eq('id', sessionId)
-          .single();
+    final response = await client.schema('api').rpc(
+      'get_session_detail',
+      params: {'p_session_id': sessionId},
+    );
 
-      final segmentsResponse = await client
-          .schema('ops')
-          .from('session_segments')
-          .select('*')
-          .eq('session_id', sessionId)
-          .order('segment_index');
-
-      final paymentsResponse = await client
-          .schema('billing')
-          .from('payments')
-          .select('*')
-          .eq('session_id', sessionId)
-          .order('created_at', ascending: false);
-
-      final r = sessionRow;
-      final fa = r['farmer_well_accounts'] as Map<String, dynamic>? ?? {};
-      final fp = fa['farmer_profiles'] as Map<String, dynamic>? ?? {};
-      final p = fp['persons'] as Map<String, dynamic>? ?? {};
-      final farm = r['farms'] as Map<String, dynamic>? ?? {};
-      final pump = r['core_pumps'] as Map<String, dynamic>? ?? {};
-      final charges = r['session_charges'] as List<dynamic>? ?? [];
-
-      int billableSecs = 0;
-      int totalAmount = 0;
-      if (charges.isNotEmpty) {
-        final c = charges.first as Map<String, dynamic>;
-        billableSecs = (c['billable_seconds'] as num?)?.toInt() ?? 0;
-        totalAmount = (c['total_amount_minor'] as num?)?.toInt() ?? 0;
-      }
-
-      int paidTotal = 0;
-      String? payMethod;
-      String? payRef;
-      DateTime? paidDate;
-
-      final paymentsList = paymentsResponse as List<dynamic>? ?? [];
-      for (final pay in paymentsList) {
-        final pm = pay as Map<String, dynamic>;
-        paidTotal += (pm['amount_minor'] as num?)?.toInt() ?? 0;
-        payMethod ??= pm['payment_method'] as String?;
-        payRef ??= pm['reference'] as String?;
-        if (paidDate == null && pm['created_at'] != null) {
-          paidDate = DateTime.tryParse(pm['created_at'] as String);
-        }
-      }
-
-      final segments = (segmentsResponse as List<dynamic>).map((s) {
-        final sm = s as Map<String, dynamic>;
-        final duration = (sm['duration_seconds'] as num?)?.toInt() ?? 0;
-        final rate = (sm['hourly_rate_minor'] as num?)?.toInt() ?? 3500;
-        final amount = (rate * duration) ~/ 3600;
-
-        return SessionSegmentItem(
-          segmentIndex: (sm['segment_index'] as num?)?.toInt() ?? 0,
-          energySource: sm['energy_source'] as String? ?? 'طاقة شمسية',
-          startedAt: DateTime.tryParse(sm['started_at'] as String? ?? '') ?? DateTime.now(),
-          endedAt: sm['ended_at'] != null ? DateTime.tryParse(sm['ended_at'] as String) : null,
-          durationSeconds: duration,
-          hourlyRateYER: rate,
-          amountYER: amount,
-          isPaused: sm['is_paused'] as bool? ?? false,
-          pauseReason: sm['pause_reason'] as String?,
-        );
-      }).toList();
-
-      final historyItem = SessionHistoryItem(
-        id: r['id'] as String? ?? sessionId,
-        wellId: r['well_id'] as String? ?? '',
-        farmerName: p['full_name'] as String? ?? 'مزارع',
-        farmerCode: fa['public_code'] as String? ?? 'F-001',
-        farmerAccountId: fa['id'] as String? ?? '',
-        farmName: farm['name'] as String? ?? 'أرض زراعية',
-        pumpName: pump['name'] as String? ?? 'المضخة 1',
-        operatorName: 'المشغل',
-        startedAt: DateTime.tryParse(r['started_at'] as String? ?? '') ?? DateTime.now(),
-        endedAt: r['ended_at'] != null ? DateTime.tryParse(r['ended_at'] as String) : null,
-        status: r['status'] as String? ?? 'closed',
-        energySource: segments.isNotEmpty ? segments.first.energySource : 'طاقة شمسية',
-        billableSeconds: billableSecs,
-        totalAmountYER: totalAmount,
-        paidAmountYER: paidTotal,
-        paymentStatus: paidTotal >= totalAmount ? 'settled' : (paidTotal > 0 ? 'partial' : 'unpaid'),
-      );
-
-      return SessionDetailData(
-        session: historyItem,
-        segments: segments,
-        paymentMethod: payMethod,
-        paymentReference: payRef,
-        paidAt: paidDate,
-      );
-    } catch (_) {
-      return _getMockSessionDetail(sessionId);
+    if (response is! Map) {
+      throw StateError('استجابة عقد تفصيل الجلسة غير متوقعة');
     }
-  }
 
-  SessionDetailData _getMockSessionDetail(String sessionId) {
-    final now = DateTime.now();
-    final start = now.subtract(const Duration(hours: 2, minutes: 30));
-    final pause = now.subtract(const Duration(hours: 1, minutes: 45));
-    final resume = now.subtract(const Duration(hours: 1, minutes: 25));
-    final end = now.subtract(const Duration(minutes: 15));
+    final sessionJson = response['session'];
+    if (sessionJson is! Map) {
+      throw StateError('عقد تفصيل الجلسة لم يُعِد بيانات الجلسة');
+    }
 
-    final seg1 = SessionSegmentItem(
-      segmentIndex: 1,
-      energySource: 'طاقة شمسية',
-      startedAt: start,
-      endedAt: pause,
-      durationSeconds: 2700, // 45 دقيقة
-      hourlyRateYER: 3500,
-      amountYER: (3500 * 2700) ~/ 3600, // 2625
-    );
+    final segments = (response['segments'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((e) => SessionSegmentItem.fromContract(Map<String, dynamic>.from(e)))
+        .toList();
 
-    final segPause = SessionSegmentItem(
-      segmentIndex: 2,
-      energySource: 'طاقة شمسية',
-      startedAt: pause,
-      endedAt: resume,
-      durationSeconds: 1200, // 20 دقيقة توقف
-      hourlyRateYER: 0,
-      amountYER: 0,
-      isPaused: true,
-      pauseReason: 'تراكم الغيوم وضعف الإشعاع الشمسي',
-    );
-
-    final seg2 = SessionSegmentItem(
-      segmentIndex: 3,
-      energySource: 'ديزل',
-      startedAt: resume,
-      endedAt: end,
-      durationSeconds: 4200, // 70 دقيقة
-      hourlyRateYER: 5000,
-      amountYER: (5000 * 4200) ~/ 3600, // 5833
-    );
-
-    final totalSecs = 2700 + 4200; // 6900 ثانية
-    final totalAmount = seg1.amountYER + seg2.amountYER; // 8458 ريال
-
-    final historyItem = SessionHistoryItem(
-      id: sessionId,
-      wellId: 'well-1',
-      farmerName: 'محمد علي الحبيشي',
-      farmerCode: 'F-001',
-      farmerAccountId: 'mock-farmer-1',
-      farmName: 'مزرعة الوادي الكبير',
-      pumpName: 'المضخة الرئيسية 1',
-      operatorName: 'خالد النجحي',
-      startedAt: start,
-      endedAt: end,
-      status: 'closed',
-      energySource: 'ديزل',
-      billableSeconds: totalSecs,
-      totalAmountYER: totalAmount,
-      paidAmountYER: totalAmount,
-      paymentStatus: 'settled',
-    );
+    final paymentJson = response['payment'];
+    final payment = paymentJson is Map
+        ? Map<String, dynamic>.from(paymentJson)
+        : const <String, dynamic>{};
 
     return SessionDetailData(
-      session: historyItem,
-      segments: [seg1, segPause, seg2],
-      paymentMethod: 'نقداً',
-      paymentReference: 'سداد فوري عند الاعتماد',
-      paidAt: end,
+      session: SessionHistoryItem.fromContract(
+        Map<String, dynamic>.from(sessionJson),
+      ),
+      segments: segments,
+      paymentMethod: payment['method'] as String?,
+      paymentReference: payment['reference'] as String?,
+      paidAt: payment['paid_at'] != null
+          ? DateTime.tryParse(payment['paid_at'] as String)?.toLocal()
+          : null,
     );
   }
 
@@ -1010,12 +678,7 @@ class OperationsRepository {
     final farmers = await fetchFarmers(wellId);
     final account = farmers.firstWhere(
       (f) => f.id == farmerAccountId,
-      orElse: () => const FarmerAccount(
-        id: 'mock-farmer-1',
-        fullName: 'محمد علي الحبيشي',
-        publicCode: 'F-001',
-        phone: '771234567',
-      ),
+      orElse: () => throw StateError('حساب المزارع غير موجود في هذا البئر'),
     );
 
     final farms = await fetchFarms(wellId, farmerAccountId: farmerAccountId);

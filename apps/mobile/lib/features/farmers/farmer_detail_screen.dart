@@ -31,6 +31,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
   late TabController _tabController;
 
   bool _isLoading = true;
+  String? _loadError;
   FarmerDetailData? _detailData;
 
   @override
@@ -49,7 +50,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
   }
 
   Future<void> _loadDetail() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final data = await _repo.fetchFarmerDetail(
         wellId: widget.wellId,
@@ -62,8 +66,13 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
         });
       }
     } catch (_) {
+      // م-41C1: لا ملف مزارع وهمي — الفشل يظهر مع إعادة المحاولة.
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _detailData = null;
+          _isLoading = false;
+          _loadError = 'تعذّر تحميل ملف المزارع. تحقق من الاتصال ثم أعد المحاولة.';
+        });
       }
     }
   }
@@ -184,7 +193,33 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
     if (_detailData == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('ملف المزارع')),
-        body: const Center(child: Text('لم يتم العثور على بيانات المزارع')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.cloud_off_rounded,
+                  size: 56,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _loadError ?? 'لم يتم العثور على بيانات المزارع',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: _loadDetail,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('إعادة المحاولة'),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
