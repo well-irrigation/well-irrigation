@@ -1027,7 +1027,7 @@ Session History & Detail Read Contracts (Migration 090).
   بيد المالك؛ حالة العقدين على القاعدة = مكتوبة لا مُتحقَّقة.
 - النشر السحابي لـ089 و090 لم يجرِ.
 
-### م-41D1 — Implemented (تحقق Flutter فقط؛ DB 091 لم يُشغَّل)
+### م-41D1 — Verified local (السحابة غير منشورة)
 
 Well Management Boundary Repair (Migration 091).
 
@@ -1063,14 +1063,18 @@ Well Management Boundary Repair (Migration 091).
 الإثبات:
 - `flutter analyze` = **No issues found**.
 - Full Flutter = **258/258 PASS**.
+- DB: `db:reset` نجح، و`db:test` أعطى لـ091
+  **PASS=34 FAIL=0 ERROR=0**، والحزمة كلها
+  **29 files / 448 PASS / 0 FAIL / 0 ERROR**.
 - Bare RPC debt = **9 → 1** (بقي `get_reports_summary` وحده).
 - Internal schema debt = **0**؛ Dotted-from debt = **5**
   (كلها `finance_repository`، مؤجّلة إلى م-41D2).
 
 غير مثبت:
-- **DB 091 لم يُشغَّل** — `npm run db:reset` ثم `npm run db:test`
-  بيد المالك.
-- النشر السحابي لـ089 و090 و091 لم يجرِ.
+- النشر السحابي لـ089 و090 و091 لم يجرِ؛ الحالة = Verified local
+  وليست Cloud Verified.
+- `commit ba4176c` دُفع إلى `main` مباشرة بلا `PR`، فلا مراجعة
+  مسجَّلة له. م-41D2 تبدأ من فرع `fix/m41d2-finance-boundary`.
 
 ### NEXT — م-41D2
 
