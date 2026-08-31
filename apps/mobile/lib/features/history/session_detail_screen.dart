@@ -28,6 +28,7 @@ class SessionDetailScreen extends StatefulWidget {
 class _SessionDetailScreenState extends State<SessionDetailScreen> {
   late OperationsRepository _repo;
   bool _isLoading = true;
+  String? _loadError;
   SessionDetailData? _detailData;
 
   @override
@@ -38,7 +39,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   }
 
   Future<void> _loadDetail() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final data = await _repo.fetchSessionDetail(widget.sessionId);
       if (mounted) {
@@ -48,8 +52,14 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         });
       }
     } catch (_) {
+      // م-41C2: لا تفصيل جلسة وهمي — الفشل يظهر مع إعادة المحاولة.
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _detailData = null;
+          _loadError =
+              'تعذّر تحميل تفاصيل الجلسة. تحقق من الاتصال ثم أعد المحاولة.';
+          _isLoading = false;
+        });
       }
     }
   }
@@ -79,9 +89,17 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     if (_detailData == null) return;
     final session = _detailData!.session;
 
-    final hourlyRate = session.totalAmountYER > 0 && session.billableSeconds > 0
+    // ق-99: لا نطبع فاتورة لجلسة لم تُفوتر بعد بدل اختراع أصفار.
+    if (!session.hasCharge) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('هذه الجلسة غير مفوترة بعد — لا يمكن طباعة فاتورة لها')),
+      );
+      return;
+    }
+
+    final hourlyRate = session.billableSeconds > 0
         ? ((session.totalAmountYER * 3600) ~/ session.billableSeconds)
-        : 3500;
+        : 0;
 
     final receiptText = ReceiptFormatter.formatSessionInvoice(
       invoiceNumber: session.id.substring(0, session.id.length > 8 ? 8 : session.id.length).toUpperCase(),
@@ -161,6 +179,19 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   void _shareReceiptText() {
     if (_detailData == null) return;
     final s = _detailData!.session;
+
+    final String moneyBlock;
+    if (!s.hasCharge) {
+      // ق-99: الجلسة غير المفوترة تُشارك بلا مبالغ مخترعة.
+      moneyBlock = 'الحالة: غير مفوترة بعد — لا مبلغ مستحق مسجل';
+    } else {
+      moneyBlock = '''
+المبلغ: ${CurrencyUtils.formatAmount(s.totalAmountYER)} ريال يمني (${Tafqeet.format(s.totalAmountYER)})
+المدفوع: ${CurrencyUtils.formatAmount(s.paidAmountYER)} ريال يمني
+المتبقي: ${CurrencyUtils.formatAmount(s.remainingAmountYER)} ريال يمني
+الحالة: ${s.isFullySettled ? 'خالص بالكامل ✅' : 'آجل / متبقي 🔴'}''';
+    }
+
     final text = '''
 إشعار سقي — ${widget.wellName}
 المزارع: ${s.farmerName} (${s.farmerCode})
@@ -168,10 +199,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 المضخة: ${s.pumpName}
 التاريخ: ${s.startedAt.year}/${s.startedAt.month}/${s.startedAt.day}
 المدة: ${_formatDuration(s.billableSeconds)}
-المبلغ: ${CurrencyUtils.formatAmount(s.totalAmountYER)} ريال يمني (${Tafqeet.format(s.totalAmountYER)})
-المدفوع: ${CurrencyUtils.formatAmount(s.paidAmountYER)} ريال يمني
-المتبقي: ${CurrencyUtils.formatAmount(s.remainingAmountYER)} ريال يمني
-الحالة: ${s.isFullySettled ? 'خالص بالكامل ✅' : 'آجل / متبقي 🔴'}
+$moneyBlock
 ''';
 
     Clipboard.setData(ClipboardData(text: text));
@@ -192,7 +220,33 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     if (_detailData == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('تفاصيل الجلسة')),
-        body: const Center(child: Text('لم يتم العثور على بيانات الجلسة')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.cloud_off_rounded,
+                  size: 56,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _loadError ?? 'لم يتم العثور على بيانات الجلسة',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: _loadDetail,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('إعادة المحاولة'),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
@@ -288,6 +342,23 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   }
 
   Widget _buildSummaryCard(SessionHistoryItem session) {
+    // ق-99: أربع حالات كما يحسمها العقد، لا ثنائية «خالص / غير مدفوع».
+    final Color statusColor;
+    final String statusText;
+    if (!session.hasCharge) {
+      statusColor = AppColors.textMuted;
+      statusText = 'غير مفوترة بعد';
+    } else if (session.isFullySettled) {
+      statusColor = AppColors.agriculturalGreen;
+      statusText = 'خالص بالكامل ✅';
+    } else if (session.paymentStatus == 'partial') {
+      statusColor = AppColors.warning;
+      statusText = 'دفعة جزئية';
+    } else {
+      statusColor = AppColors.error;
+      statusText = 'آجل / غير مدفوع 🔴';
+    }
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -319,21 +390,16 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: session.isFullySettled
-                        ? AppColors.agriculturalGreen.withValues(alpha: 0.1)
-                        : AppColors.error.withValues(alpha: 0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: session.isFullySettled ? AppColors.agriculturalGreen : AppColors.error,
-                      width: 0.5,
-                    ),
+                    border: Border.all(color: statusColor, width: 0.5),
                   ),
                   child: Text(
-                    session.isFullySettled ? 'خالص بالكامل ✅' : 'آجل / غير مدفوع 🔴',
+                    statusText,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: session.isFullySettled ? AppColors.agriculturalGreen : AppColors.error,
+                      color: statusColor,
                     ),
                   ),
                 ),
@@ -355,13 +421,23 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             Row(
               children: [
                 Expanded(child: _buildDetailCell('مدة السقي', _formatDuration(session.billableSeconds), Icons.timer_outlined)),
-                Expanded(child: _buildDetailCell('إجمالي الفاتورة', '${CurrencyUtils.formatAmount(session.totalAmountYER)} ريال', Icons.payments_outlined, isBold: true)),
+                Expanded(
+                  child: _buildDetailCell(
+                    'إجمالي الفاتورة',
+                    session.hasCharge
+                        ? '${CurrencyUtils.formatAmount(session.totalAmountYER)} ريال'
+                        : 'لم تُفوتر بعد',
+                    Icons.payments_outlined,
+                    isBold: true,
+                  ),
+                ),
               ],
             ),
 
             const SizedBox(height: 12),
-            // التفقيط المالي
-            Container(
+            // التفقيط المالي — لا تفقيط لمبلغ غير موجود.
+            if (session.hasCharge)
+              Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -454,9 +530,14 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   }
 
   Widget _buildTimelineItem(SessionSegmentItem seg, {required bool isLast}) {
-    final isPause = seg.isPaused;
-    final color = isPause ? AppColors.warning : (seg.energySource == 'طاقة شمسية' ? AppColors.agriculturalGreen : Colors.orange);
-    final icon = isPause ? Icons.pause_circle_outline : (seg.energySource == 'طاقة شمسية' ? Icons.wb_sunny_outlined : Icons.local_gas_station_outlined);
+    final isPause = seg.isStop;
+    final isSolar = seg.energySourceCode == 'solar';
+    final color = isPause
+        ? AppColors.warning
+        : (isSolar ? AppColors.agriculturalGreen : Colors.orange);
+    final icon = isPause
+        ? Icons.pause_circle_outline
+        : (isSolar ? Icons.wb_sunny_outlined : Icons.local_gas_station_outlined);
 
     return IntrinsicHeight(
       child: Row(
@@ -507,7 +588,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          isPause ? 'توقف مؤقت للسقي' : 'تشغيل عبر ${seg.energySource}',
+                          isPause ? seg.typeLabel : 'تشغيل عبر ${seg.energySource}',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
@@ -523,11 +604,11 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     const SizedBox(height: 4),
                     if (isPause) ...[
                       Text(
-                        'السبب: ${seg.pauseReason ?? 'بدون سبب مسجل'}',
+                        'محسوب على المزارع: ${seg.isBillable ? 'نعم' : 'لا'}',
                         style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                       ),
                       Text(
-                        'مدة التوقف: ${_formatDuration(seg.durationSeconds)}',
+                        'مدة التوقف: ${_formatDuration(seg.actualSeconds)}',
                         style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                       ),
                     ] else ...[
@@ -535,15 +616,20 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'المدة: ${_formatDuration(seg.durationSeconds)} • التسعيرة: ${CurrencyUtils.formatAmount(seg.hourlyRateYER)} ر/س',
+                            'المدة: ${_formatDuration(seg.actualSeconds)} • المحسوبة: ${_formatDuration(seg.billableSeconds)}',
                             style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                           ),
                           Text(
-                            '${CurrencyUtils.formatAmount(seg.amountYER)} ريال',
+                            '${CurrencyUtils.formatAmount(seg.totalChargeYER)} ريال',
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
                           ),
                         ],
                       ),
+                      if (seg.appliedRateYER > 0)
+                        Text(
+                          'التسعيرة المثبتة: ${CurrencyUtils.formatAmount(seg.appliedRateYER)} ر/س',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        ),
                     ],
                   ],
                 ),
@@ -624,7 +710,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'طريقة السداد: ${data.paymentMethod ?? 'نقداً'}',
+                  // لا نفترض «نقداً»: طريقة السداد تأتي من الدفعة المرحّلة أو لا تأتي.
+                  'طريقة السداد: ${data.paymentMethod ?? 'غير مسجلة'}',
                   style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
                 ),
                 if (data.paidAt != null)

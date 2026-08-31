@@ -41,6 +41,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   bool _isLoading = true;
+  String? _loadError;
   List<SessionHistoryItem> _allSessions = [];
 
   @override
@@ -61,7 +62,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
   Future<void> _loadSessions() async {
     if (_activeWellId == null) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
 
     try {
       final sessions = await _repo.fetchSessionHistory(
@@ -75,8 +79,13 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         });
       }
     } catch (_) {
+      // م-41C2 / ق-99: لا سجل تجريبي — الفشل يظهر صريحًا مع إعادة المحاولة.
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _allSessions = [];
+          _isLoading = false;
+          _loadError = 'تعذّر تحميل سجل الجلسات. تحقق من الاتصال ثم أعد المحاولة.';
+        });
       }
     }
   }
@@ -276,7 +285,9 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : displayedSessions.isEmpty
+                  : _loadError != null
+                      ? _buildErrorState()
+                      : displayedSessions.isEmpty
                       ? _buildEmptyState()
                       : RefreshIndicator(
                           onRefresh: _loadSessions,
@@ -330,6 +341,36 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     );
   }
 
+  Widget _buildErrorState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 56,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _loadError!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _loadSessions,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('إعادة المحاولة'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: SingleChildScrollView(
@@ -364,15 +405,16 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   }
 
   Widget _buildSessionCard(SessionHistoryItem session) {
-    final isSettled = session.isFullySettled;
-    final isPartial = session.paymentStatus == 'partial';
-
     Color badgeColor;
     String badgeText;
-    if (isSettled) {
+    // ق-99: الجلسة غير المفوترة ليست «غير مدفوعة» — حالة مستقلة بلا مبلغ.
+    if (!session.hasCharge) {
+      badgeColor = AppColors.textMuted;
+      badgeText = 'غير مفوترة بعد';
+    } else if (session.isFullySettled) {
       badgeColor = AppColors.agriculturalGreen;
       badgeText = 'خالص بالكامل ✅';
-    } else if (isPartial) {
+    } else if (session.paymentStatus == 'partial') {
       badgeColor = AppColors.warning;
       badgeText = 'دفعة جزئية (متبقي ${session.remainingAmountYER} ريال)';
     } else {
@@ -458,7 +500,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          session.energySource == 'طاقة شمسية' ? '☀️' : '⛽',
+                          session.energySourceCode == 'solar' ? '☀️' : '⛽',
                           style: const TextStyle(fontSize: 12),
                         ),
                         const SizedBox(width: 4),

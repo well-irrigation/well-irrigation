@@ -1,0 +1,8 @@
+node_modules/
+.git/
+build/
+dist/
+*.log
+*.lock
+package-lock.json
+yarn.lock

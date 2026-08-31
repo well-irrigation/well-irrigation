@@ -55,7 +55,7 @@ void _expectKnownDebt({
 }
 
 void main() {
-  test('known internal-schema debt does not grow', () {
+  test('internal schemas are never addressed from Flutter', () {
     final actual = _collectMatches(
       RegExp(
         r'''\.schema\s*\(\s*['"](core|iam|ops|billing|finance|inventory|audit|sync|reporting|public)['"]\s*\)''',
@@ -63,12 +63,9 @@ void main() {
       captureGroup: 1,
     );
 
-    const expected = [
-      'lib/core/api/operations_repository.dart|ops',
-      'lib/core/api/operations_repository.dart|ops',
-      'lib/core/api/operations_repository.dart|ops',
-      'lib/core/api/operations_repository.dart|billing',
-    ];
+    // م-41C2: آخر أربع مخالفات (ops×3 + billing) أُغلقت بعقود 090.
+    // Data API لا يكشف هذه المخططات أصلًا، فأي نداء عليها فشل مؤكد.
+    const expected = <String>[];
 
     _expectKnownDebt(
       label: 'Internal-schema debt',
@@ -133,7 +130,6 @@ void main() {
     }
 
     // ملفّ المزارع لم يعد يصطنع حسابًا عند غياب المزارع في البئر.
-    // (بقايا mock الجلسات تُغلق في م-41C2.)
     final detailStart = repositorySource.indexOf(
       'Future<FarmerDetailData> fetchFarmerDetail',
     );
@@ -156,6 +152,89 @@ void main() {
         operationsScreen.contains(legacyName),
         isFalse,
         reason: 'Screen still fabricates data: $legacyName',
+      );
+    }
+  });
+
+  test('session history and detail reads use the official api contracts', () {
+    final source = File(
+      'lib/core/api/operations_repository.dart',
+    ).readAsStringSync();
+
+    final start = source.indexOf(
+      'Future<List<SessionHistoryItem>> fetchSessionHistory',
+    );
+    final end = source.indexOf(
+      '/// جلب الملف الشخصي الكامل للمزارع',
+      start,
+    );
+
+    expect(start, isNonNegative);
+    expect(end, greaterThan(start));
+
+    final section = source.substring(start, end);
+
+    for (final contract in const [
+      'list_well_sessions',
+      'get_session_detail',
+    ]) {
+      expect(
+        RegExp(
+          '''\\.schema\\s*\\(\\s*['"]api['"]\\s*\\)\\s*\\.rpc\\s*\\(\\s*\\n?\\s*['"]$contract['"]''',
+        ).hasMatch(section),
+        isTrue,
+        reason: 'Read contract not routed through api: $contract',
+      );
+    }
+
+    expect(section.contains("'p_well_id': wellId"), isTrue);
+    expect(section.contains("'p_session_id': sessionId"), isTrue);
+    expect(section.contains(".schema('ops')"), isFalse);
+    expect(section.contains(".schema('billing')"), isFalse);
+    expect(section.contains('catch ('), isFalse);
+
+    // أعمدة كانت مختلقة في القراءة القديمة ولا وجود لها في القاعدة.
+    for (final phantomColumn in const [
+      'segment_index',
+      'duration_seconds',
+      'hourly_rate_minor',
+      'is_paused',
+      'pause_reason',
+    ]) {
+      expect(
+        section.contains(phantomColumn),
+        isFalse,
+        reason: 'Non-existent column still read: $phantomColumn',
+      );
+    }
+  });
+
+  test('session mock fallbacks are gone from repository and screens', () {
+    final repositorySource = File(
+      'lib/core/api/operations_repository.dart',
+    ).readAsStringSync();
+
+    for (final legacyName in const [
+      '_getMockSessionHistory',
+      '_getMockSessionDetail',
+      '_applyHistoryFilter',
+    ]) {
+      expect(
+        repositorySource.contains(legacyName),
+        isFalse,
+        reason: 'Production mock fallback still present: $legacyName',
+      );
+    }
+
+    for (final path in const [
+      'lib/features/history/session_history_screen.dart',
+      'lib/features/history/session_detail_screen.dart',
+    ]) {
+      final screenSource = File(path).readAsStringSync();
+      expect(
+        screenSource.contains('إعادة المحاولة'),
+        isTrue,
+        reason: 'Screen has no explicit retry on failure: $path',
       );
     }
   });
