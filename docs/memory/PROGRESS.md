@@ -1763,7 +1763,8 @@ NEXT = **م-41D1 — Well Management Boundary Repair** (Migration 091).
 
 ## م-41D1 — Well Management Boundary Repair (Migration 091)
 
-الحالة: **Implemented** — تحقق Flutter فقط؛ DB 091 لم يُشغَّل.
+الحالة: **Verified local** — القاعدة والاختبارات نجحت محليًا؛
+النشر السحابي لم يجرِ.
 
 ما أُصلح:
 - تسعة نداءات في `well_management_repository` كانت RPC مجرّدة
@@ -1793,12 +1794,15 @@ NEXT = **م-41D1 — Well Management Boundary Repair** (Migration 091).
 الإثبات المحلي:
 - `flutter analyze` = **No issues found**.
 - Full Flutter = **258/258 PASS**.
+- `db:reset` نجح؛ `db:test` أعطى لـ091 **PASS=34 FAIL=0
+  ERROR=0**، والحزمة كلها **29 files / 448 PASS / 0 FAIL**.
 - Bare RPC debt = **9 → 1**؛ Internal-schema debt = **0**؛
   Dotted-from debt = **5** كما هي.
 
 ما زال غير مثبت:
-- **DB 091 لم يُشغَّل بعد** — `db:reset` + `db:test` بيد المالك.
 - النشر السحابي لـ089 و090 و091 لم يجرِ.
+- `commit ba4176c` دُفع إلى `main` مباشرة، فلا `PR` ولا مراجعة
+  مسجَّلة له.
 
 NEXT = **م-41D2 — Finance Boundary Repair + عقد مؤشرات التقارير**
 (1 bare RPC + 5 dotted `from()`).
