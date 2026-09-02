@@ -1,52 +1,165 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
+import 'package:well_irrigation_mobile/core/api/account_repository.dart';
 import 'package:well_irrigation_mobile/features/settings/device_sync_screen.dart';
 
-void main() {
-  group('DeviceSyncScreen Tests (UX-16A / القرارات 556–570)', () {
-    tearDown(() {
-      OfflineSessionCoordinator.instance.dispose();
-    });
-    testWidgets('1. عرض جاهزية التخزين المحلي وزر المزامنة اليدوية', (tester) async {
-      tester.view.physicalSize = const Size(800, 1600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+/// مستودع اختبار يعيد حالة صريحة ولا يمس المنسق العام، فلا يُشغَّل مؤقت
+/// الجلسة الحية داخل اختبار واجهة.
+class _FakeSyncRepository extends AccountRepository {
+  _FakeSyncRepository({
+    this.status = const DeviceSyncStatusModel(
+      localStorageReady: false,
+      pendingOperationsCount: 0,
+    ),
+    this.failStatus = false,
+    this.syncError,
+  });
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          locale: Locale('ar'),
-          home: DeviceSyncScreen(),
+  final DeviceSyncStatusModel status;
+  final bool failStatus;
+  final Object? syncError;
+
+  int statusReads = 0;
+  int syncCalls = 0;
+
+  @override
+  Future<DeviceSyncStatusModel> fetchDeviceSyncStatus() async {
+    statusReads++;
+    if (failStatus) {
+      throw StateError('device status unavailable');
+    }
+    return status;
+  }
+
+  @override
+  Future<void> triggerManualSync() async {
+    syncCalls++;
+    final error = syncError;
+    if (error != null) {
+      throw error;
+    }
+  }
+}
+
+Future<void> _pumpScreen(
+  WidgetTester tester,
+  AccountRepository repository,
+) async {
+  tester.view.physicalSize = const Size(800, 1600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  await tester.pumpWidget(
+    MaterialApp(
+      locale: const Locale('ar'),
+      home: DeviceSyncScreen(repository: repository),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  group('DeviceSyncScreen — المقيس فقط (م-41B3B / ق-120)', () {
+    testWidgets('1. ما لم يُقس يُعرض «غير مقيس» لا «يعمل»', (tester) async {
+      final repository = _FakeSyncRepository(
+        status: const DeviceSyncStatusModel(
+          localStorageReady: false,
+          pendingOperationsCount: 3,
         ),
       );
-      await tester.pumpAndSettle();
+
+      await _pumpScreen(tester, repository);
 
       expect(find.text('الجهاز والمزامنة'), findsOneWidget);
-      expect(find.text('جاهزية التخزين المحلي على الهاتف'), findsOneWidget);
-      expect(find.text('العمل الميداني دون اتصال (Offline-First)'), findsOneWidget);
-      expect(find.text('مزامنة الآن يدوياً'), findsOneWidget);
-    });
-
-    testWidgets('2. النقر على زر المزامنة اليدوية وتأكيد الاكتمال', (tester) async {
-      tester.view.physicalSize = const Size(800, 1600);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(
-        const MaterialApp(
-          locale: Locale('ar'),
-          home: DeviceSyncScreen(),
-        ),
+      expect(find.text('بانتظار المزامنة: 3 عملية'), findsOneWidget);
+      expect(
+        find.text('حالة الاتصال غير مقيسة في هذا الإصدار'),
+        findsOneWidget,
       );
-      await tester.pumpAndSettle();
+      expect(find.text('غير مقيسة في هذا الإصدار'), findsOneWidget);
+      expect(find.text('غير موصول — الطابور في الذاكرة'), findsOneWidget);
+      expect(find.text('لم تنجح مزامنة بعد'), findsOneWidget);
 
-      final syncBtn = find.text('مزامنة الآن يدوياً');
-      await tester.tap(syncBtn);
-      await tester.pumpAndSettle();
-
-      expect(find.text('اكتملت محاولة المزامنة وتحديث البيانات بنجاح ✅'), findsOneWidget);
+      // ادعاءات الإصدار السابق المُلفَّقة يجب أن تكون قد زالت.
+      expect(find.text('متصل بالخادم السحابي'), findsNothing);
+      expect(find.text('مفعلة وتعمل تلقائياً'), findsNothing);
+      expect(find.text('جاهز ومؤمّن ✅'), findsNothing);
+      expect(find.text('منذ دقيقتين (19/08/2026)'), findsNothing);
     });
+
+    testWidgets(
+      '2. المزامنة اليدوية غير الموصولة تُعلن صريحًا ولا تُعلن نجاحًا',
+      (tester) async {
+        final repository = _FakeSyncRepository(
+          syncError: const ManualSyncUnavailableException(),
+        );
+
+        await _pumpScreen(tester, repository);
+
+        await tester.tap(find.text('مزامنة الآن'));
+        await tester.pumpAndSettle();
+
+        expect(repository.syncCalls, 1);
+        expect(
+          find.text('المزامنة اليدوية غير متاحة في هذا الإصدار — لم يُرسل شيء'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('اكتملت المزامنة وتحديث البيانات بنجاح ✅'),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      '3. فشل قراءة الحالة يعرض خطأ صريحًا مع إعادة المحاولة',
+      (tester) async {
+        final repository = _FakeSyncRepository(failStatus: true);
+
+        await _pumpScreen(tester, repository);
+
+        expect(find.text('تعذر قراءة حالة الجهاز والمزامنة'), findsOneWidget);
+        expect(find.text('مزامنة الآن'), findsNothing);
+        expect(repository.statusReads, 1);
+
+        await tester.tap(find.text('إعادة المحاولة'));
+        await tester.pumpAndSettle();
+
+        expect(repository.statusReads, 2);
+      },
+    );
+
+    testWidgets(
+      '4. الحالة المقيسة تُعرض كما هي، والنجاح الحقيقي وحده يعرض نجاحًا',
+      (tester) async {
+        final repository = _FakeSyncRepository(
+          status: DeviceSyncStatusModel(
+            localStorageReady: true,
+            pendingOperationsCount: 0,
+            lastSyncTime: DateTime(2026, 9, 2, 8, 5),
+            isOnline: true,
+            backgroundSyncActive: true,
+          ),
+        );
+
+        await _pumpScreen(tester, repository);
+
+        expect(find.text('لا توجد عمليات بانتظار المزامنة'), findsOneWidget);
+        expect(find.text('متصل بالخادم السحابي'), findsOneWidget);
+        expect(find.text('جاهز على قرص الهاتف ✅'), findsOneWidget);
+        expect(find.text('02/09/2026 08:05'), findsOneWidget);
+        expect(find.text('مفعّلة'), findsOneWidget);
+
+        await tester.tap(find.text('مزامنة الآن'));
+        await tester.pumpAndSettle();
+
+        expect(repository.syncCalls, 1);
+        expect(
+          find.text('اكتملت المزامنة وتحديث البيانات بنجاح ✅'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

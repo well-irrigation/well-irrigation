@@ -72,7 +72,16 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
 
   Future<void> _handleSafeLogout() async {
     HapticFeedback.mediumImpact();
-    final pendingCount = await _repo.checkPendingOperationsBeforeLogout();
+
+    final int pendingCount;
+    try {
+      pendingCount = await _repo.checkPendingOperationsBeforeLogout();
+    } catch (_) {
+      // تعذُّر القراءة ليس «لا يوجد معلَّق»: تحذير صريح لا موافقة نظيفة.
+      if (!mounted) return;
+      _showUnknownPendingLogoutDialog();
+      return;
+    }
 
     if (!mounted) return;
 
@@ -153,6 +162,59 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
         ),
       );
     }
+  }
+
+  /// يفشل مغلقًا (القرار 578): تعذُّر معرفة عدد المعلَّق لا يُعرض «لا يوجد».
+  void _showUnknownPendingLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: AppColors.error, size: 28),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('تعذر التحقق قبل الخروج', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'لم نتمكن من قراءة عدد العمليات غير المتزامنة على هذا الهاتف، فلا نستطيع تأكيد أن كل شيء أُرسل (القرار 578).',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'الأسلم: أغلق هذه النافذة، وراجع شاشة «الجهاز والمزامنة» أولاً. الخروج لا يحذف ما هو محفوظ، لكننا لا نؤكد ما لم نقسه.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              if (widget.onLogout != null) {
+                widget.onLogout!();
+              }
+            },
+            child: const Text('تأكيد الخروج على مسؤوليتي'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

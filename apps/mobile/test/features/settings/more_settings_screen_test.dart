@@ -6,9 +6,13 @@ import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.
 import 'package:well_irrigation_mobile/features/settings/more_settings_screen.dart';
 
 class _FakeAccountRepository extends AccountRepository {
-  _FakeAccountRepository({this.failProfile = false});
+  _FakeAccountRepository({
+    this.failProfile = false,
+    this.failPending = false,
+  });
 
   final bool failProfile;
+  final bool failPending;
 
   @override
   Future<UserProfileData> fetchUserProfile() async {
@@ -25,7 +29,12 @@ class _FakeAccountRepository extends AccountRepository {
   }
 
   @override
-  Future<int> checkPendingOperationsBeforeLogout() async => 0;
+  Future<int> checkPendingOperationsBeforeLogout() async {
+    if (failPending) {
+      throw StateError('outbox unreadable');
+    }
+    return 0;
+  }
 }
 
 void main() {
@@ -142,6 +151,45 @@ void main() {
           ),
           findsOneWidget,
         );
+      },
+    );
+
+    testWidgets(
+      '4. تعذر قراءة المعلَّق قبل الخروج يفشل مغلقًا لا يمرّ نظيفًا',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        bool loggedOut = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ar'),
+            home: MoreSettingsScreen(
+              wellName: 'بئر الخير الرئيسي',
+              wellId: 'well-1',
+              repository: _FakeAccountRepository(failPending: true),
+              onLogout: () => loggedOut = true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('تسجيل الخروج من الحساب'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('تعذر التحقق قبل الخروج'), findsOneWidget);
+        expect(
+          find.text('هل أنت متأكد من رغبتك في تسجيل الخروج من التطبيق؟'),
+          findsNothing,
+        );
+        expect(loggedOut, isFalse);
+
+        await tester.tap(find.text('تأكيد الخروج على مسؤوليتي'));
+        await tester.pumpAndSettle();
+
+        expect(loggedOut, isTrue);
       },
     );
 

@@ -267,22 +267,40 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
                       setDialogState(() => isSubmitting = true);
                       final messenger = ScaffoldMessenger.of(context);
                       final navigator = Navigator.of(dialogCtx);
-                      await _repo.updatePassword(newPass);
+
+                      Object? failure;
+                      try {
+                        await _repo.updatePassword(newPass);
+                      } catch (error) {
+                        // لا رسالة نجاح لتغيير لم يحدث (ق-118 / م-41B3B).
+                        failure = error;
+                      }
 
                       // تفريغ فوري لكلمات المرور من الذاكرة (ق-118 / القرار 541)
                       oldPasswordController.clear();
                       newPasswordController.clear();
                       confirmPasswordController.clear();
 
-                      if (mounted) {
-                        navigator.pop();
+                      if (!mounted) return;
+
+                      if (failure != null) {
+                        setDialogState(() => isSubmitting = false);
                         messenger.showSnackBar(
                           const SnackBar(
-                            content: Text('تم تغيير كلمة المرور بنجاح ✅'),
-                            backgroundColor: AppColors.agriculturalGreen,
+                            content: Text('تعذر تغيير كلمة المرور — لم يتغيّر شيء، وكلمتك الحالية ما زالت صالحة'),
+                            backgroundColor: AppColors.error,
                           ),
                         );
+                        return;
                       }
+
+                      navigator.pop();
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('تم تغيير كلمة المرور بنجاح ✅'),
+                          backgroundColor: AppColors.agriculturalGreen,
+                        ),
+                      );
                     },
               child: isSubmitting
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

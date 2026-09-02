@@ -488,4 +488,136 @@ void main() {
       );
     }
   });
+
+  // المقياس الرابع (م-41D3): عائلة «النجاح الكاذب» لا تخاطب القاعدة أصلًا،
+  // فلا تراها المقاييس الثلاثة الأولى. تُقاس هنا وتُثبَّت لتنكمش فقط.
+  test('known false-success fabricated-id debt does not grow', () {
+    final actual = _collectMatches(
+      RegExp(r'''['"](mock-[a-z-]*|F-NEW)'''),
+      captureGroup: 1,
+    );
+
+    // ما بقي بعد إصلاح البنود 1–4: معرّف جلسة مُلفَّق عند غياب العميل،
+    // ودفعة سلفة بمعرّف ثابت، ومزارع مُلفَّق في شاشة التشغيل (البنود 5–7).
+    const expected = <String>[
+      'lib/core/api/operations_repository.dart|mock-session-',
+      'lib/features/finance/farmer_financial_account_screen.dart|mock-advance-pay',
+      'lib/features/operations/operations_screen.dart|F-NEW',
+    ];
+
+    _expectKnownDebt(
+      label: 'False-success fabricated-id debt',
+      actual: actual,
+      expected: expected,
+    );
+  });
+
+  test('known placeholder well-id debt does not grow', () {
+    final actual = _collectMatches(
+      RegExp(r'''['"](well-1)['"]'''),
+      captureGroup: 1,
+    );
+
+    final files = actual.map((hit) => hit.split('|').first).toSet();
+
+    // قياس 2026-09-02: 47 موضعًا في 15 ملفًا يستعملون بئرًا افتراضيًا عند
+    // غياب البئر المختار. دين مُعلَن يُغلق في جولة الهوية الحقيقية.
+    expect(
+      actual.length,
+      47,
+      reason: 'Placeholder well-id debt changed; it may only shrink.',
+    );
+    expect(files.length, 15);
+  });
+
+  test('account repository reports measured device state, never constants', () {
+    final source = File(
+      'lib/core/api/account_repository.dart',
+    ).readAsStringSync();
+
+    // ابتلاع الخطأ بطبع رسالة كان هو ما حوّل الفشل إلى نجاح صامت.
+    expect(source.contains('debugPrint'), isFalse);
+
+    final passwordStart = source.indexOf('Future<void> updatePassword');
+    final passwordEnd = source.indexOf(
+      '/// 7. جلب حالة الجهاز والمزامنة',
+      passwordStart,
+    );
+    expect(passwordStart, isNonNegative);
+    expect(passwordEnd, greaterThan(passwordStart));
+
+    final passwordSection = source.substring(passwordStart, passwordEnd);
+    expect(passwordSection.contains('catch ('), isFalse);
+    expect(passwordSection.contains('client.auth.updateUser('), isTrue);
+
+    for (final fabricated in const [
+      'isOnline: true',
+      'backgroundSyncActive: true',
+      'localStorageReady: true',
+      'DateTime.now().subtract',
+      'Future.delayed',
+    ]) {
+      expect(
+        source.contains(fabricated),
+        isFalse,
+        reason: 'Fabricated device/sync state returned: $fabricated',
+      );
+    }
+
+    for (final measured in const [
+      'coordinator.getPendingOperationsCount()',
+      'coordinator.lastSuccessfulSyncAt()',
+      'coordinator.usesDurableStore',
+      'if (!coordinator.canSyncNow)',
+      'ManualSyncUnavailableException',
+    ]) {
+      expect(
+        source.contains(measured),
+        isTrue,
+        reason: 'Measured signal missing: $measured',
+      );
+    }
+  });
+
+  test('settings screens surface failure instead of claiming success', () {
+    final deviceSync = File(
+      'lib/features/settings/device_sync_screen.dart',
+    ).readAsStringSync();
+
+    expect(
+      deviceSync.contains('حالة الاتصال غير مقيسة في هذا الإصدار'),
+      isTrue,
+    );
+    expect(deviceSync.contains('تعذر قراءة حالة الجهاز والمزامنة'), isTrue);
+    expect(
+      deviceSync.contains('المزامنة اليدوية غير متاحة في هذا الإصدار'),
+      isTrue,
+    );
+    // ادعاءات الإصدار السابق: نجاح لمحاولة لم تُرسل، ووقت مزامنة ثابت.
+    expect(deviceSync.contains('اكتملت محاولة المزامنة'), isFalse);
+    expect(deviceSync.contains('منذ دقيقتين'), isFalse);
+    expect(deviceSync.contains('مفعلة وتعمل تلقائياً'), isFalse);
+
+    final moreSettings = File(
+      'lib/features/settings/more_settings_screen.dart',
+    ).readAsStringSync();
+
+    // الخروج على عدد معلَّق مجهول يفشل مغلقًا (القرار 578).
+    expect(moreSettings.contains('تعذر التحقق قبل الخروج'), isTrue);
+    expect(
+      moreSettings.contains('_showUnknownPendingLogoutDialog'),
+      isTrue,
+    );
+
+    final security = File(
+      'lib/features/settings/profile_security_screen.dart',
+    ).readAsStringSync();
+
+    expect(security.contains('تعذر تغيير كلمة المرور'), isTrue);
+    // تفريغ الحقول يبقى في كل الحالات (ق-118 / القرار 541).
+    expect(
+      security.contains('oldPasswordController.clear();'),
+      isTrue,
+    );
+  });
 }
