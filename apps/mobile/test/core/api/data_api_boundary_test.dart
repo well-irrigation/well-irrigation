@@ -267,12 +267,9 @@ void main() {
       captureGroup: 1,
     );
 
-    // انكمش الدين من تسعة نداءات إلى نداء واحد بعد هجرة 091: كل عقود
-    // إدارة البئر صارت تمر عبر api، ولم يبقَ إلا مؤشرات التقارير التي
-    // لا عقد لها بعد (م-41D2).
-    const expected = [
-      'lib/core/api/well_management_repository.dart|get_reports_summary',
-    ];
+    // انكمش الدين من تسعة نداءات إلى صفر: get_reports_summary صار عقدًا
+    // حقيقيًا في هجرة 092، فلم يبقَ نداء RPC مجرّد واحد في التطبيق.
+    const expected = <String>[];
 
     _expectKnownDebt(
       label: 'Bare-RPC debt',
@@ -296,6 +293,7 @@ void main() {
       'list_well_fuel_tanks',
       'purchase_fuel',
       'record_physical_fuel_count',
+      'get_reports_summary',
     ]) {
       expect(
         RegExp(
@@ -306,13 +304,17 @@ void main() {
       );
     }
 
-    // البيانات التجريبية المحلية لإدارة البئر أُزيلت؛ لم يبقَ إلا مؤشرات
-    // التقارير المعلَّمة كدين م-41D2.
+    // البيانات التجريبية المحلية لإدارة البئر أُزيلت كلها، ومعها أرقام
+    // التقارير المُلفَّقة (24 جلسة و945000 و720000 و285000 و460 لترًا).
     for (final legacyName in const [
       '_getMockWellDetails',
       '_getMockPumps',
       '_getMockPriceSchedule',
       '_getMockFuelTanks',
+      '_getMockReportSummary',
+      '945000',
+      '720000',
+      '285000',
     ]) {
       expect(
         source.contains(legacyName),
@@ -378,18 +380,112 @@ void main() {
       captureGroup: 1,
     );
 
-    const expected = [
-      'lib/core/api/finance_repository.dart|finance.expenses',
-      'lib/core/api/finance_repository.dart|iam.well_memberships',
-      'lib/core/api/finance_repository.dart|finance.profit_distribution_cycles',
-      'lib/core/api/finance_repository.dart|billing.invoices',
-      'lib/core/api/finance_repository.dart|billing.payments',
-    ];
+    // صفر: القراءات المالية الخمس صارت عقود api في هجرة 092. وكان اثنان
+    // منها يخاطبان ما لا وجود له أصلًا (iam.well_memberships وpublic.farms).
+    const expected = <String>[];
 
     _expectKnownDebt(
       label: 'Dotted-from debt',
       actual: actual,
       expected: expected,
     );
+  });
+
+  test('finance reads use the official api read contracts', () {
+    final source = File(
+      'lib/core/api/finance_repository.dart',
+    ).readAsStringSync();
+
+    for (final contract in const [
+      'list_well_expenses',
+      'list_well_partners',
+      'list_well_profit_cycles',
+      'get_farmer_account',
+    ]) {
+      expect(
+        RegExp(
+          '''\\.schema\\s*\\(\\s*['"]api['"]\\s*\\)\\s*\\.rpc\\s*\\(\\s*\\n?\\s*['"]$contract['"]''',
+        ).hasMatch(source),
+        isTrue,
+        reason: 'Read contract not routed through api: $contract',
+      );
+    }
+
+    expect(source.contains("'p_well_id': wellId"), isTrue);
+    expect(
+      source.contains("'p_farmer_well_account_id': farmerAccountId"),
+      isTrue,
+    );
+
+    // كشف حساب الشريك الواحد تصفية محلية لقائمة الشركاء نفسها، فلا عقد
+    // ثانيًا له ولا نداء لكل شريك.
+    expect(
+      source.contains('final partners = await fetchPartners(wellId);'),
+      isTrue,
+    );
+
+    for (final internalSchema in const [
+      ".schema('finance')",
+      ".schema('billing')",
+      ".schema('iam')",
+      ".schema('reporting')",
+    ]) {
+      expect(source.contains(internalSchema), isFalse);
+    }
+
+    // لا التقاط للخطأ في المستودع: الشاشة هي من يعرض الفشل.
+    expect(source.contains('catch ('), isFalse);
+  });
+
+  test('finance mock fallbacks and fabricated money are gone', () {
+    final source = File(
+      'lib/core/api/finance_repository.dart',
+    ).readAsStringSync();
+
+    for (final legacyName in const [
+      '_getMockExpenses',
+      '_getMockPartners',
+      '_getMockCycles',
+      '_getMockFarmerFinancialAccount',
+      // هوية المزارع ورصيده المقدَّم كانت ثوابت في العميل لأي حساب يُفتح.
+      "'محمد علي الحبيشي'",
+      "'F-001'",
+      "'771234567'",
+      'advanceBalanceYER: 15000',
+      // ومال الشركاء كان محشورًا في كل صف بلا مصدر.
+      'totalEarningsYER: 180000',
+      'irrigationDeductionYER: 35000',
+      'totalPaidYER: 100000',
+    ]) {
+      expect(
+        source.contains(legacyName),
+        isFalse,
+        reason: 'Production mock fallback still present: $legacyName',
+      );
+    }
+  });
+
+  test('finance screens surface contract failures instead of hiding them', () {
+    for (final entry in const {
+      'lib/features/finance/expenses_screen.dart':
+          'تعذر تحميل المصروفات',
+      'lib/features/finance/partners_screen.dart':
+          'تعذر تحميل بيانات الشركاء',
+      'lib/features/finance/profit_distribution_screen.dart':
+          'تعذر تحميل دورات الأرباح',
+      'lib/features/finance/partner_detail_financial_screen.dart':
+          'تعذر تحميل حساب الشريك',
+      'lib/features/finance/farmer_financial_account_screen.dart':
+          'تعذر تحميل الحساب المالي للمزارع',
+      'lib/features/well_management/reports_analytics_screen.dart':
+          'تعذر تحميل التقارير',
+    }.entries) {
+      final source = File(entry.key).readAsStringSync();
+      expect(
+        source.contains(entry.value),
+        isTrue,
+        reason: 'Screen swallows contract failure: ${entry.key}',
+      );
+    }
   });
 }

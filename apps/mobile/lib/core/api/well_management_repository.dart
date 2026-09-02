@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// نموذج بيانات البئر كما تعيده api.get_well_details حرفيًا.
@@ -233,8 +232,11 @@ class FuelTankModel {
   }
 }
 
-/// نموذج مؤشرات التقرير. لا عقد api له بعد (م-41D2)، فما زال يعتمد
-/// بيانات تجريبية معلَّمة صراحة — وهي آخر ثغرة باقية في هذا المستودع.
+/// نموذج مؤشرات التقرير المبني على عقد api.get_reports_summary (هجرة 092).
+/// كل رقم فيه مقاس في القاعدة: الجلسات ومدّتها من تكاليف الجلسات،
+/// والتحصيل من الدفعات المرحّلة، والمصروفات من المصروفات المرحّلة،
+/// والوقود من حركات الصرف. وما يُحسب هنا عرضٌ فقط: الليتر والساعة
+/// والنسبة واسم اليوم وصافي التدفق (ق-99: لا حساب مال داخل العقد).
 class ReportSummaryModel {
   final String period;
   final int totalSessions;
@@ -261,6 +263,120 @@ class ReportSummaryModel {
     required this.financialTrends,
     required this.energyDistribution,
   });
+
+  factory ReportSummaryModel.fromContract(Map<String, dynamic> json) {
+    final totals = Map<String, dynamic>.from(json['totals'] as Map);
+    final collected = _asInt(totals['total_collected_minor']) ?? 0;
+    final expenses = _asInt(totals['total_expenses_minor']) ?? 0;
+    final fuelMl = _asInt(totals['total_fuel_consumed_ml']) ?? 0;
+
+    final days = (json['daily_irrigation'] as List<dynamic>? ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .map(
+          (row) => DailyIrrigationMetric(
+            dayName: _arabicDayName(_asDate(row['day'])),
+            date: _asDate(row['day']) ?? DateTime.now(),
+            hours: ((_asInt(row['duration_seconds']) ?? 0) / 3600).round(),
+            sessionsCount: _asInt(row['sessions_count']) ?? 0,
+          ),
+        )
+        .toList(growable: false);
+
+    final trends = (json['financial_trends'] as List<dynamic>? ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .map(
+          (row) => FinancialTrendMetric(
+            periodLabel: _weekLabel(_asDate(row['week_start'])),
+            collectedYER: _asInt(row['collected_minor']) ?? 0,
+            expensesYER: _asInt(row['expenses_minor']) ?? 0,
+          ),
+        )
+        .toList(growable: false);
+
+    final energyRows = (json['energy_distribution'] as List<dynamic>? ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    final energyTotal = energyRows.fold<int>(
+      0,
+      (sum, row) => sum + (_asInt(row['total_seconds']) ?? 0),
+    );
+
+    return ReportSummaryModel(
+      period: _periodLabel(json['period_code'] as String?),
+      totalSessions: _asInt(totals['total_sessions']) ?? 0,
+      totalDurationSeconds: _asInt(totals['total_duration_seconds']) ?? 0,
+      totalRevenueYER: _asInt(totals['total_revenue_minor']) ?? 0,
+      totalCollectedYER: collected,
+      totalExpensesYER: expenses,
+      // صافي التدفق تجميع عرضٍ من رقمين مُرجَعين، لا حساب مال في العقد.
+      netCashFlowYER: collected - expenses,
+      totalFuelConsumedLiters: (fuelMl / 1000).round(),
+      dailyIrrigation: days,
+      financialTrends: trends,
+      // بلا ساعات تشغيل لا نسبة: القائمة تُترك فارغة بدل شريط بأصفار.
+      energyDistribution: energyTotal == 0
+          ? const <EnergyDistributionMetric>[]
+          : energyRows
+              .map(
+                (row) => EnergyDistributionMetric(
+                  energySource: (row['energy_source'] as String?) ?? '',
+                  label: _energyLabel(row['energy_source'] as String?),
+                  totalSeconds: _asInt(row['total_seconds']) ?? 0,
+                  percentage:
+                      ((_asInt(row['total_seconds']) ?? 0) * 100 / energyTotal)
+                          .round(),
+                ),
+              )
+              .toList(growable: false),
+    );
+  }
+
+  static String _periodLabel(String? code) {
+    switch (code) {
+      case 'today':
+        return 'اليوم';
+      case 'this_week':
+        return 'هذا الأسبوع';
+      case 'this_month':
+        return 'هذا الشهر';
+      default:
+        return 'فترة مخصصة';
+    }
+  }
+
+  static String _energyLabel(String? source) {
+    switch (source) {
+      case 'solar':
+        return 'طاقة شمسية';
+      case 'well_diesel':
+        return 'ديزل البئر';
+      case 'farmer_diesel':
+        return 'ديزل المزارع';
+      default:
+        return source ?? '';
+    }
+  }
+
+  /// أسماء الأيام بالعربية. الأسبوع المحلي يبدأ السبت، والعقد يُرجع
+  /// أول يوم في كل مجموعة سبتًا فعلًا (week_starts_on = saturday).
+  static String _arabicDayName(DateTime? day) {
+    if (day == null) return '';
+    const names = <int, String>{
+      DateTime.saturday: 'السبت',
+      DateTime.sunday: 'الأحد',
+      DateTime.monday: 'الاثنين',
+      DateTime.tuesday: 'الثلاثاء',
+      DateTime.wednesday: 'الأربعاء',
+      DateTime.thursday: 'الخميس',
+      DateTime.friday: 'الجمعة',
+    };
+    return names[day.weekday] ?? '';
+  }
+
+  static String _weekLabel(DateTime? weekStart) {
+    if (weekStart == null) return '';
+    return 'أسبوع ${weekStart.day}/${weekStart.month}';
+  }
 }
 
 class DailyIrrigationMetric {
@@ -537,67 +653,26 @@ class WellManagementRepository {
     );
   }
 
-  /// 10. مؤشرات التقارير — دين معروف: لا عقد api بعد (م-41D2).
+  /// 10. مؤشرات التقارير — api.get_reports_summary
   ///
-  /// النداء المجرّد باقٍ مؤقتًا مع بيانات احتياطية، وهو آخر بند في
-  /// قائمة الدين المعلَن في data_api_boundary_test.dart.
+  /// الفترة رمز يفهمه العقد: today أو this_week (أسبوع يبدأ السبت) أو
+  /// this_month أو custom مع حدّين. أي رمز آخر أو فترة مخصصة ناقصة أو
+  /// أطول من ٩٢ يومًا يرفضها العقد بـ22023 ولا تُصحَّح ضمنيًا هنا.
   Future<ReportSummaryModel> fetchReportsSummary({
     required String wellId,
     required String periodCode,
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    try {
-      final res = await _requireClient.rpc('get_reports_summary', params: {
+    final res = await _requireClient.schema('api').rpc(
+      'get_reports_summary',
+      params: {
         'p_well_id': wellId,
         'p_period': periodCode,
         'p_start': startDate?.toIso8601String(),
         'p_end': endDate?.toIso8601String(),
-      });
-      if (res != null) {
-        // لا عقد مستقر بعد؛ التحليل يأتي مع م-41D2.
-      }
-    } catch (e) {
-      debugPrint('get_reports_summary غير متوفر بعد (م-41D2): $e');
-    }
-    return _getMockReportSummary(periodCode);
-  }
-
-  ReportSummaryModel _getMockReportSummary(String periodCode) {
-    final now = DateTime.now();
-    return ReportSummaryModel(
-      period: periodCode == 'today'
-          ? 'اليوم'
-          : (periodCode == 'this_week'
-              ? 'هذا الأسبوع'
-              : (periodCode == 'this_month' ? 'هذا الشهر' : 'فترة مخصصة')),
-      totalSessions: 24,
-      totalDurationSeconds: 78 * 3600 + 1800,
-      totalRevenueYER: 945000,
-      totalCollectedYER: 720000,
-      totalExpensesYER: 285000,
-      netCashFlowYER: 435000,
-      totalFuelConsumedLiters: 460,
-      dailyIrrigation: [
-        DailyIrrigationMetric(dayName: 'السبت', date: now.subtract(const Duration(days: 6)), hours: 12, sessionsCount: 4),
-        DailyIrrigationMetric(dayName: 'الأحد', date: now.subtract(const Duration(days: 5)), hours: 14, sessionsCount: 5),
-        DailyIrrigationMetric(dayName: 'الاثنين', date: now.subtract(const Duration(days: 4)), hours: 10, sessionsCount: 3),
-        DailyIrrigationMetric(dayName: 'الثلاثاء', date: now.subtract(const Duration(days: 3)), hours: 15, sessionsCount: 4),
-        DailyIrrigationMetric(dayName: 'الأربعاء', date: now.subtract(const Duration(days: 2)), hours: 11, sessionsCount: 3),
-        DailyIrrigationMetric(dayName: 'الخميس', date: now.subtract(const Duration(days: 1)), hours: 9, sessionsCount: 3),
-        DailyIrrigationMetric(dayName: 'اليوم', date: now, hours: 8, sessionsCount: 2),
-      ],
-      financialTrends: const [
-        FinancialTrendMetric(periodLabel: 'الأسبوع 1', collectedYER: 180000, expensesYER: 60000),
-        FinancialTrendMetric(periodLabel: 'الأسبوع 2', collectedYER: 220000, expensesYER: 95000),
-        FinancialTrendMetric(periodLabel: 'الأسبوع 3', collectedYER: 190000, expensesYER: 70000),
-        FinancialTrendMetric(periodLabel: 'الأسبوع 4', collectedYER: 130000, expensesYER: 60000),
-      ],
-      energyDistribution: const [
-        EnergyDistributionMetric(energySource: 'solar', label: 'طاقة شمسية', totalSeconds: 46 * 3600, percentage: 58),
-        EnergyDistributionMetric(energySource: 'well_diesel', label: 'ديزل البئر', totalSeconds: 24 * 3600, percentage: 31),
-        EnergyDistributionMetric(energySource: 'farmer_diesel', label: 'ديزل المزارع', totalSeconds: 9 * 3600, percentage: 11),
-      ],
+      },
     );
+    return ReportSummaryModel.fromContract(_asMap(res));
   }
 }

@@ -54,12 +54,22 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
 
   Future<void> _loadExpenses() async {
     setState(() => _isLoading = true);
-    final list = await _repo.fetchExpenses(_activeWellId ?? 'well-1');
-    if (mounted) {
+    try {
+      final list = await _repo.fetchExpenses(_activeWellId ?? 'well-1');
+      if (!mounted) return;
       setState(() {
         _expenses = list;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _expenses = const [];
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل المصروفات: $e')),
+      );
     }
   }
 

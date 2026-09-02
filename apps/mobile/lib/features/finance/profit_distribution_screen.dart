@@ -44,12 +44,24 @@ class _ProfitDistributionScreenState extends State<ProfitDistributionScreen> {
 
   Future<void> _loadCycles() async {
     setState(() => _isLoading = true);
-    final list = await _repo.fetchProfitDistributionCycles(_activeWellId ?? 'well-1');
-    if (mounted) {
+    try {
+      final list = await _repo.fetchProfitDistributionCycles(
+        _activeWellId ?? 'well-1',
+      );
+      if (!mounted) return;
       setState(() {
         _cycles = list;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _cycles = const [];
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل دورات الأرباح: $e')),
+      );
     }
   }
 
@@ -257,16 +269,22 @@ class _ProfitDistributionScreenState extends State<ProfitDistributionScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.date_range, size: 18, color: AppColors.deepBlue),
-                    const SizedBox(width: 6),
-                    Text(
-                      'دورة الفترة: ${_formatDate(cycle.periodStart)} إلى ${_formatDate(cycle.periodEnd)}',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                    ),
-                  ],
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.date_range, size: 18, color: AppColors.deepBlue),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'دورة الفترة: ${_formatDate(cycle.periodStart)} إلى ${_formatDate(cycle.periodEnd)}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
