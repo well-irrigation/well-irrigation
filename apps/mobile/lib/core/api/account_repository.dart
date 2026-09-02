@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_bootstrap_repository.dart';
 import '../session/offline_session_coordinator.dart';
@@ -52,22 +51,43 @@ class UserProfileData {
   }
 }
 
+/// حالة الجهاز والمزامنة كما هي **مقيسة فعلًا** لا كما نتمناها.
+///
+/// أي حقل غير مقيس يبقى `null` ولا يُخمَّن: قياس الاتصال بالخادم وحالة
+/// الإرسال الخلفي يأتيان مع شاشات الجاهزية (W2-02d / ق-90)، وقبل ذلك
+/// إعلانهما «يعمل» ادعاء بلا دليل.
 class DeviceSyncStatusModel {
   const DeviceSyncStatusModel({
     required this.localStorageReady,
-    required this.isOnline,
-    required this.lastSyncTime,
     required this.pendingOperationsCount,
-    required this.oldestPendingDescription,
-    required this.backgroundSyncActive,
+    this.lastSyncTime,
+    this.isOnline,
+    this.backgroundSyncActive,
   });
 
+  /// مقيس: الطابور المستعمل مخزَّن على قرص الهاتف لا في الذاكرة وحدها.
   final bool localStorageReady;
-  final bool isOnline;
-  final DateTime? lastSyncTime;
+
+  /// مقيس: عدد العمليات المعلَّقة في الطابور نفسه.
   final int pendingOperationsCount;
-  final String? oldestPendingDescription;
-  final bool backgroundSyncActive;
+
+  /// مسجَّل في الطابور؛ `null` تعني «لم تنجح مزامنة بعد».
+  final DateTime? lastSyncTime;
+
+  /// `null` تعني «غير مقيس بعد».
+  final bool? isOnline;
+
+  /// `null` تعني «غير مقيس بعد».
+  final bool? backgroundSyncActive;
+}
+
+/// يُرفع عند طلب مزامنة يدوية ولا ناقل مزامنة موصول بعد (W2-02d / ق-90).
+/// وجوده يمنع تحويل «لم يُرسل شيء» إلى رسالة نجاح.
+class ManualSyncUnavailableException implements Exception {
+  const ManualSyncUnavailableException();
+
+  @override
+  String toString() => 'المزامنة اليدوية غير موصولة بعد';
 }
 
 class AppSettingsModel {
@@ -117,8 +137,12 @@ class AppSettingsModel {
 /// مستودع إدارة الحساب والإعدادات والفريق والمزامنة
 class AccountRepository {
   final SupabaseClient? _client;
+  final OfflineSessionCoordinator? _coordinatorOverride;
 
-  AccountRepository([this._client]);
+  AccountRepository([this._client, this._coordinatorOverride]);
+
+  OfflineSessionCoordinator get _coordinator =>
+      _coordinatorOverride ?? OfflineSessionCoordinator.instance;
 
   SupabaseClient? get _effectiveClient {
     try {
@@ -191,64 +215,63 @@ class AccountRepository {
   }
 
   /// 3. تغيير كلمة المرور بأمان
+  ///
+  /// لا يُبتلع أي فشل: بلا جلسة مصدَّقة أو عند رفض الخادم يُرفع الخطأ
+  /// كما هو، فلا تصل الشاشة إلى رسالة نجاح وكلمة المرور لم تتغير.
   Future<void> updatePassword(String newPassword) async {
-    try {
-      final client = _effectiveClient;
-      if (client != null && client.auth.currentUser != null) {
-        await client.auth.updateUser(
-          UserAttributes(password: newPassword),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error updating password: $e');
+    if (newPassword.isEmpty) {
+      throw ArgumentError.value(
+        newPassword,
+        'newPassword',
+        'Password is required',
+      );
     }
+
+    final client = _effectiveClient;
+    if (client == null || client.auth.currentUser == null) {
+      throw StateError('Authenticated session is required');
+    }
+
+    await client.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
   }
 
-  /// 7. جلب حالة الجهاز والمزامنة
+  /// 7. جلب حالة الجهاز والمزامنة — المقيس فقط
+  ///
+  /// العدد وتاريخ آخر مزامنة يُقرآن من الطابور نفسه، وجاهزية التخزين
+  /// المحلي من نوع الطابور المستعمل فعلًا. الاتصال والإرسال الخلفي
+  /// يبقيان `null` = غير مقيسين (W2-02d). الفشل يُرفع ولا يُبتلع.
   Future<DeviceSyncStatusModel> fetchDeviceSyncStatus() async {
-    final client = _effectiveClient;
-    if (client != null) {
-      try {
-        final coordinator = OfflineSessionCoordinator.instance;
-        final outboxCount = await coordinator.getPendingOperationsCount();
-        final hasActive = (await coordinator.projectActiveSession(
-              accountId: client.auth.currentUser?.id ?? 'active-user',
-            )) !=
-            null;
-
-        return DeviceSyncStatusModel(
-          localStorageReady: true,
-          isOnline: true,
-          lastSyncTime: DateTime.now().subtract(const Duration(minutes: 2)),
-          pendingOperationsCount: outboxCount,
-          oldestPendingDescription: hasActive ? 'جلسة سقي ميدانية جارية' : null,
-          backgroundSyncActive: true,
-        );
-      } catch (_) {}
-    }
+    final coordinator = _coordinator;
+    final pendingCount = await coordinator.getPendingOperationsCount();
+    final lastSync = await coordinator.lastSuccessfulSyncAt();
 
     return DeviceSyncStatusModel(
-      localStorageReady: true,
-      isOnline: true,
-      lastSyncTime: DateTime.now().subtract(const Duration(minutes: 2)),
-      pendingOperationsCount: 0,
-      oldestPendingDescription: null,
-      backgroundSyncActive: true,
+      localStorageReady: coordinator.usesDurableStore,
+      pendingOperationsCount: pendingCount,
+      lastSyncTime: lastSync,
     );
   }
 
   /// 8. إجراء المزامنة اليدوية
+  ///
+  /// تمر بالمنسق القائم لا بتأخير صناعي: إن لم يكن هناك ناقل موصول
+  /// يُعلن ذلك صريحًا بدل الانتظار لحظة ثم إعلان النجاح.
   Future<void> triggerManualSync() async {
-    await Future.delayed(const Duration(milliseconds: 100));
+    final coordinator = _coordinator;
+    if (!coordinator.canSyncNow) {
+      throw const ManualSyncUnavailableException();
+    }
+
+    await coordinator.syncNow();
   }
 
   /// 9. فحص الأمان قبل تسجيل الخروج (القرار 578)
+  ///
+  /// يفشل مغلقًا: تعذُّر القراءة يُرفع ولا يُترجم إلى «لا يوجد معلَّق»،
+  /// لأن الخروج على عمليات لم تُرسل ضياع مال ميداني.
   Future<int> checkPendingOperationsBeforeLogout() async {
-    if (_effectiveClient != null) {
-      try {
-        return await OfflineSessionCoordinator.instance.getPendingOperationsCount();
-      } catch (_) {}
-    }
-    return 0;
+    return _coordinator.getPendingOperationsCount();
   }
 }

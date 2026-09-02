@@ -20,6 +20,22 @@ class _ProfileNameRepository extends AccountRepository {
   }
 }
 
+/// مستودع كلمة المرور: يفصل «نجح الخادم» عن «عُرضت رسالة نجاح».
+class _PasswordRepository extends AccountRepository {
+  _PasswordRepository({this.fail = false});
+
+  final bool fail;
+  String? savedPassword;
+
+  @override
+  Future<void> updatePassword(String newPassword) async {
+    if (fail) {
+      throw StateError('Authenticated session is required');
+    }
+    savedPassword = newPassword;
+  }
+}
+
 void main() {
   group('ProfileSecurityScreen Tests (UX-16A / القرارات 528–545)', () {
     testWidgets('1. عرض الاسم والهاتف وأزرار تغيير كلمة المرور والهاتف', (tester) async {
@@ -196,6 +212,103 @@ void main() {
         );
 
         expect(find.text('حفظ الاسم'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '6. فشل تغيير كلمة المرور لا يتحول إلى نجاح وهمي',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final repository = _PasswordRepository(fail: true);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ar'),
+            home: ProfileSecurityScreen(
+              profile: const UserProfileData(
+                id: 'user-1',
+                fullName: 'محمد عبدالله الشامي',
+                phone: '777123456',
+              ),
+              repository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('تغيير كلمة المرور'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'كلمة المرور الجديدة *'),
+          'كلمة-جديدة-1',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'تأكيد كلمة المرور الجديدة *'),
+          'كلمة-جديدة-1',
+        );
+        await tester.tap(find.text('حفظ كلمة المرور'));
+        await tester.pumpAndSettle();
+
+        expect(repository.savedPassword, isNull);
+        expect(
+          find.text(
+            'تعذر تغيير كلمة المرور — لم يتغيّر شيء، وكلمتك الحالية ما زالت صالحة',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('تم تغيير كلمة المرور بنجاح ✅'), findsNothing);
+        // الحوار يبقى مفتوحًا لإعادة المحاولة بعد تفريغ الحقول (ق-118).
+        expect(find.text('حفظ كلمة المرور'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '7. نجاح الخادم وحده يعرض نجاح تغيير كلمة المرور ويغلق الحوار',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final repository = _PasswordRepository();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('ar'),
+            home: ProfileSecurityScreen(
+              profile: const UserProfileData(
+                id: 'user-1',
+                fullName: 'محمد عبدالله الشامي',
+                phone: '777123456',
+              ),
+              repository: repository,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('تغيير كلمة المرور'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'كلمة المرور الجديدة *'),
+          'كلمة-جديدة-1',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'تأكيد كلمة المرور الجديدة *'),
+          'كلمة-جديدة-1',
+        );
+        await tester.tap(find.text('حفظ كلمة المرور'));
+        await tester.pumpAndSettle();
+
+        expect(repository.savedPassword, 'كلمة-جديدة-1');
+        expect(find.text('تم تغيير كلمة المرور بنجاح ✅'), findsOneWidget);
+        expect(find.text('كلمة المرور الحالية *'), findsNothing);
       },
     );
 
