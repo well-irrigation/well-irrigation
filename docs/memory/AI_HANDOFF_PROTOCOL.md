@@ -1,7 +1,7 @@
 # AI Handoff Protocol — بروتوكول تسليم المشروع
 
 **القرارات الحاكمة:** ق-93، ق-95، ق-96، ق-97، ق-104
-**آخر تحديث:** 2026-08-30
+**آخر تحديث:** 2026-09-02
 **الحالة:** نافذ
 
 ## 1. الهدف
@@ -24,6 +24,9 @@
 
 أي نموذج جديد يبدأ هكذا:
 
+0. `AGENTS.md` في جذر المستودع — باب الدخول الموحَّد لكل وكيل: عقد
+   العمل، وحقائق القناة السحابية، والحدود النافذة. (`CLAUDE.md` في
+   الجذر مؤشِّر إليه لا نسخة ثانية منه.)
 1. `docs/README.md`
 2. `docs/PROJECT_MAP.md`
 3. `docs/memory/AI_HANDOFF_PROTOCOL.md`
@@ -212,7 +215,8 @@
 - `git diff --check`
 - فحص الملفات المتوقعة.
 - Commit واضح.
-- Push إلى `main` أو الفرع المتفق عليه.
+- فرع ثم طلب دمج ثم دمج مضغوط. **لا Push مباشر إلى `main`**: الفرع
+  محميّ بضابط نافذ، ودمج `main` = نشر تلقائي على الإنتاج.
 - Worktree نظيف.
 
 بعد ذلك فقط تحدث نقطة العمل إلى الدفعة التالية.
@@ -341,10 +345,12 @@ Current point — ق-120:
 
 **NEXT = Pre-Production Audit Queue — Gap Closing.**
 
-الترتيب الحاكم يؤخذ من `memory/RESUME_POINT.md`:
-مراجعة حدود `api.*` في Flutter، ثم production mock fallbacks،
-ثم Auth/OTP/account lifecycle، ثم settings false-success،
-ثم Integration/E2E، ثم CI/branch protection.
+الترتيب الحاكم يؤخذ من `memory/RESUME_POINT.md` وحده، ولا يُنسخ هنا
+لأنه يتغير كل جولة. الحالة المختصرة في 2026-09-02: بنود «النجاح
+الكاذب» الثمانية أُغلقت (م-41D3 حتى م-41D5)، وتسعيرة العميل أُغلقت
+(م-41D6)، وسلطة اطلاع المشغل على التسعيرة أُغلقت بهجرة 093 المنشورة
+(م-41D7)، وضابط حماية `main` نافذ. والمتبقي في الطابور: عقد قراءة سندات
+الرصيد المقدَّم، ودين الهوية، والطابور الدائم غير الموصول، وCI.
 
 ق-120 تبقى نافذة؛ لا يبدأ W2-02d ولا أي Screen أو Feature
 جديدة قبل استمرار Audit → Inspection → Evaluation → Repair →
@@ -352,9 +358,9 @@ Gap Closing.
 
 Do not start arbitrary screens.
 
-Do not edit migrations 071–087.
+Do not edit migrations 071–093.
 
-New DB changes begin 088+.
+New DB changes begin 094+.
 
 Use coherent domain-sized migrations and permanent tests.
 
