@@ -95,6 +95,19 @@ String energySourceLabel(String? code) {
   return kEnergySourceLabels[code] ?? code;
 }
 
+/// مصادر الطاقة الثلاثة التي تقبلها القاعدة في `p_energy_source`
+/// (هجرة 066، `ops.create_priced_session_segment`).
+///
+/// اختيار المصدر قرار تشغيلي لا تسعيري (م-41D6): صلاحية `session.start`
+/// يملكها المشغل والمدير، أما `price.manage` فللمالك وحده — فلو بُنيت
+/// أزرار المصدر من قواعد السعر لبقي المشغل بلا أزرار ولم يستطع بدء جلسة
+/// يقبلها الخادم. الأسعار وحدها تأتي من العقد، والمصدر من هذه القائمة.
+const List<String> kSessionEnergySources = [
+  'solar',
+  'well_diesel',
+  'farmer_diesel',
+];
+
 /// تخطيط صريح لرموز `segment_type` التسعة المسموح بها في القاعدة.
 const Map<String, String> kSegmentTypeLabels = {
   'solar_run': 'تشغيل بالطاقة الشمسية',

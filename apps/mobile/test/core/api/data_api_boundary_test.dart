@@ -706,11 +706,59 @@ void main() {
       );
     }
 
-    // دين مُعلَن: التسعيرة ما زالت محسوبة في العميل، لكنها في موضع واحد
-    // مُسمّى يُقاس ويُغلق في جولة التسعيرة الحقيقية — لا ثلاثة متفرقة.
-    expect(source.contains('_clientSideRateFor'), isTrue);
-    expect(RegExp(r'\b3500\b').allMatches(source).length, 1);
-    expect(RegExp(r'\b5000\b').allMatches(source).length, 1);
+    // الدين أُغلق (م-41D6): لا سعر مكتوب في العميل ولا دالة تختاره. التسعيرة
+    // تُقرأ من `api.get_active_price_schedule` وتُعرض كغياب حين تغيب، فلا
+    // «0 ريال» ولا سند بمبلغ لم يُسعّره جدول البئر.
+    for (final removed in const [
+      '_clientSideRateFor',
+      '_clientSideSolarRateYER',
+      '_clientSideDieselRateYER',
+      'طاقة شمسية',
+    ]) {
+      expect(
+        source.contains(removed),
+        isFalse,
+        reason: 'Client-side pricing still present: $removed',
+      );
+    }
+
+    expect(RegExp(r'\b3500\b').allMatches(source), isEmpty);
+    expect(RegExp(r'\b5000\b').allMatches(source), isEmpty);
+
+    for (final priced in const [
+      'fetchActivePriceSchedule',
+      'SessionStateText.pricingPending',
+      'تعذر قراءة التسعيرة السارية — لا تُعرض تسعيرة',
+      'energySourceLabel(',
+    ]) {
+      expect(
+        source.contains(priced),
+        isTrue,
+        reason: 'Contract-driven pricing path missing: $priced',
+      );
+    }
+
+    // التسعيرة لا تحجب التشغيل (م-41D6): `price.manage` للمالك وحده بينما
+    // `session.start` للمشغل، و`ops.start_irrigation_session` لا تأخذ سعرًا.
+    // فخيارات المصدر مصادر القاعدة الثلاثة، ورفض 42501 حالة معلنة لا منع بدء.
+    for (final unblocked in const [
+      'kSessionEnergySources',
+      '_pricingForbidden',
+      "e.code == '42501'",
+      'التسعيرة السارية متاحة لمن يملك إدارة الأسعار',
+    ]) {
+      expect(
+        source.contains(unblocked),
+        isTrue,
+        reason: 'Pricing must not gate session start: $unblocked',
+      );
+    }
+
+    expect(
+      source.contains('لا مصدر طاقة مُسعَّر لهذا البئر — تعذر بدء الجلسة'),
+      isFalse,
+      reason: 'Missing price must not block a start the server accepts',
+    );
   });
 
   test('payment receipt never claims a print that did not happen', () {
