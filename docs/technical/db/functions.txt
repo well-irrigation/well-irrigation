@@ -166,8 +166,8 @@ ops.shift_report(p_shift_id uuid)|jsonb|stable|definer|search_path=ops, billing,
 ops.start_irrigation_session(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_operator_profile_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, core, billing, iam, pg_temp
 ops.validate_session_segment_overlap()|trigger|volatile|invoker|-
 public.cash_dist(money, money)|money|immutable|invoker|-
-public.citext(character)|citext|immutable|invoker|-
 public.citext(boolean)|citext|immutable|invoker|-
+public.citext(character)|citext|immutable|invoker|-
 public.citext(inet)|citext|immutable|invoker|-
 public.citext_cmp(citext, citext)|integer|immutable|invoker|-
 public.citext_eq(citext, citext)|boolean|immutable|invoker|-
@@ -388,10 +388,10 @@ public.int4_dist(integer, integer)|integer|immutable|invoker|-
 public.int8_dist(bigint, bigint)|bigint|immutable|invoker|-
 public.interval_dist(interval, interval)|interval|immutable|invoker|-
 public.oid_dist(oid, oid)|oid|immutable|invoker|-
-public.regexp_match(citext, citext, text)|text[]|immutable|invoker|-
 public.regexp_match(citext, citext)|text[]|immutable|invoker|-
-public.regexp_matches(citext, citext, text)|SETOF text[]|immutable|invoker|-
+public.regexp_match(citext, citext, text)|text[]|immutable|invoker|-
 public.regexp_matches(citext, citext)|SETOF text[]|immutable|invoker|-
+public.regexp_matches(citext, citext, text)|SETOF text[]|immutable|invoker|-
 public.regexp_replace(citext, citext, text)|text|immutable|invoker|-
 public.regexp_replace(citext, citext, text, text)|text|immutable|invoker|-
 public.regexp_split_to_array(citext, citext)|text[]|immutable|invoker|-
@@ -414,12 +414,12 @@ public.strict_word_similarity_op(text, text)|boolean|stable|invoker|-
 public.strpos(citext, citext)|integer|immutable|invoker|-
 public.texticlike(citext, citext)|boolean|immutable|invoker|-
 public.texticlike(citext, text)|boolean|immutable|invoker|-
-public.texticnlike(citext, text)|boolean|immutable|invoker|-
 public.texticnlike(citext, citext)|boolean|immutable|invoker|-
+public.texticnlike(citext, text)|boolean|immutable|invoker|-
 public.texticregexeq(citext, citext)|boolean|immutable|invoker|-
 public.texticregexeq(citext, text)|boolean|immutable|invoker|-
-public.texticregexne(citext, text)|boolean|immutable|invoker|-
 public.texticregexne(citext, citext)|boolean|immutable|invoker|-
+public.texticregexne(citext, text)|boolean|immutable|invoker|-
 public.time_dist(time without time zone, time without time zone)|interval|immutable|invoker|-
 public.translate(citext, citext, text)|text|immutable|invoker|-
 public.ts_dist(timestamp without time zone, timestamp without time zone)|interval|immutable|invoker|-

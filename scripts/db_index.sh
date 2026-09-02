@@ -26,6 +26,11 @@ app_schemas="n.nspname not like 'pg\\_%'
     'net', 'cron', 'pgsodium', 'pgsodium_masks'
   )"
 
+# الترتيب في كل استعلام يجب أن يكون **حاسمًا** حتى لا يُنتج التوليد فرقًا
+# كاذبًا بعد كل db:reset. الثلاثة الأولى مفاتيحها فريدة أصلًا:
+# (schema, table, attnum) و(schema, table, conname) و(schema, table, tgname).
+# أما الدوال فالاسم وحده لا يكفي — التحميل الزائد (overloading) يجعل عدة
+# دوال بنفس الاسم، فيُضاف توقيع الوسائط مرتَّبًا بايتيًّا collate "C".
 status=0
 
 write_index() {
@@ -94,7 +99,8 @@ write_index functions.txt \
    from pg_proc p
    join pg_namespace n on n.oid = p.pronamespace
    where p.prokind = 'f' and $app_schemas
-   order by n.nspname, p.proname"
+   order by n.nspname, p.proname,
+            pg_get_function_identity_arguments(p.oid) collate \"C\""
 
 if [ "$status" -ne 0 ]; then
   echo "===== فشل فهرس المخطط =====" >&2
