@@ -86,20 +86,17 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
     );
   }
 
-  void _showAllocateAdvanceDialog() {
+  /// الرصيد المقدم يُعرض ولا يُصرف. التسديد منه يحتاج سند الرصيد غير
+  /// المخصَّص ورصيده المتبقي، ولا يعيدهما العقد الحالي (يعيد رصيدًا
+  /// مُجمَّعًا فقط)، فكان الزر يرسل معرّف دفعة ثابتًا وقائمة تخصيصات فارغة
+  /// إلى عقد كتابة حقيقي ثم يعلن نجاحًا. الآن تُعرض الحالة صريحة ولا يُرسل
+  /// شيء (ق-99 / ق-113 / م-41D5؛ القرار 420 يبقى مفتوحًا بانتظار العقد).
+  void _showAdvanceUnavailableDialog() {
     if (_accountData == null) return;
     showDialog(
       context: context,
-      builder: (dialogCtx) => _AllocateAdvanceDialog(
-        accountData: _accountData!,
-        repository: _repo,
-        onAdvanceAllocated: () {
-          _loadAccount();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم استخدام الرصيد المقدم في تسديد الفواتير بنجاح ✅')),
-          );
-        },
-      ),
+      builder: (dialogCtx) =>
+          _AdvanceUnavailableDialog(accountData: _accountData!),
     );
   }
 
@@ -161,14 +158,14 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                 Expanded(
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.purple,
-                      side: const BorderSide(color: Colors.purple),
+                      foregroundColor: AppColors.textSecondary,
+                      side: const BorderSide(color: AppColors.border),
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    icon: const Icon(Icons.swap_horizontal_circle_outlined, size: 18),
-                    label: const Text('استخدام الرصيد المقدم', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                    onPressed: _showAllocateAdvanceDialog,
+                    icon: const Icon(Icons.info_outline, size: 18),
+                    label: const Text('الرصيد المقدم (غير متاح)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: _showAdvanceUnavailableDialog,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -607,37 +604,28 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
   }
 }
 
-/// نافذة استخدام الرصيد المقدم في تسديد الفواتير (Decision 420)
-class _AllocateAdvanceDialog extends StatefulWidget {
+/// نافذة الرصيد المقدم: تعرض الرصيد والفواتير المستحقة كما أعادهما العقد،
+/// وتقول صريحًا إن التسديد من الرصيد غير متاح في هذا الإصدار. لا مستودع
+/// فيها ولا زر تأكيد — لا شيء يُرسل من هنا (القرار 420 مفتوح، ق-120).
+class _AdvanceUnavailableDialog extends StatelessWidget {
   final FarmerFinancialAccountData accountData;
-  final FinanceRepository repository;
-  final VoidCallback onAdvanceAllocated;
 
-  const _AllocateAdvanceDialog({
-    required this.accountData,
-    required this.repository,
-    required this.onAdvanceAllocated,
-  });
-
-  @override
-  State<_AllocateAdvanceDialog> createState() => _AllocateAdvanceDialogState();
-}
-
-class _AllocateAdvanceDialogState extends State<_AllocateAdvanceDialog> {
-  bool _isSubmitting = false;
+  const _AdvanceUnavailableDialog({required this.accountData});
 
   @override
   Widget build(BuildContext context) {
-    final unpaidInvoices = widget.accountData.invoices.where((i) => i.status != 'paid').toList();
-    final advanceBalance = widget.accountData.advanceBalanceYER;
+    final unpaidInvoices = accountData.invoices.where((i) => i.status != 'paid').toList();
+    final advanceBalance = accountData.advanceBalanceYER;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: const [
-          Icon(Icons.swap_horizontal_circle_outlined, color: Colors.purple),
+          Icon(Icons.info_outline, color: AppColors.warning),
           SizedBox(width: 8),
-          Text('استخدام الرصيد المقدم', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text('الرصيد المقدم — التسديد منه غير متاح', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
       content: SingleChildScrollView(
@@ -655,14 +643,38 @@ class _AllocateAdvanceDialogState extends State<_AllocateAdvanceDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('الرصيد المقدم المتاح:', style: TextStyle(fontSize: 12)),
+                  const Text('الرصيد المقدم المحفوظ في الحساب:', style: TextStyle(fontSize: 12)),
                   Text('$advanceBalance ريال', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.purple)),
                 ],
               ),
             ),
             const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'التسديد من الرصيد المقدم غير متاح في هذا الإصدار — لم يُرسل أي أمر تسديد.',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'الرصيد محفوظ في القاعدة كما هو والدين لم يتغير. التسديد يحتاج سند '
+                    'الرصيد غير المخصَّص ورصيده المتبقي، ولا يعيدهما العقد الحالي.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             const Text(
-              'سيتم استخدام الرصيد لتسديد أقدم الفواتير المستحقة التالية بصورة صريحة ومعتمدة:',
+              'الفواتير المستحقة (عرض فقط — لا تُسدَّد من هذه النافذة):',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
@@ -688,42 +700,8 @@ class _AllocateAdvanceDialogState extends State<_AllocateAdvanceDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('إلغاء', style: TextStyle(color: AppColors.textSecondary)),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.purple,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          onPressed: _isSubmitting
-              ? null
-              : () async {
-                  setState(() => _isSubmitting = true);
-                  final nav = Navigator.of(context);
-                  final scaffold = ScaffoldMessenger.of(context);
-                  try {
-                    await widget.repository.allocateAdvance(
-                      paymentId: 'mock-advance-pay',
-                      allocations: [],
-                    );
-                    if (mounted) {
-                      nav.pop();
-                      widget.onAdvanceAllocated();
-                    }
-                  } catch (e) {
-                    setState(() => _isSubmitting = false);
-                    if (mounted) {
-                      scaffold.showSnackBar(
-                        SnackBar(content: Text('حدث خطأ: $e')),
-                      );
-                    }
-                  }
-                },
-          child: _isSubmitting
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Text('تأكيد التسديد من المقدم'),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('إغلاق', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
         ),
       ],
     );
