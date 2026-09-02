@@ -462,6 +462,10 @@ class OperationsRepository {
   }
 
   /// بدء جلسة سقي جديدة (api.start_irrigation_session - ق-114)
+  ///
+  /// كتابات الجلسة الخمس (بدء/إيقاف/استئناف/تغيير طاقة/إنهاء) ترفض العمل
+  /// بلا عميل. العودة بنجاح صامت — أو بمعرّف جلسة مُلفَّق — كانت تُظهر
+  /// للمشغّل جلسة لا وجود لها في القاعدة (ق-113 / م-41D4).
   Future<String> startIrrigationSession({
     required String wellId,
     required String pumpId,
@@ -472,7 +476,7 @@ class OperationsRepository {
   }) async {
     final client = _effectiveClient;
     if (client == null) {
-      return 'mock-session-${DateTime.now().millisecondsSinceEpoch}';
+      throw StateError('Supabase client is unavailable');
     }
 
     final result = await client.schema('api').rpc(
@@ -497,7 +501,9 @@ class OperationsRepository {
     String? commandId,
   }) async {
     final client = _effectiveClient;
-    if (client == null) return;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
 
     await client.schema('api').rpc(
       'pause_irrigation_session',
@@ -515,7 +521,9 @@ class OperationsRepository {
     String? commandId,
   }) async {
     final client = _effectiveClient;
-    if (client == null) return;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
 
     await client.schema('api').rpc(
       'resume_irrigation_session',
@@ -533,7 +541,9 @@ class OperationsRepository {
     String? commandId,
   }) async {
     final client = _effectiveClient;
-    if (client == null) return;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
 
     await client.schema('api').rpc(
       'change_session_energy_source',
@@ -552,7 +562,8 @@ class OperationsRepository {
   }) async {
     final client = _effectiveClient;
     if (client == null) {
-      return {'session_id': sessionId, 'total_amount_minor': 10500};
+      // فاتورة مُلفَّقة (10500) كانت تُطبع للمزارع كأنها محسوبة في القاعدة.
+      throw StateError('Supabase client is unavailable');
     }
 
     final result = await client.schema('api').rpc(

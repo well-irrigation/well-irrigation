@@ -151,7 +151,9 @@ class TopWellSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasMultipleWells = wells.length > 1;
-    final displayName = activeWell?.name ?? 'بئر الخير الرئيسي';
+    // لا اسم بئر مُلفَّق عند غياب البئر النشط: الشريط يقول «لا بئر مختار»
+    // بدل أن يعرض اسم بئر العرض التجريبي كأنه بئر المستخدم (م-41D4).
+    final displayName = activeWell?.name ?? 'لا بئر مختار';
 
     return InkWell(
       onTap: hasMultipleWells ? () => _openWellPickerSheet(context) : null,

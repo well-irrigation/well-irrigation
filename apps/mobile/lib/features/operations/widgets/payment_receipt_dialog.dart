@@ -45,9 +45,7 @@ class PaymentReceiptDialog extends StatefulWidget {
 class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
   final _paidController = TextEditingController();
   String _paymentMethod = 'نقد';
-  bool _isPrinting = false;
   bool _isSaving = false;
-  bool _printed = false;
   bool _showThermalPreview = false;
 
   @override
@@ -69,22 +67,16 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
 
   int get _remainingAmount => widget.totalAmountYER - _paidAmount;
 
-  Future<void> _handlePrint() async {
-    setState(() => _isPrinting = true);
+  void _handlePrint() {
+    // لا طباعة مُدَّعاة: لا تكامل بلوتوث في هذا الإصدار، وكان التأخير
+    // 600ms يُعرض كنجاح إرسال إلى طابعة غير موجودة (ق-113 / م-41D4).
     HapticFeedback.mediumImpact();
-    await Future.delayed(const Duration(milliseconds: 600)); // محاكاة اتصال البلوتوث
-    if (mounted) {
-      setState(() {
-        _isPrinting = false;
-        _printed = true;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تم إرسال أمر الطباعة إلى الطابعة الحرارية بنجاح 🖨️'),
-          backgroundColor: AppColors.agriculturalGreen,
-        ),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('الطباعة الحرارية غير متاحة في هذا الإصدار — لم يُرسل أمر طباعة'),
+        backgroundColor: AppColors.warning,
+      ),
+    );
   }
 
   Future<void> _handleConfirm() async {
@@ -381,15 +373,9 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _isPrinting ? null : _handlePrint,
-                      icon: _isPrinting
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(_printed ? Icons.check : Icons.print),
-                      label: Text(_printed ? 'تمت الطباعة' : 'طباعة حرارية'),
+                      onPressed: _handlePrint,
+                      icon: const Icon(Icons.print_disabled),
+                      label: const Text('طباعة حرارية (غير متاحة)'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

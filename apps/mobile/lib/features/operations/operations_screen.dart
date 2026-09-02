@@ -53,7 +53,19 @@ class _OperationsScreenState extends State<OperationsScreen> {
   Pump? _selectedPump;
   List<Pump> _pumps = [];
   String _currentEnergySource = 'طاقة شمسية';
-  int _hourlyRate = 3500;
+
+  /// دين مُعلَن (م-41D4): تسعيرة الساعة ما زالت محسوبة في العميل بدل عقد
+  /// `api.get_active_price_schedule`. جُمعت في موضع واحد ليُقاس الدين
+  /// ويُغلق في جولة التسعيرة الحقيقية — لا لتُعتمد كمصدر صحيح.
+  static const int _clientSideSolarRateYER = 3500;
+  static const int _clientSideDieselRateYER = 5000;
+
+  static int _clientSideRateFor(String energySource) =>
+      energySource == 'طاقة شمسية'
+          ? _clientSideSolarRateYER
+          : _clientSideDieselRateYER;
+
+  int _hourlyRate = _clientSideSolarRateYER;
 
   // حالة الجلسة المباشرة
   Timer? _timer;
@@ -85,6 +97,17 @@ class _OperationsScreenState extends State<OperationsScreen> {
     }
   }
 
+  /// إظهار فشل إجراء **دون** تغيير الحالة المعروضة (ق-113 / م-41B3B).
+  ///
+  /// كل كتابات الجلسة كانت تُبتلع في مصيدة استثناء فارغة ثم تُغيَّر الحالة
+  /// على الشاشة، فيرى المشغّل إيقافًا أو إنهاءً لم يُسجَّل في أي مكان.
+  void _showActionFailure(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
+  }
+
   Future<void> _recoverActiveSession() async {
     final active = await _coordinator.projectActiveSession(
       accountId: 'active-user',
@@ -98,7 +121,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         _secondsElapsed = active.totals.billableSeconds;
         _activeSessionId = active.localId;
         _currentEnergySource = active.currentEnergySource ?? _currentEnergySource;
-        _hourlyRate = _currentEnergySource == 'طاقة شمسية' ? 3500 : 5000;
+        _hourlyRate = _clientSideRateFor(_currentEnergySource);
       });
 
       _startLocalTicker();
@@ -190,6 +213,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<FarmerAccount?> _showAddFarmerDialog() async {
+    final wellId = _activeWellId;
+    if (wellId == null) {
+      _showActionFailure('اختر البئر أولًا — لا يُنشأ مزارع بلا بئر');
+      return null;
+    }
+
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
     final notesController = TextEditingController();
@@ -250,37 +279,24 @@ class _OperationsScreenState extends State<OperationsScreen> {
               foregroundColor: Colors.white,
             ),
             onPressed: () async {
-              if (formKey.currentState?.validate() ?? false) {
-                if (_activeWellId != null) {
-                  try {
-                    final farmer = await _repo.createFarmer(
-                      wellId: _activeWellId!,
-                      fullName: nameController.text.trim(),
-                      phone: phoneController.text.trim().isNotEmpty
-                          ? phoneController.text.trim()
-                          : null,
-                      notes: notesController.text.trim().isNotEmpty
-                          ? notesController.text.trim()
-                          : null,
-                    );
-                    if (ctx.mounted) Navigator.of(ctx).pop(farmer);
-                    return;
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('تعذر إنشاء المزارع: $e')),
-                      );
-                    }
-                  }
-                } else {
-                  final mock = FarmerAccount(
-                    id: 'new-${DateTime.now().millisecondsSinceEpoch}',
-                    fullName: nameController.text.trim(),
-                    publicCode: 'F-NEW',
-                    phone: phoneController.text.trim(),
-                  );
-                  Navigator.of(ctx).pop(mock);
-                }
+              if (!(formKey.currentState?.validate() ?? false)) return;
+
+              try {
+                final farmer = await _repo.createFarmer(
+                  wellId: wellId,
+                  fullName: nameController.text.trim(),
+                  phone: phoneController.text.trim().isNotEmpty
+                      ? phoneController.text.trim()
+                      : null,
+                  notes: notesController.text.trim().isNotEmpty
+                      ? notesController.text.trim()
+                      : null,
+                );
+                if (ctx.mounted) Navigator.of(ctx).pop(farmer);
+              } catch (e) {
+                // لا مزارع مُلفَّق (F-NEW) عند الفشل: النافذة تبقى مفتوحة
+                // والخطأ يظهر، فلا يدخل الجلسة معرّف لا وجود له في القاعدة.
+                _showActionFailure('تعذر إنشاء المزارع: $e');
               }
             },
             child: const Text('حفظ وإضافة'),
@@ -298,6 +314,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
           backgroundColor: AppColors.warning,
         ),
       );
+      return null;
+    }
+
+    final wellId = _activeWellId;
+    if (wellId == null) {
+      _showActionFailure('اختر البئر أولًا — لا تُنشأ أرض بلا بئر');
       return null;
     }
 
@@ -339,32 +361,19 @@ class _OperationsScreenState extends State<OperationsScreen> {
               foregroundColor: Colors.white,
             ),
             onPressed: () async {
-              if (formKey.currentState?.validate() ?? false) {
-                if (_activeWellId != null) {
-                  try {
-                    final farm = await _repo.createFarm(
-                      wellId: _activeWellId!,
-                      name: nameController.text.trim(),
-                      farmerAccountId: _selectedFarmer!.id,
-                    );
-                    if (ctx.mounted) Navigator.of(ctx).pop(farm);
-                    return;
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('تعذر إنشاء الأرض: $e')),
-                      );
-                    }
-                  }
-                } else {
-                  final mock = Farm(
-                    id: 'new-farm-${DateTime.now().millisecondsSinceEpoch}',
-                    wellId: 'well-1',
-                    name: nameController.text.trim(),
-                    farmerAccountId: _selectedFarmer!.id,
-                  );
-                  Navigator.of(ctx).pop(mock);
-                }
+              if (!(formKey.currentState?.validate() ?? false)) return;
+
+              try {
+                final farm = await _repo.createFarm(
+                  wellId: wellId,
+                  name: nameController.text.trim(),
+                  farmerAccountId: _selectedFarmer!.id,
+                );
+                if (ctx.mounted) Navigator.of(ctx).pop(farm);
+              } catch (e) {
+                // لا أرض مُلفَّقة على بئر افتراضي عند الفشل: النافذة تبقى
+                // مفتوحة، فلا تدخل الجلسة أرضٌ لا وجود لها في القاعدة.
+                _showActionFailure('تعذر إنشاء الأرض: $e');
               }
             },
             child: const Text('حفظ وإضافة'),
@@ -385,24 +394,36 @@ class _OperationsScreenState extends State<OperationsScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
-
-    try {
-      if (_activeWellId != null) {
-        final envelope = await _coordinator.startSession(
-          accountId: 'active-user',
-          wellId: _activeWellId!,
-          pumpId: _selectedPump!.id,
-          farmId: _selectedFarm!.id,
-          farmerAccountId: _selectedFarmer!.id,
-          energySource: _currentEnergySource,
-        );
-        _activeSessionId = envelope.localId;
-      }
-    } catch (_) {
-      // Fallback
+    final wellId = _activeWellId;
+    if (wellId == null) {
+      _showActionFailure('لا بئر نشط — لا تُبدأ جلسة سقي بلا بئر');
+      return;
     }
 
+    setState(() => _isSubmitting = true);
+
+    final String sessionLocalId;
+    try {
+      final envelope = await _coordinator.startSession(
+        accountId: 'active-user',
+        wellId: wellId,
+        pumpId: _selectedPump!.id,
+        farmId: _selectedFarm!.id,
+        farmerAccountId: _selectedFarmer!.id,
+        energySource: _currentEnergySource,
+      );
+      sessionLocalId = envelope.localId;
+    } catch (e) {
+      // جلسة لم تدخل الطابور لا تُعرض كجارية: العداد لا يبدأ (ق-113).
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      _showActionFailure('تعذر بدء الجلسة — لم يُسجَّل شيء: $e');
+      return;
+    }
+
+    if (!mounted) return;
+
+    _activeSessionId = sessionLocalId;
     _startLocalTicker();
     setState(() {
       _isSubmitting = false;
@@ -415,48 +436,62 @@ class _OperationsScreenState extends State<OperationsScreen> {
   Future<void> _togglePause() async {
     if (!_isSessionActive) return;
 
-    if (!_isPaused) {
-      // إيقاف مؤقت
-      if (_activeSessionId != null) {
-        try {
-          await _coordinator.pauseSession(
-            accountId: 'active-user',
-            sessionLocalId: _activeSessionId!,
-            reason: 'إيقاف مؤقت من المشغل',
-          );
-        } catch (_) {}
-      }
-      setState(() => _isPaused = true);
-    } else {
-      // استئناف
-      if (_activeSessionId != null) {
-        try {
-          await _coordinator.resumeSession(
-            accountId: 'active-user',
-            sessionLocalId: _activeSessionId!,
-          );
-        } catch (_) {}
-      }
-      setState(() => _isPaused = false);
+    final sessionId = _activeSessionId;
+    if (sessionId == null) {
+      _showActionFailure('لا معرّف جلسة — تعذر تغيير حالة السقي');
+      return;
     }
+
+    final wasPaused = _isPaused;
+    try {
+      if (!wasPaused) {
+        await _coordinator.pauseSession(
+          accountId: 'active-user',
+          sessionLocalId: sessionId,
+          reason: 'إيقاف مؤقت من المشغل',
+        );
+      } else {
+        await _coordinator.resumeSession(
+          accountId: 'active-user',
+          sessionLocalId: sessionId,
+        );
+      }
+    } catch (e) {
+      // الحالة المعروضة تتبع ما سُجِّل، لا ما نُقر عليه.
+      _showActionFailure(
+        wasPaused
+            ? 'تعذر الاستئناف — الجلسة ما زالت موقوفة: $e'
+            : 'تعذر الإيقاف المؤقت — الجلسة ما زالت جارية: $e',
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _isPaused = !wasPaused);
   }
 
   Future<void> _changeEnergySource(String newSource) async {
     if (_currentEnergySource == newSource) return;
 
-    if (_isSessionActive && _activeSessionId != null) {
+    final sessionId = _activeSessionId;
+    if (_isSessionActive && sessionId != null) {
       try {
         await _coordinator.changeEnergySource(
           accountId: 'active-user',
-          sessionLocalId: _activeSessionId!,
+          sessionLocalId: sessionId,
           newEnergySource: newSource,
         );
-      } catch (_) {}
+      } catch (e) {
+        // تغيير لم يُسجَّل لا يُعرض كمُطبَّق: المصدر والتسعيرة يبقيان.
+        _showActionFailure('تعذر تغيير مصدر الطاقة — لم يتغيّر شيء: $e');
+        return;
+      }
     }
 
+    if (!mounted) return;
     setState(() {
       _currentEnergySource = newSource;
-      _hourlyRate = newSource == 'طاقة شمسية' ? 3500 : 5000;
+      _hourlyRate = _clientSideRateFor(newSource);
     });
   }
 
@@ -468,13 +503,23 @@ class _OperationsScreenState extends State<OperationsScreen> {
     final totalAmount = (_hourlyRate * totalSeconds) ~/ 3600;
     final activeSessionId = _activeSessionId;
 
-    if (activeSessionId != null) {
-      try {
-        await _coordinator.completeSession(
-          accountId: 'active-user',
-          sessionLocalId: activeSessionId,
-        );
-      } catch (_) {}
+    if (activeSessionId == null) {
+      // جلسة معروضة بلا معرّف: لا سند قبض لمجهول (ق-113).
+      _showActionFailure('لا معرّف جلسة — تعذر الإنهاء وإصدار سند القبض');
+      _startLocalTicker();
+      return;
+    }
+
+    try {
+      await _coordinator.completeSession(
+        accountId: 'active-user',
+        sessionLocalId: activeSessionId,
+      );
+    } catch (e) {
+      // إنهاء لم يُسجَّل: الجلسة ما زالت جارية، فيعود العداد ولا يُصدر سند.
+      _showActionFailure('تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند: $e');
+      _startLocalTicker();
+      return;
     }
 
     setState(() {
@@ -491,8 +536,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
         builder: (ctx) => PaymentReceiptDialog(
           wellName: _activeWellName,
           operatorName: widget.operatorName,
-          farmerName: _selectedFarmer?.fullName ?? 'المزارع',
-          farmName: _selectedFarm?.name ?? 'الأرض الزراعية',
+          farmerName: _selectedFarmer?.fullName ?? 'مزارع غير محدد',
+          farmName: _selectedFarm?.name ?? 'أرض غير محددة',
           energySource: _currentEnergySource,
           hourlyRateYER: _hourlyRate,
           billableSeconds: totalSeconds,
@@ -502,17 +547,24 @@ class _OperationsScreenState extends State<OperationsScreen> {
             required String paymentMethod,
             required bool isFullySettled,
           }) async {
-            if (paidAmountYER > 0 && _activeWellId != null && _selectedFarmer != null) {
-              await _coordinator.recordPayment(
-                accountId: 'active-user',
-                wellId: _activeWellId!,
-                farmerAccountId: _selectedFarmer!.id,
-                amountMinor: paidAmountYER,
-                paymentMethod: paymentMethod,
-                sessionLocalId: activeSessionId,
-                reference: 'سداد جلسة سقي',
-              );
+            if (paidAmountYER <= 0) return;
+
+            final paymentWellId = _activeWellId;
+            final farmer = _selectedFarmer;
+            if (paymentWellId == null || farmer == null) {
+              // كان السداد يُتجاهل صامتًا فتُغلق النافذة كأنه سُجِّل.
+              throw StateError('لا بئر أو مزارع محدد — لم يُسجَّل السداد');
             }
+
+            await _coordinator.recordPayment(
+              accountId: 'active-user',
+              wellId: paymentWellId,
+              farmerAccountId: farmer.id,
+              amountMinor: paidAmountYER,
+              paymentMethod: paymentMethod,
+              sessionLocalId: activeSessionId,
+              reference: 'سداد جلسة سقي',
+            );
           },
         ),
       );
@@ -528,16 +580,11 @@ class _OperationsScreenState extends State<OperationsScreen> {
     final minutes = ((_secondsElapsed % 3600) ~/ 60).toString().padLeft(2, '0');
     final seconds = (_secondsElapsed % 60).toString().padLeft(2, '0');
 
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
+    // لا بئر مُلفَّق (معرّف افتراضي ومستأجر وأدوار مُفترضة): إن لم يكن البئر
+    // النشط داخل آبار المستخدم فلا بئر، والشريط العلوي يقول ذلك صراحةً.
+    final matchingWells = widget.wells.where((w) => w.id == _activeWellId);
+    final WellSummary? activeWellSummary =
+        matchingWells.isEmpty ? null : matchingWells.first;
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
@@ -545,7 +592,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
+          wells: widget.wells,
           activeWell: activeWellSummary,
           subtitle: 'لوحة تشغيل السقي والمناوبة',
           onWellChanged: (newWell) {
