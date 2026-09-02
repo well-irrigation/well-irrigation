@@ -33,10 +33,12 @@ begin
   -- الكتالوج صار 41 بعد Migration 091 التي أضافت `well.update`
   -- و`pump.manage` لأن عقود الكتابة صارت إجراءات SECURITY DEFINER
   -- بسبب ق-79، فاحتاجت صلاحية مسمّاة للتفويض الصريح.
-  if v_count = 1 and v_count_2 = 41 then
-    raise notice 'PASS 1: session.energy.change مضافة والكتالوج = 41';
+  -- ثم صار 42 بعد Migration 093 التي أضافت `price.read` لفصل
+  -- الاطلاع على التسعيرة عن تعديلها.
+  if v_count = 1 and v_count_2 = 42 then
+    raise notice 'PASS 1: session.energy.change مضافة والكتالوج = 42';
   else
-    raise notice 'FAIL 1: energy_code=% catalog_total=% (توقع 1 و41)',
+    raise notice 'FAIL 1: energy_code=% catalog_total=% (توقع 1 و42)',
       v_count, v_count_2;
   end if;
 
@@ -69,8 +71,8 @@ begin
 
 
   -- ------------------------------------------------------------
-  -- 3. Grant total grew by exactly 3 (70 -> 73), then by 2 in 091.
-  --    أي رقم آخر يعني منحًا صامتًا.
+  -- 3. Grant total grew by exactly 3 (70 -> 73), then by 2 in 091،
+  --    ثم بـ3 في 093. أي رقم آخر يعني منحًا صامتًا.
   -- ------------------------------------------------------------
 
   select count(*)
@@ -80,10 +82,12 @@ begin
   -- صار 75 بعد هجرة 091: منحان للمالك وحده (well.update و
   -- pump.manage) لأن عقود الكتابة صارت إجراءات SECURITY DEFINER
   -- بسبب ق-79، فاحتاجت صلاحية مسمّاة للتفويض الصريح.
-  if v_count = 75 then
-    raise notice 'PASS 3: iam.role_permissions = 75 (70 + 3 + 2 فقط)';
+  -- وصار 78 بعد هجرة 093: price.read للمالك والمدير والمشغل، وهي
+  -- مجموعة الأدوار نفسها التي تقبلها ops.start_irrigation_session.
+  if v_count = 78 then
+    raise notice 'PASS 3: iam.role_permissions = 78 (70 + 3 + 2 + 3 فقط)';
   else
-    raise notice 'FAIL 3: role_permissions = % بدل 75', v_count;
+    raise notice 'FAIL 3: role_permissions = % بدل 78', v_count;
   end if;
 
 

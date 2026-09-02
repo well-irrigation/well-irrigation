@@ -154,6 +154,7 @@ ops.operator_totals(p_profile_id uuid, p_well_id uuid)|jsonb|stable|definer|sear
 ops.pause_irrigation_session(p_session_id uuid, p_reason text, p_paused_at timestamp with time zone)|uuid|volatile|definer|search_path=ops, core, iam, pg_temp
 ops.prevent_parallel_sessions_on_pump()|trigger|volatile|definer|search_path=ops, pg_temp
 ops.prevent_second_open_shift()|trigger|volatile|invoker|-
+ops.read_active_price_schedule(p_well_id uuid, p_at timestamp with time zone)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 ops.request_session_transfer(p_session_id uuid, p_from_shift_id uuid, p_to_profile_id uuid, p_collection_right text, p_note text)|uuid|volatile|definer|search_path=ops, core, pg_temp
 ops.reschedule_booking(p_booking_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_reason text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
 ops.reserve_resource(p_well_id uuid, p_resource_type text, p_resource_id uuid, p_reserved_period tstzrange, p_booking_id uuid, p_session_id uuid)|uuid|volatile|definer|search_path=ops, core, pg_temp
@@ -165,9 +166,9 @@ ops.shift_report(p_shift_id uuid)|jsonb|stable|definer|search_path=ops, billing,
 ops.start_irrigation_session(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_operator_profile_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, core, billing, iam, pg_temp
 ops.validate_session_segment_overlap()|trigger|volatile|invoker|-
 public.cash_dist(money, money)|money|immutable|invoker|-
-public.citext(inet)|citext|immutable|invoker|-
 public.citext(character)|citext|immutable|invoker|-
 public.citext(boolean)|citext|immutable|invoker|-
+public.citext(inet)|citext|immutable|invoker|-
 public.citext_cmp(citext, citext)|integer|immutable|invoker|-
 public.citext_eq(citext, citext)|boolean|immutable|invoker|-
 public.citext_ge(citext, citext)|boolean|immutable|invoker|-
@@ -387,12 +388,12 @@ public.int4_dist(integer, integer)|integer|immutable|invoker|-
 public.int8_dist(bigint, bigint)|bigint|immutable|invoker|-
 public.interval_dist(interval, interval)|interval|immutable|invoker|-
 public.oid_dist(oid, oid)|oid|immutable|invoker|-
-public.regexp_match(citext, citext)|text[]|immutable|invoker|-
 public.regexp_match(citext, citext, text)|text[]|immutable|invoker|-
-public.regexp_matches(citext, citext)|SETOF text[]|immutable|invoker|-
+public.regexp_match(citext, citext)|text[]|immutable|invoker|-
 public.regexp_matches(citext, citext, text)|SETOF text[]|immutable|invoker|-
-public.regexp_replace(citext, citext, text, text)|text|immutable|invoker|-
+public.regexp_matches(citext, citext)|SETOF text[]|immutable|invoker|-
 public.regexp_replace(citext, citext, text)|text|immutable|invoker|-
+public.regexp_replace(citext, citext, text, text)|text|immutable|invoker|-
 public.regexp_split_to_array(citext, citext)|text[]|immutable|invoker|-
 public.regexp_split_to_array(citext, citext, text)|text[]|immutable|invoker|-
 public.regexp_split_to_table(citext, citext)|SETOF text|immutable|invoker|-
@@ -413,10 +414,10 @@ public.strict_word_similarity_op(text, text)|boolean|stable|invoker|-
 public.strpos(citext, citext)|integer|immutable|invoker|-
 public.texticlike(citext, citext)|boolean|immutable|invoker|-
 public.texticlike(citext, text)|boolean|immutable|invoker|-
-public.texticnlike(citext, citext)|boolean|immutable|invoker|-
 public.texticnlike(citext, text)|boolean|immutable|invoker|-
-public.texticregexeq(citext, text)|boolean|immutable|invoker|-
+public.texticnlike(citext, citext)|boolean|immutable|invoker|-
 public.texticregexeq(citext, citext)|boolean|immutable|invoker|-
+public.texticregexeq(citext, text)|boolean|immutable|invoker|-
 public.texticregexne(citext, text)|boolean|immutable|invoker|-
 public.texticregexne(citext, citext)|boolean|immutable|invoker|-
 public.time_dist(time without time zone, time without time zone)|interval|immutable|invoker|-
