@@ -1,0 +1,800 @@
+# schema.table|column|type|nullability|default
+# مولَّد آليًا بـ scripts/db_index.sh — لا يُحرَّر يدويًا
+audit.audit_logs|id|uuid|NOT NULL|gen_random_uuid()
+audit.audit_logs|tenant_id|uuid|NOT NULL|-
+audit.audit_logs|well_id|uuid|null|-
+audit.audit_logs|user_id|uuid|null|-
+audit.audit_logs|device_id|uuid|null|-
+audit.audit_logs|action|text|NOT NULL|-
+audit.audit_logs|entity_type|text|NOT NULL|-
+audit.audit_logs|entity_id|uuid|NOT NULL|-
+audit.audit_logs|old_values|jsonb|null|-
+audit.audit_logs|new_values|jsonb|null|-
+audit.audit_logs|reason|text|null|-
+audit.audit_logs|client_timestamp|timestamp with time zone|null|-
+audit.audit_logs|server_timestamp|timestamp with time zone|NOT NULL|now()
+audit.audit_logs|ip_address|inet|null|-
+audit.audit_logs|app_version|text|null|-
+billing.invoice_lines|id|uuid|NOT NULL|gen_random_uuid()
+billing.invoice_lines|tenant_id|uuid|NOT NULL|-
+billing.invoice_lines|invoice_id|uuid|NOT NULL|-
+billing.invoice_lines|line_number|integer|NOT NULL|-
+billing.invoice_lines|line_type|text|NOT NULL|-
+billing.invoice_lines|description|text|NOT NULL|-
+billing.invoice_lines|quantity|numeric(18,6)|NOT NULL|-
+billing.invoice_lines|unit|text|NOT NULL|-
+billing.invoice_lines|unit_price_minor|bigint|NOT NULL|-
+billing.invoice_lines|amount_minor|bigint|NOT NULL|-
+billing.invoice_lines|session_segment_id|uuid|null|-
+billing.invoice_lines|created_at|timestamp with time zone|NOT NULL|now()
+billing.invoices|id|uuid|NOT NULL|gen_random_uuid()
+billing.invoices|tenant_id|uuid|NOT NULL|-
+billing.invoices|public_code|text|NOT NULL|-
+billing.invoices|sequence_number|bigint|null|-
+billing.invoices|well_id|uuid|NOT NULL|-
+billing.invoices|farmer_well_account_id|uuid|NOT NULL|-
+billing.invoices|session_id|uuid|null|-
+billing.invoices|invoice_date|timestamp with time zone|NOT NULL|-
+billing.invoices|due_date|timestamp with time zone|null|-
+billing.invoices|status|text|NOT NULL|'draft'::text
+billing.invoices|currency_code|character(3)|NOT NULL|'YER'::bpchar
+billing.invoices|subtotal_minor|bigint|NOT NULL|0
+billing.invoices|total_minor|bigint|NOT NULL|0
+billing.invoices|paid_minor|bigint|NOT NULL|0
+billing.invoices|outstanding_minor|bigint|NOT NULL|0
+billing.invoices|settlement_method|text|NOT NULL|'normal'::text
+billing.invoices|partner_policy_id|uuid|null|-
+billing.invoices|issued_at|timestamp with time zone|null|-
+billing.invoices|issued_by|uuid|null|-
+billing.invoices|reversed_invoice_id|uuid|null|-
+billing.invoices|notes|text|null|-
+billing.invoices|created_at|timestamp with time zone|NOT NULL|now()
+billing.invoices|deducted_in_cycle_id|uuid|null|-
+billing.invoices|journal_entry_id|uuid|null|-
+billing.payment_allocations|id|uuid|NOT NULL|gen_random_uuid()
+billing.payment_allocations|tenant_id|uuid|NOT NULL|-
+billing.payment_allocations|payment_id|uuid|NOT NULL|-
+billing.payment_allocations|invoice_id|uuid|NOT NULL|-
+billing.payment_allocations|allocated_minor|bigint|NOT NULL|-
+billing.payment_allocations|created_at|timestamp with time zone|NOT NULL|now()
+billing.payments|id|uuid|NOT NULL|gen_random_uuid()
+billing.payments|session_charge_id|uuid|null|-
+billing.payments|amount_minor|bigint|NOT NULL|-
+billing.payments|method|text|NOT NULL|-
+billing.payments|paid_at|timestamp with time zone|NOT NULL|now()
+billing.payments|received_by_profile_id|uuid|null|-
+billing.payments|created_at|timestamp with time zone|NOT NULL|now()
+billing.payments|updated_at|timestamp with time zone|NOT NULL|now()
+billing.payments|tenant_id|uuid|null|-
+billing.payments|well_id|uuid|null|-
+billing.payments|public_code|text|null|core.generate_public_code('PAY'::text)
+billing.payments|farmer_well_account_id|uuid|null|-
+billing.payments|payer_person_id|uuid|null|-
+billing.payments|cashbox_id|uuid|null|-
+billing.payments|shift_id|uuid|null|-
+billing.payments|collected_by_profile_id|uuid|null|-
+billing.payments|purpose|text|NOT NULL|'session'::text
+billing.payments|status|text|NOT NULL|'posted'::text
+billing.payments|note|text|null|-
+billing.payments|attachment_url|text|null|-
+billing.payments|journal_entry_id|uuid|null|-
+billing.session_charges|id|uuid|NOT NULL|gen_random_uuid()
+billing.session_charges|session_id|uuid|NOT NULL|-
+billing.session_charges|well_id|uuid|NOT NULL|-
+billing.session_charges|duration_seconds|integer|NOT NULL|-
+billing.session_charges|price_per_hour_minor|bigint|NOT NULL|-
+billing.session_charges|amount_minor|bigint|NOT NULL|-
+billing.session_charges|computed_at|timestamp with time zone|NOT NULL|now()
+billing.session_charges|created_at|timestamp with time zone|NOT NULL|now()
+billing.session_charges|updated_at|timestamp with time zone|NOT NULL|now()
+billing.session_charges|pricing_mode|text|NOT NULL|'flat'::text
+billing.well_pricing|id|uuid|NOT NULL|gen_random_uuid()
+billing.well_pricing|well_id|uuid|NOT NULL|-
+billing.well_pricing|price_per_hour_minor|bigint|NOT NULL|-
+billing.well_pricing|period_start|date|NOT NULL|CURRENT_DATE
+billing.well_pricing|period_end|date|null|-
+billing.well_pricing|created_at|timestamp with time zone|NOT NULL|now()
+billing.well_pricing|updated_at|timestamp with time zone|NOT NULL|now()
+core.attachments|id|uuid|NOT NULL|gen_random_uuid()
+core.attachments|tenant_id|uuid|NOT NULL|-
+core.attachments|well_id|uuid|null|-
+core.attachments|entity_type|text|NOT NULL|-
+core.attachments|entity_id|uuid|NOT NULL|-
+core.attachments|storage_bucket|text|NOT NULL|-
+core.attachments|storage_path|text|NOT NULL|-
+core.attachments|original_file_name|text|null|-
+core.attachments|mime_type|text|null|-
+core.attachments|file_size_bytes|bigint|null|-
+core.attachments|upload_status|text|NOT NULL|'pending'::text
+core.attachments|created_at|timestamp with time zone|NOT NULL|now()
+core.attachments|created_by|uuid|null|-
+core.locations|id|uuid|NOT NULL|gen_random_uuid()
+core.locations|tenant_id|uuid|NOT NULL|-
+core.locations|country|text|NOT NULL|'Yemen'::text
+core.locations|governorate|text|NOT NULL|-
+core.locations|district|text|null|-
+core.locations|subdistrict|text|null|-
+core.locations|village|text|null|-
+core.locations|valley|text|null|-
+core.locations|local_area|text|null|-
+core.locations|access_description|text|null|-
+core.locations|latitude|numeric(10,7)|null|-
+core.locations|longitude|numeric(10,7)|null|-
+core.locations|created_at|timestamp with time zone|NOT NULL|now()
+core.ownership_share_versions|id|uuid|NOT NULL|gen_random_uuid()
+core.ownership_share_versions|tenant_id|uuid|NOT NULL|-
+core.ownership_share_versions|well_id|uuid|NOT NULL|-
+core.ownership_share_versions|partner_id|uuid|NOT NULL|-
+core.ownership_share_versions|ownership_percentage|numeric(9,6)|NOT NULL|-
+core.ownership_share_versions|profit_percentage|numeric(9,6)|NOT NULL|-
+core.ownership_share_versions|effective_period|daterange|NOT NULL|-
+core.ownership_share_versions|approved_by|uuid|null|-
+core.ownership_share_versions|approval_notes|text|null|-
+core.ownership_share_versions|created_at|timestamp with time zone|NOT NULL|now()
+core.partner_irrigation_policies|id|uuid|NOT NULL|gen_random_uuid()
+core.partner_irrigation_policies|tenant_id|uuid|NOT NULL|-
+core.partner_irrigation_policies|well_id|uuid|NOT NULL|-
+core.partner_irrigation_policies|partner_id|uuid|NOT NULL|-
+core.partner_irrigation_policies|policy_type|text|NOT NULL|'normal_customer'::text
+core.partner_irrigation_policies|period_start|date|NOT NULL|CURRENT_DATE
+core.partner_irrigation_policies|period_end|date|null|-
+core.partner_irrigation_policies|notes|text|null|-
+core.partner_irrigation_policies|created_at|timestamp with time zone|NOT NULL|now()
+core.partner_irrigation_policies|updated_at|timestamp with time zone|NOT NULL|now()
+core.person_aliases|id|uuid|NOT NULL|gen_random_uuid()
+core.person_aliases|tenant_id|uuid|NOT NULL|-
+core.person_aliases|person_id|uuid|NOT NULL|-
+core.person_aliases|alias|text|NOT NULL|-
+core.person_aliases|normalized_alias|text|NOT NULL|-
+core.person_aliases|alias_type|text|NOT NULL|'known_as'::text
+core.person_aliases|created_at|timestamp with time zone|NOT NULL|now()
+core.person_contacts|id|uuid|NOT NULL|gen_random_uuid()
+core.person_contacts|tenant_id|uuid|NOT NULL|-
+core.person_contacts|person_id|uuid|NOT NULL|-
+core.person_contacts|contact_type|text|NOT NULL|-
+core.person_contacts|contact_value|text|NOT NULL|-
+core.person_contacts|normalized_value|text|NOT NULL|-
+core.person_contacts|is_primary|boolean|NOT NULL|false
+core.person_contacts|belongs_to_person|boolean|NOT NULL|true
+core.person_contacts|contact_owner_name|text|null|-
+core.person_contacts|verified_at|timestamp with time zone|null|-
+core.person_contacts|created_at|timestamp with time zone|NOT NULL|now()
+core.person_merge_requests|id|uuid|NOT NULL|gen_random_uuid()
+core.person_merge_requests|tenant_id|uuid|NOT NULL|-
+core.person_merge_requests|primary_person_id|uuid|NOT NULL|-
+core.person_merge_requests|duplicate_person_id|uuid|NOT NULL|-
+core.person_merge_requests|requested_by|uuid|null|-
+core.person_merge_requests|status|text|NOT NULL|'pending'::text
+core.person_merge_requests|reviewed_by|uuid|null|-
+core.person_merge_requests|reviewed_at|timestamp with time zone|null|-
+core.person_merge_requests|reason|text|null|-
+core.person_merge_requests|created_at|timestamp with time zone|NOT NULL|now()
+core.persons|id|uuid|NOT NULL|gen_random_uuid()
+core.persons|tenant_id|uuid|NOT NULL|-
+core.persons|public_code|text|NOT NULL|core.generate_public_code('PER'::text)
+core.persons|full_name|text|NOT NULL|-
+core.persons|normalized_name|text|NOT NULL|-
+core.persons|preferred_name|text|null|-
+core.persons|father_name|text|null|-
+core.persons|family_name|text|null|-
+core.persons|nickname|text|null|-
+core.persons|notes|text|null|-
+core.persons|status|text|NOT NULL|'active'::text
+core.persons|merged_into_person_id|uuid|null|-
+core.persons|created_at|timestamp with time zone|NOT NULL|now()
+core.persons|created_by|uuid|null|-
+core.persons|updated_at|timestamp with time zone|NOT NULL|now()
+core.persons|updated_by|uuid|null|-
+core.persons|archived_at|timestamp with time zone|null|-
+core.persons|version|bigint|NOT NULL|1
+core.pump_line_links|id|uuid|NOT NULL|gen_random_uuid()
+core.pump_line_links|tenant_id|uuid|NOT NULL|-
+core.pump_line_links|pump_id|uuid|NOT NULL|-
+core.pump_line_links|water_line_id|uuid|NOT NULL|-
+core.pump_line_links|effective_from|timestamp with time zone|NOT NULL|now()
+core.pump_line_links|effective_to|timestamp with time zone|null|-
+core.pump_line_links|is_primary|boolean|NOT NULL|false
+core.pumps|id|uuid|NOT NULL|gen_random_uuid()
+core.pumps|well_id|uuid|NOT NULL|-
+core.pumps|name|text|NOT NULL|-
+core.pumps|power_source|text|null|-
+core.pumps|status|text|NOT NULL|'active'::text
+core.pumps|created_at|timestamp with time zone|NOT NULL|now()
+core.pumps|updated_at|timestamp with time zone|NOT NULL|now()
+core.pumps|tenant_id|uuid|NOT NULL|-
+core.pumps|public_code|text|NOT NULL|-
+core.pumps|pump_type|text|null|-
+core.pumps|power_rating|text|null|-
+core.pumps|estimated_fuel_ml_per_hour|bigint|null|-
+core.pumps|estimated_water_flow_liters_per_minute|numeric(14,3)|null|-
+core.pumps|installed_at|date|null|-
+core.pumps|notes|text|null|-
+core.tenants|id|uuid|NOT NULL|gen_random_uuid()
+core.tenants|name|text|NOT NULL|-
+core.tenants|timezone|text|NOT NULL|'Asia/Aden'::text
+core.tenants|status|text|NOT NULL|'active'::text
+core.tenants|created_at|timestamp with time zone|NOT NULL|now()
+core.tenants|updated_at|timestamp with time zone|NOT NULL|now()
+core.water_lines|id|uuid|NOT NULL|gen_random_uuid()
+core.water_lines|tenant_id|uuid|NOT NULL|-
+core.water_lines|well_id|uuid|NOT NULL|-
+core.water_lines|public_code|text|NOT NULL|-
+core.water_lines|name|text|NOT NULL|-
+core.water_lines|status|text|NOT NULL|'active'::text
+core.water_lines|allows_parallel_use|boolean|NOT NULL|false
+core.water_lines|max_parallel_sessions|integer|NOT NULL|1
+core.water_lines|notes|text|null|-
+core.water_lines|created_at|timestamp with time zone|NOT NULL|now()
+core.well_assignments|id|uuid|NOT NULL|gen_random_uuid()
+core.well_assignments|well_id|uuid|NOT NULL|-
+core.well_assignments|profile_id|uuid|NOT NULL|-
+core.well_assignments|role|text|NOT NULL|-
+core.well_assignments|status|text|NOT NULL|'active'::text
+core.well_assignments|created_at|timestamp with time zone|NOT NULL|now()
+core.well_assignments|updated_at|timestamp with time zone|NOT NULL|now()
+core.well_partners|id|uuid|NOT NULL|gen_random_uuid()
+core.well_partners|tenant_id|uuid|NOT NULL|-
+core.well_partners|well_id|uuid|NOT NULL|-
+core.well_partners|person_id|uuid|NOT NULL|-
+core.well_partners|profile_id|uuid|null|-
+core.well_partners|phone|text|NOT NULL|-
+core.well_partners|national_id|text|null|-
+core.well_partners|status|text|NOT NULL|'active'::text
+core.well_partners|period_start|date|NOT NULL|CURRENT_DATE
+core.well_partners|period_end|date|null|-
+core.well_partners|invited_at|timestamp with time zone|null|-
+core.well_partners|activated_at|timestamp with time zone|null|-
+core.well_partners|notes|text|null|-
+core.well_partners|created_at|timestamp with time zone|NOT NULL|now()
+core.well_partners|updated_at|timestamp with time zone|NOT NULL|now()
+core.well_partners|joined_at|date|null|-
+core.well_partners|left_at|date|null|-
+core.well_settings|well_id|uuid|NOT NULL|-
+core.well_settings|long_session_alert_minutes|integer|NOT NULL|360
+core.well_settings|session_ending_alert_minutes|integer|NOT NULL|10
+core.well_settings|created_at|timestamp with time zone|NOT NULL|now()
+core.well_settings|updated_at|timestamp with time zone|NOT NULL|now()
+core.wells|id|uuid|NOT NULL|gen_random_uuid()
+core.wells|tenant_id|uuid|NOT NULL|-
+core.wells|name|text|NOT NULL|-
+core.wells|location|text|null|-
+core.wells|status|text|NOT NULL|'active'::text
+core.wells|created_at|timestamp with time zone|NOT NULL|now()
+core.wells|updated_at|timestamp with time zone|NOT NULL|now()
+core.wells|location_id|uuid|null|-
+core.wells|depth_meters|numeric(8,2)|null|-
+core.wells|static_water_level_meters|numeric(8,2)|null|-
+core.wells|notes|text|null|-
+finance.accounting_periods|id|uuid|NOT NULL|gen_random_uuid()
+finance.accounting_periods|tenant_id|uuid|NOT NULL|-
+finance.accounting_periods|well_id|uuid|NOT NULL|-
+finance.accounting_periods|period_type|text|NOT NULL|-
+finance.accounting_periods|starts_at|date|NOT NULL|-
+finance.accounting_periods|ends_at|date|NOT NULL|-
+finance.accounting_periods|status|text|NOT NULL|'open'::text
+finance.accounting_periods|closed_at|timestamp with time zone|null|-
+finance.accounting_periods|closed_by|uuid|null|-
+finance.accounting_periods|reopened_at|timestamp with time zone|null|-
+finance.accounting_periods|reopened_by|uuid|null|-
+finance.accounting_periods|created_at|timestamp with time zone|NOT NULL|now()
+finance.cashboxes|id|uuid|NOT NULL|gen_random_uuid()
+finance.cashboxes|tenant_id|uuid|NOT NULL|-
+finance.cashboxes|well_id|uuid|NOT NULL|-
+finance.cashboxes|public_code|text|null|core.generate_public_code('CBX'::text)
+finance.cashboxes|name|text|NOT NULL|-
+finance.cashboxes|cashbox_type|text|NOT NULL|-
+finance.cashboxes|assigned_profile_id|uuid|null|-
+finance.cashboxes|status|text|NOT NULL|'active'::text
+finance.cashboxes|notes|text|null|-
+finance.cashboxes|created_at|timestamp with time zone|NOT NULL|now()
+finance.distribution_settings|well_id|uuid|NOT NULL|-
+finance.distribution_settings|tenant_id|uuid|NOT NULL|-
+finance.distribution_settings|withhold_liabilities|boolean|NOT NULL|true
+finance.distribution_settings|created_at|timestamp with time zone|NOT NULL|now()
+finance.distribution_settings|updated_at|timestamp with time zone|NOT NULL|now()
+finance.expense_approval_rules|id|uuid|NOT NULL|gen_random_uuid()
+finance.expense_approval_rules|tenant_id|uuid|NOT NULL|-
+finance.expense_approval_rules|well_id|uuid|null|-
+finance.expense_approval_rules|category_id|uuid|null|-
+finance.expense_approval_rules|min_amount_minor|bigint|NOT NULL|0
+finance.expense_approval_rules|requires_approval|boolean|NOT NULL|true
+finance.expense_approval_rules|approver_profile_id|uuid|null|-
+finance.expense_approval_rules|effective_period|daterange|NOT NULL|daterange(CURRENT_DATE, NULL::date)
+finance.expense_approval_rules|created_at|timestamp with time zone|NOT NULL|now()
+finance.expense_approvals|id|uuid|NOT NULL|gen_random_uuid()
+finance.expense_approvals|tenant_id|uuid|NOT NULL|-
+finance.expense_approvals|expense_id|uuid|NOT NULL|-
+finance.expense_approvals|approver_profile_id|uuid|NOT NULL|-
+finance.expense_approvals|decision|text|NOT NULL|-
+finance.expense_approvals|note|text|null|-
+finance.expense_approvals|decided_at|timestamp with time zone|NOT NULL|now()
+finance.expense_categories|id|uuid|NOT NULL|gen_random_uuid()
+finance.expense_categories|tenant_id|uuid|NOT NULL|-
+finance.expense_categories|code|text|NOT NULL|-
+finance.expense_categories|name_ar|text|NOT NULL|-
+finance.expense_categories|ledger_account_code|text|null|-
+finance.expense_categories|requires_approval|boolean|NOT NULL|false
+finance.expense_categories|attachment_required|boolean|NOT NULL|true
+finance.expense_categories|sort_order|integer|NOT NULL|0
+finance.expense_categories|is_active|boolean|NOT NULL|true
+finance.expense_categories|created_at|timestamp with time zone|NOT NULL|now()
+finance.expenses|id|uuid|NOT NULL|gen_random_uuid()
+finance.expenses|tenant_id|uuid|NOT NULL|-
+finance.expenses|well_id|uuid|NOT NULL|-
+finance.expenses|public_code|text|null|core.generate_public_code('EXP'::text)
+finance.expenses|category_id|uuid|null|-
+finance.expenses|amount_minor|bigint|NOT NULL|-
+finance.expenses|description|text|NOT NULL|-
+finance.expenses|spent_at|timestamp with time zone|NOT NULL|now()
+finance.expenses|payment_source|text|NOT NULL|'cashbox'::text
+finance.expenses|cashbox_id|uuid|null|-
+finance.expenses|shift_id|uuid|null|-
+finance.expenses|created_by|uuid|null|-
+finance.expenses|attachment_url|text|null|-
+finance.expenses|attachment_skipped|boolean|NOT NULL|false
+finance.expenses|attachment_skip_reason|text|null|-
+finance.expenses|status|text|NOT NULL|'posted'::text
+finance.expenses|journal_entry_id|uuid|null|-
+finance.expenses|note|text|null|-
+finance.expenses|created_at|timestamp with time zone|NOT NULL|now()
+finance.expenses|partner_id|uuid|null|-
+finance.expenses|settled_in_cycle_id|uuid|null|-
+finance.journal_entries|id|uuid|NOT NULL|gen_random_uuid()
+finance.journal_entries|tenant_id|uuid|NOT NULL|-
+finance.journal_entries|public_code|text|NOT NULL|-
+finance.journal_entries|well_id|uuid|NOT NULL|-
+finance.journal_entries|entry_date|timestamp with time zone|NOT NULL|-
+finance.journal_entries|status|text|NOT NULL|'draft'::text
+finance.journal_entries|source_type|text|NOT NULL|-
+finance.journal_entries|source_id|uuid|NOT NULL|-
+finance.journal_entries|description|text|NOT NULL|-
+finance.journal_entries|idempotency_key|text|NOT NULL|-
+finance.journal_entries|posted_at|timestamp with time zone|null|-
+finance.journal_entries|posted_by|uuid|null|-
+finance.journal_entries|reversal_of_entry_id|uuid|null|-
+finance.journal_entries|created_at|timestamp with time zone|NOT NULL|now()
+finance.journal_lines|id|uuid|NOT NULL|gen_random_uuid()
+finance.journal_lines|tenant_id|uuid|NOT NULL|-
+finance.journal_lines|journal_entry_id|uuid|NOT NULL|-
+finance.journal_lines|ledger_account_id|uuid|NOT NULL|-
+finance.journal_lines|entry_side|text|NOT NULL|-
+finance.journal_lines|amount_minor|bigint|NOT NULL|-
+finance.journal_lines|person_id|uuid|null|-
+finance.journal_lines|farmer_well_account_id|uuid|null|-
+finance.journal_lines|partner_id|uuid|null|-
+finance.journal_lines|cashbox_id|uuid|null|-
+finance.journal_lines|fuel_tank_id|uuid|null|-
+finance.journal_lines|description|text|null|-
+finance.journal_lines|created_at|timestamp with time zone|NOT NULL|now()
+finance.ledger_accounts|id|uuid|NOT NULL|gen_random_uuid()
+finance.ledger_accounts|tenant_id|uuid|NOT NULL|-
+finance.ledger_accounts|well_id|uuid|null|-
+finance.ledger_accounts|account_code|text|NOT NULL|-
+finance.ledger_accounts|name_ar|text|NOT NULL|-
+finance.ledger_accounts|name_en|text|null|-
+finance.ledger_accounts|account_type|text|NOT NULL|-
+finance.ledger_accounts|normal_balance|text|NOT NULL|-
+finance.ledger_accounts|parent_account_id|uuid|null|-
+finance.ledger_accounts|is_system_account|boolean|NOT NULL|false
+finance.ledger_accounts|is_postable|boolean|NOT NULL|true
+finance.ledger_accounts|status|text|NOT NULL|'active'::text
+finance.ledger_accounts|created_at|timestamp with time zone|NOT NULL|now()
+finance.maintenance_reserve_rules|id|uuid|NOT NULL|gen_random_uuid()
+finance.maintenance_reserve_rules|tenant_id|uuid|NOT NULL|-
+finance.maintenance_reserve_rules|well_id|uuid|NOT NULL|-
+finance.maintenance_reserve_rules|reserve_type|text|NOT NULL|-
+finance.maintenance_reserve_rules|reserve_percentage|numeric(9,6)|null|-
+finance.maintenance_reserve_rules|fixed_amount_minor|bigint|null|-
+finance.maintenance_reserve_rules|effective_period|daterange|NOT NULL|-
+finance.maintenance_reserve_rules|created_at|timestamp with time zone|NOT NULL|now()
+finance.opening_balance_batches|id|uuid|NOT NULL|gen_random_uuid()
+finance.opening_balance_batches|tenant_id|uuid|NOT NULL|-
+finance.opening_balance_batches|well_id|uuid|NOT NULL|-
+finance.opening_balance_batches|reference_date|date|NOT NULL|-
+finance.opening_balance_batches|status|text|NOT NULL|'draft'::text
+finance.opening_balance_batches|notes|text|null|-
+finance.opening_balance_batches|created_by|uuid|null|-
+finance.opening_balance_batches|approved_by|uuid|null|-
+finance.opening_balance_batches|approved_at|timestamp with time zone|null|-
+finance.opening_balance_batches|created_at|timestamp with time zone|NOT NULL|now()
+finance.opening_balance_items|id|uuid|NOT NULL|gen_random_uuid()
+finance.opening_balance_items|tenant_id|uuid|NOT NULL|-
+finance.opening_balance_items|batch_id|uuid|NOT NULL|-
+finance.opening_balance_items|item_type|text|NOT NULL|-
+finance.opening_balance_items|person_id|uuid|null|-
+finance.opening_balance_items|farmer_well_account_id|uuid|null|-
+finance.opening_balance_items|partner_id|uuid|null|-
+finance.opening_balance_items|cashbox_id|uuid|null|-
+finance.opening_balance_items|fuel_tank_id|uuid|null|-
+finance.opening_balance_items|amount_minor|bigint|null|-
+finance.opening_balance_items|quantity_ml|bigint|null|-
+finance.opening_balance_items|description|text|null|-
+finance.opening_balance_items|created_at|timestamp with time zone|NOT NULL|now()
+finance.payroll_accruals|id|uuid|NOT NULL|gen_random_uuid()
+finance.payroll_accruals|tenant_id|uuid|NOT NULL|-
+finance.payroll_accruals|well_id|uuid|NOT NULL|-
+finance.payroll_accruals|person_id|uuid|NOT NULL|-
+finance.payroll_accruals|period_start|date|NOT NULL|-
+finance.payroll_accruals|period_end|date|NOT NULL|-
+finance.payroll_accruals|gross_amount_minor|bigint|NOT NULL|-
+finance.payroll_accruals|deductions_minor|bigint|NOT NULL|0
+finance.payroll_accruals|net_amount_minor|bigint|NOT NULL|-
+finance.payroll_accruals|status|text|NOT NULL|'due'::text
+finance.payroll_accruals|accrual_journal_entry_id|uuid|null|-
+finance.payroll_accruals|payment_journal_entry_id|uuid|null|-
+finance.payroll_accruals|paid_at|timestamp with time zone|null|-
+finance.payroll_accruals|created_at|timestamp with time zone|NOT NULL|now()
+finance.period_reopen_approvals|id|uuid|NOT NULL|gen_random_uuid()
+finance.period_reopen_approvals|tenant_id|uuid|NOT NULL|-
+finance.period_reopen_approvals|request_id|uuid|NOT NULL|-
+finance.period_reopen_approvals|partner_id|uuid|NOT NULL|-
+finance.period_reopen_approvals|created_at|timestamp with time zone|NOT NULL|now()
+finance.period_reopen_requests|id|uuid|NOT NULL|gen_random_uuid()
+finance.period_reopen_requests|tenant_id|uuid|NOT NULL|-
+finance.period_reopen_requests|period_id|uuid|NOT NULL|-
+finance.period_reopen_requests|requested_by|uuid|NOT NULL|-
+finance.period_reopen_requests|reason|text|NOT NULL|-
+finance.period_reopen_requests|status|text|NOT NULL|'pending'::text
+finance.period_reopen_requests|decided_at|timestamp with time zone|null|-
+finance.period_reopen_requests|decided_by|uuid|null|-
+finance.period_reopen_requests|decision_note|text|null|-
+finance.period_reopen_requests|created_at|timestamp with time zone|NOT NULL|now()
+finance.profit_distribution_cycles|id|uuid|NOT NULL|gen_random_uuid()
+finance.profit_distribution_cycles|tenant_id|uuid|NOT NULL|-
+finance.profit_distribution_cycles|public_code|text|NOT NULL|core.generate_public_code('PDC'::text)
+finance.profit_distribution_cycles|well_id|uuid|NOT NULL|-
+finance.profit_distribution_cycles|period_start|timestamp with time zone|NOT NULL|-
+finance.profit_distribution_cycles|period_end|timestamp with time zone|NOT NULL|-
+finance.profit_distribution_cycles|status|text|NOT NULL|'draft'::text
+finance.profit_distribution_cycles|eligible_collections_minor|bigint|NOT NULL|0
+finance.profit_distribution_cycles|eligible_cash_expenses_minor|bigint|NOT NULL|0
+finance.profit_distribution_cycles|reserved_liabilities_minor|bigint|NOT NULL|0
+finance.profit_distribution_cycles|maintenance_reserve_minor|bigint|NOT NULL|0
+finance.profit_distribution_cycles|distributable_amount_minor|bigint|NOT NULL|0
+finance.profit_distribution_cycles|calculated_at|timestamp with time zone|null|-
+finance.profit_distribution_cycles|calculated_by|uuid|null|-
+finance.profit_distribution_cycles|approved_at|timestamp with time zone|null|-
+finance.profit_distribution_cycles|approved_by|uuid|null|-
+finance.profit_distribution_cycles|created_at|timestamp with time zone|NOT NULL|now()
+finance.profit_distribution_lines|id|uuid|NOT NULL|gen_random_uuid()
+finance.profit_distribution_lines|tenant_id|uuid|NOT NULL|-
+finance.profit_distribution_lines|distribution_cycle_id|uuid|NOT NULL|-
+finance.profit_distribution_lines|partner_id|uuid|NOT NULL|-
+finance.profit_distribution_lines|profit_percentage_snapshot|numeric(9,6)|NOT NULL|-
+finance.profit_distribution_lines|gross_share_minor|bigint|NOT NULL|0
+finance.profit_distribution_lines|partner_receivables_minor|bigint|NOT NULL|0
+finance.profit_distribution_lines|irrigation_deductions_minor|bigint|NOT NULL|0
+finance.profit_distribution_lines|other_deductions_minor|bigint|NOT NULL|0
+finance.profit_distribution_lines|net_payable_minor|bigint|NOT NULL|0
+finance.profit_distribution_lines|status|text|NOT NULL|'calculated'::text
+finance.profit_distribution_lines|created_at|timestamp with time zone|NOT NULL|now()
+finance.profit_distribution_lines|paid_minor|bigint|NOT NULL|0
+finance.worker_compensation_rules|id|uuid|NOT NULL|gen_random_uuid()
+finance.worker_compensation_rules|tenant_id|uuid|NOT NULL|-
+finance.worker_compensation_rules|well_id|uuid|NOT NULL|-
+finance.worker_compensation_rules|person_id|uuid|NOT NULL|-
+finance.worker_compensation_rules|compensation_type|text|NOT NULL|-
+finance.worker_compensation_rules|rate_amount_minor|bigint|NOT NULL|-
+finance.worker_compensation_rules|effective_period|daterange|NOT NULL|-
+finance.worker_compensation_rules|settings|jsonb|NOT NULL|'{}'::jsonb
+finance.worker_compensation_rules|created_at|timestamp with time zone|NOT NULL|now()
+iam.permissions|id|uuid|NOT NULL|gen_random_uuid()
+iam.permissions|code|text|NOT NULL|-
+iam.permissions|description_ar|text|NOT NULL|-
+iam.profile_person_links|id|uuid|NOT NULL|gen_random_uuid()
+iam.profile_person_links|tenant_id|uuid|NOT NULL|-
+iam.profile_person_links|profile_id|uuid|NOT NULL|-
+iam.profile_person_links|person_id|uuid|NOT NULL|-
+iam.profile_person_links|linked_at|timestamp with time zone|NOT NULL|now()
+iam.profile_person_links|linked_by|uuid|null|-
+iam.profile_person_links|link_reason|text|NOT NULL|-
+iam.profile_person_links|revoked_at|timestamp with time zone|null|-
+iam.profile_person_links|revoked_by|uuid|null|-
+iam.profile_person_links|revoke_reason|text|null|-
+iam.profile_person_links|created_at|timestamp with time zone|NOT NULL|now()
+iam.profile_person_links|updated_at|timestamp with time zone|NOT NULL|now()
+iam.profiles|id|uuid|NOT NULL|-
+iam.profiles|full_name|text|NOT NULL|-
+iam.profiles|phone|text|null|-
+iam.profiles|created_at|timestamp with time zone|NOT NULL|now()
+iam.profiles|updated_at|timestamp with time zone|NOT NULL|now()
+iam.profiles|is_platform_admin|boolean|NOT NULL|false
+iam.role_permissions|role_id|uuid|NOT NULL|-
+iam.role_permissions|permission_id|uuid|NOT NULL|-
+iam.roles|id|uuid|NOT NULL|gen_random_uuid()
+iam.roles|code|text|NOT NULL|-
+iam.roles|name_ar|text|NOT NULL|-
+iam.roles|name_en|text|null|-
+iam.roles|is_system_role|boolean|NOT NULL|true
+iam.well_assignment_role_map|assignment_role|text|NOT NULL|-
+iam.well_assignment_role_map|role_id|uuid|NOT NULL|-
+iam.well_assignment_role_map|created_at|timestamp with time zone|NOT NULL|now()
+inventory.fuel_purchases|id|uuid|NOT NULL|gen_random_uuid()
+inventory.fuel_purchases|well_id|uuid|NOT NULL|-
+inventory.fuel_purchases|liters|numeric(10,2)|NOT NULL|-
+inventory.fuel_purchases|cost_minor|bigint|NOT NULL|-
+inventory.fuel_purchases|purchased_at|timestamp with time zone|NOT NULL|now()
+inventory.fuel_purchases|recorded_by_profile_id|uuid|null|-
+inventory.fuel_purchases|created_at|timestamp with time zone|NOT NULL|now()
+inventory.fuel_purchases|updated_at|timestamp with time zone|NOT NULL|now()
+inventory.fuel_tanks|id|uuid|NOT NULL|gen_random_uuid()
+inventory.fuel_tanks|tenant_id|uuid|NOT NULL|-
+inventory.fuel_tanks|well_id|uuid|NOT NULL|-
+inventory.fuel_tanks|public_code|text|NOT NULL|core.generate_public_code('FTK'::text)
+inventory.fuel_tanks|name|text|NOT NULL|-
+inventory.fuel_tanks|capacity_ml|bigint|null|-
+inventory.fuel_tanks|measurement_method|text|NOT NULL|'manual'::text
+inventory.fuel_tanks|status|text|NOT NULL|'active'::text
+inventory.fuel_tanks|current_balance_ml|bigint|NOT NULL|0
+inventory.fuel_tanks|avg_cost_per_liter_minor|bigint|NOT NULL|0
+inventory.fuel_tanks|notes|text|null|-
+inventory.fuel_tanks|created_at|timestamp with time zone|NOT NULL|now()
+inventory.fuel_transactions|id|uuid|NOT NULL|gen_random_uuid()
+inventory.fuel_transactions|tenant_id|uuid|NOT NULL|-
+inventory.fuel_transactions|public_code|text|NOT NULL|core.generate_public_code('FTX'::text)
+inventory.fuel_transactions|well_id|uuid|NOT NULL|-
+inventory.fuel_transactions|fuel_tank_id|uuid|null|-
+inventory.fuel_transactions|transaction_type|text|NOT NULL|-
+inventory.fuel_transactions|ownership_type|text|NOT NULL|-
+inventory.fuel_transactions|owner_person_id|uuid|null|-
+inventory.fuel_transactions|farmer_well_account_id|uuid|null|-
+inventory.fuel_transactions|quantity_ml|bigint|NOT NULL|-
+inventory.fuel_transactions|direction|text|NOT NULL|-
+inventory.fuel_transactions|measurement_type|text|NOT NULL|'actual'::text
+inventory.fuel_transactions|unit_cost_per_liter_minor|bigint|null|-
+inventory.fuel_transactions|total_cost_minor|bigint|null|-
+inventory.fuel_transactions|session_segment_id|uuid|null|-
+inventory.fuel_transactions|expense_id|uuid|null|-
+inventory.fuel_transactions|shift_id|uuid|null|-
+inventory.fuel_transactions|occurred_at|timestamp with time zone|NOT NULL|now()
+inventory.fuel_transactions|status|text|NOT NULL|'posted'::text
+inventory.fuel_transactions|notes|text|null|-
+inventory.fuel_transactions|created_at|timestamp with time zone|NOT NULL|now()
+inventory.fuel_transactions|created_by|uuid|null|-
+ops.booking_status_history|id|uuid|NOT NULL|gen_random_uuid()
+ops.booking_status_history|tenant_id|uuid|NOT NULL|-
+ops.booking_status_history|booking_id|uuid|NOT NULL|-
+ops.booking_status_history|old_status|text|null|-
+ops.booking_status_history|new_status|text|NOT NULL|-
+ops.booking_status_history|reason|text|null|-
+ops.booking_status_history|changed_at|timestamp with time zone|NOT NULL|now()
+ops.booking_status_history|changed_by|uuid|null|-
+ops.farmer_profiles|id|uuid|NOT NULL|gen_random_uuid()
+ops.farmer_profiles|tenant_id|uuid|NOT NULL|-
+ops.farmer_profiles|person_id|uuid|NOT NULL|-
+ops.farmer_profiles|status|text|NOT NULL|'active'::text
+ops.farmer_profiles|notes|text|null|-
+ops.farmer_profiles|created_at|timestamp with time zone|NOT NULL|now()
+ops.farmer_well_accounts|id|uuid|NOT NULL|gen_random_uuid()
+ops.farmer_well_accounts|tenant_id|uuid|NOT NULL|-
+ops.farmer_well_accounts|farmer_profile_id|uuid|NOT NULL|-
+ops.farmer_well_accounts|well_id|uuid|NOT NULL|-
+ops.farmer_well_accounts|public_code|text|NOT NULL|-
+ops.farmer_well_accounts|status|text|NOT NULL|'active'::text
+ops.farmer_well_accounts|credit_limit_minor|bigint|null|-
+ops.farmer_well_accounts|notes|text|null|-
+ops.farmer_well_accounts|created_at|timestamp with time zone|NOT NULL|now()
+ops.farms|id|uuid|NOT NULL|gen_random_uuid()
+ops.farms|well_id|uuid|NOT NULL|-
+ops.farms|name|text|NOT NULL|-
+ops.farms|status|text|NOT NULL|'active'::text
+ops.farms|created_at|timestamp with time zone|NOT NULL|now()
+ops.farms|updated_at|timestamp with time zone|NOT NULL|now()
+ops.farms|farmer_well_account_id|uuid|null|-
+ops.irrigation_bookings|id|uuid|NOT NULL|gen_random_uuid()
+ops.irrigation_bookings|tenant_id|uuid|NOT NULL|-
+ops.irrigation_bookings|public_code|text|NOT NULL|-
+ops.irrigation_bookings|well_id|uuid|NOT NULL|-
+ops.irrigation_bookings|farmer_well_account_id|uuid|NOT NULL|-
+ops.irrigation_bookings|farm_id|uuid|null|-
+ops.irrigation_bookings|pump_id|uuid|null|-
+ops.irrigation_bookings|water_line_id|uuid|null|-
+ops.irrigation_bookings|scheduled_start|timestamp with time zone|NOT NULL|-
+ops.irrigation_bookings|scheduled_end|timestamp with time zone|NOT NULL|-
+ops.irrigation_bookings|expected_duration_minutes|integer|NOT NULL|-
+ops.irrigation_bookings|expected_energy_source|text|null|-
+ops.irrigation_bookings|status|text|NOT NULL|'draft'::text
+ops.irrigation_bookings|priority|integer|NOT NULL|0
+ops.irrigation_bookings|notes|text|null|-
+ops.irrigation_bookings|created_at|timestamp with time zone|NOT NULL|now()
+ops.irrigation_bookings|created_by|uuid|null|-
+ops.irrigation_sessions|id|uuid|NOT NULL|gen_random_uuid()
+ops.irrigation_sessions|well_id|uuid|NOT NULL|-
+ops.irrigation_sessions|pump_id|uuid|NOT NULL|-
+ops.irrigation_sessions|farm_id|uuid|NOT NULL|-
+ops.irrigation_sessions|operator_profile_id|uuid|NOT NULL|-
+ops.irrigation_sessions|started_at|timestamp with time zone|NOT NULL|now()
+ops.irrigation_sessions|ended_at|timestamp with time zone|null|-
+ops.irrigation_sessions|status|text|NOT NULL|'open'::text
+ops.irrigation_sessions|long_alert_sent_at|timestamp with time zone|null|-
+ops.irrigation_sessions|ending_alert_sent_at|timestamp with time zone|null|-
+ops.irrigation_sessions|created_at|timestamp with time zone|NOT NULL|now()
+ops.irrigation_sessions|updated_at|timestamp with time zone|NOT NULL|now()
+ops.irrigation_sessions|current_shift_id|uuid|null|-
+ops.irrigation_sessions|collector_profile_id|uuid|null|-
+ops.irrigation_sessions|price_per_hour_minor_snapshot|bigint|null|-
+ops.irrigation_sessions|farmer_well_account_id|uuid|null|-
+ops.notifications|id|uuid|NOT NULL|gen_random_uuid()
+ops.notifications|recipient_profile_id|uuid|NOT NULL|-
+ops.notifications|well_id|uuid|NOT NULL|-
+ops.notifications|session_id|uuid|null|-
+ops.notifications|type|text|NOT NULL|-
+ops.notifications|message|text|NOT NULL|-
+ops.notifications|read_at|timestamp with time zone|null|-
+ops.notifications|created_at|timestamp with time zone|NOT NULL|now()
+ops.notifications|deduplication_key|text|null|-
+ops.price_rules|id|uuid|NOT NULL|gen_random_uuid()
+ops.price_rules|tenant_id|uuid|NOT NULL|-
+ops.price_rules|price_schedule_id|uuid|NOT NULL|-
+ops.price_rules|energy_source|text|NOT NULL|-
+ops.price_rules|diesel_pricing_model|text|null|-
+ops.price_rules|hourly_rate_minor|bigint|null|-
+ops.price_rules|operation_hourly_rate_minor|bigint|null|-
+ops.price_rules|fuel_price_per_liter_minor|bigint|null|-
+ops.price_rules|created_at|timestamp with time zone|NOT NULL|now()
+ops.price_schedules|id|uuid|NOT NULL|gen_random_uuid()
+ops.price_schedules|tenant_id|uuid|NOT NULL|-
+ops.price_schedules|well_id|uuid|NOT NULL|-
+ops.price_schedules|name|text|NOT NULL|-
+ops.price_schedules|effective_period|tstzrange|NOT NULL|-
+ops.price_schedules|status|text|NOT NULL|'active'::text
+ops.price_schedules|reason|text|null|-
+ops.price_schedules|approved_by|uuid|null|-
+ops.price_schedules|created_at|timestamp with time zone|NOT NULL|now()
+ops.resource_concurrency_rules|id|uuid|NOT NULL|gen_random_uuid()
+ops.resource_concurrency_rules|tenant_id|uuid|NOT NULL|-
+ops.resource_concurrency_rules|well_id|uuid|NOT NULL|-
+ops.resource_concurrency_rules|resource_type|text|NOT NULL|-
+ops.resource_concurrency_rules|resource_id|uuid|null|-
+ops.resource_concurrency_rules|max_parallel_sessions|integer|NOT NULL|1
+ops.resource_concurrency_rules|rule_status|text|NOT NULL|'active'::text
+ops.resource_concurrency_rules|created_at|timestamp with time zone|NOT NULL|now()
+ops.resource_reservations|id|uuid|NOT NULL|gen_random_uuid()
+ops.resource_reservations|tenant_id|uuid|NOT NULL|-
+ops.resource_reservations|well_id|uuid|NOT NULL|-
+ops.resource_reservations|resource_type|text|NOT NULL|-
+ops.resource_reservations|resource_id|uuid|NOT NULL|-
+ops.resource_reservations|booking_id|uuid|null|-
+ops.resource_reservations|session_id|uuid|null|-
+ops.resource_reservations|reserved_period|tstzrange|NOT NULL|-
+ops.resource_reservations|status|text|NOT NULL|-
+ops.resource_reservations|created_at|timestamp with time zone|NOT NULL|now()
+ops.session_segments|id|uuid|NOT NULL|gen_random_uuid()
+ops.session_segments|tenant_id|uuid|NOT NULL|-
+ops.session_segments|session_id|uuid|NOT NULL|-
+ops.session_segments|sequence_number|integer|NOT NULL|-
+ops.session_segments|segment_type|text|NOT NULL|-
+ops.session_segments|energy_source|text|null|-
+ops.session_segments|started_at|timestamp with time zone|NOT NULL|-
+ops.session_segments|ended_at|timestamp with time zone|null|-
+ops.session_segments|actual_minutes|integer|null|-
+ops.session_segments|raw_billable_minutes|integer|null|-
+ops.session_segments|is_billable|boolean|NOT NULL|-
+ops.session_segments|fuel_owner_person_id|uuid|null|-
+ops.session_segments|fuel_actual_ml|bigint|null|-
+ops.session_segments|fuel_estimated_ml|bigint|null|-
+ops.session_segments|fuel_measurement_type|text|null|-
+ops.session_segments|applied_price_rule_id|uuid|null|-
+ops.session_segments|applied_hourly_rate_minor|bigint|null|-
+ops.session_segments|applied_operation_rate_minor|bigint|null|-
+ops.session_segments|applied_fuel_price_per_liter_minor|bigint|null|-
+ops.session_segments|notes|text|null|-
+ops.session_segments|created_at|timestamp with time zone|NOT NULL|now()
+ops.session_segments|actual_seconds|bigint|null|-
+ops.session_segments|billable_seconds|bigint|null|-
+ops.session_segments|time_charge_minor|bigint|NOT NULL|0
+ops.session_segments|fuel_charge_minor|bigint|NOT NULL|0
+ops.session_segments|total_charge_minor|bigint|NOT NULL|0
+ops.session_shift_transfers|id|uuid|NOT NULL|gen_random_uuid()
+ops.session_shift_transfers|tenant_id|uuid|NOT NULL|-
+ops.session_shift_transfers|well_id|uuid|NOT NULL|-
+ops.session_shift_transfers|session_id|uuid|NOT NULL|-
+ops.session_shift_transfers|from_shift_id|uuid|NOT NULL|-
+ops.session_shift_transfers|to_shift_id|uuid|null|-
+ops.session_shift_transfers|from_profile_id|uuid|NOT NULL|-
+ops.session_shift_transfers|to_profile_id|uuid|NOT NULL|-
+ops.session_shift_transfers|collection_right|text|NOT NULL|-
+ops.session_shift_transfers|status|text|NOT NULL|'pending'::text
+ops.session_shift_transfers|requested_at|timestamp with time zone|NOT NULL|now()
+ops.session_shift_transfers|responded_at|timestamp with time zone|null|-
+ops.session_shift_transfers|note|text|null|-
+ops.session_shift_transfers|created_at|timestamp with time zone|NOT NULL|now()
+ops.shift_handovers|id|uuid|NOT NULL|gen_random_uuid()
+ops.shift_handovers|tenant_id|uuid|NOT NULL|-
+ops.shift_handovers|well_id|uuid|NOT NULL|-
+ops.shift_handovers|shift_id|uuid|NOT NULL|-
+ops.shift_handovers|from_profile_id|uuid|NOT NULL|-
+ops.shift_handovers|to_profile_id|uuid|null|-
+ops.shift_handovers|to_description|text|null|-
+ops.shift_handovers|declared_amount_minor|bigint|NOT NULL|-
+ops.shift_handovers|confirmed_amount_minor|bigint|null|-
+ops.shift_handovers|difference_minor|bigint|null|-
+ops.shift_handovers|difference_reason|text|null|-
+ops.shift_handovers|status|text|NOT NULL|'declared'::text
+ops.shift_handovers|declared_at|timestamp with time zone|NOT NULL|now()
+ops.shift_handovers|confirmed_by|uuid|null|-
+ops.shift_handovers|confirmed_at|timestamp with time zone|null|-
+ops.shift_handovers|note|text|null|-
+ops.shift_handovers|created_at|timestamp with time zone|NOT NULL|now()
+ops.shifts|id|uuid|NOT NULL|gen_random_uuid()
+ops.shifts|tenant_id|uuid|NOT NULL|-
+ops.shifts|well_id|uuid|NOT NULL|-
+ops.shifts|public_code|text|null|core.generate_public_code('SHF'::text)
+ops.shifts|operator_profile_id|uuid|NOT NULL|-
+ops.shifts|cashbox_id|uuid|null|-
+ops.shifts|started_at|timestamp with time zone|NOT NULL|now()
+ops.shifts|ended_at|timestamp with time zone|null|-
+ops.shifts|closed_at|timestamp with time zone|null|-
+ops.shifts|status|text|NOT NULL|'open'::text
+ops.shifts|opening_cash_minor|bigint|NOT NULL|0
+ops.shifts|expected_cash_minor|bigint|null|-
+ops.shifts|actual_cash_minor|bigint|null|-
+ops.shifts|cash_difference_minor|bigint|null|-
+ops.shifts|notes|text|null|-
+ops.shifts|created_at|timestamp with time zone|NOT NULL|now()
+reporting.cashbox_balances|tenant_id|uuid|null|-
+reporting.cashbox_balances|well_id|uuid|null|-
+reporting.cashbox_balances|cashbox_id|uuid|null|-
+reporting.cashbox_balances|public_code|text|null|-
+reporting.cashbox_balances|name|text|null|-
+reporting.cashbox_balances|balance_minor|numeric|null|-
+reporting.farmer_account_balances|tenant_id|uuid|null|-
+reporting.farmer_account_balances|well_id|uuid|null|-
+reporting.farmer_account_balances|farmer_well_account_id|uuid|null|-
+reporting.farmer_account_balances|public_code|text|null|-
+reporting.farmer_account_balances|invoiced_minor|numeric|null|-
+reporting.farmer_account_balances|allocated_minor|numeric|null|-
+reporting.farmer_account_balances|advance_minor|numeric|null|-
+reporting.farmer_account_balances|debt_minor|numeric|null|-
+reporting.fuel_balances|tenant_id|uuid|null|-
+reporting.fuel_balances|well_id|uuid|null|-
+reporting.fuel_balances|fuel_tank_id|uuid|null|-
+reporting.fuel_balances|name|text|null|-
+reporting.fuel_balances|current_balance_ml|bigint|null|-
+reporting.fuel_balances|avg_cost_per_liter_minor|bigint|null|-
+reporting.fuel_balances|farmers_total_ml|numeric|null|-
+reporting.fuel_balances|pending_estimated_ml|numeric|null|-
+reporting.partner_account_summary|tenant_id|uuid|null|-
+reporting.partner_account_summary|well_id|uuid|null|-
+reporting.partner_account_summary|partner_id|uuid|null|-
+reporting.partner_account_summary|partner_name|text|null|-
+reporting.partner_account_summary|current_profit_percentage|numeric(9,6)|null|-
+reporting.partner_account_summary|gross_earned_minor|numeric|null|-
+reporting.partner_account_summary|irrigation_deducted_minor|numeric|null|-
+reporting.partner_account_summary|expenses_paid_minor|numeric|null|-
+reporting.partner_account_summary|net_payable_minor|numeric|null|-
+reporting.partner_account_summary|unpaid_minor|numeric|null|-
+reporting.well_daily_summary|tenant_id|uuid|null|-
+reporting.well_daily_summary|well_id|uuid|null|-
+reporting.well_daily_summary|day|date|null|-
+reporting.well_daily_summary|sessions_count|bigint|null|-
+reporting.well_daily_summary|open_sessions|bigint|null|-
+reporting.well_daily_summary|solar_seconds|bigint|null|-
+reporting.well_daily_summary|diesel_seconds|bigint|null|-
+reporting.well_daily_summary|charges_minor|numeric|null|-
+reporting.well_daily_summary|collected_minor|numeric|null|-
+reporting.well_daily_summary|expenses_minor|numeric|null|-
+reporting.well_daily_summary|fuel_out_ml|numeric|null|-
+sync.processed_commands|id|uuid|NOT NULL|gen_random_uuid()
+sync.processed_commands|tenant_id|uuid|NOT NULL|-
+sync.processed_commands|command_id|uuid|NOT NULL|-
+sync.processed_commands|command_type|text|NOT NULL|-
+sync.processed_commands|entity_id|uuid|null|-
+sync.processed_commands|status|text|NOT NULL|-
+sync.processed_commands|request_payload|jsonb|null|-
+sync.processed_commands|response_payload|jsonb|null|-
+sync.processed_commands|processed_at|timestamp with time zone|NOT NULL|now()
+sync.sync_conflicts|id|uuid|NOT NULL|gen_random_uuid()
+sync.sync_conflicts|tenant_id|uuid|NOT NULL|-
+sync.sync_conflicts|well_id|uuid|null|-
+sync.sync_conflicts|entity_type|text|NOT NULL|-
+sync.sync_conflicts|entity_id|uuid|NOT NULL|-
+sync.sync_conflicts|server_version|bigint|NOT NULL|-
+sync.sync_conflicts|client_version|bigint|NOT NULL|-
+sync.sync_conflicts|server_data|jsonb|NOT NULL|-
+sync.sync_conflicts|client_data|jsonb|NOT NULL|-
+sync.sync_conflicts|status|text|NOT NULL|'open'::text
+sync.sync_conflicts|resolved_by|uuid|null|-
+sync.sync_conflicts|resolved_at|timestamp with time zone|null|-
+sync.sync_conflicts|resolution_notes|text|null|-
+sync.sync_conflicts|created_at|timestamp with time zone|NOT NULL|now()
