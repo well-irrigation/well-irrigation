@@ -4,7 +4,14 @@
 #
 # الغرض: إثبات ما هو موجود فعلًا على قاعدة الإنتاج، لا افتراضه.
 # يقارن ملفات supabase/migrations بصفوف schema_migrations السحابية،
-# ثم يتحقق من وجود عقود api الخمسة التي أضافتها هجرة 092.
+# ثم يقارن **كل** دوال مخططات التطبيق كما يعرفها الفهرس المولَّد
+# docs/technical/db/functions.txt بما هو موجود سحابيًا في pg_proc.
+#
+# لماذا الفهرس لا قائمة مكتوبة يدويًا: النسخة الأولى من هذا السكربت
+# ثبّتت عقود هجرة 092 الخمسة بالاسم، فبقيت تفحصها بعد هجرة 093 وتعلن
+# النجاح بلا أن تنظر إلى شيء من الجولة الجديدة — نجاح كاذب في أداة
+# التحقق نفسها (ق-113). الفهرس يُعاد توليده كل جولة بـnpm run db:index،
+# فيتوسّع الفحص تلقائيًا ولا يتقادم.
 #
 # القناة العاملة الوحيدة = Supavisor transaction mode / المنفذ 6543.
 # المنفذ 5432 والاتصال المباشر IPv6 لا يصلان.
@@ -20,6 +27,7 @@ set -u
 
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 migrations_dir="$project_root/supabase/migrations"
+functions_index="$project_root/docs/technical/db/functions.txt"
 
 PROJECT_REF="hxfhczpfrfdpzsobfbab"
 PGHOST="aws-0-ap-south-1.pooler.supabase.com"
@@ -27,15 +35,24 @@ PGPORT="6543"
 PGUSER="postgres.$PROJECT_REF"
 PGDATABASE="postgres"
 
-# عقود هجرة 092 الخمسة كما هي معرَّفة في ملفها.
-CONTRACTS="list_well_expenses
-list_well_partners
-list_well_profit_cycles
-get_farmer_account
-get_reports_summary"
+# نفس مُرشِّح مخططات التطبيق المستخدَم في scripts/db_index.sh، لتكون
+# المقارنة بين مجموعتين مُعرَّفتين بنفس الحد لا بحدَّين مختلفين.
+APP_SCHEMAS="left(n.nspname, 3) <> 'pg_'
+  and n.nspname not in (
+    'information_schema', 'auth', 'storage', 'realtime', '_realtime',
+    '_analytics', 'vault', 'extensions', 'supabase_functions',
+    'supabase_migrations', 'graphql', 'graphql_public', 'pgbouncer',
+    'net', 'cron', 'pgsodium', 'pgsodium_masks'
+  )"
 
 if ! command -v psql > /dev/null 2>&1; then
   echo "ERROR: psql غير متوفر." >&2
+  exit 2
+fi
+
+if [ ! -f "$functions_index" ]; then
+  echo "ERROR: فهرس الدوال غير موجود: docs/technical/db/functions.txt" >&2
+  echo "شغّل npm run db:index بعد npm run db:reset ثم أعِد المحاولة." >&2
   exit 2
 fi
 
@@ -114,23 +131,62 @@ if [ "$missing_count" -ne 0 ]; then
   status=1
 fi
 
-echo "===== عقود هجرة 092 في مخطط api ====="
-for fn in $CONTRACTS; do
-  found=$($PSQL_VAL -c "select count(*) from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'api' and p.proname = '$fn'") || exit 1
+echo "===== دوال المخطط: الفهرس المولَّد مقابل السحابة ====="
 
-  if [ "$found" -ge 1 ]; then
-    echo "CONTRACT_OK: api.$fn"
-  else
-    echo "CONTRACT_MISSING: api.$fn" >&2
-    status=1
-  fi
-done
+# الفهرس يحمل السطر: schema.function(args)|returns|volatility|security|config
+# والمقارنة على مستوى schema.function: كافية لإثبات وصول أهداف الهجرة،
+# وأمتن من مطابقة نص الوسائط الذي يختلف تنسيقه بين الإصدارات.
+grep -v '^#' "$functions_index" \
+  | cut -d'(' -f1 \
+  | sed '/^[[:space:]]*$/d' \
+  | sort -u > "$work_dir/local_fn.txt"
+
+$PSQL_VAL -c "select n.nspname || '.' || p.proname
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where $APP_SCHEMAS" \
+  | sed '/^[[:space:]]*$/d' \
+  | sort -u > "$work_dir/cloud_fn.txt" || exit 1
+
+index_fn_count=$(grep -c '' < "$work_dir/local_fn.txt")
+cloud_fn_count=$(grep -c '' < "$work_dir/cloud_fn.txt")
+fn_missing=$(comm -23 "$work_dir/local_fn.txt" "$work_dir/cloud_fn.txt")
+fn_extra=$(comm -13 "$work_dir/local_fn.txt" "$work_dir/cloud_fn.txt")
+fn_missing_count=$(printf '%s' "$fn_missing" | grep -c '.')
+fn_extra_count=$(printf '%s' "$fn_extra" | grep -c '.')
+
+echo "FUNCTIONS_INDEX=$index_fn_count"
+echo "FUNCTIONS_CLOUD=$cloud_fn_count"
+echo "FUNCTIONS_MISSING_IN_CLOUD=$fn_missing_count"
+echo "FUNCTIONS_EXTRA_IN_CLOUD=$fn_extra_count"
+
+if [ "$fn_missing_count" -ne 0 ]; then
+  echo "الناقص سحابيًا بالاسم:"
+  printf '%s\n' "$fn_missing"
+  status=1
+fi
+
+# الزائد سحابيًا لا يُفشِل الفحص: الفهرس يُولَّد محليًا وقد يتقادم جولةً
+# إن نُسي npm run db:index. لكنه يُطبع دائمًا لأنه انحرافٌ يستحق النظر.
+if [ "$fn_extra_count" -ne 0 ]; then
+  echo "زائد سحابيًا (انحراف للفحص لا فشل):"
+  printf '%s\n' "$fn_extra"
+fi
+
+echo "===== أرقام كتالوج الصلاحيات سحابيًا ====="
+
+# تُطبع كقياس لا كحُكم: مقارنتها بأرقام الحرس المحلي (اختبارا 080/081)
+# قرارُ قارئ، وتثبيتها هنا بالرقم كان سيُعيد تقادم القائمة اليدوية.
+perm_count=$($PSQL_VAL -c "select count(*) from iam.permissions") || exit 1
+grant_count=$($PSQL_VAL -c \
+  "select count(*) from iam.role_permissions") || exit 1
+
+echo "IAM_PERMISSIONS=$perm_count"
+echo "IAM_ROLE_PERMISSIONS=$grant_count"
 
 if [ "$status" -ne 0 ]; then
   echo "===== فشل التحقق السحابي ====="
   exit 1
 fi
 
-echo "===== نجح التحقق السحابي: القرص والسحابة متطابقان ====="
+echo "===== نجح التحقق السحابي: كل ترحيلات القرص ودوال الفهرس موجودة سحابيًا ====="
