@@ -1088,8 +1088,9 @@ Well Management Boundary Repair (Migration 091).
 
 ### م-41D2 — Finance Boundary Repair + عقد التقارير (Migration 092)
 
-الحالة: **Flutter مثبَّت / DB مكتوبة غير مُتحقَّقة**. فرع
-`fix/m41d2-finance-boundary`. لم يُنشأ commit بعد.
+الحالة: **مثبَّت محليًا بالكامل — Flutter وDB**. فرع
+`fix/m41d2-finance-boundary`، التزامان `ec24042` و`6f878e9` مدفوعان،
+والطلب `#13` مفتوح بأربعة التزامات وفحوصه خضراء.
 
 بها انتهى الدين المعلَن كله إلى صفر: القوائم الثلاث في
 `test/core/api/data_api_boundary_test.dart` صارت فارغة.
