@@ -45,12 +45,25 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
 
   Future<void> _loadAccount() async {
     setState(() => _isLoading = true);
-    final data = await _repo.fetchFarmerFinancialAccount(widget.wellId, widget.farmerAccountId);
-    if (mounted) {
+    try {
+      final data = await _repo.fetchFarmerFinancialAccount(
+        widget.wellId,
+        widget.farmerAccountId,
+      );
+      if (!mounted) return;
       setState(() {
         _accountData = data;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _accountData = null;
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل الحساب المالي للمزارع: $e')),
+      );
     }
   }
 

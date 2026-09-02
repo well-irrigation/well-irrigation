@@ -1,0 +1,436 @@
+# schema.function(args)|returns|volatility|security|config
+# مولَّد آليًا بـ scripts/db_index.sh — لا يُحرَّر يدويًا
+api.accrue_payroll(p_well_id uuid, p_person_id uuid, p_period_start date, p_period_end date, p_gross_minor bigint, p_deductions_minor bigint)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.allocate_payment(p_payment_id uuid, p_allocations jsonb)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.app_bootstrap()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.approve_profit_distribution(p_cycle_id uuid)|void|volatile|invoker|search_path=pg_catalog, pg_temp
+api.calculate_profit_distribution(p_well_id uuid, p_period_start timestamp with time zone, p_period_end timestamp with time zone, p_manual_reserve_minor bigint)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.change_session_energy_source(p_session_id uuid, p_new_source text, p_changed_at timestamp with time zone, p_closed_fuel_quantity_ml bigint, p_closed_fuel_measurement_type text, p_new_fuel_owner_person_id uuid, p_command_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.close_period(p_period_id uuid)|void|volatile|invoker|search_path=pg_catalog, pg_temp
+api.close_shift(p_shift_id uuid, p_allow_open_sessions boolean)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.complete_irrigation_session(p_session_id uuid, p_ended_at timestamp with time zone, p_fuel_quantity_ml bigint, p_fuel_measurement_type text, p_fuel_tank_id uuid, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.confirm_handover(p_handover_id uuid, p_confirmed_amount_minor bigint, p_difference_reason text)|text|volatile|invoker|search_path=pg_catalog, pg_temp
+api.create_booking(p_well_id uuid, p_farmer_well_account_id uuid, p_farm_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_pump_id uuid, p_water_line_id uuid, p_expected_energy_source text, p_priority integer, p_notes text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.create_farm(p_well_id uuid, p_name text, p_farmer_well_account_id uuid, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.create_farmer(p_well_id uuid, p_full_name text, p_phone text, p_preferred_name text, p_notes text, p_credit_limit_minor bigint, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.create_price_schedule(p_well_id uuid, p_name text, p_effective_from timestamp with time zone, p_reason text, p_solar_rate_minor bigint, p_well_diesel_rate_minor bigint, p_farmer_diesel_rate_minor bigint)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.create_tenant_with_well(p_tenant_name text, p_well_name text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.decide_expense(p_expense_id uuid, p_approve boolean, p_note text)|text|volatile|invoker|search_path=pg_catalog, pg_temp
+api.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uuid, p_to_description text, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.get_active_price_schedule(p_well_id uuid, p_at timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_farmer_account(p_farmer_well_account_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_reports_summary(p_well_id uuid, p_period text, p_start timestamp with time zone, p_end timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_session_detail(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_well_details(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.health()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.issue_session_invoice(p_session_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.list_well_expenses(p_well_id uuid, p_status text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_farmers(p_well_id uuid, p_query text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_farms(p_well_id uuid, p_farmer_well_account_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_fuel_tanks(p_well_id uuid, p_include_inactive boolean)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_partners(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_profit_cycles(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_pumps(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_pumps_detail(p_well_id uuid, p_include_inactive boolean)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_sessions(p_well_id uuid, p_farmer_well_account_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_unpaid_only boolean, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.open_shift(p_well_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.pause_irrigation_session(p_session_id uuid, p_reason text, p_paused_at timestamp with time zone, p_command_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.pay_partner_distribution(p_distribution_line_id uuid, p_amount_minor bigint, p_paid_at timestamp with time zone)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.pay_salary(p_accrual_id uuid)|void|volatile|invoker|search_path=pg_catalog, pg_temp
+api.purchase_fuel(p_well_id uuid, p_liters numeric, p_cost_minor bigint, p_purchased_at timestamp with time zone)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.record_expense(p_well_id uuid, p_category_code text, p_amount_minor bigint, p_description text, p_attachment_url text, p_attachment_skipped boolean, p_payment_source text, p_note text, p_partner_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.record_fuel_consumption(p_well_id uuid, p_quantity_ml bigint, p_ownership_type text, p_measurement_type text, p_owner_person_id uuid, p_farmer_well_account_id uuid, p_fuel_tank_id uuid, p_session_segment_id uuid, p_occurred_at timestamp with time zone, p_estimated_transaction_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.record_payment(p_well_id uuid, p_farmer_well_account_id uuid, p_amount_minor bigint, p_method text, p_allocations jsonb, p_session_charge_id uuid, p_payer_person_id uuid, p_cashbox_id uuid, p_paid_at timestamp with time zone, p_note text, p_attachment_url text, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.record_physical_fuel_count(p_well_id uuid, p_fuel_tank_id uuid, p_measured_balance_ml bigint, p_counted_at timestamp with time zone, p_notes text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.request_session_transfer(p_session_id uuid, p_from_shift_id uuid, p_to_profile_id uuid, p_collection_right text, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.reschedule_booking(p_booking_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_reason text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.respond_session_transfer(p_transfer_id uuid, p_accept boolean, p_to_shift_id uuid)|text|volatile|invoker|search_path=pg_catalog, pg_temp
+api.resume_irrigation_session(p_session_id uuid, p_resumed_at timestamp with time zone, p_command_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.save_well_pump(p_well_id uuid, p_name text, p_pump_id uuid, p_pump_type text, p_power_rating text, p_estimated_water_flow_liters_per_minute numeric, p_estimated_fuel_ml_per_hour bigint, p_status text, p_installed_at date, p_notes text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.settle_handover(p_handover_id uuid)|text|volatile|invoker|search_path=pg_catalog, pg_temp
+api.setup_well_full(p_setup_data jsonb)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.start_irrigation_session(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid, p_command_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.update_profile_name(p_full_name text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.update_well_details(p_well_id uuid, p_name text, p_location text, p_depth_meters numeric, p_static_water_level_meters numeric, p_notes text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+audit.log(p_tenant_id uuid, p_well_id uuid, p_action text, p_entity_type text, p_entity_id uuid, p_old jsonb, p_new jsonb, p_reason text)|uuid|volatile|definer|search_path=audit, pg_temp
+audit.prevent_audit_modification()|trigger|volatile|invoker|-
+audit.track_changes()|trigger|volatile|definer|search_path=audit, core, pg_temp
+billing.allocate_payment(p_payment_id uuid, p_allocations jsonb)|jsonb|volatile|definer|search_path=billing, finance, core, audit, iam, pg_temp
+billing.fill_payment_context()|trigger|volatile|definer|search_path=billing, ops, finance, core, pg_temp
+billing.issue_session_invoice(p_session_id uuid, p_issued_by uuid)|uuid|volatile|definer|search_path=billing, ops, finance, core, iam, pg_temp
+billing.journalize_invoice()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
+billing.journalize_payment()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
+billing.record_payment(p_well_id uuid, p_farmer_well_account_id uuid, p_amount_minor bigint, p_method text, p_allocations jsonb, p_session_charge_id uuid, p_payer_person_id uuid, p_cashbox_id uuid, p_paid_at timestamp with time zone, p_note text, p_attachment_url text)|jsonb|volatile|definer|search_path=billing, finance, ops, core, audit, iam, pg_temp
+billing.reverse_payment(p_payment_id uuid, p_reason text, p_reversed_by uuid)|uuid|volatile|definer|search_path=billing, finance, core, pg_temp
+billing.split_overpayment_to_advance()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
+core.check_well_profit_shares_total()|trigger|volatile|invoker|-
+core.create_tenant_with_well(p_tenant_name text, p_well_name text)|uuid|volatile|definer|search_path=core, pg_temp
+core.find_person_duplicates(p_tenant_id uuid, p_full_name text, p_phone text)|TABLE(person_id uuid, public_code text, full_name text, match_level text, matched_on text)|stable|definer|search_path=core, public, extensions, pg_temp
+core.generate_public_code(p_prefix text)|text|stable|invoker|-
+core.handle_new_well()|trigger|volatile|definer|search_path=core, pg_temp
+core.is_active_owner_in_tenant(p_tenant_id uuid, p_excluded_well_id uuid)|boolean|stable|definer|search_path=core, pg_temp
+core.merge_persons(p_primary_id uuid, p_duplicate_id uuid, p_reason text, p_requested_by uuid)|uuid|volatile|definer|search_path=core, ops, billing, finance, inventory, audit, pg_temp
+core.normalize_arabic(p_text text)|text|immutable|invoker|-
+core.normalize_phone(p_text text)|text|immutable|invoker|-
+core.prepare_pump_identity_076()|trigger|volatile|invoker|search_path=core, pg_temp
+core.save_well_pump(p_well_id uuid, p_name text, p_pump_id uuid, p_pump_type text, p_power_rating text, p_estimated_water_flow_liters_per_minute numeric, p_estimated_fuel_ml_per_hour bigint, p_status text, p_installed_at date, p_notes text)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+core.setup_well_full(p_setup_data jsonb)|jsonb|volatile|definer|search_path=core, ops, iam, pg_temp
+core.touch_pump_updated_at_076()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
+core.update_well_details(p_well_id uuid, p_name text, p_location text, p_depth_meters numeric, p_static_water_level_meters numeric, p_notes text)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
+finance.accrue_payroll(p_well_id uuid, p_person_id uuid, p_period_start date, p_period_end date, p_gross_minor bigint, p_deductions_minor bigint, p_created_by uuid)|uuid|volatile|definer|search_path=finance, core, pg_temp
+finance.approve_opening_balance_batch(p_batch_id uuid, p_approved_by uuid)|void|volatile|definer|search_path=finance, pg_temp
+finance.approve_period_reopen(p_request_id uuid, p_partner_id uuid)|void|volatile|definer|search_path=finance, core, ops, iam, pg_temp
+finance.approve_profit_distribution(p_cycle_id uuid, p_approved_by uuid)|void|volatile|definer|search_path=finance, core, ops, billing, pg_temp
+finance.calculate_profit_distribution(p_well_id uuid, p_period_start timestamp with time zone, p_period_end timestamp with time zone, p_calculated_by uuid, p_manual_reserve_minor bigint)|uuid|volatile|definer|search_path=finance, billing, inventory, core, ops, pg_temp
+finance.check_distribution_cycle_lines_total()|trigger|volatile|invoker|-
+finance.close_period(p_period_id uuid, p_closed_by uuid)|void|volatile|definer|search_path=finance, core, pg_temp
+finance.compute_reserved_liabilities(p_well_id uuid)|bigint|stable|definer|search_path=finance, pg_temp
+finance.create_default_expense_categories(p_tenant_id uuid)|integer|volatile|definer|search_path=finance, pg_temp
+finance.create_default_ledger_accounts(p_well_id uuid)|integer|volatile|definer|search_path=finance, core, public
+finance.create_distribution_settings()|trigger|volatile|definer|search_path=finance, pg_temp
+finance.create_main_cashbox()|trigger|volatile|definer|search_path=finance, core, pg_temp
+finance.decide_expense(p_expense_id uuid, p_approver_profile_id uuid, p_approve boolean, p_note text)|text|volatile|definer|search_path=finance, ops, pg_temp
+finance.decide_period_reopen(p_request_id uuid, p_admin_profile_id uuid, p_approve boolean, p_note text)|void|volatile|definer|search_path=finance, ops, pg_temp
+finance.ensure_periods(p_well_id uuid, p_date date)|void|volatile|definer|search_path=finance, core, pg_temp
+finance.fill_expense_context()|trigger|volatile|definer|search_path=finance, ops, core, pg_temp
+finance.journalize_expense()|trigger|volatile|definer|search_path=finance, core, pg_temp
+finance.journalize_fuel_transaction()|trigger|volatile|definer|search_path=finance, core, pg_temp
+finance.ledger_account_id(p_well_id uuid, p_code text)|uuid|volatile|definer|search_path=finance, pg_temp
+finance.main_cashbox_id(p_well_id uuid)|uuid|stable|definer|search_path=finance, pg_temp
+finance.notify_expense_recorded()|trigger|volatile|definer|search_path=finance, ops, pg_temp
+finance.pay_partner_distribution(p_distribution_line_id uuid, p_amount_minor bigint, p_paid_by uuid, p_paid_at timestamp with time zone)|jsonb|volatile|definer|search_path=finance, core, audit, iam, pg_temp
+finance.pay_salary(p_accrual_id uuid, p_paid_by uuid)|void|volatile|definer|search_path=finance, core, pg_temp
+finance.post_journal_entry(p_entry_id uuid, p_posted_by uuid)|void|volatile|definer|search_path=finance, public
+finance.post_opening_balance_batch(p_batch_id uuid, p_posted_by uuid)|void|volatile|definer|search_path=finance, core, inventory, pg_temp
+finance.prevent_approved_cycle_change()|trigger|volatile|invoker|-
+finance.prevent_approved_line_change()|trigger|volatile|definer|search_path=finance, pg_temp
+finance.prevent_approved_opening_item_change()|trigger|volatile|definer|search_path=finance, pg_temp
+finance.prevent_posted_entry_change()|trigger|volatile|invoker|-
+finance.prevent_posted_line_change()|trigger|volatile|invoker|-
+finance.record_expense(p_well_id uuid, p_category_code text, p_amount_minor bigint, p_description text, p_created_by uuid, p_attachment_url text, p_attachment_skipped boolean, p_payment_source text, p_note text, p_partner_id uuid)|uuid|volatile|definer|search_path=finance, core, ops, pg_temp
+finance.request_period_reopen(p_period_id uuid, p_requested_by uuid, p_reason text)|uuid|volatile|definer|search_path=finance, core, ops, pg_temp
+finance.reverse_journal_entry(p_entry_id uuid, p_reason text, p_posted_by uuid)|uuid|volatile|definer|search_path=finance, core, pg_temp
+finance.seed_expense_categories()|trigger|volatile|definer|search_path=finance, pg_temp
+finance.validate_opening_balance_item()|trigger|volatile|invoker|search_path=finance, pg_temp
+iam.can_staff_read_profile(p_profile_id uuid)|boolean|stable|definer|search_path=pg_catalog, pg_temp
+iam.current_farmer_well_account_id(p_well_id uuid)|uuid|stable|definer|search_path=pg_catalog, pg_temp
+iam.current_person_id(p_tenant_id uuid)|uuid|stable|definer|search_path=iam, core, pg_temp
+iam.handle_new_user()|trigger|volatile|definer|search_path=iam, pg_temp
+iam.has_farmer_self_access(p_well_id uuid)|boolean|stable|invoker|search_path=pg_catalog, pg_temp
+iam.has_well_permission(p_well_id uuid, p_permission_code text)|boolean|stable|definer|search_path=pg_catalog, pg_temp
+iam.has_well_role(p_well_id uuid, p_roles text[])|boolean|stable|definer|search_path=core, pg_temp
+iam.is_well_partner(p_well_id uuid)|boolean|stable|definer|search_path=core, pg_temp
+iam.protect_profile_person_link_history()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
+iam.update_own_profile_name(p_full_name text)|jsonb|volatile|definer|search_path=iam, pg_temp
+inventory.apply_fuel_transaction()|trigger|volatile|definer|search_path=inventory, pg_temp
+inventory.bridge_fuel_purchase()|trigger|volatile|definer|search_path=inventory, core, pg_temp
+inventory.create_default_fuel_tank()|trigger|volatile|definer|search_path=inventory, core, pg_temp
+inventory.farmer_fuel_balance_ml(p_well_id uuid, p_person_id uuid)|bigint|stable|definer|search_path=inventory, pg_temp
+inventory.fill_fuel_transaction()|trigger|volatile|definer|search_path=inventory, core, ops, pg_temp
+inventory.purchase_fuel(p_well_id uuid, p_liters numeric, p_cost_minor bigint, p_purchased_at timestamp with time zone, p_recorded_by uuid)|jsonb|volatile|definer|search_path=inventory, finance, core, audit, iam, pg_temp
+inventory.record_fuel_consumption(p_well_id uuid, p_quantity_ml bigint, p_ownership_type text, p_measurement_type text, p_owner_person_id uuid, p_farmer_well_account_id uuid, p_fuel_tank_id uuid, p_session_segment_id uuid, p_occurred_at timestamp with time zone, p_created_by uuid, p_estimated_transaction_id uuid)|jsonb|volatile|definer|search_path=inventory, finance, ops, core, audit, iam, pg_temp
+inventory.record_physical_fuel_count(p_well_id uuid, p_fuel_tank_id uuid, p_measured_balance_ml bigint, p_counted_at timestamp with time zone, p_counted_by uuid, p_notes text)|jsonb|volatile|definer|search_path=inventory, finance, core, audit, iam, pg_temp
+ops.attach_session_to_open_shift()|trigger|volatile|definer|search_path=ops, pg_temp
+ops.capture_session_price_snapshot()|trigger|volatile|definer|search_path=ops, billing, pg_temp
+ops.change_session_energy_source(p_session_id uuid, p_new_source text, p_changed_at timestamp with time zone, p_closed_fuel_quantity_ml bigint, p_closed_fuel_measurement_type text, p_new_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, core, iam, pg_temp
+ops.check_debt_thresholds()|jsonb|volatile|definer|search_path=ops, reporting, billing, core, iam, auth, pg_temp
+ops.close_shift(p_shift_id uuid, p_allow_open_sessions boolean)|uuid|volatile|definer|search_path=ops, pg_temp
+ops.complete_irrigation_session(p_session_id uuid, p_ended_at timestamp with time zone, p_fuel_quantity_ml bigint, p_fuel_measurement_type text, p_fuel_tank_id uuid)|jsonb|volatile|definer|search_path=ops, billing, inventory, core, audit, iam, pg_temp
+ops.compute_session_charge()|trigger|volatile|definer|search_path=ops, billing, pg_temp
+ops.confirm_handover(p_handover_id uuid, p_confirmed_amount_minor bigint, p_confirmed_by uuid, p_difference_reason text)|text|volatile|definer|search_path=ops, pg_temp
+ops.create_booking(p_well_id uuid, p_farmer_well_account_id uuid, p_farm_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_pump_id uuid, p_water_line_id uuid, p_expected_energy_source text, p_priority integer, p_notes text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
+ops.create_farm(p_well_id uuid, p_name text, p_farmer_well_account_id uuid)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
+ops.create_farmer(p_well_id uuid, p_full_name text, p_phone text, p_preferred_name text, p_notes text, p_credit_limit_minor bigint)|jsonb|volatile|definer|search_path=ops, core, audit, iam, public, extensions, pg_temp
+ops.create_price_schedule(p_well_id uuid, p_name text, p_effective_from timestamp with time zone, p_reason text, p_solar_rate_minor bigint, p_well_diesel_rate_minor bigint, p_farmer_diesel_rate_minor bigint)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+ops.create_priced_session_segment(p_session_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, billing, core, pg_temp
+ops.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uuid, p_to_description text, p_note text)|uuid|volatile|definer|search_path=ops, pg_temp
+ops.enforce_farm_assignment_consistency()|trigger|volatile|invoker|search_path=ops, pg_temp
+ops.flag_approaching_long_sessions()|SETOF uuid|volatile|definer|search_path=ops, core, iam, pg_temp
+ops.flag_long_running_sessions()|SETOF uuid|volatile|definer|search_path=ops, core, iam, pg_temp
+ops.notify_profile(p_profile_id uuid, p_well_id uuid, p_type text, p_message text, p_session_id uuid)|uuid|volatile|definer|search_path=ops, pg_temp
+ops.notify_well_owners(p_well_id uuid, p_type text, p_message text, p_session_id uuid)|integer|volatile|definer|search_path=ops, core, pg_temp
+ops.open_shift(p_well_id uuid, p_operator_profile_id uuid)|uuid|volatile|definer|search_path=ops, core, finance, pg_temp
+ops.operator_totals(p_profile_id uuid, p_well_id uuid)|jsonb|stable|definer|search_path=ops, billing, finance, pg_temp
+ops.pause_irrigation_session(p_session_id uuid, p_reason text, p_paused_at timestamp with time zone)|uuid|volatile|definer|search_path=ops, core, iam, pg_temp
+ops.prevent_parallel_sessions_on_pump()|trigger|volatile|definer|search_path=ops, pg_temp
+ops.prevent_second_open_shift()|trigger|volatile|invoker|-
+ops.request_session_transfer(p_session_id uuid, p_from_shift_id uuid, p_to_profile_id uuid, p_collection_right text, p_note text)|uuid|volatile|definer|search_path=ops, core, pg_temp
+ops.reschedule_booking(p_booking_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_reason text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
+ops.reserve_resource(p_well_id uuid, p_resource_type text, p_resource_id uuid, p_reserved_period tstzrange, p_booking_id uuid, p_session_id uuid)|uuid|volatile|definer|search_path=ops, core, pg_temp
+ops.respond_session_transfer(p_transfer_id uuid, p_accept boolean, p_to_shift_id uuid)|text|volatile|definer|search_path=ops, pg_temp
+ops.resume_irrigation_session(p_session_id uuid, p_resumed_at timestamp with time zone)|uuid|volatile|definer|search_path=ops, core, iam, pg_temp
+ops.send_daily_summaries(p_day date)|jsonb|volatile|definer|search_path=ops, reporting, core, iam, auth, pg_temp
+ops.settle_handover(p_handover_id uuid, p_settled_by uuid)|text|volatile|definer|search_path=ops, pg_temp
+ops.shift_report(p_shift_id uuid)|jsonb|stable|definer|search_path=ops, billing, finance, iam, pg_temp
+ops.start_irrigation_session(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_operator_profile_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, core, billing, iam, pg_temp
+ops.validate_session_segment_overlap()|trigger|volatile|invoker|-
+public.cash_dist(money, money)|money|immutable|invoker|-
+public.citext(inet)|citext|immutable|invoker|-
+public.citext(character)|citext|immutable|invoker|-
+public.citext(boolean)|citext|immutable|invoker|-
+public.citext_cmp(citext, citext)|integer|immutable|invoker|-
+public.citext_eq(citext, citext)|boolean|immutable|invoker|-
+public.citext_ge(citext, citext)|boolean|immutable|invoker|-
+public.citext_gt(citext, citext)|boolean|immutable|invoker|-
+public.citext_hash(citext)|integer|immutable|invoker|-
+public.citext_hash_extended(citext, bigint)|bigint|immutable|invoker|-
+public.citext_larger(citext, citext)|citext|immutable|invoker|-
+public.citext_le(citext, citext)|boolean|immutable|invoker|-
+public.citext_lt(citext, citext)|boolean|immutable|invoker|-
+public.citext_ne(citext, citext)|boolean|immutable|invoker|-
+public.citext_pattern_cmp(citext, citext)|integer|immutable|invoker|-
+public.citext_pattern_ge(citext, citext)|boolean|immutable|invoker|-
+public.citext_pattern_gt(citext, citext)|boolean|immutable|invoker|-
+public.citext_pattern_le(citext, citext)|boolean|immutable|invoker|-
+public.citext_pattern_lt(citext, citext)|boolean|immutable|invoker|-
+public.citext_smaller(citext, citext)|citext|immutable|invoker|-
+public.citextin(cstring)|citext|immutable|invoker|-
+public.citextout(citext)|cstring|immutable|invoker|-
+public.citextrecv(internal)|citext|stable|invoker|-
+public.citextsend(citext)|bytea|stable|invoker|-
+public.date_dist(date, date)|integer|immutable|invoker|-
+public.float4_dist(real, real)|real|immutable|invoker|-
+public.float8_dist(double precision, double precision)|double precision|immutable|invoker|-
+public.gbt_bit_compress(internal)|internal|immutable|invoker|-
+public.gbt_bit_consistent(internal, bit, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_bit_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_bit_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_bit_same(gbtreekey_var, gbtreekey_var, internal)|internal|immutable|invoker|-
+public.gbt_bit_union(internal, internal)|gbtreekey_var|immutable|invoker|-
+public.gbt_bool_compress(internal)|internal|immutable|invoker|-
+public.gbt_bool_consistent(internal, boolean, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_bool_fetch(internal)|internal|immutable|invoker|-
+public.gbt_bool_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_bool_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_bool_same(gbtreekey2, gbtreekey2, internal)|internal|immutable|invoker|-
+public.gbt_bool_union(internal, internal)|gbtreekey2|immutable|invoker|-
+public.gbt_bpchar_compress(internal)|internal|immutable|invoker|-
+public.gbt_bpchar_consistent(internal, character, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_bytea_compress(internal)|internal|immutable|invoker|-
+public.gbt_bytea_consistent(internal, bytea, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_bytea_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_bytea_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_bytea_same(gbtreekey_var, gbtreekey_var, internal)|internal|immutable|invoker|-
+public.gbt_bytea_union(internal, internal)|gbtreekey_var|immutable|invoker|-
+public.gbt_cash_compress(internal)|internal|immutable|invoker|-
+public.gbt_cash_consistent(internal, money, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_cash_distance(internal, money, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_cash_fetch(internal)|internal|immutable|invoker|-
+public.gbt_cash_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_cash_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_cash_same(gbtreekey16, gbtreekey16, internal)|internal|immutable|invoker|-
+public.gbt_cash_union(internal, internal)|gbtreekey16|immutable|invoker|-
+public.gbt_date_compress(internal)|internal|immutable|invoker|-
+public.gbt_date_consistent(internal, date, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_date_distance(internal, date, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_date_fetch(internal)|internal|immutable|invoker|-
+public.gbt_date_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_date_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_date_same(gbtreekey8, gbtreekey8, internal)|internal|immutable|invoker|-
+public.gbt_date_union(internal, internal)|gbtreekey8|immutable|invoker|-
+public.gbt_decompress(internal)|internal|immutable|invoker|-
+public.gbt_enum_compress(internal)|internal|immutable|invoker|-
+public.gbt_enum_consistent(internal, anyenum, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_enum_fetch(internal)|internal|immutable|invoker|-
+public.gbt_enum_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_enum_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_enum_same(gbtreekey8, gbtreekey8, internal)|internal|immutable|invoker|-
+public.gbt_enum_union(internal, internal)|gbtreekey8|immutable|invoker|-
+public.gbt_float4_compress(internal)|internal|immutable|invoker|-
+public.gbt_float4_consistent(internal, real, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_float4_distance(internal, real, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_float4_fetch(internal)|internal|immutable|invoker|-
+public.gbt_float4_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_float4_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_float4_same(gbtreekey8, gbtreekey8, internal)|internal|immutable|invoker|-
+public.gbt_float4_union(internal, internal)|gbtreekey8|immutable|invoker|-
+public.gbt_float8_compress(internal)|internal|immutable|invoker|-
+public.gbt_float8_consistent(internal, double precision, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_float8_distance(internal, double precision, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_float8_fetch(internal)|internal|immutable|invoker|-
+public.gbt_float8_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_float8_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_float8_same(gbtreekey16, gbtreekey16, internal)|internal|immutable|invoker|-
+public.gbt_float8_union(internal, internal)|gbtreekey16|immutable|invoker|-
+public.gbt_inet_compress(internal)|internal|immutable|invoker|-
+public.gbt_inet_consistent(internal, inet, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_inet_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_inet_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_inet_same(gbtreekey16, gbtreekey16, internal)|internal|immutable|invoker|-
+public.gbt_inet_union(internal, internal)|gbtreekey16|immutable|invoker|-
+public.gbt_int2_compress(internal)|internal|immutable|invoker|-
+public.gbt_int2_consistent(internal, smallint, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_int2_distance(internal, smallint, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_int2_fetch(internal)|internal|immutable|invoker|-
+public.gbt_int2_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_int2_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_int2_same(gbtreekey4, gbtreekey4, internal)|internal|immutable|invoker|-
+public.gbt_int2_union(internal, internal)|gbtreekey4|immutable|invoker|-
+public.gbt_int4_compress(internal)|internal|immutable|invoker|-
+public.gbt_int4_consistent(internal, integer, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_int4_distance(internal, integer, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_int4_fetch(internal)|internal|immutable|invoker|-
+public.gbt_int4_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_int4_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_int4_same(gbtreekey8, gbtreekey8, internal)|internal|immutable|invoker|-
+public.gbt_int4_union(internal, internal)|gbtreekey8|immutable|invoker|-
+public.gbt_int8_compress(internal)|internal|immutable|invoker|-
+public.gbt_int8_consistent(internal, bigint, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_int8_distance(internal, bigint, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_int8_fetch(internal)|internal|immutable|invoker|-
+public.gbt_int8_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_int8_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_int8_same(gbtreekey16, gbtreekey16, internal)|internal|immutable|invoker|-
+public.gbt_int8_union(internal, internal)|gbtreekey16|immutable|invoker|-
+public.gbt_intv_compress(internal)|internal|immutable|invoker|-
+public.gbt_intv_consistent(internal, interval, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_intv_decompress(internal)|internal|immutable|invoker|-
+public.gbt_intv_distance(internal, interval, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_intv_fetch(internal)|internal|immutable|invoker|-
+public.gbt_intv_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_intv_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_intv_same(gbtreekey32, gbtreekey32, internal)|internal|immutable|invoker|-
+public.gbt_intv_union(internal, internal)|gbtreekey32|immutable|invoker|-
+public.gbt_macad8_compress(internal)|internal|immutable|invoker|-
+public.gbt_macad8_consistent(internal, macaddr8, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_macad8_fetch(internal)|internal|immutable|invoker|-
+public.gbt_macad8_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_macad8_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_macad8_same(gbtreekey16, gbtreekey16, internal)|internal|immutable|invoker|-
+public.gbt_macad8_union(internal, internal)|gbtreekey16|immutable|invoker|-
+public.gbt_macad_compress(internal)|internal|immutable|invoker|-
+public.gbt_macad_consistent(internal, macaddr, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_macad_fetch(internal)|internal|immutable|invoker|-
+public.gbt_macad_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_macad_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_macad_same(gbtreekey16, gbtreekey16, internal)|internal|immutable|invoker|-
+public.gbt_macad_union(internal, internal)|gbtreekey16|immutable|invoker|-
+public.gbt_numeric_compress(internal)|internal|immutable|invoker|-
+public.gbt_numeric_consistent(internal, numeric, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_numeric_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_numeric_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_numeric_same(gbtreekey_var, gbtreekey_var, internal)|internal|immutable|invoker|-
+public.gbt_numeric_union(internal, internal)|gbtreekey_var|immutable|invoker|-
+public.gbt_oid_compress(internal)|internal|immutable|invoker|-
+public.gbt_oid_consistent(internal, oid, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_oid_distance(internal, oid, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_oid_fetch(internal)|internal|immutable|invoker|-
+public.gbt_oid_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_oid_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_oid_same(gbtreekey8, gbtreekey8, internal)|internal|immutable|invoker|-
+public.gbt_oid_union(internal, internal)|gbtreekey8|immutable|invoker|-
+public.gbt_text_compress(internal)|internal|immutable|invoker|-
+public.gbt_text_consistent(internal, text, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_text_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_text_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_text_same(gbtreekey_var, gbtreekey_var, internal)|internal|immutable|invoker|-
+public.gbt_text_union(internal, internal)|gbtreekey_var|immutable|invoker|-
+public.gbt_time_compress(internal)|internal|immutable|invoker|-
+public.gbt_time_consistent(internal, time without time zone, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_time_distance(internal, time without time zone, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_time_fetch(internal)|internal|immutable|invoker|-
+public.gbt_time_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_time_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_time_same(gbtreekey16, gbtreekey16, internal)|internal|immutable|invoker|-
+public.gbt_time_union(internal, internal)|gbtreekey16|immutable|invoker|-
+public.gbt_timetz_compress(internal)|internal|immutable|invoker|-
+public.gbt_timetz_consistent(internal, time with time zone, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_ts_compress(internal)|internal|immutable|invoker|-
+public.gbt_ts_consistent(internal, timestamp without time zone, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_ts_distance(internal, timestamp without time zone, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_ts_fetch(internal)|internal|immutable|invoker|-
+public.gbt_ts_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_ts_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_ts_same(gbtreekey16, gbtreekey16, internal)|internal|immutable|invoker|-
+public.gbt_ts_union(internal, internal)|gbtreekey16|immutable|invoker|-
+public.gbt_tstz_compress(internal)|internal|immutable|invoker|-
+public.gbt_tstz_consistent(internal, timestamp with time zone, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_tstz_distance(internal, timestamp with time zone, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gbt_uuid_compress(internal)|internal|immutable|invoker|-
+public.gbt_uuid_consistent(internal, uuid, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gbt_uuid_fetch(internal)|internal|immutable|invoker|-
+public.gbt_uuid_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gbt_uuid_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gbt_uuid_same(gbtreekey32, gbtreekey32, internal)|internal|immutable|invoker|-
+public.gbt_uuid_union(internal, internal)|gbtreekey32|immutable|invoker|-
+public.gbt_var_decompress(internal)|internal|immutable|invoker|-
+public.gbt_var_fetch(internal)|internal|immutable|invoker|-
+public.gbtreekey16_in(cstring)|gbtreekey16|immutable|invoker|-
+public.gbtreekey16_out(gbtreekey16)|cstring|immutable|invoker|-
+public.gbtreekey2_in(cstring)|gbtreekey2|immutable|invoker|-
+public.gbtreekey2_out(gbtreekey2)|cstring|immutable|invoker|-
+public.gbtreekey32_in(cstring)|gbtreekey32|immutable|invoker|-
+public.gbtreekey32_out(gbtreekey32)|cstring|immutable|invoker|-
+public.gbtreekey4_in(cstring)|gbtreekey4|immutable|invoker|-
+public.gbtreekey4_out(gbtreekey4)|cstring|immutable|invoker|-
+public.gbtreekey8_in(cstring)|gbtreekey8|immutable|invoker|-
+public.gbtreekey8_out(gbtreekey8)|cstring|immutable|invoker|-
+public.gbtreekey_var_in(cstring)|gbtreekey_var|immutable|invoker|-
+public.gbtreekey_var_out(gbtreekey_var)|cstring|immutable|invoker|-
+public.gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal)|internal|immutable|invoker|-
+public.gin_extract_value_trgm(text, internal)|internal|immutable|invoker|-
+public.gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal)|boolean|immutable|invoker|-
+public.gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal)|"char"|immutable|invoker|-
+public.gtrgm_compress(internal)|internal|immutable|invoker|-
+public.gtrgm_consistent(internal, text, smallint, oid, internal)|boolean|immutable|invoker|-
+public.gtrgm_decompress(internal)|internal|immutable|invoker|-
+public.gtrgm_distance(internal, text, smallint, oid, internal)|double precision|immutable|invoker|-
+public.gtrgm_in(cstring)|gtrgm|immutable|invoker|-
+public.gtrgm_options(internal)|void|immutable|invoker|-
+public.gtrgm_out(gtrgm)|cstring|immutable|invoker|-
+public.gtrgm_penalty(internal, internal, internal)|internal|immutable|invoker|-
+public.gtrgm_picksplit(internal, internal)|internal|immutable|invoker|-
+public.gtrgm_same(gtrgm, gtrgm, internal)|internal|immutable|invoker|-
+public.gtrgm_union(internal, internal)|gtrgm|immutable|invoker|-
+public.int2_dist(smallint, smallint)|smallint|immutable|invoker|-
+public.int4_dist(integer, integer)|integer|immutable|invoker|-
+public.int8_dist(bigint, bigint)|bigint|immutable|invoker|-
+public.interval_dist(interval, interval)|interval|immutable|invoker|-
+public.oid_dist(oid, oid)|oid|immutable|invoker|-
+public.regexp_match(citext, citext)|text[]|immutable|invoker|-
+public.regexp_match(citext, citext, text)|text[]|immutable|invoker|-
+public.regexp_matches(citext, citext)|SETOF text[]|immutable|invoker|-
+public.regexp_matches(citext, citext, text)|SETOF text[]|immutable|invoker|-
+public.regexp_replace(citext, citext, text, text)|text|immutable|invoker|-
+public.regexp_replace(citext, citext, text)|text|immutable|invoker|-
+public.regexp_split_to_array(citext, citext)|text[]|immutable|invoker|-
+public.regexp_split_to_array(citext, citext, text)|text[]|immutable|invoker|-
+public.regexp_split_to_table(citext, citext)|SETOF text|immutable|invoker|-
+public.regexp_split_to_table(citext, citext, text)|SETOF text|immutable|invoker|-
+public.replace(citext, citext, citext)|text|immutable|invoker|-
+public.set_limit(real)|real|volatile|invoker|-
+public.show_limit()|real|stable|invoker|-
+public.show_trgm(text)|text[]|immutable|invoker|-
+public.similarity(text, text)|real|immutable|invoker|-
+public.similarity_dist(text, text)|real|immutable|invoker|-
+public.similarity_op(text, text)|boolean|stable|invoker|-
+public.split_part(citext, citext, integer)|text|immutable|invoker|-
+public.strict_word_similarity(text, text)|real|immutable|invoker|-
+public.strict_word_similarity_commutator_op(text, text)|boolean|stable|invoker|-
+public.strict_word_similarity_dist_commutator_op(text, text)|real|immutable|invoker|-
+public.strict_word_similarity_dist_op(text, text)|real|immutable|invoker|-
+public.strict_word_similarity_op(text, text)|boolean|stable|invoker|-
+public.strpos(citext, citext)|integer|immutable|invoker|-
+public.texticlike(citext, citext)|boolean|immutable|invoker|-
+public.texticlike(citext, text)|boolean|immutable|invoker|-
+public.texticnlike(citext, citext)|boolean|immutable|invoker|-
+public.texticnlike(citext, text)|boolean|immutable|invoker|-
+public.texticregexeq(citext, text)|boolean|immutable|invoker|-
+public.texticregexeq(citext, citext)|boolean|immutable|invoker|-
+public.texticregexne(citext, text)|boolean|immutable|invoker|-
+public.texticregexne(citext, citext)|boolean|immutable|invoker|-
+public.time_dist(time without time zone, time without time zone)|interval|immutable|invoker|-
+public.translate(citext, citext, text)|text|immutable|invoker|-
+public.ts_dist(timestamp without time zone, timestamp without time zone)|interval|immutable|invoker|-
+public.tstz_dist(timestamp with time zone, timestamp with time zone)|interval|immutable|invoker|-
+public.word_similarity(text, text)|real|immutable|invoker|-
+public.word_similarity_commutator_op(text, text)|boolean|stable|invoker|-
+public.word_similarity_dist_commutator_op(text, text)|real|immutable|invoker|-
+public.word_similarity_dist_op(text, text)|real|immutable|invoker|-
+public.word_similarity_op(text, text)|boolean|stable|invoker|-
+sync.begin_command(p_tenant_id uuid, p_command_id uuid, p_command_type text, p_payload jsonb, p_entity_id uuid)|jsonb|volatile|definer|search_path=sync, pg_temp
+sync.begin_session_command(p_session_id uuid, p_command_id uuid, p_command_type text, p_payload jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+sync.begin_well_command(p_well_id uuid, p_command_id uuid, p_command_type text, p_payload jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+sync.finish_command(p_tenant_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=sync, pg_temp
+sync.finish_session_command(p_session_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=pg_catalog, pg_temp
+sync.finish_well_command(p_well_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=pg_catalog, pg_temp

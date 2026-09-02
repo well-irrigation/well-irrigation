@@ -9,7 +9,8 @@
     "supabase:stop": "npx supabase stop",
     "supabase:status": "npx supabase status",
     "db:reset": "npx supabase db reset",
-    "db:test": "sh scripts/db_test.sh"
+    "db:test": "sh scripts/db_test.sh",
+    "db:index": "sh scripts/db_index.sh"
   },
   "keywords": [],
   "author": "",

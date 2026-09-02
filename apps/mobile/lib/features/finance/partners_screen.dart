@@ -45,12 +45,22 @@ class _PartnersScreenState extends State<PartnersScreen> {
 
   Future<void> _loadPartners() async {
     setState(() => _isLoading = true);
-    final list = await _repo.fetchPartners(_activeWellId ?? 'well-1');
-    if (mounted) {
+    try {
+      final list = await _repo.fetchPartners(_activeWellId ?? 'well-1');
+      if (!mounted) return;
       setState(() {
         _partners = list;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _partners = const [];
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل بيانات الشركاء: $e')),
+      );
     }
   }
 

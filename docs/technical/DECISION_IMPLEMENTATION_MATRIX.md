@@ -30,6 +30,7 @@
 | ق-79 | RPC-only writes وDirect DML=0 | 072-074 | 072-074 + live audit | مغلق |
 | ق-120 / م-38..م-40 | بوابة صحة إنشاء البئر: صلاحية API، وحدات السعر، وفشل صريح | 087 + Flutter wizard | DB 087 = 8 PASS؛ full DB = 25/362؛ Flutter = 2/2 targeted + 222/222 full + analyze clean؛ Cloud authenticated setup PASS؛ anon denied؛ الأسعار 3500/7000/6000؛ ROLLBACK + residue 0 | **P0 مغلق؛ م-38/م-39 Verified local + Cloud؛ م-40 Verified local (Cloud N/A). ق-120 Audit Gate مستمرة** |
 | ق-98 / م-41C1 | عقود قراءة العمليات: المزارعون والأراضي والمضخات عبر `api` بدل المخططات الداخلية | 089 + `OperationsRepository` + 4 نقاط واجهة | DB 089 = 20 PASS؛ full DB = **27 files / 389 PASS / 0 FAIL / 0 ERROR** (خط الأساس 369، بلا انحدار)؛ Flutter = 237/237 full + analyze clean؛ Internal-schema debt 7 → 4؛ صفر mock fallback في هذا المسار؛ anon مرفوض والبئر غير المرئي مرفوض بـ42501 | **Implemented + Verified local؛ Cloud غير منشورة**. م-41C2 يغلق الوصولات الأربعة المتبقية |
+| ق-99 / م-41D2 | عقود القراءة المالية ومؤشرات التقارير عبر `api`: المصروفات والشركاء ودورات الأرباح وحساب المزارع والتقارير | 092 (خمسة عقود) + `FinanceRepository` + `fetchReportsSummary` + 6 شاشات تُظهر الفشل | Flutter = 265/265 PASS + analyze clean؛ Bare RPC 1 → 0؛ Dotted-from 5 → 0؛ Internal-schema = 0؛ مولّدات المحاكاة الأربع = 0؛ مال مُلفَّق = 0؛ لا `catch` في المستودعات؛ اختبار SQL دائم بـ37 تحققًا **غير مُشغَّل بعد** | **Implemented + Flutter Verified local؛ DB مكتوبة لا مُتحقَّقة** (`db:reset` + `db:test` بيد المالك). بند مفتوح واحد: `'mock-advance-pay'` في مسار كتابة الرصيد المقدَّم |
 
 
 ## القواعد النهائية التي تنسخ نصوصًا أقدم
@@ -69,7 +70,7 @@
 | م-38 | **مغلقة — Verified local + Cloud**؛ Migration 087؛ authenticated call PASS؛ anon denied؛ Direct DML=0؛ ROLLBACK بلا بقايا |
 | م-39 | **مغلقة — Verified local + Cloud**؛ ×100 أزيل؛ 3500/7000/6000 ثبتت محليًا وسحابيًا بالقيم نفسها |
 | م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
-| م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count؛ م-41B2 أصلحت account profile read؛ م-41B3A أضافت 088 وapi.update_profile_name ومنعت false-success في حفظ الاسم؛ 088 موجودة Cloud وعقدها الأمني Verified؛ م-41B3B أزالت Team RPC/Mock غير المدعومة وجعلت الشاشة fail-closed؛ current debt = 7 internal + 9 bare + 5 dotted؛ DB = 26/369 PASS؛ Flutter = 234/234 PASS؛ Team management الفعلية تبقى Backend/Auth Gap؛ NEXT = م-41C Operations Read Boundary Repair |
+| م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count؛ م-41B2 أصلحت account profile read؛ م-41B3A أضافت 088 وapi.update_profile_name ومنعت false-success في حفظ الاسم؛ 088 موجودة Cloud وعقدها الأمني Verified؛ م-41B3B أزالت Team RPC/Mock غير المدعومة وجعلت الشاشة fail-closed؛ current debt = 7 internal + 9 bare + 5 dotted؛ DB = 26/369 PASS؛ Flutter = 234/234 PASS؛ Team management الفعلية تبقى Backend/Auth Gap؛ **تحديث 2026-09-02: الدين المعلَن كله = 0** (م-41C2 أغلقت internal-schema بـ090، وم-41D1 أغلقت bare RPC إلى 1 بـ091، وم-41D2 أغلقت الباقي بـ092: 0 internal + 0 bare + 0 dotted)؛ Flutter = 265/265 PASS؛ NEXT = تحقق DB لـ092 ثم حماية `main` ثم الدمج |
 
 ## baseline المرجعي
 

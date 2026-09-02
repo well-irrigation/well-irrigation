@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// بند المصروف المالي
@@ -91,22 +93,25 @@ class PartnerFinancialItem {
   });
 
   factory PartnerFinancialItem.fromJson(Map<String, dynamic> json) {
-    final earnings = (json['total_earnings_minor'] as num?)?.toInt() ?? 0;
-    final outOfPocket = (json['out_of_pocket_minor'] as num?)?.toInt() ?? 0;
-    final irrigation = (json['irrigation_deduction_minor'] as num?)?.toInt() ?? 0;
-    final netPayable = earnings + outOfPocket - irrigation;
+    // صافي المستحق يأتي محسوبًا من القاعدة (reporting.partner_account_summary
+    // فوق أسطر التوزيع)، ولا يُعاد جمعه هنا. والمتبقي هو الفارق الذي
+    // تعرّفه القاعدة نفسها في هجرة 068: الصافي ناقص المصروف فعلًا.
+    final netPayable = (json['net_payable_minor'] as num?)?.toInt() ?? 0;
     final paid = (json['total_paid_minor'] as num?)?.toInt() ?? 0;
 
     return PartnerFinancialItem(
       id: json['id'] as String,
-      partnerPersonId: (json['partner_person_id'] as String?) ?? json['id'] as String,
+      partnerPersonId:
+          (json['partner_person_id'] as String?) ?? json['id'] as String,
       fullName: (json['full_name'] as String?) ?? 'شريك',
       phone: (json['phone'] as String?) ?? '',
       ownershipPercent: (json['ownership_percent'] as num?)?.toInt() ?? 0,
       profitPercent: (json['profit_percent'] as num?)?.toInt() ?? 0,
-      totalEarningsYER: earnings,
-      outOfPocketExpensesYER: outOfPocket,
-      irrigationDeductionYER: irrigation,
+      totalEarningsYER: (json['total_earnings_minor'] as num?)?.toInt() ?? 0,
+      outOfPocketExpensesYER:
+          (json['out_of_pocket_minor'] as num?)?.toInt() ?? 0,
+      irrigationDeductionYER:
+          (json['irrigation_deduction_minor'] as num?)?.toInt() ?? 0,
       netPayableYER: netPayable,
       totalPaidYER: paid,
       remainingBalanceYER: netPayable - paid,
@@ -234,17 +239,19 @@ class FarmerInvoiceItem {
   });
 
   factory FarmerInvoiceItem.fromJson(Map<String, dynamic> json) {
-    final orig = (json['original_amount_minor'] as num?)?.toInt() ?? 0;
-    final paid = (json['paid_amount_minor'] as num?)?.toInt() ?? 0;
+    // المتبقي عمود محفوظ في billing.invoices تحرسه قاعدة
+    // paid + outstanding = total، فلا يُعاد حسابه هنا.
     return FarmerInvoiceItem(
       id: json['id'] as String,
-      invoiceNumber: (json['invoice_number'] as String?) ?? 'INV-000',
-      issueDate: DateTime.tryParse(json['issue_date'] as String? ?? '') ?? DateTime.now(),
+      invoiceNumber: (json['invoice_number'] as String?) ?? '',
+      issueDate:
+          DateTime.tryParse(json['issue_date'] as String? ?? '') ??
+          DateTime.now(),
       sessionId: json['session_id'] as String?,
-      farmName: (json['farm_name'] as String?) ?? 'أرض زراعية',
-      originalAmountYER: orig,
-      paidAmountYER: paid,
-      remainingAmountYER: orig - paid,
+      farmName: (json['farm_name'] as String?) ?? 'بدون أرض محددة',
+      originalAmountYER: (json['original_amount_minor'] as num?)?.toInt() ?? 0,
+      paidAmountYER: (json['paid_amount_minor'] as num?)?.toInt() ?? 0,
+      remainingAmountYER: (json['outstanding_minor'] as num?)?.toInt() ?? 0,
       status: (json['status'] as String?) ?? 'unpaid',
     );
   }
@@ -273,7 +280,7 @@ class FarmerPaymentReceiptItem {
   factory FarmerPaymentReceiptItem.fromJson(Map<String, dynamic> json) {
     return FarmerPaymentReceiptItem(
       id: json['id'] as String,
-      receiptNumber: (json['receipt_number'] as String?) ?? 'REC-000',
+      receiptNumber: (json['receipt_number'] as String?) ?? '',
       paidAt: DateTime.tryParse(json['paid_at'] as String? ?? '') ?? DateTime.now(),
       amountYER: (json['amount_minor'] as num?)?.toInt() ?? 0,
       method: (json['method'] as String?) ?? 'cash',
@@ -304,49 +311,91 @@ class FarmerFinancialAccountData {
     required this.invoices,
     required this.payments,
   });
+
+  /// يبني الحساب من غلاف api.get_farmer_account: الهوية والدين والمقدم
+  /// من القاعدة، والفواتير والسندات مرتبة من الأحدث كما رتّبها العقد.
+  factory FarmerFinancialAccountData.fromContract(Map<String, dynamic> json) {
+    final account = Map<String, dynamic>.from(json['account'] as Map);
+    final invoices = (json['invoices'] as List<dynamic>? ?? const [])
+        .map((e) => FarmerInvoiceItem.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList(growable: false);
+    final payments = (json['payments'] as List<dynamic>? ?? const [])
+        .map(
+          (e) => FarmerPaymentReceiptItem.fromJson(
+            Map<String, dynamic>.from(e as Map),
+          ),
+        )
+        .toList(growable: false);
+
+    return FarmerFinancialAccountData(
+      farmerAccountId: account['id'] as String,
+      fullName: (account['full_name'] as String?) ?? '',
+      publicCode: (account['public_code'] as String?) ?? '',
+      phone: (account['phone'] as String?) ?? '',
+      totalDebtYER: (account['total_debt_minor'] as num?)?.toInt() ?? 0,
+      advanceBalanceYER:
+          (account['advance_balance_minor'] as num?)?.toInt() ?? 0,
+      invoices: invoices,
+      payments: payments,
+    );
+  }
 }
 
-/// مستودع إدارة العمليات المالية والمصروفات والشركاء
+/// مستودع إدارة العمليات المالية والمصروفات والشركاء. كل نداء يمر عبر
+/// مخطط api وحده (ق-82): لا `from` بمخطط منقّط ولا `.schema('<internal>')`
+/// ولا نداء RPC مجرّد. وحين يفشل العقد يُرفع الخطأ إلى الشاشة كما هو — لا
+/// بيانات تجريبية تُخفي الفشل ولا أرقام مالية مُلفَّقة في العميل.
 class FinanceRepository {
   final SupabaseClient? _client;
 
   FinanceRepository([this._client]);
 
-  SupabaseClient? get _effectiveClient {
-    try {
-      return _client ?? Supabase.instance.client;
-    } catch (_) {
-      return null;
+  SupabaseClient get _requireClient {
+    final client = _client ?? Supabase.instance.client;
+    return client;
+  }
+
+  static Map<String, dynamic> _asMap(Object? payload) {
+    final data = payload is String ? jsonDecode(payload) : payload;
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
     }
+    throw StateError('استجابة العقد ليست كائنًا: $payload');
+  }
+
+  static List<Map<String, dynamic>> _asList(Object? payload) {
+    if (payload is List) {
+      return payload
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(growable: false);
+    }
+    return const <Map<String, dynamic>>[];
   }
 
   // ---------------------------------------------------------------------------
   // 1. المصروفات التشغيلية (Expenses)
   // ---------------------------------------------------------------------------
 
-  Future<List<ExpenseItem>> fetchExpenses(String wellId) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return _getMockExpenses(wellId);
-    }
-    try {
-      final res = await client
-          .from('finance.expenses')
-          .select('*, finance.expense_categories(name_ar)')
-          .eq('well_id', wellId)
-          .order('spent_at', ascending: false);
-
-      return (res as List<dynamic>).map((e) {
-        final row = e as Map<String, dynamic>;
-        final cat = row['finance.expense_categories'] as Map<String, dynamic>?;
-        if (cat != null) {
-          row['category_name'] = cat['name_ar'];
-        }
-        return ExpenseItem.fromJson(row);
-      }).toList();
-    } catch (_) {
-      return _getMockExpenses(wellId);
-    }
+  /// 1.1 مصروفات البئر — api.list_well_expenses
+  ///
+  /// الحالة اختيارية: تمريرها يصفّي القائمة، وأي حالة غير معروفة يرفضها
+  /// العقد بـ22023 ولا تُترجم ضمنيًا هنا.
+  Future<List<ExpenseItem>> fetchExpenses(
+    String wellId, {
+    String? status,
+    int limit = 100,
+  }) async {
+    final res = await _requireClient.schema('api').rpc(
+      'list_well_expenses',
+      params: {
+        'p_well_id': wellId,
+        'p_status': status,
+        'p_limit': limit,
+      },
+    );
+    return _asList(_asMap(res)['expenses'])
+        .map(ExpenseItem.fromJson)
+        .toList(growable: false);
   }
 
   Future<void> recordExpense({
@@ -361,10 +410,7 @@ class FinanceRepository {
     String? skipReason,
     String? note,
   }) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return;
-    }
+    final client = _requireClient;
     await client.schema('api').rpc('record_expense', params: {
       'p_well_id': wellId,
       'p_category_code': categoryCode,
@@ -383,10 +429,7 @@ class FinanceRepository {
     required bool approve,
     String? note,
   }) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return;
-    }
+    final client = _requireClient;
     await client.schema('api').rpc('decide_expense', params: {
       'p_expense_id': expenseId,
       'p_approve': approve,
@@ -398,69 +441,66 @@ class FinanceRepository {
   // 2. الشركاء والنسب (Partners)
   // ---------------------------------------------------------------------------
 
-  Future<List<PartnerFinancialItem>> fetchPartners(String wellId) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return _getMockPartners(wellId);
-    }
-    try {
-      final res = await client
-          .from('iam.well_memberships')
-          .select('*, iam.profiles(full_name, phone)')
-          .eq('well_id', wellId)
-          .contains('roles', ['partner']);
-
-      return (res as List<dynamic>).map((e) {
-        final row = e as Map<String, dynamic>;
-        final prof = row['iam.profiles'] as Map<String, dynamic>?;
-        return PartnerFinancialItem.fromJson({
-          'id': row['id'],
-          'partner_person_id': row['user_id'],
-          'full_name': prof?['full_name'] ?? 'شريك',
-          'phone': prof?['phone'] ?? '',
-          'ownership_percent': row['ownership_percent'] ?? 25,
-          'profit_percent': row['profit_percent'] ?? 25,
-          'total_earnings_minor': 180000,
-          'out_of_pocket_minor': 25000,
-          'irrigation_deduction_minor': 35000,
-          'total_paid_minor': 100000,
-          'status': row['status'] ?? 'active',
-        });
-      }).toList();
-    } catch (_) {
-      return _getMockPartners(wellId);
-    }
+  /// 2.1 شركاء البئر — api.list_well_partners
+  ///
+  /// النِسَب تأتي من النسخة السارية في core.ownership_share_versions،
+  /// والمال من أسطر التوزيع المعتمدة عبر reporting.partner_account_summary.
+  /// لا رقم مالي واحد يُصطنع هنا (كان المستودع يثبّت 25% و180000 و25000
+  /// و35000 و100000 لكل شريك).
+  Future<List<PartnerFinancialItem>> fetchPartners(
+    String wellId, {
+    int limit = 100,
+  }) async {
+    final res = await _requireClient.schema('api').rpc(
+      'list_well_partners',
+      params: {
+        'p_well_id': wellId,
+        'p_limit': limit,
+      },
+    );
+    return _asList(_asMap(res)['partners'])
+        .map(PartnerFinancialItem.fromJson)
+        .toList(growable: false);
   }
 
-  Future<PartnerFinancialItem?> fetchPartnerDetailFinancial(String wellId, String partnerId) async {
+  /// 2.2 كشف حساب شريك واحد: تصفية محلية لقائمة الشركاء نفسها. وحين لا
+  /// يوجد الشريك في البئر تُرجَع null بدل انتحاب شريك آخر.
+  Future<PartnerFinancialItem?> fetchPartnerDetailFinancial(
+    String wellId,
+    String partnerId,
+  ) async {
     final partners = await fetchPartners(wellId);
-    try {
-      return partners.firstWhere((p) => p.id == partnerId || p.partnerPersonId == partnerId);
-    } catch (_) {
-      return partners.isNotEmpty ? partners.first : null;
+    for (final partner in partners) {
+      if (partner.id == partnerId || partner.partnerPersonId == partnerId) {
+        return partner;
+      }
     }
+    return null;
   }
 
   // ---------------------------------------------------------------------------
   // 3. دورات توزيع الأرباح (Profit Distribution Cycles)
   // ---------------------------------------------------------------------------
 
-  Future<List<ProfitDistributionCycleItem>> fetchProfitDistributionCycles(String wellId) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return _getMockCycles(wellId);
-    }
-    try {
-      final res = await client
-          .from('finance.profit_distribution_cycles')
-          .select('*, finance.profit_distribution_lines(*)')
-          .eq('well_id', wellId)
-          .order('period_end', ascending: false);
-
-      return (res as List<dynamic>).map((e) => ProfitDistributionCycleItem.fromJson(e as Map<String, dynamic>)).toList();
-    } catch (_) {
-      return _getMockCycles(wellId);
-    }
+  /// 3.1 دورات توزيع الأرباح — api.list_well_profit_cycles
+  ///
+  /// أسطر الشركاء تأتي مع كل دورة داخل الغلاف نفسه، فلا نداء ثانيًا لكل
+  /// دورة، والمتبقي في كل سطر هو ما تعرّفه القاعدة نفسها في هجرة 068:
+  /// صافي المستحق ناقص المصروف فعلًا.
+  Future<List<ProfitDistributionCycleItem>> fetchProfitDistributionCycles(
+    String wellId, {
+    int limit = 24,
+  }) async {
+    final res = await _requireClient.schema('api').rpc(
+      'list_well_profit_cycles',
+      params: {
+        'p_well_id': wellId,
+        'p_limit': limit,
+      },
+    );
+    return _asList(_asMap(res)['cycles'])
+        .map(ProfitDistributionCycleItem.fromJson)
+        .toList(growable: false);
   }
 
   Future<String> calculateProfitDistribution({
@@ -469,24 +509,21 @@ class FinanceRepository {
     required DateTime periodEnd,
     int manualReserveYER = 0,
   }) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return 'mock-cycle-new';
-    }
-    final res = await client.schema('api').rpc('calculate_profit_distribution', params: {
-      'p_well_id': wellId,
-      'p_period_start': periodStart.toIso8601String(),
-      'p_period_end': periodEnd.toIso8601String(),
-      'p_manual_reserve_minor': manualReserveYER,
-    });
-    return res as String? ?? 'cycle-id';
+    final client = _requireClient;
+    final res = await client.schema('api').rpc(
+      'calculate_profit_distribution',
+      params: {
+        'p_well_id': wellId,
+        'p_period_start': periodStart.toIso8601String(),
+        'p_period_end': periodEnd.toIso8601String(),
+        'p_manual_reserve_minor': manualReserveYER,
+      },
+    );
+    return res as String;
   }
 
   Future<void> approveProfitDistribution(String cycleId) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return;
-    }
+    final client = _requireClient;
     await client.schema('api').rpc('approve_profit_distribution', params: {
       'p_cycle_id': cycleId,
     });
@@ -496,10 +533,7 @@ class FinanceRepository {
     required String distributionLineId,
     required int amountYER,
   }) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return;
-    }
+    final client = _requireClient;
     await client.schema('api').rpc('pay_partner_distribution', params: {
       'p_distribution_line_id': distributionLineId,
       'p_amount_minor': amountYER,
@@ -510,52 +544,26 @@ class FinanceRepository {
   // 4. الحساب المالي للمزارع (Farmer Financial Account)
   // ---------------------------------------------------------------------------
 
-  Future<FarmerFinancialAccountData> fetchFarmerFinancialAccount(String wellId, String farmerAccountId) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return _getMockFarmerFinancialAccount(farmerAccountId);
-    }
-    try {
-      // جلب الفواتير
-      final invoicesRes = await client
-          .from('billing.invoices')
-          .select('*, public.farms(name)')
-          .eq('farmer_well_account_id', farmerAccountId)
-          .order('issue_date', ascending: false);
-
-      final invoices = (invoicesRes as List<dynamic>).map((e) {
-        final row = e as Map<String, dynamic>;
-        final farm = row['public.farms'] as Map<String, dynamic>?;
-        if (farm != null) {
-          row['farm_name'] = farm['name'];
-        }
-        return FarmerInvoiceItem.fromJson(row);
-      }).toList();
-
-      // جلب الدفعات
-      final paymentsRes = await client
-          .from('billing.payments')
-          .select('*')
-          .eq('farmer_well_account_id', farmerAccountId)
-          .order('paid_at', ascending: false);
-
-      final payments = (paymentsRes as List<dynamic>).map((e) => FarmerPaymentReceiptItem.fromJson(e as Map<String, dynamic>)).toList();
-
-      final totalDebt = invoices.where((i) => i.status != 'paid').fold<int>(0, (sum, i) => sum + i.remainingAmountYER);
-
-      return FarmerFinancialAccountData(
-        farmerAccountId: farmerAccountId,
-        fullName: 'محمد علي الحبيشي',
-        publicCode: 'F-001',
-        phone: '771234567',
-        totalDebtYER: totalDebt,
-        advanceBalanceYER: 15000,
-        invoices: invoices,
-        payments: payments,
-      );
-    } catch (_) {
-      return _getMockFarmerFinancialAccount(farmerAccountId);
-    }
+  /// 4.1 الحساب المالي للمزارع — api.get_farmer_account
+  ///
+  /// الهوية والدين والرصيد المقدم كلها من القاعدة: الاسم من core.persons،
+  /// والجوال من core.person_contacts، والدين والمقدم من
+  /// reporting.farmer_account_balances. كان المستودع يثبّت
+  /// «محمد علي الحبيشي» و«F-001» و«771234567» و15000 ريالًا مقدمًا لأي
+  /// حساب يُفتح.
+  Future<FarmerFinancialAccountData> fetchFarmerFinancialAccount(
+    String wellId,
+    String farmerAccountId, {
+    int limit = 50,
+  }) async {
+    final res = await _requireClient.schema('api').rpc(
+      'get_farmer_account',
+      params: {
+        'p_farmer_well_account_id': farmerAccountId,
+        'p_limit': limit,
+      },
+    );
+    return FarmerFinancialAccountData.fromContract(_asMap(res));
   }
 
   Future<void> recordGeneralPayment({
@@ -566,10 +574,7 @@ class FinanceRepository {
     List<Map<String, dynamic>> allocations = const [],
     String? note,
   }) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return;
-    }
+    final client = _requireClient;
     await client.schema('api').rpc('record_payment', params: {
       'p_well_id': wellId,
       'p_farmer_well_account_id': farmerAccountId,
@@ -584,237 +589,10 @@ class FinanceRepository {
     required String paymentId,
     required List<Map<String, dynamic>> allocations,
   }) async {
-    final client = _effectiveClient;
-    if (client == null) {
-      return;
-    }
+    final client = _requireClient;
     await client.schema('api').rpc('allocate_payment', params: {
       'p_payment_id': paymentId,
       'p_allocations': allocations,
     });
-  }
-
-  // ---------------------------------------------------------------------------
-  // بيانات المحاكاة للاستخدام دون اتصال والاختبارات (Offline Mocks)
-  // ---------------------------------------------------------------------------
-
-  List<ExpenseItem> _getMockExpenses(String wellId) {
-    final now = DateTime.now();
-    return [
-      ExpenseItem(
-        id: 'exp-1',
-        wellId: wellId,
-        categoryCode: 'fuel',
-        categoryName: 'شراء ديزل',
-        amountYER: 45000,
-        description: 'تعبئة برميل ديزل 200 لتر لتشغيل المولد',
-        status: 'posted',
-        spentAt: now.subtract(const Duration(hours: 2)),
-        paymentSource: 'cashbox',
-        recordedByName: 'أحمد صالح (مشغل)',
-      ),
-      ExpenseItem(
-        id: 'exp-2',
-        wellId: wellId,
-        categoryCode: 'maintenance',
-        categoryName: 'صيانة دورية',
-        amountYER: 12000,
-        description: 'تغيير فلاتر زيت وسيور مضخة الديزل',
-        status: 'pending_approval',
-        spentAt: now.subtract(const Duration(hours: 5)),
-        paymentSource: 'partner_paid',
-        partnerId: 'partner-1',
-        partnerName: 'عبدالرحمن باجعفر',
-        attachmentSkipped: true,
-        skipReason: 'المحل بدون فواتير ضريبية ورقية',
-        recordedByName: 'عبدالرحمن باجعفر (شريك)',
-      ),
-      ExpenseItem(
-        id: 'exp-3',
-        wellId: wellId,
-        categoryCode: 'oil',
-        categoryName: 'زيوت وشحوم',
-        amountYER: 8500,
-        description: 'دبة زيت محرك 20W50',
-        status: 'posted',
-        spentAt: now.subtract(const Duration(days: 2)),
-        paymentSource: 'cashbox',
-        recordedByName: 'أحمد صالح (مشغل)',
-      ),
-    ];
-  }
-
-  List<PartnerFinancialItem> _getMockPartners(String wellId) {
-    return [
-      PartnerFinancialItem(
-        id: 'partner-1',
-        partnerPersonId: 'user-partner-1',
-        fullName: 'عبدالرحمن باجعفر',
-        phone: '777112233',
-        ownershipPercent: 40,
-        profitPercent: 40,
-        totalEarningsYER: 320000,
-        outOfPocketExpensesYER: 25000,
-        irrigationDeductionYER: 40000,
-        netPayableYER: 305000,
-        totalPaidYER: 200000,
-        remainingBalanceYER: 105000,
-        status: 'active',
-      ),
-      PartnerFinancialItem(
-        id: 'partner-2',
-        partnerPersonId: 'user-partner-2',
-        fullName: 'صالح مهدي العامري',
-        phone: '770998877',
-        ownershipPercent: 30,
-        profitPercent: 30,
-        totalEarningsYER: 240000,
-        outOfPocketExpensesYER: 0,
-        irrigationDeductionYER: 15000,
-        netPayableYER: 225000,
-        totalPaidYER: 150000,
-        remainingBalanceYER: 75000,
-        status: 'active',
-      ),
-      PartnerFinancialItem(
-        id: 'partner-3',
-        partnerPersonId: 'user-partner-3',
-        fullName: 'قاسم محمد الكندي',
-        phone: '772334455',
-        ownershipPercent: 30,
-        profitPercent: 30,
-        totalEarningsYER: 240000,
-        outOfPocketExpensesYER: 12000,
-        irrigationDeductionYER: 0,
-        netPayableYER: 252000,
-        totalPaidYER: 252000,
-        remainingBalanceYER: 0,
-        status: 'active',
-      ),
-    ];
-  }
-
-  List<ProfitDistributionCycleItem> _getMockCycles(String wellId) {
-    final now = DateTime.now();
-    return [
-      ProfitDistributionCycleItem(
-        id: 'cycle-1',
-        wellId: wellId,
-        periodStart: DateTime(now.year, now.month - 1, 1),
-        periodEnd: DateTime(now.year, now.month, 0),
-        status: 'approved',
-        eligibleRevenueYER: 1200000,
-        eligibleExpensesYER: 350000,
-        retainedLiabilitiesYER: 50000,
-        maintenanceReserveYER: 100000,
-        distributableProfitYER: 700000,
-        approvedAt: now.subtract(const Duration(days: 5)),
-        partnerLines: [
-          DistributionPartnerLine(
-            lineId: 'line-1',
-            partnerId: 'partner-1',
-            partnerName: 'عبدالرحمن باجعفر',
-            profitPercent: 40,
-            grossShareYER: 280000,
-            outOfPocketReimbursementYER: 25000,
-            irrigationDeductionYER: 20000,
-            netShareYER: 285000,
-            paidAmountYER: 200000,
-            remainingYER: 85000,
-            payoutStatus: 'partial',
-          ),
-          DistributionPartnerLine(
-            lineId: 'line-2',
-            partnerId: 'partner-2',
-            partnerName: 'صالح مهدي العامري',
-            profitPercent: 30,
-            grossShareYER: 210000,
-            outOfPocketReimbursementYER: 0,
-            irrigationDeductionYER: 10000,
-            netShareYER: 200000,
-            paidAmountYER: 150000,
-            remainingYER: 50000,
-            payoutStatus: 'partial',
-          ),
-          DistributionPartnerLine(
-            lineId: 'line-3',
-            partnerId: 'partner-3',
-            partnerName: 'قاسم محمد الكندي',
-            profitPercent: 30,
-            grossShareYER: 210000,
-            outOfPocketReimbursementYER: 12000,
-            irrigationDeductionYER: 0,
-            netShareYER: 222000,
-            paidAmountYER: 222000,
-            remainingYER: 0,
-            payoutStatus: 'paid',
-          ),
-        ],
-      ),
-    ];
-  }
-
-  FarmerFinancialAccountData _getMockFarmerFinancialAccount(String farmerAccountId) {
-    final now = DateTime.now();
-    return FarmerFinancialAccountData(
-      farmerAccountId: farmerAccountId,
-      fullName: 'محمد علي الحبيشي',
-      publicCode: 'F-001',
-      phone: '771234567',
-      totalDebtYER: 37000,
-      advanceBalanceYER: 15000,
-      invoices: [
-        FarmerInvoiceItem(
-          id: 'inv-101',
-          invoiceNumber: 'INV-2026-001',
-          issueDate: now.subtract(const Duration(days: 1)),
-          farmName: 'مزرعة الوادي الشرقي',
-          originalAmountYER: 25000,
-          paidAmountYER: 0,
-          remainingAmountYER: 25000,
-          status: 'unpaid',
-        ),
-        FarmerInvoiceItem(
-          id: 'inv-102',
-          invoiceNumber: 'INV-2026-002',
-          issueDate: now.subtract(const Duration(days: 5)),
-          farmName: 'قطعة النخيل الشمالية',
-          originalAmountYER: 20000,
-          paidAmountYER: 8000,
-          remainingAmountYER: 12000,
-          status: 'partial',
-        ),
-        FarmerInvoiceItem(
-          id: 'inv-100',
-          invoiceNumber: 'INV-2026-000',
-          issueDate: now.subtract(const Duration(days: 15)),
-          farmName: 'مزرعة الوادي الشرقي',
-          originalAmountYER: 18000,
-          paidAmountYER: 18000,
-          remainingAmountYER: 0,
-          status: 'paid',
-        ),
-      ],
-      payments: [
-        FarmerPaymentReceiptItem(
-          id: 'rec-1',
-          receiptNumber: 'REC-001',
-          paidAt: now.subtract(const Duration(days: 5)),
-          amountYER: 8000,
-          method: 'cash',
-          note: 'دفعة نقدية تحت حساب فاتورة INV-2026-002',
-          allocatedInvoiceNumbers: ['INV-2026-002'],
-        ),
-        FarmerPaymentReceiptItem(
-          id: 'rec-2',
-          receiptNumber: 'REC-002',
-          paidAt: now.subtract(const Duration(days: 15)),
-          amountYER: 18000,
-          method: 'cash',
-          note: 'سداد كامل فاتورة INV-2026-000',
-          allocatedInvoiceNumbers: ['INV-2026-000'],
-        ),
-      ],
-    );
   }
 }

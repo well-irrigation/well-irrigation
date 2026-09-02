@@ -50,15 +50,25 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
 
   Future<void> _loadReport() async {
     setState(() => _isLoading = true);
-    final data = await _repo.fetchReportsSummary(
-      wellId: _activeWellId ?? 'well-1',
-      periodCode: _selectedPeriod,
-    );
-    if (mounted) {
+    try {
+      final data = await _repo.fetchReportsSummary(
+        wellId: _activeWellId ?? 'well-1',
+        periodCode: _selectedPeriod,
+      );
+      if (!mounted) return;
       setState(() {
         _summary = data;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _summary = null;
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل التقارير: $e')),
+      );
     }
   }
 

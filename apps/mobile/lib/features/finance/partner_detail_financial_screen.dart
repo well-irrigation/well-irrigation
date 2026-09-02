@@ -37,12 +37,25 @@ class _PartnerDetailFinancialScreenState extends State<PartnerDetailFinancialScr
 
   Future<void> _loadPartnerDetail() async {
     setState(() => _isLoading = true);
-    final item = await _repo.fetchPartnerDetailFinancial(widget.wellId, widget.partnerId);
-    if (mounted) {
+    try {
+      final item = await _repo.fetchPartnerDetailFinancial(
+        widget.wellId,
+        widget.partnerId,
+      );
+      if (!mounted) return;
       setState(() {
         _partner = item;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _partner = null;
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحميل حساب الشريك: $e')),
+      );
     }
   }
 
