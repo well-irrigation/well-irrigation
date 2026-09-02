@@ -10,7 +10,8 @@
     "supabase:status": "npx supabase status",
     "db:reset": "npx supabase db reset",
     "db:test": "sh scripts/db_test.sh",
-    "db:index": "sh scripts/db_index.sh"
+    "db:index": "sh scripts/db_index.sh",
+    "cloud:verify": "sh scripts/cloud_verify.sh"
   },
   "keywords": [],
   "author": "",

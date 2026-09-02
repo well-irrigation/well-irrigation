@@ -8,6 +8,30 @@
 
 ---
 
+## 2026-09-02 — إغلاق م-41D2: دمج #13 + تحقق سحابي
+
+- **الملفات:** `docs/technical/MIGRATIONS.md`، `docs/memory/RESUME_POINT.md`،
+  `docs/memory/PROGRESS.md`، `docs/memory/OPEN_ISSUES.md`، وهذا الملف،
+  و`scripts/cloud_verify.sh` و`package.json`.
+- **الدمج:** الطلب `#13` دُمج مضغوطًا في `main` بالالتزام `87a0529`. سبقه
+  دمج `origin/main` في الفرع (`f03e8c9`) لحل تعارض في ثلاث وثائق ذاكرة،
+  سببه أن الطلب `#12` دُمج مضغوطًا فوصل نص م-41D1 مرتين بهُويّتين
+  مختلفتين: نسخة `main` قبل تصحيح 2026-09-01 ونسختنا بعده. حُفظت نسختنا
+  لأنها أشمل، وصُحّحت معها ثلاث حقائق تجاوزها الزمن.
+- **النشر:** الدمج في `main` نشر 092 على قاعدة الإنتاج تلقائيًا عبر تكامل
+  `GitHub` (`Deploy to production` = ON). النشر ليس خطوة منفصلة.
+- **أداة جديدة:** `scripts/cloud_verify.sh` + `npm run cloud:verify`.
+  قراءة فقط عبر القناة 6543، بلا `create` ولا `insert` ولا `drop`. تُصدر
+  حكمًا صريحًا على كلمة المرور (`PASSWORD=OK` أو `PASSWORD=WRONG` أو
+  `PASSWORD=UNTESTED`) قبل أي فحص، ثم تقارن ملفات `supabase/migrations`
+  بصفوف `supabase_migrations.schema_migrations` وتسمّي الناقص، ثم تتحقق
+  من وجود عقود api الخمسة.
+- **النتيجة:** `PASSWORD=OK`، و`MIGRATIONS_LOCAL=91` مقابل
+  `MIGRATIONS_CLOUD=91`، و`MISSING_IN_CLOUD=0`، وخمسة `CONTRACT_OK`.
+- **الحد الباقي:** ملفات `supabase/tests` لا تُشغَّل سحابيًا، فحالة السحابة
+  = مطبَّقة ومُثبتة الوجود، غير مُتحقَّقة سلوكيًا.
+- NEXT = إعادة قياس أرقام الدين بعد 092، ثم تقرير إغلاق ق-120.
+
 ## 2026-09-02 — تحقق 092 محليًا + فهرس مخطط القاعدة
 
 - **الملفات:** `MIGRATIONS.md`، `PROGRESS.md`، `OPEN_ISSUES.md`،

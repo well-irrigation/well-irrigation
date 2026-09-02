@@ -1813,9 +1813,12 @@ NEXT = **م-41D2 — Finance Boundary Repair + عقد مؤشرات التقار�
 
 ## م-41D2 — Finance Boundary Repair + عقد التقارير (Migration 092)
 
-الحالة: **مثبَّت محليًا بالكامل — Flutter وDB** — `analyze` و`test`
+الحالة: **مغلق — محليًا وسحابيًا** — `analyze` و`test`
 نجحا، و`db:reset` + `db:test` نجحا في 2026-09-02: 092 = 37 PASS،
-والحزمة 30 files / 485 PASS / 0 FAIL / 0 ERROR.
+والحزمة 30 files / 485 PASS / 0 FAIL / 0 ERROR. ثم دُمج الطلب `#13`
+مضغوطًا في `main` (`87a0529`) فنُشرت 092 تلقائيًا على الإنتاج، وأكّد
+`npm run cloud:verify` أن 91 ملفًا يقابلها 91 صفًا سحابيًا
+(`MISSING_IN_CLOUD=0`) وأن عقود `api` الخمسة موجودة هناك.
 
 ما أُصلح:
 - خمس قراءات في `finance_repository` كانت
@@ -1867,4 +1870,4 @@ NEXT = **م-41D2 — Finance Boundary Repair + عقد مؤشرات التقار�
   المقدم» ما زال قائمًا — مسجَّل في `OPEN_ISSUES.md` وإصلاحه توسيع
   تمنعه ق-120.
 
-NEXT = تشغيل `db:reset` + `db:test` لـ092، ثم حماية `main`، ثم الدمج.
+NEXT = إعادة قياس أرقام الدين بعد 092، ثم تقرير إغلاق ق-120.
