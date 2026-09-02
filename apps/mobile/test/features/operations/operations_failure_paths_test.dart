@@ -5,6 +5,7 @@ import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.
 import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// منسّق يفشل في كتابتَي الإيقاف والإنهاء فقط، ويترك البدء والاستعادة سليمين،
 /// ليُقاس ما تعرضه الشاشة عندما لا تُسجَّل الكتابة أصلًا.
@@ -37,6 +38,10 @@ class _FailingWriteCoordinator extends OfflineSessionCoordinator {
 /// الشاشة، فيرى المشغّل إيقافًا أو إنهاءً لم يُسجَّل في أي مكان.
 void main() {
   group('OperationsScreen — الفشل يُعرض ولا تُغيَّر الحالة', () {
+    /// مفتاح صاحب الجلسة في الطابور. الشاشة تقرأ بمفتاح هويتها، فاختلاف
+    /// المفتاحين يُظهر «لا جلسة» لجلسة قائمة فعلًا (ق-113).
+    const accountId = 'owner-1';
+
     const well = WellSummary(
       id: 'well-1',
       tenantId: 'tenant-1',
@@ -52,7 +57,7 @@ void main() {
       await coordinator.initialize();
       // جلسة جارية فعلية في الطابور: البدء والاستعادة يعملان بلا تلفيق.
       await coordinator.startSession(
-        accountId: OfflineSessionCoordinator.placeholderAccountKey,
+        accountId: accountId,
         wellId: 'well-1',
         pumpId: 'pump-1',
         farmId: 'farm-1',
@@ -66,13 +71,21 @@ void main() {
       coordinator.dispose();
     });
 
-    Future<void> pumpScreen(WidgetTester tester, {String? wellId}) async {
+    Future<void> pumpScreen(
+      WidgetTester tester, {
+      String identityAccountId = accountId,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: OperationsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: wellId ?? 'well-1',
-            wells: const [well],
+            // مفتاح مشتق من صاحب الهوية: تغيّر الحساب يبني شاشة جديدة كما
+            // يفعل التطبيق بعد إعادة بناء البوابة، فلا تُعاد قراءة الطابور
+            // من حالة حساب سابق.
+            key: ValueKey(identityAccountId),
+            identity: testIdentity(
+              accountId: identityAccountId,
+              wells: const [well],
+            ),
             coordinator: coordinator,
           ),
         ),
@@ -116,13 +129,25 @@ void main() {
       expect(find.text('جلسة سقي جارية الآن'), findsOneWidget);
     });
 
-    testWidgets('3. بئر نشط خارج آبار المستخدم لا يُلفَّق في الشريط العلوي',
+    testWidgets('3. الشريط العلوي يعرض بئر الهوية نفسه لا بئرًا مُلفَّقًا',
         (tester) async {
-      await pumpScreen(tester, wellId: 'well-outside');
+      await pumpScreen(tester);
 
-      // كان الشريط يبني `WellSummary` بمستأجر وأدوار مُفترضة، فيظهر البئر
-      // كأنه مملوك للمستخدم.
-      expect(find.text('لا بئر مختار'), findsOneWidget);
+      // البئر النشط لم يعد نصًّا يُبنى منه `WellSummary` بمستأجر وأدوار
+      // مُفترضة: الشاشة تستقبل بئر الهوية كما قرأه العقد.
+      expect(find.text('بئر الخير الرئيسي'), findsWidgets);
+      expect(find.text('لا بئر مختار'), findsNothing);
+    });
+
+    testWidgets('4. الطابور يُقرأ بمفتاح صاحب الهوية لا بمفتاح ثابت',
+        (tester) async {
+      // الجلسة الجارية في الطابور باسم `owner-1`: هوية أخرى لا ترى جلسته.
+      await pumpScreen(tester, identityAccountId: 'owner-2');
+      expect(find.text('جلسة سقي جارية الآن'), findsNothing);
+
+      // وبمفتاح صاحبها تظهر الجلسة نفسها بلا أي تغيير في الطابور.
+      await pumpScreen(tester, identityAccountId: accountId);
+      expect(find.text('جلسة سقي جارية الآن'), findsOneWidget);
     });
   });
 }

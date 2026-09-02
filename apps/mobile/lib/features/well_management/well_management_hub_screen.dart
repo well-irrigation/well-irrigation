@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/well_management_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/top_well_selector.dart';
@@ -10,17 +11,13 @@ import 'well_settings_screen.dart';
 
 /// المدخل المركزي لإدارة البئر والمعدات والوقود والتسعير (UX-15 / القرار 460)
 class WellManagementHubScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final WellManagementRepository? repository;
 
   const WellManagementHubScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.repository,
   });
@@ -31,43 +28,35 @@ class WellManagementHubScreen extends StatefulWidget {
 
 class _WellManagementHubScreenState extends State<WellManagementHubScreen> {
   late WellManagementRepository _repo;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellName => _activeWell.name;
+
+  /// الهوية نفسها والبئر النشط هو المختار في هذه الشاشة: الشاشات الفرعية
+  /// لا تُبنى ببئر مُلفَّق ولا تعيد تخمين البئر من معرّف مفرد.
+  AppIdentity get _identity => widget.identity.withActiveWell(_activeWell);
 
   @override
   void initState() {
     super.initState();
     _repo = widget.repository ?? WellManagementRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'إدارة البئر والمعدات والتشغيل',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             if (widget.onWellChanged != null) {
               widget.onWellChanged!(newWell);
@@ -147,9 +136,7 @@ class _WellManagementHubScreenState extends State<WellManagementHubScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => WellSettingsScreen(
-                      wellName: _activeWellName,
-                      wellId: _activeWellId,
-                      wells: widget.wells,
+                      identity: _identity,
                       repository: _repo,
                     ),
                   ),
@@ -169,9 +156,7 @@ class _WellManagementHubScreenState extends State<WellManagementHubScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => PumpsManagementScreen(
-                      wellName: _activeWellName,
-                      wellId: _activeWellId,
-                      wells: widget.wells,
+                      identity: _identity,
                       repository: _repo,
                     ),
                   ),
@@ -191,9 +176,7 @@ class _WellManagementHubScreenState extends State<WellManagementHubScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => PricingTariffScreen(
-                      wellName: _activeWellName,
-                      wellId: _activeWellId,
-                      wells: widget.wells,
+                      identity: _identity,
                       repository: _repo,
                     ),
                   ),
@@ -213,9 +196,7 @@ class _WellManagementHubScreenState extends State<WellManagementHubScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => FuelInventoryScreen(
-                      wellName: _activeWellName,
-                      wellId: _activeWellId,
-                      wells: widget.wells,
+                      identity: _identity,
                       repository: _repo,
                     ),
                   ),

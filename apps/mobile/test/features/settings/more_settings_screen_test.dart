@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/account_repository.dart';
-import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/features/settings/more_settings_screen.dart';
+import '../../support/identity_fixture.dart';
 
 class _FakeAccountRepository extends AccountRepository {
   _FakeAccountRepository({
@@ -28,8 +28,13 @@ class _FakeAccountRepository extends AccountRepository {
     );
   }
 
+  /// مفاتيح الحساب التي طُلب بها فحص المعلَّق. مفتاح ثابت هنا يعني فحص
+  /// طابور شخص آخر قبل الخروج (ق-113).
+  final List<String> pendingChecks = [];
+
   @override
-  Future<int> checkPendingOperationsBeforeLogout() async {
+  Future<int> checkPendingOperationsBeforeLogout(String accountId) async {
+    pendingChecks.add(accountId);
     if (failPending) {
       throw StateError('outbox unreadable');
     }
@@ -52,12 +57,8 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: MoreSettingsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeAccountRepository(),
-            wells: const [
-              WellSummary(id: 'well-1', tenantId: 't-1', name: 'بئر الخير الرئيسي', status: 'active', roles: ['owner']),
-            ],
           ),
         ),
       );
@@ -87,8 +88,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: MoreSettingsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeAccountRepository(),
             onLogout: () => loggedOut = true,
           ),
@@ -119,8 +119,9 @@ void main() {
           MaterialApp(
             locale: const Locale('ar'),
             home: MoreSettingsScreen(
-              wellName: 'بئر الاختبار',
-              wellId: 'well-1',
+              identity: testIdentity(
+                wells: [testWell(name: 'بئر الاختبار')],
+              ),
               repository: _FakeAccountRepository(
                 failProfile: true,
               ),
@@ -163,13 +164,13 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
 
         bool loggedOut = false;
+        final repository = _FakeAccountRepository(failPending: true);
         await tester.pumpWidget(
           MaterialApp(
             locale: const Locale('ar'),
             home: MoreSettingsScreen(
-              wellName: 'بئر الخير الرئيسي',
-              wellId: 'well-1',
-              repository: _FakeAccountRepository(failPending: true),
+              identity: testIdentity(accountId: 'owner-77'),
+              repository: repository,
               onLogout: () => loggedOut = true,
             ),
           ),
@@ -180,6 +181,8 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('تعذر التحقق قبل الخروج'), findsOneWidget);
+        // الفحص جرى بمفتاح صاحب الحساب المُمرَّر، لا بمفتاح ثابت.
+        expect(repository.pendingChecks, ['owner-77']);
         expect(
           find.text('هل أنت متأكد من رغبتك في تسجيل الخروج من التطبيق؟'),
           findsNothing,

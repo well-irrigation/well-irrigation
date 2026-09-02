@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/well_management_repository.dart';
 import 'package:well_irrigation_mobile/features/well_management/well_settings_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع مزيَّف يعيد ما يعيده عقد api.get_well_details، ويسجّل ما أُرسل
 /// إلى api.update_well_details للتحقق من دلالة «مرسَل = يُحدَّث».
@@ -47,8 +48,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: WellSettingsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeWellManagementRepository(),
           ),
         ),
@@ -76,8 +76,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: WellSettingsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: repository,
           ),
         ),

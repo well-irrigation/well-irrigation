@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/well_management_repository.dart';
 import 'package:well_irrigation_mobile/features/well_management/reports_analytics_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع مزيَّف يعيد غلاف api.get_reports_summary كما هو: الوقود بالمللتر
 /// والمدد بالثواني والأسبوع يبدأ السبت، والتحويل إلى لترات وساعات ونِسَب
@@ -80,8 +81,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ReportsAnalyticsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeWellManagementRepository(),
           ),
         ),
@@ -109,8 +109,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ReportsAnalyticsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: repo,
           ),
         ),
@@ -138,8 +137,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ReportsAnalyticsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeWellManagementRepository(),
           ),
         ),

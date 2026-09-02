@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/well_management_repository.dart';
 import 'package:well_irrigation_mobile/features/well_management/pricing_tariff_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع مزيَّف يعيد جدول تسعير ساريًا كما يعيده عقد
 /// api.get_active_price_schedule، بمبالغ *_minor بريالات كاملة (ق-77).
@@ -76,8 +77,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: PricingTariffScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeWellManagementRepository(
               schedule: _activeSchedule(),
             ),
@@ -102,8 +102,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: PricingTariffScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeWellManagementRepository(
               schedule: _activeSchedule(),
             ),
@@ -129,8 +128,9 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: PricingTariffScreen(
-            wellName: 'بئر بلا تسعير',
-            wellId: 'well-2',
+            identity: testIdentity(
+              wells: [testWell(id: 'well-2', name: 'بئر بلا تسعير')],
+            ),
             repository: _FakeWellManagementRepository(),
           ),
         ),

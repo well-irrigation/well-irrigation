@@ -27,6 +27,10 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
   late TextEditingController _nameController;
   bool _isSavingName = false;
 
+  /// هاتف الحساب كما قرأه العقد. كان الغياب يُعرض برقم جاهز مكتوب في الشاشة،
+  /// فيرى المستخدم رقمًا ليس رقمه ويظنه معتمدًا. الغياب الآن يُعلن (ق-113).
+  bool get _hasPhone => widget.profile.phone.trim().isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -399,12 +403,20 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.agriculturalGreen.withValues(alpha: 0.1),
+                          color: _hasPhone
+                              ? AppColors.agriculturalGreen.withValues(alpha: 0.1)
+                              : AppColors.warning.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
-                          'معتمد وموثق ✅',
-                          style: TextStyle(color: AppColors.agriculturalGreen, fontSize: 11, fontWeight: FontWeight.bold),
+                        child: Text(
+                          _hasPhone ? 'معتمد وموثق ✅' : 'غير مقروء من العقد',
+                          style: TextStyle(
+                            color: _hasPhone
+                                ? AppColors.agriculturalGreen
+                                : AppColors.warning,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -424,11 +436,24 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.phone_android, color: AppColors.waterBlue),
+                        Icon(
+                          Icons.phone_android,
+                          color: _hasPhone
+                              ? AppColors.waterBlue
+                              : AppColors.textMuted,
+                        ),
                         const SizedBox(width: 10),
                         Text(
-                          widget.profile.phone.isNotEmpty ? widget.profile.phone : '777123456',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          _hasPhone
+                              ? widget.profile.phone
+                              : 'لا رقم هاتف في بيانات الحساب',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: _hasPhone ? 16 : 13,
+                            color: _hasPhone
+                                ? AppColors.deepBlue
+                                : AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),

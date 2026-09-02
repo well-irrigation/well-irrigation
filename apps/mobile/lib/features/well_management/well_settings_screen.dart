@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/well_management_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/digit_utils.dart';
@@ -7,17 +8,13 @@ import '../../core/widgets/top_well_selector.dart';
 
 /// شاشة بيانات وإعدادات البئر الأساسية (UX-15 / القرارات 460–465)
 class WellSettingsScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final WellManagementRepository? repository;
 
   const WellSettingsScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.repository,
   });
@@ -28,8 +25,10 @@ class WellSettingsScreen extends StatefulWidget {
 
 class _WellSettingsScreenState extends State<WellSettingsScreen> {
   late WellManagementRepository _repo;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
+  String get _activeWellName => _activeWell.name;
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -46,8 +45,7 @@ class _WellSettingsScreenState extends State<WellSettingsScreen> {
   void initState() {
     super.initState();
     _repo = widget.repository ?? WellManagementRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadDetails();
   }
 
@@ -64,7 +62,7 @@ class _WellSettingsScreenState extends State<WellSettingsScreen> {
   Future<void> _loadDetails() async {
     setState(() => _isLoading = true);
     try {
-      final data = await _repo.fetchWellDetails(_activeWellId ?? 'well-1');
+      final data = await _repo.fetchWellDetails(_activeWellId);
       if (!mounted) return;
       setState(() {
         _details = data;
@@ -110,7 +108,7 @@ class _WellSettingsScreenState extends State<WellSettingsScreen> {
 
     try {
       await _repo.updateWellDetails(
-        wellId: _activeWellId ?? 'well-1',
+        wellId: _activeWellId,
         name: _nameController.text.trim(),
         location: location.isEmpty ? null : location,
         depthMeters: depth,
@@ -119,13 +117,13 @@ class _WellSettingsScreenState extends State<WellSettingsScreen> {
       );
 
       if (mounted) {
-        setState(() {
-          _isSaving = false;
-          _activeWellName = _nameController.text.trim();
-        });
+        setState(() => _isSaving = false);
         scaffold.showSnackBar(
           const SnackBar(content: Text('تم حفظ بيانات البئر بنجاح ✅')),
         );
+        // الاسم المعروض يُقرأ من الخادم بعد الحفظ ولا يُحدَّث محليًّا بنص
+        // الحقل: العرض يتبع ما خُزِّن فعلًا لا ما كُتب في النموذج (ق-113).
+        await _loadDetails();
       }
     } catch (e) {
       if (mounted) {
@@ -139,30 +137,18 @@ class _WellSettingsScreenState extends State<WellSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'بيانات وإعدادات البئر',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadDetails();
             if (widget.onWellChanged != null) {

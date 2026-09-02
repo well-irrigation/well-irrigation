@@ -36,7 +36,11 @@ class ReceiptFormatter {
 
     buffer.writeln('رقم الفاتورة: $invoiceNumber');
     buffer.writeln('التاريخ: $dateStr  الوقت: $timeStr');
-    buffer.writeln('المشغل: $operatorName');
+    // اسم المشغل من حسابه المسجَّل. غيابه يُسقط السطر ولا يُطبع لقبًا عامًا
+    // في موضع اسم من نفّذ العملية (ق-113).
+    if (operatorName.isNotEmpty) {
+      buffer.writeln('المشغل: $operatorName');
+    }
     buffer.writeln('المزارع: $farmerName');
     buffer.writeln('الأرض: $farmName');
     buffer.writeln(subSeparator);
@@ -87,7 +91,9 @@ class ReceiptFormatter {
 
     buffer.writeln('رقم السند: $receiptNumber');
     buffer.writeln('التاريخ: $dateStr  الوقت: $timeStr');
-    buffer.writeln('المشغل: $operatorName');
+    if (operatorName.isNotEmpty) {
+      buffer.writeln('المشغل: $operatorName');
+    }
     buffer.writeln('المستلم منه: $farmerName');
     buffer.writeln(subSeparator);
 

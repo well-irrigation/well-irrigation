@@ -10,6 +10,10 @@ void main() {
     late OfflineSessionCoordinator coordinator;
     late AccountRepository repository;
 
+    /// مفتاح صاحب الطابور في هذا الاختبار. لا مفتاح ثابت في التطبيق بعد
+    /// حذف `placeholderAccountKey`: القراءة والكتابة بمفتاح واحد أو لا شيء.
+    const accountId = 'owner-1';
+
     setUp(() {
       coordinator = OfflineSessionCoordinator(store: InMemoryOutboxStore());
       repository = AccountRepository(null, coordinator);
@@ -20,7 +24,7 @@ void main() {
     });
 
     test('1. حالة الجهاز تُقرأ من الطابور، وغير المقيس يبقى null', () async {
-      final status = await repository.fetchDeviceSyncStatus();
+      final status = await repository.fetchDeviceSyncStatus(accountId);
 
       expect(status.pendingOperationsCount, 0);
       expect(status.lastSyncTime, isNull);
@@ -33,16 +37,20 @@ void main() {
 
     test('2. العملية المحفوظة تظهر في العدد المعلَّق فورًا', () async {
       await coordinator.recordPayment(
-        accountId: OfflineSessionCoordinator.placeholderAccountKey,
+        accountId: accountId,
         wellId: 'well-1',
         farmerAccountId: 'farmer-1',
         amountMinor: 25000,
         paymentMethod: 'cash',
       );
 
-      final status = await repository.fetchDeviceSyncStatus();
+      final status = await repository.fetchDeviceSyncStatus(accountId);
       expect(status.pendingOperationsCount, 1);
-      expect(await repository.checkPendingOperationsBeforeLogout(), 1);
+      expect(await repository.checkPendingOperationsBeforeLogout(accountId), 1);
+
+      // طابور حساب آخر لا يُقرأ هنا: الغياب هنا حقيقة لا نجاح كاذب.
+      final other = await repository.fetchDeviceSyncStatus('owner-2');
+      expect(other.pendingOperationsCount, 0);
     });
 
     test('3. المزامنة اليدوية بلا ناقل تُعلن عدم توفرها ولا تُعلن نجاحًا',
@@ -50,7 +58,7 @@ void main() {
       expect(coordinator.canSyncNow, isFalse);
 
       await expectLater(
-        repository.triggerManualSync(),
+        repository.triggerManualSync(accountId),
         throwsA(isA<ManualSyncUnavailableException>()),
       );
     });

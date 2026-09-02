@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/finance_repository.dart';
 import 'package:well_irrigation_mobile/features/finance/partner_detail_financial_screen.dart';
 import 'package:well_irrigation_mobile/features/finance/partners_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع مزيَّف يعيد ما يعيده عقد api.list_well_partners بأسماء مفاتيح
 /// القاعدة نفسها، ويمر عبر المحلّل الحقيقي. النسب من نسخة الملكية السارية،
@@ -74,8 +75,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: PartnersScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeFinanceRepository(),
           ),
         ),

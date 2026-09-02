@@ -14,7 +14,7 @@ class FarmerFinancialAccountScreen extends StatefulWidget {
     super.key,
     required this.wellId,
     required this.farmerAccountId,
-    this.wellName = 'بئر الخير الرئيسي',
+    required this.wellName,
     this.repository,
   });
 

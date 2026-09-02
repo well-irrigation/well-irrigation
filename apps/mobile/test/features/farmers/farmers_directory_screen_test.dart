@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/features/farmers/farmers_directory_screen.dart';
+import '../../support/identity_fixture.dart';
 
 void main() {
   group('FarmersDirectoryScreen Tests (UX-13 / 380)', () {
@@ -15,12 +16,10 @@ void main() {
 
     testWidgets('1. عرض عناصر دليل المزارعين وشريط البحث وزر الإضافة', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          locale: Locale('ar'),
+        MaterialApp(
+          locale: const Locale('ar'),
           home: FarmersDirectoryScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
-            wells: [well],
+            identity: testIdentity(wells: const [well]),
           ),
         ),
       );
@@ -33,12 +32,10 @@ void main() {
 
     testWidgets('2. فتح حوار إضافة مزارع جديد عند الضغط على الزر العائم', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          locale: Locale('ar'),
+        MaterialApp(
+          locale: const Locale('ar'),
           home: FarmersDirectoryScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
-            wells: [well],
+            identity: testIdentity(wells: const [well]),
           ),
         ),
       );

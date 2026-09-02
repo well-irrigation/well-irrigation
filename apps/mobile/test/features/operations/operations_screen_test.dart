@@ -4,9 +4,14 @@ import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
+import '../../support/identity_fixture.dart';
 
 void main() {
   group('OperationsScreen Widget Tests (UX-07 / UX-08 / UX-10 / ق-89 / ق-114)', () {
+    /// مفتاح صاحب الطابور: نفسه في الكتابة والقراءة، وإلا ظهرت الجلسة
+    /// الجارية كأنها غير موجودة (ق-113).
+    const accountId = 'owner-1';
+
     const well = WellSummary(
       id: 'well-1',
       tenantId: 'tenant-1',
@@ -32,9 +37,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: OperationsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
-            wells: const [well],
+            identity: testIdentity(accountId: accountId, wells: const [well]),
             coordinator: coordinator,
           ),
         ),
@@ -53,7 +56,7 @@ void main() {
       // محاكاة وجود جلسة جارية تم بدؤها قبل فتح الشاشة
       final now = DateTime.now().subtract(const Duration(minutes: 15));
       await coordinator.startSession(
-        accountId: 'active-user',
+        accountId: accountId,
         wellId: 'well-1',
         pumpId: 'pump-1',
         farmId: 'farm-1',
@@ -65,9 +68,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: OperationsScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
-            wells: const [well],
+            identity: testIdentity(accountId: accountId, wells: const [well]),
             coordinator: coordinator,
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/finance_repository.dart';
 import 'package:well_irrigation_mobile/features/finance/profit_distribution_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع مزيَّف يعيد ما يعيده عقد api.list_well_profit_cycles: دورة واحدة
 /// وأسطر شركائها داخل الغلاف نفسه بأسماء مفاتيح القاعدة. المتبقي في كل سطر
@@ -69,8 +70,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ProfitDistributionScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeFinanceRepository(),
           ),
         ),
@@ -93,8 +93,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ProfitDistributionScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeFinanceRepository(),
           ),
         ),
@@ -116,8 +115,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ProfitDistributionScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FailingFinanceRepository(),
           ),
         ),

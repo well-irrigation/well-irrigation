@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/top_well_selector.dart';
 
 /// الشاشة الرئيسية الموحدة للمالك وحسابات الأدوار المتعددة (UX-05 / UX-06 / UX-15 / ق-87)
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
-    required this.ownerName,
-    required this.wellName,
-    this.wells = const [],
-    this.activeWell,
+    required this.identity,
     this.onWellChanged,
     this.onNavigateToOperations,
     this.onNavigateToHistory,
@@ -23,10 +21,7 @@ class HomeScreen extends StatelessWidget {
     super.key,
   });
 
-  final String ownerName;
-  final String wellName;
-  final List<WellSummary> wells;
-  final WellSummary? activeWell;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onNavigateToOperations;
   final VoidCallback? onNavigateToHistory;
@@ -40,16 +35,13 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveActiveWell = activeWell ??
-        (wells.isNotEmpty
-            ? wells.first
-            : WellSummary(
-                id: 'well-1',
-                tenantId: 'tenant-1',
-                name: wellName.isNotEmpty ? wellName : 'بئر الخير الرئيسي',
-                status: 'active',
-                roles: const ['owner'],
-              ));
+    final activeWell = identity.activeWell;
+
+    // الاسم كما سجّله الخادم. غيابه يُترك فراغًا ولا يُملأ بلقب عام يُقرأ
+    // كأنه اسم المستخدم (ق-113).
+    final subtitle = identity.displayName.isEmpty
+        ? 'الرئيسية'
+        : 'الرئيسية • ${identity.displayName}';
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
@@ -58,9 +50,9 @@ class HomeScreen extends StatelessWidget {
         elevation: 0,
         centerTitle: false,
         title: TopWellSelector(
-          wells: wells.isNotEmpty ? wells : [effectiveActiveWell],
-          activeWell: effectiveActiveWell,
-          subtitle: 'الرئيسية • ${ownerName.isNotEmpty ? ownerName : "مالك البئر"}',
+          wells: identity.wells,
+          activeWell: activeWell,
+          subtitle: subtitle,
           onWellChanged: (newWell) {
             if (onWellChanged != null) {
               onWellChanged!(newWell);
@@ -140,7 +132,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      effectiveActiveWell.name,
+                      activeWell.name,
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -149,7 +141,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'الحالة: ${effectiveActiveWell.status == "active" ? "نشط ومتاح للعمليات" : "غير نشط"}',
+                      'الحالة: ${activeWell.status == "active" ? "نشط ومتاح للعمليات" : "غير نشط"}',
                       style: const TextStyle(
                         fontSize: 13,
                         color: Colors.white70,

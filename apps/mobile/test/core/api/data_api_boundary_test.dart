@@ -515,18 +515,81 @@ void main() {
       captureGroup: 1,
     );
 
-    final files = actual.map((hit) => hit.split('|').first).toSet();
-
-    // قياس 2026-09-02 بعد م-41D4: 45 موضعًا في 14 ملفًا (كانت 47 في 15).
-    // شاشة التشغيل خرجت من القائمة كلها. دين مُعلَن يُغلق في جولة الهوية
-    // الحقيقية، ولا يُسمح له بالنمو.
-    expect(
-      actual.length,
-      45,
-      reason: 'Placeholder well-id debt changed; it may only shrink.',
+    // أُغلق الدين كاملًا في جولة الهوية الحقيقية: 47 موضعًا في 15 ملفًا ←
+    // 45 في 14 بعد م-41D4 ← صفر الآن. كل شاشة تستقبل `AppIdentity` واحدة
+    // من `api.app_bootstrap()`، فلم يبق موضع يُكتب فيه معرّف بئر بيد أحد.
+    _expectKnownDebt(
+      label: 'Placeholder well-id debt',
+      actual: actual,
+      expected: const <String>[],
     );
-    expect(files.length, 14);
   });
+
+  // المقياس السابع (جولة الهوية): الهوية تُقرأ مرة واحدة من العقد وتُمرَّر
+  // وحدةً واحدة. القيم الجاهزة هنا لا تُقاس بالنقصان بل يجب أن تكون صفرًا:
+  // وجود واحدة منها يعني أن شاشةً عادت تُخمّن صاحبها أو بئره أو دوره.
+  test('identity literals are absent: no fabricated account, tenant or well',
+      () {
+    for (final fabricated in const [
+      "'well-1'",
+      "'tenant-1'",
+      "'active-user'",
+      "'بئر الخير الرئيسي'",
+      "'777123456'",
+      'placeholderAccountKey',
+    ]) {
+      final hits = _collectMatches(
+        RegExp(RegExp.escape(fabricated)),
+        captureGroup: 0,
+      );
+      expect(
+        hits,
+        isEmpty,
+        reason: 'Fabricated identity value returned to lib/: $fabricated',
+      );
+    }
+  });
+
+  test('identity is one unit read from the contract, not guessed per screen',
+      () {
+    final identity = File(
+      'lib/core/identity/app_identity.dart',
+    ).readAsStringSync();
+
+    // مفتاح الطابور هو `profile.id` = `auth.uid()` كما يعيده العقد: لا يُشتق
+    // في العميل ولا يُكتب بمفتاح ويُقرأ بآخر.
+    expect(identity.contains('String get accountId => profile.id;'), isTrue);
+    expect(identity.contains('final WellSummary activeWell;'), isTrue);
+    expect(identity.contains('WellSummary? activeWell'), isFalse);
+
+    // الحالات الثلاث معلنة ومغلقة على نفسها: لا حالة رابعة تُملأ بقيمة.
+    for (final state in const [
+      'sealed class IdentityResolution',
+      'final class IdentityReady',
+      'final class IdentityWithoutWell',
+      'final class IdentityUnavailable',
+      'IdentityResolution resolveIdentity(BootstrapData data)',
+    ]) {
+      expect(identity.contains(state), isTrue, reason: 'Missing: $state');
+    }
+
+    final gate = File('lib/app/identity_gate.dart').readAsStringSync();
+
+    // البوابة لا تبني محتوى إلا من هوية جاهزة، والفشل يُقال مع إعادة محاولة.
+    expect(gate.contains('تعذر تحميل بيانات حسابك'), isTrue);
+    expect(gate.contains('لا يوجد بئر مرتبط بحسابك'), isTrue);
+    expect(gate.contains('إعادة المحاولة'), isTrue);
+    expect(gate.contains('catch (_) {}'), isFalse);
+    // ولا تخزين محلي للهوية: ذلك عمل مؤجَّل بقرار بوابة التثبيت (ق-120).
+    expect(gate.contains('SharedPreferences'), isFalse);
+
+    // كل شاشة في الغلاف تُبنى بهوية مُمرَّرة لا بقيم تُكتب عندها.
+    final shell = File('lib/app/authenticated_shell.dart').readAsStringSync();
+    expect(shell.contains('final AppIdentity identity;'), isTrue);
+    expect(RegExp(r"wellId: '").allMatches(shell), isEmpty);
+    expect(RegExp(r"wellName: '").allMatches(shell), isEmpty);
+  });
+
 
   test('account repository reports measured device state, never constants', () {
     final source = File(
@@ -563,8 +626,8 @@ void main() {
     }
 
     for (final measured in const [
-      'coordinator.getPendingOperationsCount()',
-      'coordinator.lastSuccessfulSyncAt()',
+      'coordinator.getPendingOperationsCount(accountId)',
+      'coordinator.lastSuccessfulSyncAt(accountId)',
       'coordinator.usesDurableStore',
       'if (!coordinator.canSyncNow)',
       'ManualSyncUnavailableException',
@@ -573,6 +636,20 @@ void main() {
         source.contains(measured),
         isTrue,
         reason: 'Measured signal missing: $measured',
+      );
+    }
+
+    // مفتاح الطابور يأتي من المُنادي — أي من هوية العقد — لا من ثابت في
+    // المستودع. القراءة بمفتاح غير مفتاح الكتابة تُظهر «لا معلَّق» كذبًا.
+    for (final keyed in const [
+      'fetchDeviceSyncStatus(String accountId)',
+      'triggerManualSync(String accountId)',
+      'checkPendingOperationsBeforeLogout(String accountId)',
+    ]) {
+      expect(
+        source.contains(keyed),
+        isTrue,
+        reason: 'Queue read is not keyed by the contract account: $keyed',
       );
     }
   });
@@ -694,9 +771,6 @@ void main() {
       'تعذر بدء الجلسة — لم يُسجَّل شيء',
       'تعذر الإيقاف المؤقت — الجلسة ما زالت جارية',
       'تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند',
-      'اختر البئر أولًا — لا يُنشأ مزارع بلا بئر',
-      'اختر البئر أولًا — لا تُنشأ أرض بلا بئر',
-      'لا بئر نشط — لا تُبدأ جلسة سقي بلا بئر',
       'لم يُسجَّل السداد',
     ]) {
       expect(
@@ -705,6 +779,29 @@ void main() {
         reason: 'Explicit failure path missing: $honest',
       );
     }
+
+    // «اختر البئر أولًا» و«لا بئر نشط» زالت لأنها صارت غير قابلة للتمثيل:
+    // الشاشة تستقبل `AppIdentity` ببئر نشط إلزامي، فلا حالة بلا بئر تُحرَس.
+    // البديل أقوى من الرسالة: بنية تمنع الحالة أصلًا (جولة الهوية).
+    for (final structural in const [
+      'required this.identity',
+      'final AppIdentity identity;',
+      'late WellSummary _activeWell;',
+      'String get _activeWellId => _activeWell.id;',
+      'String get _accountId => widget.identity.accountId;',
+      '_activeWell = widget.identity.activeWell;',
+    ]) {
+      expect(
+        source.contains(structural),
+        isTrue,
+        reason: 'Screen no longer receives its identity as one unit: '
+            '$structural',
+      );
+    }
+
+    // ولا يُشتق مفتاح الحساب ولا معرّف البئر في الشاشة بأي شكل آخر.
+    expect(RegExp(r"wellId: '").allMatches(source), isEmpty);
+    expect(RegExp(r'String\?\s+_activeWellId').allMatches(source), isEmpty);
 
     // الدين أُغلق (م-41D6): لا سعر مكتوب في العميل ولا دالة تختاره. التسعيرة
     // تُقرأ من `api.get_active_price_schedule` وتُعرض كغياب حين تغيب، فلا
@@ -790,8 +887,20 @@ void main() {
       'lib/core/widgets/top_well_selector.dart',
     ).readAsStringSync();
 
+    // البئر النشط صار إلزاميًّا وحقيقيًّا: لا `null` يُملأ باسم جاهز، ولا
+    // «لا بئر مختار» يُطبع لبئر لُفِّق خارج آبار المستخدم. الحالة التي كان
+    // النصّان يحرسانها لم تبق قابلة للتمثيل.
+    expect(source.contains('final WellSummary activeWell;'), isTrue);
+    expect(source.contains('required this.activeWell'), isTrue);
+    expect(source.contains('WellSummary? activeWell'), isFalse);
     expect(source.contains("?? 'بئر الخير الرئيسي'"), isFalse);
-    expect(source.contains("?? 'لا بئر مختار'"), isTrue);
+    expect(source.contains("?? 'لا بئر مختار'"), isFalse);
+    // النصّ لا يُبنى في أي شجرة عرض هنا؛ ذكره في التوثيق شرح لتاريخ أُغلق.
+    expect(RegExp(r"Text\(\s*'لا بئر مختار'").allMatches(source), isEmpty);
+
+    // الأدوار المعروضة أدوار البئر نفسه من العقد، لا شارات ثابتة.
+    expect(source.contains('well.roles.map'), isTrue);
+    expect(RegExp(r"roles: (const )?\['").allMatches(source), isEmpty);
   });
 
   // المقياس السادس (م-41D5): آخر مسار كتابة كان يرسل معرّفًا لم يعده عقد.

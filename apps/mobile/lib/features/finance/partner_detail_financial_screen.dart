@@ -15,7 +15,7 @@ class PartnerDetailFinancialScreen extends StatefulWidget {
     super.key,
     required this.wellId,
     required this.partnerId,
-    this.wellName = 'بئر الخير الرئيسي',
+    required this.wellName,
     this.repository,
   });
 

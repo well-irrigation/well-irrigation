@@ -8,6 +8,10 @@ import '../theme/app_colors.dart';
 /// - إظهار اسم البئر الحالي النشط في الشريط العلوي.
 /// - إظهار سهم التبديل عند امتلاك المستخدم لأكثر من بئر.
 /// - فتح قائمة سفلية سريعة للتبديل بين الآبار المتاحة وتحديث السياق لحظياً.
+///
+/// [activeWell] بئر حقيقي إلزامي من `AppIdentity`: كان يُقبل `null` فيُطبع
+/// «لا بئر مختار»، وذلك النصّ لم يكن يظهر إلا حين لفّق أحدهم بئرًا خارج آبار
+/// المستخدم. البئر النشط الآن من العقد وحده، فلا حالة «بلا بئر» تُعرض هنا.
 class TopWellSelector extends StatelessWidget {
   const TopWellSelector({
     required this.wells,
@@ -18,7 +22,7 @@ class TopWellSelector extends StatelessWidget {
   });
 
   final List<WellSummary> wells;
-  final WellSummary? activeWell;
+  final WellSummary activeWell;
   final ValueChanged<WellSummary> onWellChanged;
   final String? subtitle;
 
@@ -76,7 +80,7 @@ class TopWellSelector extends StatelessWidget {
                   itemBuilder: (context, index) {
 
                     final well = wells[index];
-                    final isSelected = activeWell?.id == well.id;
+                    final isSelected = activeWell.id == well.id;
 
                     return ListTile(
                       dense: true,
@@ -151,9 +155,7 @@ class TopWellSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasMultipleWells = wells.length > 1;
-    // لا اسم بئر مُلفَّق عند غياب البئر النشط: الشريط يقول «لا بئر مختار»
-    // بدل أن يعرض اسم بئر العرض التجريبي كأنه بئر المستخدم (م-41D4).
-    final displayName = activeWell?.name ?? 'لا بئر مختار';
+    final displayName = activeWell.name;
 
     return InkWell(
       onTap: hasMultipleWells ? () => _openWellPickerSheet(context) : null,

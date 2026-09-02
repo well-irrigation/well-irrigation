@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/finance_repository.dart';
 import 'package:well_irrigation_mobile/features/finance/expenses_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع مزيَّف يعيد ما يعيده عقد api.list_well_expenses بأسماء مفاتيح
 /// القاعدة نفسها (amount_minor وspent_at وcategory_name) ويمر عبر المحلّل
@@ -74,8 +75,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ExpensesScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeFinanceRepository(),
           ),
         ),
@@ -101,8 +101,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ExpensesScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeFinanceRepository(),
           ),
         ),
@@ -138,8 +137,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: ExpensesScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeFinanceRepository(),
           ),
         ),

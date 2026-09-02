@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/well_management_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/currency_display.dart';
@@ -7,9 +8,7 @@ import '../../core/widgets/top_well_selector.dart';
 
 /// شاشة التقارير والمؤشرات والرسوم البيانية البسيطة V1 (UX-15 / القرارات 498–521)
 class ReportsAnalyticsScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onNavigateToHistory;
   final VoidCallback? onNavigateToExpenses;
@@ -17,9 +16,7 @@ class ReportsAnalyticsScreen extends StatefulWidget {
 
   const ReportsAnalyticsScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.onNavigateToHistory,
     this.onNavigateToExpenses,
@@ -32,8 +29,9 @@ class ReportsAnalyticsScreen extends StatefulWidget {
 
 class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
   late WellManagementRepository _repo;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
   bool _isLoading = true;
   String _selectedPeriod = 'this_month'; // today, this_week, this_month
 
@@ -43,8 +41,7 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
   void initState() {
     super.initState();
     _repo = widget.repository ?? WellManagementRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadReport();
   }
 
@@ -52,7 +49,7 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
     setState(() => _isLoading = true);
     try {
       final data = await _repo.fetchReportsSummary(
-        wellId: _activeWellId ?? 'well-1',
+        wellId: _activeWellId,
         periodCode: _selectedPeriod,
       );
       if (!mounted) return;
@@ -74,30 +71,18 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'التقارير والمؤشرات العامة',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadReport();
             if (widget.onWellChanged != null) {

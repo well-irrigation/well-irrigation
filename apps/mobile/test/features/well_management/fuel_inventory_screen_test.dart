@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/features/well_management/fuel_inventory_screen.dart';
 import 'package:well_irrigation_mobile/core/api/well_management_repository.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع مزيَّف يعيد ما يعيده عقد api.list_well_fuel_tanks بالمليلتر.
 ///
@@ -74,8 +75,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: FuelInventoryScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeWellManagementRepository(),
           ),
         ),
@@ -99,8 +99,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: FuelInventoryScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeWellManagementRepository(),
           ),
         ),
@@ -124,8 +123,7 @@ void main() {
         MaterialApp(
           locale: const Locale('ar'),
           home: FuelInventoryScreen(
-            wellName: 'بئر الخير الرئيسي',
-            wellId: 'well-1',
+            identity: testIdentity(),
             repository: _FakeWellManagementRepository(),
           ),
         ),
@@ -151,8 +149,9 @@ void main() {
           MaterialApp(
             locale: const Locale('ar'),
             home: FuelInventoryScreen(
-              wellName: 'بئر الاختبار',
-              wellId: 'well-real-1',
+              identity: testIdentity(
+                wells: [testWell(id: 'well-real-1', name: 'بئر الاختبار')],
+              ),
               repository: repository,
             ),
           ),
@@ -206,8 +205,9 @@ void main() {
           MaterialApp(
             locale: const Locale('ar'),
             home: FuelInventoryScreen(
-              wellName: 'بئر الاختبار',
-              wellId: 'well-real-1',
+              identity: testIdentity(
+                wells: [testWell(id: 'well-real-1', name: 'بئر الاختبار')],
+              ),
               repository: repository,
             ),
           ),

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/api/operations_repository.dart';
 import '../../core/api/well_management_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/session/active_session_projector.dart';
 import '../../core/session/offline_session_coordinator.dart';
 import '../../core/session/session_business_state.dart';
@@ -21,10 +22,7 @@ import 'widgets/payment_receipt_dialog.dart';
 /// شاشة تشغيل البئر وجلسات السقي الميدانية (UX-07 / UX-08 / ق-88 / ق-114)
 class OperationsScreen extends StatefulWidget {
   const OperationsScreen({
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
-    this.operatorName = 'المشغل',
+    required this.identity,
     this.coordinator,
     this.priceRepository,
     this.onWellChanged,
@@ -32,10 +30,10 @@ class OperationsScreen extends StatefulWidget {
     super.key,
   });
 
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
-  final String operatorName;
+  /// هوية الجولة كما قرأها العقد: صاحب العملية، وآباره، وبئره النشط.
+  /// لا اسم مشغّل افتراضي ولا مفتاح حساب ثابت: كلاهما كان يُطبع على السند
+  /// ويُكتب في الطابور المحلي باسم لا يملكه أحد (ق-113).
+  final AppIdentity identity;
   final OfflineSessionCoordinator? coordinator;
 
   /// مستودع قراءة جدول التسعير الساري. يُمرَّر في الاختبار، وفي التشغيل
@@ -53,8 +51,11 @@ class _OperationsScreenState extends State<OperationsScreen> {
   late OfflineSessionCoordinator _coordinator;
   late WellManagementRepository _priceRepo;
 
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
+  String get _activeWellName => _activeWell.name;
+  String get _accountId => widget.identity.accountId;
 
   // خيارات الجلسة
   FarmerAccount? _selectedFarmer;
@@ -112,8 +113,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   @override
   void initState() {
     super.initState();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : null);
+    _activeWell = widget.identity.activeWell;
     _coordinator = widget.coordinator ?? OfflineSessionCoordinator.instance;
     _priceRepo = widget.priceRepository ?? WellManagementRepository();
 
@@ -124,11 +124,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
     }
 
     _recoverActiveSession();
-
-    if (_activeWellId != null) {
-      _loadPumps();
-      _loadPriceSchedule();
-    }
+    _loadPumps();
+    _loadPriceSchedule();
   }
 
   /// إظهار فشل إجراء **دون** تغيير الحالة المعروضة (ق-113 / م-41B3B).
@@ -159,9 +156,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
   /// القراءة لا تُغيّر مصدر الطاقة المختار: الاختيار قرار المشغل، وبيانات
   /// التسعير لا تُعيد توجيهه ولا تمحوه.
   Future<void> _loadPriceSchedule() async {
-    final wellId = _activeWellId;
-    if (wellId == null) return;
-
     setState(() {
       _isLoadingSchedule = true;
       _scheduleError = null;
@@ -169,7 +163,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
     });
 
     try {
-      final schedule = await _priceRepo.fetchActivePriceSchedule(wellId);
+      final schedule = await _priceRepo.fetchActivePriceSchedule(_activeWellId);
       if (!mounted) return;
       setState(() {
         _priceSchedule = schedule;
@@ -219,7 +213,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   Future<void> _recoverActiveSession() async {
     final active = await _coordinator.projectActiveSession(
-      accountId: 'active-user',
+      accountId: _accountId,
       wellId: _activeWellId,
     );
 
@@ -251,17 +245,15 @@ class _OperationsScreenState extends State<OperationsScreen> {
   @override
   void didUpdateWidget(covariant OperationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.wellId != oldWidget.wellId || widget.wellName != oldWidget.wellName) {
+    final incoming = widget.identity.activeWell;
+    if (incoming.id != oldWidget.identity.activeWell.id) {
       setState(() {
-        _activeWellName = widget.wellName;
-        _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : null);
+        _activeWell = incoming;
         _selectedFarmer = null;
         _selectedFarm = null;
       });
-      if (_activeWellId != null) {
-        _loadPumps();
-        _loadPriceSchedule();
-      }
+      _loadPumps();
+      _loadPriceSchedule();
     }
   }
 
@@ -272,14 +264,13 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<void> _loadPumps() async {
-    if (_activeWellId == null) return;
     setState(() {
       _isLoadingPumps = true;
       _pumpsError = null;
     });
 
     try {
-      final pumps = await _repo.fetchPumps(_activeWellId!);
+      final pumps = await _repo.fetchPumps(_activeWellId);
       if (mounted) {
         setState(() {
           _pumps = pumps;
@@ -303,18 +294,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<List<FarmerAccount>> _searchFarmers(String query) async {
-    if (_activeWellId == null) {
-      throw StateError('لا يوجد بئر نشط لقراءة المزارعين');
-    }
-    return _repo.fetchFarmers(_activeWellId!, query: query);
+    return _repo.fetchFarmers(_activeWellId, query: query);
   }
 
   Future<List<Farm>> _searchFarms(String query) async {
-    if (_activeWellId == null) {
-      throw StateError('لا يوجد بئر نشط لقراءة الأراضي');
-    }
     final farms = await _repo.fetchFarms(
-      _activeWellId!,
+      _activeWellId,
       farmerAccountId: _selectedFarmer?.id,
     );
     if (query.isEmpty) return farms;
@@ -323,10 +308,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   Future<FarmerAccount?> _showAddFarmerDialog() async {
     final wellId = _activeWellId;
-    if (wellId == null) {
-      _showActionFailure('اختر البئر أولًا — لا يُنشأ مزارع بلا بئر');
-      return null;
-    }
 
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
@@ -427,10 +408,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
     }
 
     final wellId = _activeWellId;
-    if (wellId == null) {
-      _showActionFailure('اختر البئر أولًا — لا تُنشأ أرض بلا بئر');
-      return null;
-    }
 
     final nameController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -504,10 +481,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
     }
 
     final wellId = _activeWellId;
-    if (wellId == null) {
-      _showActionFailure('لا بئر نشط — لا تُبدأ جلسة سقي بلا بئر');
-      return;
-    }
 
     // مصدر الطاقة رمز قاعدة صالح، لا نصّ عربي ترفضه هجرة 066 (م-41D6).
     // ولا يُشترط سعر معلوم لبدء الجلسة: `ops.start_irrigation_session` لا
@@ -524,7 +497,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
     final String sessionLocalId;
     try {
       final envelope = await _coordinator.startSession(
-        accountId: 'active-user',
+        accountId: _accountId,
         wellId: wellId,
         pumpId: _selectedPump!.id,
         farmId: _selectedFarm!.id,
@@ -565,13 +538,13 @@ class _OperationsScreenState extends State<OperationsScreen> {
     try {
       if (!wasPaused) {
         await _coordinator.pauseSession(
-          accountId: 'active-user',
+          accountId: _accountId,
           sessionLocalId: sessionId,
           reason: 'إيقاف مؤقت من المشغل',
         );
       } else {
         await _coordinator.resumeSession(
-          accountId: 'active-user',
+          accountId: _accountId,
           sessionLocalId: sessionId,
         );
       }
@@ -596,7 +569,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
     if (_isSessionActive && sessionId != null) {
       try {
         await _coordinator.changeEnergySource(
-          accountId: 'active-user',
+          accountId: _accountId,
           sessionLocalId: sessionId,
           newEnergySource: newSource,
         );
@@ -632,7 +605,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     try {
       await _coordinator.completeSession(
-        accountId: 'active-user',
+        accountId: _accountId,
         sessionLocalId: activeSessionId,
       );
     } catch (e) {
@@ -665,7 +638,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         barrierDismissible: false,
         builder: (ctx) => PaymentReceiptDialog(
           wellName: _activeWellName,
-          operatorName: widget.operatorName,
+          operatorName: widget.identity.displayName,
           farmerName: _selectedFarmer?.fullName ?? 'مزارع غير محدد',
           farmName: _selectedFarm?.name ?? 'أرض غير محددة',
           energySource: energySourceLabel(_energySourceCode),
@@ -681,13 +654,13 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
             final paymentWellId = _activeWellId;
             final farmer = _selectedFarmer;
-            if (paymentWellId == null || farmer == null) {
+            if (farmer == null) {
               // كان السداد يُتجاهل صامتًا فتُغلق النافذة كأنه سُجِّل.
-              throw StateError('لا بئر أو مزارع محدد — لم يُسجَّل السداد');
+              throw StateError('لا مزارع محدد — لم يُسجَّل السداد');
             }
 
             await _coordinator.recordPayment(
-              accountId: 'active-user',
+              accountId: _accountId,
               wellId: paymentWellId,
               farmerAccountId: farmer.id,
               amountMinor: paidAmountYER,
@@ -884,25 +857,18 @@ class _OperationsScreenState extends State<OperationsScreen> {
     final minutes = ((_secondsElapsed % 3600) ~/ 60).toString().padLeft(2, '0');
     final seconds = (_secondsElapsed % 60).toString().padLeft(2, '0');
 
-    // لا بئر مُلفَّق (معرّف افتراضي ومستأجر وأدوار مُفترضة): إن لم يكن البئر
-    // النشط داخل آبار المستخدم فلا بئر، والشريط العلوي يقول ذلك صراحةً.
-    final matchingWells = widget.wells.where((w) => w.id == _activeWellId);
-    final WellSummary? activeWellSummary =
-        matchingWells.isEmpty ? null : matchingWells.first;
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells,
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'لوحة تشغيل السقي والمناوبة',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
               _selectedFarmer = null;
               _selectedFarm = null;
             });
