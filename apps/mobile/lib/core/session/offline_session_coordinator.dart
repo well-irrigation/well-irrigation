@@ -43,11 +43,6 @@ class OfflineSessionCoordinator {
   }
 
 
-  /// مفتاح الحساب المؤقت الذي يستعمله مسار الكتابة الحالي في الشاشات.
-  /// ليس هوية مستخدم حقيقية؛ توحيده هنا يمنع قراءة الطابور بمفتاح وكتابته
-  /// بمفتاح آخر. استبداله بالهوية الحقيقية عمل مستقل معلن.
-  static const String placeholderAccountKey = 'active-user';
-
   static OfflineSessionCoordinator? _instance;
   static OfflineSessionCoordinator get instance =>
       _instance ??= OfflineSessionCoordinator();
@@ -310,9 +305,12 @@ class OfflineSessionCoordinator {
 
 
   /// جلب عدد العمليات المعلقة في الطابور المتين (القرار 563 / القرار 578)
-  Future<int> getPendingOperationsCount([String? accountId]) async {
+  ///
+  /// [accountId] هوية صاحب الطابور كما أعادها العقد. كان اختياريًّا فيسقط إلى
+  /// مفتاح ثابت، فيُقرأ الطابور بمفتاح ويُكتب بآخر ويظهر «لا معلّق» كذبًا.
+  Future<int> getPendingOperationsCount(String accountId) async {
     await initialize();
-    return _outbox.pendingCount(accountId ?? placeholderAccountKey);
+    return _outbox.pendingCount(accountId);
   }
 
   /// هل الطابور المستعمل مخزَّن على قرص الهاتف فعلًا؟ الافتراضي في هذا
@@ -325,20 +323,20 @@ class OfflineSessionCoordinator {
   bool get canSyncNow => _syncEngine != null;
 
   /// آخر مزامنة ناجحة مسجَّلة في الطابور؛ `null` تعني «لم تحدث بعد».
-  Future<DateTime?> lastSuccessfulSyncAt([String? accountId]) async {
+  Future<DateTime?> lastSuccessfulSyncAt(String accountId) async {
     await initialize();
-    return _outbox.lastSuccessfulSyncAt(accountId ?? placeholderAccountKey);
+    return _outbox.lastSuccessfulSyncAt(accountId);
   }
 
   /// تشغيل المزامنة الآن بطلب صريح من المستخدم. يفشل صريحًا إن لم يكن
   /// هناك ناقل موصول، ولا يُدَّعى إرسال لم يحدث.
-  Future<SyncRunReport> syncNow([String? accountId]) async {
+  Future<SyncRunReport> syncNow(String accountId) async {
     final engine = _syncEngine;
     if (engine == null) {
       throw StateError('لا يوجد ناقل مزامنة موصول بهذا المنسق');
     }
     await initialize();
-    return engine.run(accountId ?? placeholderAccountKey);
+    return engine.run(accountId);
   }
 
   void dispose() {

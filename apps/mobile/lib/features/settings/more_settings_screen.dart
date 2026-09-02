@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api/account_repository.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/top_well_selector.dart';
 import 'app_settings_screen.dart';
@@ -14,18 +15,14 @@ import 'team_permissions_screen.dart';
 /// صفحة المزيد والقائمة الشاملة للحساب والإعدادات (UX-16A / القرار 527 / ق-101)
 class MoreSettingsScreen extends StatefulWidget {
   const MoreSettingsScreen({
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.onLogout,
     this.repository,
     super.key,
   });
 
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
   final AccountRepository? repository;
@@ -38,15 +35,16 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
   late AccountRepository _repo;
   UserProfileData? _profile;
   bool _isLoading = true;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
+  String get _activeWellName => _activeWell.name;
 
   @override
   void initState() {
     super.initState();
     _repo = widget.repository ?? AccountRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadProfile();
   }
 
@@ -75,7 +73,9 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
 
     final int pendingCount;
     try {
-      pendingCount = await _repo.checkPendingOperationsBeforeLogout();
+      pendingCount = await _repo.checkPendingOperationsBeforeLogout(
+        widget.identity.accountId,
+      );
     } catch (_) {
       // تعذُّر القراءة ليس «لا يوجد معلَّق»: تحذير صريح لا موافقة نظيفة.
       if (!mounted) return;
@@ -219,29 +219,18 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveWell = widget.wells.isNotEmpty
-        ? widget.wells.firstWhere((w) => w.id == _activeWellId, orElse: () => widget.wells.first)
-        : WellSummary(
-            id: _activeWellId ?? 'well-1',
-            tenantId: 'tenant-1',
-            name: _activeWellName,
-            status: 'active',
-            roles: const ['owner'],
-          );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [effectiveWell],
-          activeWell: effectiveWell,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'المزيد • الحساب والإعدادات',
           onWellChanged: (w) {
             setState(() {
-              _activeWellId = w.id;
-              _activeWellName = w.name;
+              _activeWell = w;
             });
             if (widget.onWellChanged != null) widget.onWellChanged!(w);
           },
@@ -299,7 +288,7 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => TeamPermissionsScreen(
-                          wellId: _activeWellId ?? 'well-1',
+                          wellId: _activeWellId,
                           wellName: _activeWellName,
                         ),
                       ),
@@ -317,7 +306,10 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => DeviceSyncScreen(repository: _repo),
+                        builder: (_) => DeviceSyncScreen(
+                          accountId: widget.identity.accountId,
+                          repository: _repo,
+                        ),
                       ),
                     );
                   },

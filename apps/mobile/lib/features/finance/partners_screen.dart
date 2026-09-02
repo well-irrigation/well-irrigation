@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/finance_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/currency_display.dart';
@@ -8,17 +9,13 @@ import 'partner_detail_financial_screen.dart';
 import 'profit_distribution_screen.dart';
 
 class PartnersScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final FinanceRepository? repository;
 
   const PartnersScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.repository,
   });
@@ -29,8 +26,10 @@ class PartnersScreen extends StatefulWidget {
 
 class _PartnersScreenState extends State<PartnersScreen> {
   late FinanceRepository _repo;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
+  String get _activeWellName => _activeWell.name;
   bool _isLoading = true;
   List<PartnerFinancialItem> _partners = [];
 
@@ -38,15 +37,14 @@ class _PartnersScreenState extends State<PartnersScreen> {
   void initState() {
     super.initState();
     _repo = widget.repository ?? FinanceRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadPartners();
   }
 
   Future<void> _loadPartners() async {
     setState(() => _isLoading = true);
     try {
-      final list = await _repo.fetchPartners(_activeWellId ?? 'well-1');
+      final list = await _repo.fetchPartners(_activeWellId);
       if (!mounted) return;
       setState(() {
         _partners = list;
@@ -68,7 +66,7 @@ class _PartnersScreenState extends State<PartnersScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PartnerDetailFinancialScreen(
-          wellId: _activeWellId ?? 'well-1',
+          wellId: _activeWellId,
           partnerId: partner.id,
           wellName: _activeWellName,
           repository: _repo,
@@ -81,9 +79,7 @@ class _PartnersScreenState extends State<PartnersScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ProfitDistributionScreen(
-          wellName: _activeWellName,
-          wellId: _activeWellId,
-          wells: widget.wells,
+          identity: widget.identity.withActiveWell(_activeWell),
           repository: _repo,
         ),
       ),
@@ -95,30 +91,18 @@ class _PartnersScreenState extends State<PartnersScreen> {
     final totalProfitPercent = _partners.fold<int>(0, (sum, p) => sum + p.profitPercent);
     final totalRemainingBalance = _partners.fold<int>(0, (sum, p) => sum + p.remainingBalanceYER);
 
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'حسابات الشركاء والنسب',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadPartners();
             if (widget.onWellChanged != null) {

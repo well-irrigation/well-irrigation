@@ -312,5 +312,39 @@ void main() {
       },
     );
 
+    testWidgets(
+      '6. هاتف غائب في العقد يُعلن غيابه ولا يُعرض رقم مكتوب في الشاشة',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            locale: Locale('ar'),
+            home: ProfileSecurityScreen(
+              profile: UserProfileData(
+                id: 'user-1',
+                fullName: 'مستخدم بلا هاتف',
+                phone: '',
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('لا رقم هاتف في بيانات الحساب'),
+          findsOneWidget,
+        );
+        expect(find.text('غير مقروء من العقد'), findsOneWidget);
+        // الشاشة كانت تعرض رقمًا مكتوبًا فيها عند الغياب، ويظنه المستخدم
+        // رقمه المعتمد (ق-113 / ق-122).
+        expect(find.text('777123456'), findsNothing);
+        expect(find.text('معتمد وموثق ✅'), findsNothing);
+      },
+    );
+
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/well_management_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/currency_display.dart';
@@ -8,17 +9,13 @@ import '../../core/widgets/top_well_selector.dart';
 
 /// شاشة تعرفة الطاقة وإدارة الأسعار التاريخية (UX-15 / القرارات 491–497)
 class PricingTariffScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final WellManagementRepository? repository;
 
   const PricingTariffScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.repository,
   });
@@ -29,8 +26,9 @@ class PricingTariffScreen extends StatefulWidget {
 
 class _PricingTariffScreenState extends State<PricingTariffScreen> {
   late WellManagementRepository _repo;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
   bool _isLoading = true;
   PriceScheduleModel? _schedule;
 
@@ -38,8 +36,7 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
   void initState() {
     super.initState();
     _repo = widget.repository ?? WellManagementRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadSchedule();
   }
 
@@ -47,7 +44,7 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
     setState(() => _isLoading = true);
     try {
       final item =
-          await _repo.fetchActivePriceSchedule(_activeWellId ?? 'well-1');
+          await _repo.fetchActivePriceSchedule(_activeWellId);
       if (!mounted) return;
       setState(() {
         _schedule = item;
@@ -69,7 +66,7 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
     showDialog(
       context: context,
       builder: (dialogCtx) => _UpdateTariffDialog(
-        wellId: _activeWellId ?? 'well-1',
+        wellId: _activeWellId,
         currentSchedule: _schedule,
         repository: _repo,
         onScheduleUpdated: () {
@@ -84,30 +81,18 @@ class _PricingTariffScreenState extends State<PricingTariffScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'تعرفة الطاقة والأسعار',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadSchedule();
             if (widget.onWellChanged != null) {

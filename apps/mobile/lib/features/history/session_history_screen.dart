@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/operations_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/digit_utils.dart';
@@ -11,18 +12,14 @@ import 'session_detail_screen.dart';
 /// شاشة سجل جلسات السقي (UX-13 / ق-98 / 373–376)
 class SessionHistoryScreen extends StatefulWidget {
   const SessionHistoryScreen({
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.onLogout,
     this.repository,
     super.key,
   });
 
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
   final OperationsRepository? repository;
@@ -34,8 +31,10 @@ class SessionHistoryScreen extends StatefulWidget {
 class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   late OperationsRepository _repo;
 
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
+  String get _activeWellName => _activeWell.name;
   String _selectedFilter = 'all'; // 'all', 'today', 'week', 'month', 'unpaid'
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -47,8 +46,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : null);
+    _activeWell = widget.identity.activeWell;
 
     _repo = widget.repository ?? const OperationsRepository();
     _loadSessions();
@@ -61,7 +59,6 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   }
 
   Future<void> _loadSessions() async {
-    if (_activeWellId == null) return;
     setState(() {
       _isLoading = true;
       _loadError = null;
@@ -69,7 +66,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
     try {
       final sessions = await _repo.fetchSessionHistory(
-        wellId: _activeWellId!,
+        wellId: _activeWellId,
         filter: _selectedFilter,
       );
       if (mounted) {
@@ -133,17 +130,6 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     final displayedSessions = _filteredSessions;
     final totalSecs = displayedSessions.fold<int>(0, (sum, s) => sum + s.billableSeconds);
     final totalAmount = displayedSessions.fold<int>(0, (sum, s) => sum + s.totalAmountYER);
@@ -154,13 +140,12 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'سجل جلسات السقي والتاريخ',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadSessions();
             if (widget.onWellChanged != null) {

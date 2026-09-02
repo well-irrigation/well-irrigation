@@ -22,9 +22,14 @@ class _FakeSyncRepository extends AccountRepository {
   int statusReads = 0;
   int syncCalls = 0;
 
+  /// آخر مفتاح حساب طلبته الشاشة. يُثبَّت في الاختبار لأن قراءة الطابور
+  /// بمفتاح غير مفتاح صاحبه تُظهر «لا معلَّق» كذبًا (ق-113).
+  final List<String> requestedAccountIds = [];
+
   @override
-  Future<DeviceSyncStatusModel> fetchDeviceSyncStatus() async {
+  Future<DeviceSyncStatusModel> fetchDeviceSyncStatus(String accountId) async {
     statusReads++;
+    requestedAccountIds.add(accountId);
     if (failStatus) {
       throw StateError('device status unavailable');
     }
@@ -32,8 +37,9 @@ class _FakeSyncRepository extends AccountRepository {
   }
 
   @override
-  Future<void> triggerManualSync() async {
+  Future<void> triggerManualSync(String accountId) async {
     syncCalls++;
+    requestedAccountIds.add(accountId);
     final error = syncError;
     if (error != null) {
       throw error;
@@ -43,8 +49,9 @@ class _FakeSyncRepository extends AccountRepository {
 
 Future<void> _pumpScreen(
   WidgetTester tester,
-  AccountRepository repository,
-) async {
+  AccountRepository repository, {
+  String accountId = 'owner-42',
+}) async {
   tester.view.physicalSize = const Size(800, 1600);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
@@ -53,7 +60,7 @@ Future<void> _pumpScreen(
   await tester.pumpWidget(
     MaterialApp(
       locale: const Locale('ar'),
-      home: DeviceSyncScreen(repository: repository),
+      home: DeviceSyncScreen(accountId: accountId, repository: repository),
     ),
   );
   await tester.pumpAndSettle();
@@ -109,6 +116,21 @@ void main() {
           find.text('اكتملت المزامنة وتحديث البيانات بنجاح ✅'),
           findsNothing,
         );
+      },
+    );
+
+    testWidgets(
+      '2ب. الطابور يُقرأ ويُزامَن بمفتاح صاحب الحساب لا بمفتاح ثابت',
+      (tester) async {
+        final repository = _FakeSyncRepository();
+
+        await _pumpScreen(tester, repository, accountId: 'owner-99');
+
+        await tester.tap(find.text('مزامنة الآن'));
+        await tester.pumpAndSettle();
+
+        expect(repository.requestedAccountIds, everyElement('owner-99'));
+        expect(repository.requestedAccountIds.length, greaterThanOrEqualTo(2));
       },
     );
 

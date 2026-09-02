@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/finance_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/currency_display.dart';
@@ -7,17 +8,13 @@ import '../../core/widgets/currency_text_form_field.dart';
 import '../../core/widgets/top_well_selector.dart';
 
 class ProfitDistributionScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final FinanceRepository? repository;
 
   const ProfitDistributionScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.repository,
   });
@@ -28,8 +25,9 @@ class ProfitDistributionScreen extends StatefulWidget {
 
 class _ProfitDistributionScreenState extends State<ProfitDistributionScreen> {
   late FinanceRepository _repo;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
   bool _isLoading = true;
   List<ProfitDistributionCycleItem> _cycles = [];
 
@@ -37,8 +35,7 @@ class _ProfitDistributionScreenState extends State<ProfitDistributionScreen> {
   void initState() {
     super.initState();
     _repo = widget.repository ?? FinanceRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadCycles();
   }
 
@@ -46,7 +43,7 @@ class _ProfitDistributionScreenState extends State<ProfitDistributionScreen> {
     setState(() => _isLoading = true);
     try {
       final list = await _repo.fetchProfitDistributionCycles(
-        _activeWellId ?? 'well-1',
+        _activeWellId,
       );
       if (!mounted) return;
       setState(() {
@@ -69,7 +66,7 @@ class _ProfitDistributionScreenState extends State<ProfitDistributionScreen> {
     showDialog(
       context: context,
       builder: (dialogCtx) => _CalculateCycleDialog(
-        wellId: _activeWellId ?? 'well-1',
+        wellId: _activeWellId,
         repository: _repo,
         onCycleCalculated: () {
           _loadCycles();
@@ -182,30 +179,18 @@ class _ProfitDistributionScreenState extends State<ProfitDistributionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'دورات وتوزيع الأرباح',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadCycles();
             if (widget.onWellChanged != null) {

@@ -7,10 +7,14 @@ import '../../core/theme/app_colors.dart';
 /// شاشة تشخيص الجهاز والمزامنة وقاعدة البيانات المحلية (UX-16A / القرارات 556–570 / ق-89 / ق-90 / ق-114)
 class DeviceSyncScreen extends StatefulWidget {
   const DeviceSyncScreen({
+    required this.accountId,
     this.repository,
     super.key,
   });
 
+  /// هوية صاحب الطابور من العقد. الطابور يُقرأ بمفتاح صاحبه وحده، وإلا ظهر
+  /// «لا عمليات معلَّقة» لحساب عليه عمليات لم تُرسل (ق-113).
+  final String accountId;
   final AccountRepository? repository;
 
   @override
@@ -34,7 +38,7 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final data = await _repo.fetchDeviceSyncStatus();
+      final data = await _repo.fetchDeviceSyncStatus(widget.accountId);
       if (!mounted) return;
       setState(() {
         _status = data;
@@ -57,7 +61,7 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
     String message;
     Color background;
     try {
-      await _repo.triggerManualSync();
+      await _repo.triggerManualSync(widget.accountId);
       message = 'اكتملت المزامنة وتحديث البيانات بنجاح ✅';
       background = AppColors.agriculturalGreen;
     } on ManualSyncUnavailableException {

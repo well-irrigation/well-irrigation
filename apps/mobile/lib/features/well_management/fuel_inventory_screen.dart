@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/well_management_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/digit_utils.dart';
@@ -22,17 +23,13 @@ String _formatLiters(int ml) {
 
 /// شاشة إدارة الوقود والخزانات والجرد والتسويات (UX-15 / القرارات 478–490)
 class FuelInventoryScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final WellManagementRepository? repository;
 
   const FuelInventoryScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.repository,
   });
@@ -43,8 +40,9 @@ class FuelInventoryScreen extends StatefulWidget {
 
 class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
   late WellManagementRepository _repo;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
   bool _isLoading = true;
   List<FuelTankModel> _tanks = [];
 
@@ -52,15 +50,14 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
   void initState() {
     super.initState();
     _repo = widget.repository ?? WellManagementRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadTanks();
   }
 
   Future<void> _loadTanks() async {
     setState(() => _isLoading = true);
     try {
-      final list = await _repo.fetchFuelTanks(_activeWellId ?? 'well-1');
+      final list = await _repo.fetchFuelTanks(_activeWellId);
       if (!mounted) return;
       setState(() {
         _tanks = list;
@@ -82,7 +79,7 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
     showDialog(
       context: context,
       builder: (dialogCtx) => _RecordFuelPurchaseDialog(
-        wellId: _activeWellId ?? 'well-1',
+        wellId: _activeWellId,
         repository: _repo,
         onPurchaseRecorded: () {
           _loadTanks();
@@ -115,30 +112,18 @@ class _FuelInventoryScreenState extends State<FuelInventoryScreen> {
     final totalBalanceMl = _tanks.fold<int>(0, (sum, t) => sum + t.currentBalanceMl);
     final totalCapacityMl = _tanks.fold<int>(0, (sum, t) => sum + t.capacityMl);
 
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'إدارة الوقود والخزانات',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadTanks();
             if (widget.onWellChanged != null) {

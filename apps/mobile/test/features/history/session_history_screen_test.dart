@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 import 'package:well_irrigation_mobile/features/history/session_history_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع اختبار يحاكي عقد `api.list_well_sessions` (م-41C2).
 /// الشاشة لم تعد تملك بيانات تجريبية: إمّا عقد حقيقي أو فشل صريح.
@@ -83,17 +83,9 @@ Widget _wrap({bool shouldFail = false}) {
   return MaterialApp(
     locale: const Locale('ar'),
     home: SessionHistoryScreen(
-      wellName: 'بئر الخير الرئيسي',
-      wellId: 'well-1',
-      wells: const [
-        WellSummary(
-          id: 'well-1',
-          tenantId: 'tenant-1',
-          name: 'بئر الخير الرئيسي',
-          status: 'active',
-          roles: ['owner', 'operator'],
-        ),
-      ],
+      identity: testIdentity(
+        wells: [testWell(roles: const ['owner', 'operator'])],
+      ),
       repository: _FakeOperationsRepository(shouldFail: shouldFail),
     ),
   );

@@ -32,8 +32,12 @@ if command -v flutter >/dev/null 2>&1; then
 fi
 
 run_flutter() {
+  # `--no-version-check` عالمي ويسبق الأمر. بدونه تحاول الأداة كتابة
+  # `flutter_version_check.stamp` داخل SDK للقراءة فقط فتسقط بانهيار،
+  # فيُقرأ الانهيار كأنه فشل تحليل. الفشل المُلفَّق في أداة التحقق نفسه
+  # ممنوع كالفشل المُلفَّق في الشاشة (ق-113).
   if [ "$mode" = cli ]; then
-    (cd "$app_dir" && flutter "$@")
+    (cd "$app_dir" && flutter --no-version-check "$@")
   else
     (
       cd "$app_dir" || exit 2
@@ -47,7 +51,8 @@ run_flutter() {
       FLUTTER_ALREADY_LOCKED=true
       export FLUTTER_ALREADY_LOCKED
       "$FLUTTER_ROOT/bin/cache/dart-sdk/bin/dart" --disable-dart-dev \
-        "$FLUTTER_ROOT/bin/cache/flutter_tools.snapshot" "$@"
+        "$FLUTTER_ROOT/bin/cache/flutter_tools.snapshot" \
+        --no-version-check "$@"
     )
   fi
 }
@@ -76,6 +81,36 @@ if [ "$pubget_state" = FAIL ]; then
   printf 'LOGS=%s\n' "$log_dir"
   printf 'RESULT=FAILED_AT=0\n'
   exit 1
+fi
+
+# ---------- 0ب) بذر أصل sqlite3 المبني ----------
+# حزمة sqlite3 تُنزّل مكتبة مبنية من GitHub عند أول بناء. مجلد العمل الجديد
+# لا يحمل مخزنها، وبيئة بلا وصول إلى GitHub تعجز عن بنائه، فلا تُشتق أي
+# نتيجة اختبار أصلًا. النسخة المبنية في المستودع الأصلي مخزَّنة بمخزن
+# مُعنون بالمصدر، فإن وُجدت تُنسخ وإلا بقيت الحالة معلنة كما هي (ق-113).
+seed_state=SKIPPED
+seed_detail='shared-cache-present'
+shared_dir="$app_dir/.dart_tool/hooks_runner/shared"
+if [ ! -d "$shared_dir" ]; then
+  main_root=$(git -C "$root" rev-parse --path-format=absolute \
+    --git-common-dir 2>/dev/null || true)
+  main_shared=''
+  if [ -n "$main_root" ]; then
+    main_shared="$(dirname -- "$main_root")/apps/mobile/.dart_tool/hooks_runner/shared"
+  fi
+  if [ -n "$main_shared" ] && [ -d "$main_shared" ]; then
+    mkdir -p "$(dirname -- "$shared_dir")" 2>/dev/null || true
+    if cp -a "$main_shared" "$shared_dir" 2>/dev/null; then
+      seed_state=OK
+      seed_detail='copied-from-main-checkout'
+    else
+      seed_state=FAIL
+      seed_detail='copy-failed'
+    fi
+  else
+    seed_state=MISSING
+    seed_detail='no-main-checkout-cache'
+  fi
 fi
 
 # ---------- 1) analyze ----------
@@ -141,6 +176,7 @@ fi
 # ---------- 3) الملخّص ----------
 printf 'MODE=%s\n' "$mode"
 printf 'STEP 0 pub get  %-8s %s\n' "$pubget_state" "$pubget_detail"
+printf 'STEP 0 sqlite3  %-8s %s\n' "$seed_state" "$seed_detail"
 printf 'STEP 1 analyze  %-8s %s\n' "$analyze_state" "$analyze_detail"
 printf 'STEP 2 test     %-8s %s\n' "$test_state" "$test_detail"
 

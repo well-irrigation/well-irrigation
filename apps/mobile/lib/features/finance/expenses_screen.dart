@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/finance_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/tafqeet_utils.dart';
@@ -8,17 +9,13 @@ import '../../core/widgets/currency_text_form_field.dart';
 import '../../core/widgets/top_well_selector.dart';
 
 class ExpensesScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final FinanceRepository? repository;
 
   const ExpensesScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.repository,
   });
@@ -31,8 +28,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
   late TabController _tabController;
   late FinanceRepository _repo;
 
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
   bool _isLoading = true;
   List<ExpenseItem> _expenses = [];
 
@@ -41,8 +39,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
     super.initState();
     _repo = widget.repository ?? FinanceRepository();
     _tabController = TabController(length: 3, vsync: this);
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadExpenses();
   }
 
@@ -55,7 +52,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
   Future<void> _loadExpenses() async {
     setState(() => _isLoading = true);
     try {
-      final list = await _repo.fetchExpenses(_activeWellId ?? 'well-1');
+      final list = await _repo.fetchExpenses(_activeWellId);
       if (!mounted) return;
       setState(() {
         _expenses = list;
@@ -78,7 +75,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
       context: context,
       builder: (dialogCtx) {
         return _RecordExpenseDialog(
-          wellId: _activeWellId ?? 'well-1',
+          wellId: _activeWellId,
           repository: _repo,
           onExpenseRecorded: () {
             _loadExpenses();
@@ -113,17 +110,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
   Widget build(BuildContext context) {
     final now = DateTime.now();
 
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     // تصنيف المصروفات للتبويبات
     final todayExpenses = _expenses.where((e) {
       return e.spentAt.year == now.year && e.spentAt.month == now.month && e.spentAt.day == now.day;
@@ -145,13 +131,12 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'المصروفات التشغيلية والمالية',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadExpenses();
             if (widget.onWellChanged != null) {

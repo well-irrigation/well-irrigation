@@ -10,7 +10,7 @@ class UserProfileData {
     required this.fullName,
     required this.phone,
     this.isPlatformAdmin = false,
-    this.rolesSummary = const ['مالك بئر الخير الرئيسي'],
+    this.rolesSummary = const [],
     this.farmerAccountLink,
   });
 
@@ -18,6 +18,9 @@ class UserProfileData {
   final String fullName;
   final String phone;
   final bool isPlatformAdmin;
+
+  /// أدوار المستخدم على آباره كما بُنيت من العقد. فارغة = لا دور معروف، ولا
+  /// يُفترض هنا دور مالك على بئر باسم ثابت (ق-113).
   final List<String> rolesSummary;
   final String? farmerAccountLink;
 
@@ -27,8 +30,10 @@ class UserProfileData {
       fullName: json['full_name'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
       isPlatformAdmin: json['is_platform_admin'] as bool? ?? false,
-      rolesSummary: (json['roles_summary'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
-          const ['مالك بئر الخير الرئيسي'],
+      rolesSummary: (json['roles_summary'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
       farmerAccountLink: json['farmer_account_link'] as String?,
     );
   }
@@ -242,10 +247,14 @@ class AccountRepository {
   /// العدد وتاريخ آخر مزامنة يُقرآن من الطابور نفسه، وجاهزية التخزين
   /// المحلي من نوع الطابور المستعمل فعلًا. الاتصال والإرسال الخلفي
   /// يبقيان `null` = غير مقيسين (W2-02d). الفشل يُرفع ولا يُبتلع.
-  Future<DeviceSyncStatusModel> fetchDeviceSyncStatus() async {
+  ///
+  /// [accountId] هوية صاحب الطابور من العقد: القراءة بمفتاح غير مفتاح الكتابة
+  /// تُظهر طابورًا فارغًا لحساب عليه عمليات لم تُرسل (ق-113).
+  Future<DeviceSyncStatusModel> fetchDeviceSyncStatus(String accountId) async {
     final coordinator = _coordinator;
-    final pendingCount = await coordinator.getPendingOperationsCount();
-    final lastSync = await coordinator.lastSuccessfulSyncAt();
+    final pendingCount =
+        await coordinator.getPendingOperationsCount(accountId);
+    final lastSync = await coordinator.lastSuccessfulSyncAt(accountId);
 
     return DeviceSyncStatusModel(
       localStorageReady: coordinator.usesDurableStore,
@@ -258,20 +267,20 @@ class AccountRepository {
   ///
   /// تمر بالمنسق القائم لا بتأخير صناعي: إن لم يكن هناك ناقل موصول
   /// يُعلن ذلك صريحًا بدل الانتظار لحظة ثم إعلان النجاح.
-  Future<void> triggerManualSync() async {
+  Future<void> triggerManualSync(String accountId) async {
     final coordinator = _coordinator;
     if (!coordinator.canSyncNow) {
       throw const ManualSyncUnavailableException();
     }
 
-    await coordinator.syncNow();
+    await coordinator.syncNow(accountId);
   }
 
   /// 9. فحص الأمان قبل تسجيل الخروج (القرار 578)
   ///
   /// يفشل مغلقًا: تعذُّر القراءة يُرفع ولا يُترجم إلى «لا يوجد معلَّق»،
   /// لأن الخروج على عمليات لم تُرسل ضياع مال ميداني.
-  Future<int> checkPendingOperationsBeforeLogout() async {
-    return _coordinator.getPendingOperationsCount();
+  Future<int> checkPendingOperationsBeforeLogout(String accountId) async {
+    return _coordinator.getPendingOperationsCount(accountId);
   }
 }

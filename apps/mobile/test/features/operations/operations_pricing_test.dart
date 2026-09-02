@@ -8,6 +8,7 @@ import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.
 import 'package:well_irrigation_mobile/core/session/session_business_state.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
+import '../../support/identity_fixture.dart';
 
 /// مستودع تسعير مُتحكَّم به: يُعيد ما يُعيده العقد أو يفشل مثله، ويعدّ
 /// النداءات ليُقاس أن «إعادة المحاولة» قراءة جديدة لا تجميل شاشة.
@@ -60,6 +61,10 @@ PriceScheduleModel _schedule(List<PriceRuleModel> rules) => PriceScheduleModel(
 /// تجمع مصدرين مختلفَي السعر — فيرى المشغّل مستحقًّا وسندًا بمبلغ لم
 /// يُسعّره جدول البئر، ويُرسل إلى القاعدة رمز مصدر لا تقبله.
 void main() {
+  /// مفتاح صاحب العملية في هذا الاختبار: الشاشة تكتب في الطابور بمفتاح
+  /// هويتها، فلو خالف مفتاح القراءة ظهرت الجلسة كأنها غير موجودة.
+  const accountId = 'owner-1';
+
   const well = WellSummary(
     id: 'well-1',
     tenantId: 'tenant-1',
@@ -93,7 +98,7 @@ void main() {
 
   Future<void> startActiveSession() async {
     await coordinator.startSession(
-      accountId: OfflineSessionCoordinator.placeholderAccountKey,
+      accountId: accountId,
       wellId: 'well-1',
       pumpId: 'pump-1',
       farmId: 'farm-1',
@@ -111,9 +116,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: OperationsScreen(
-          wellName: 'بئر الخير الرئيسي',
-          wellId: 'well-1',
-          wells: const [well],
+          identity: testIdentity(accountId: accountId, wells: const [well]),
           coordinator: coordinator,
           priceRepository: repo,
         ),

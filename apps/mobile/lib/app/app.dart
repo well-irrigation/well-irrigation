@@ -6,17 +6,10 @@ import '../core/api/app_bootstrap_repository.dart';
 import '../core/api/auth_repository.dart';
 import '../core/config/app_config.dart';
 import '../features/auth/login_screen.dart';
-import '../features/farmers/farmers_directory_screen.dart';
-import '../features/finance/expenses_screen.dart';
-import '../features/finance/partners_screen.dart';
-import '../features/history/session_history_screen.dart';
-import '../features/home/home_screen.dart';
-import '../features/operations/operations_screen.dart';
-import '../features/settings/more_settings_screen.dart';
 import '../features/splash/splash_screen.dart';
-import '../features/well_management/reports_analytics_screen.dart';
-import '../features/well_management/well_management_hub_screen.dart';
 import '../features/well_setup/create_well_wizard_screen.dart';
+import 'authenticated_shell.dart';
+import 'identity_gate.dart';
 
 class WellIrrigationApp extends StatefulWidget {
   const WellIrrigationApp({required this.config, super.key});
@@ -30,11 +23,12 @@ class WellIrrigationApp extends StatefulWidget {
 class _WellIrrigationAppState extends State<WellIrrigationApp> {
   bool _splashCompleted = false;
   bool _isLoggedIn = false;
-  String _userRole = 'owner'; // 'owner' or 'operator'
-  String _userName = 'محمد عبدالله الشامي';
-  String _wellName = 'بئر الخير الرئيسي';
-  List<WellSummary> _wells = [];
-  WellSummary? _activeWell;
+
+  /// يُزاد بعد إنشاء بئر جديد، فتُعاد تركيب بوابة الهوية وتقرأ العقد ثانية.
+  int _identityEpoch = 0;
+
+  /// سبب فشل تسجيل الخروج. وجوده يمنع إعلان خروج لم يحدث.
+  String? _signOutFailure;
 
   @override
   void initState() {
@@ -43,48 +37,35 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
   }
 
   void _checkInitialAuth() {
+    // لا مسار بيانات هنا: إن لم تكن حزمة Supabase مهيّأة فالتطبيق كله معروض
+    // بشاشة فشل الإعداد من `main.dart`، وما يبقى أمام المستخدم شاشة الدخول.
     try {
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session != null) {
-        _isLoggedIn = true;
-        _refreshBootstrap();
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _refreshBootstrap() async {
-    try {
-      final client = Supabase.instance.client;
-      if (client.auth.currentSession != null) {
-        final repo = AppBootstrapRepository(client);
-        final data = await repo.fetchBootstrap();
-        if (mounted) {
-          setState(() {
-            if (data.profile.fullName.isNotEmpty) {
-              _userName = data.profile.fullName;
-            }
-            _wells = data.wells;
-            if (data.primaryWell != null && data.primaryWell!.name.isNotEmpty) {
-              _activeWell = data.primaryWell;
-              _wellName = data.primaryWell!.name;
-              _userRole = data.primaryWell!.isOwner ? 'owner' : 'operator';
-            }
-          });
-        }
-      }
+      _isLoggedIn = Supabase.instance.client.auth.currentSession != null;
     } catch (_) {
-      // الحفاظ على البيانات الافتراضية محلياً عند غياب الشبكة
+      _isLoggedIn = false;
     }
   }
 
+  Future<BootstrapData> _loadBootstrap() {
+    return AppBootstrapRepository(Supabase.instance.client).fetchBootstrap();
+  }
+
+  /// الخروج لا يُعلن إلا إن نجح فعلًا: فشل إبطال الجلسة يُعرض للمستخدم بدل
+  /// إعادته إلى شاشة الدخول وجلسته ما زالت قائمة على الجهاز.
   Future<void> _handleLogout() async {
     try {
       await AuthRepository(Supabase.instance.client).signOut();
-    } catch (_) {}
+    } catch (error) {
+      if (mounted) {
+        setState(() => _signOutFailure = '$error');
+      }
+      return;
+    }
 
     if (mounted) {
       setState(() {
         _isLoggedIn = false;
+        _signOutFailure = null;
       });
     }
   }
@@ -102,229 +83,66 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
         fontFamily: 'Roboto',
         colorSchemeSeed: const Color(0xFF0265BA),
       ),
-      home: Builder(
-        builder: (innerContext) {
-          if (!_splashCompleted) {
-            return SplashScreen(
-              onInitialized: () {
-                setState(() {
-                  _splashCompleted = true;
-                });
-              },
-            );
-          }
+      home: Builder(builder: _buildHome),
+    );
+  }
 
-          if (!_isLoggedIn) {
-            return LoginScreen(
-              onLoginSuccess: () {
-                setState(() {
-                  _isLoggedIn = true;
-                });
-                _refreshBootstrap();
-              },
-              onCreateWellPressed: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => CreateWellWizardScreen(
-                      onCompleted: () {
-                        setState(() {
-                          _isLoggedIn = true;
-                          _userRole = 'owner';
-                        });
-                        _refreshBootstrap();
-                      },
-                    ),
-                  ),
-                );
-              },
-            );
-          }
+  Widget _buildHome(BuildContext context) {
+    if (!_splashCompleted) {
+      return SplashScreen(
+        onInitialized: () => setState(() => _splashCompleted = true),
+      );
+    }
 
-          // التوجيه الذكي المعتمد حسب الدور (UX-05 / UX-13 / ق-87 / ق-98)
-          if (_userRole == 'owner') {
-            return HomeScreen(
-              ownerName: _userName,
-              wellName: _wellName,
-              wells: _wells,
-              activeWell: _activeWell,
-              onWellChanged: (well) {
-                setState(() {
-                  _activeWell = well;
-                  _wellName = well.name;
-                  _userRole = well.isOwner ? 'owner' : 'operator';
-                });
-              },
-              onNavigateToOperations: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => OperationsScreen(
-                      wellName: _wellName,
-                      wellId: _activeWell?.id,
-                      wells: _wells,
-                      onWellChanged: (well) {
-                        setState(() {
-                          _activeWell = well;
-                          _wellName = well.name;
-                          _userRole = well.isOwner ? 'owner' : 'operator';
-                        });
-                      },
-                      onLogout: _handleLogout,
-                    ),
-                  ),
-                );
-              },
-              onNavigateToHistory: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => SessionHistoryScreen(
-                      wellName: _wellName,
-                      wellId: _activeWell?.id,
-                      wells: _wells,
-                      onWellChanged: (well) {
-                        setState(() {
-                          _activeWell = well;
-                          _wellName = well.name;
-                          _userRole = well.isOwner ? 'owner' : 'operator';
-                        });
-                      },
-                      onLogout: _handleLogout,
-                    ),
-                  ),
-                );
-              },
-              onNavigateToFarmers: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => FarmersDirectoryScreen(
-                      wellName: _wellName,
-                      wellId: _activeWell?.id,
-                      wells: _wells,
-                      onWellChanged: (well) {
-                        setState(() {
-                          _activeWell = well;
-                          _wellName = well.name;
-                          _userRole = well.isOwner ? 'owner' : 'operator';
-                        });
-                      },
-                      onLogout: _handleLogout,
-                    ),
-                  ),
-                );
-              },
-              onNavigateToExpenses: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => ExpensesScreen(
-                      wellName: _wellName,
-                      wellId: _activeWell?.id ?? 'well-1',
-                      wells: _wells,
-                      onWellChanged: (newWell) {
-                        setState(() {
-                          _activeWell = newWell;
-                          _wellName = newWell.name;
-                          _userRole = newWell.isOwner ? 'owner' : 'operator';
-                        });
-                      },
-                    ),
-                  ),
-                );
-              },
-              onNavigateToPartners: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => PartnersScreen(
-                      wellName: _wellName,
-                      wellId: _activeWell?.id ?? 'well-1',
-                      wells: _wells,
-                      onWellChanged: (newWell) {
-                        setState(() {
-                          _activeWell = newWell;
-                          _wellName = newWell.name;
-                          _userRole = newWell.isOwner ? 'owner' : 'operator';
-                        });
-                      },
-                    ),
-                  ),
-                );
-              },
-              onNavigateToWellManagement: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => WellManagementHubScreen(
-                      wellName: _wellName,
-                      wellId: _activeWell?.id ?? 'well-1',
-                      wells: _wells,
-                      onWellChanged: (newWell) {
-                        setState(() {
-                          _activeWell = newWell;
-                          _wellName = newWell.name;
-                          _userRole = newWell.isOwner ? 'owner' : 'operator';
-                        });
-                      },
-                    ),
-                  ),
-                );
-              },
-              onNavigateToReports: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => ReportsAnalyticsScreen(
-                      wellName: _wellName,
-                      wellId: _activeWell?.id ?? 'well-1',
-                      wells: _wells,
-                      onWellChanged: (newWell) {
-                        setState(() {
-                          _activeWell = newWell;
-                          _wellName = newWell.name;
-                          _userRole = newWell.isOwner ? 'owner' : 'operator';
-                        });
-                      },
-                    ),
-                  ),
-                );
-              },
-              onNavigateToMoreSettings: () {
-                Navigator.of(innerContext).push(
-                  MaterialPageRoute(
-                    builder: (_) => MoreSettingsScreen(
-                      wellName: _wellName,
-                      wellId: _activeWell?.id ?? 'well-1',
-                      wells: _wells,
-                      onWellChanged: (newWell) {
-                        setState(() {
-                          _activeWell = newWell;
-                          _wellName = newWell.name;
-                          _userRole = newWell.isOwner ? 'owner' : 'operator';
-                        });
-                      },
-                      onLogout: _handleLogout,
-                    ),
-                  ),
-                );
-              },
-              onLogout: _handleLogout,
-            );
-          } else {
-            return OperationsScreen(
-              wellName: _wellName,
-              wellId: _activeWell?.id,
-              wells: _wells,
-              onWellChanged: (well) {
-                setState(() {
-                  _activeWell = well;
-                  _wellName = well.name;
-                  _userRole = well.isOwner ? 'owner' : 'operator';
-                });
-              },
-              onLogout: _handleLogout,
-            );
-          }
-        },
+    final signOutFailure = _signOutFailure;
+    if (signOutFailure != null) {
+      return AppNoticeView(
+        icon: Icons.logout,
+        title: 'تعذر تسجيل الخروج',
+        message:
+            'ما زالت جلستك مفتوحة على هذا الجهاز، فلن نعيدك إلى شاشة الدخول '
+            'ونحن لم ننهها. أعد المحاولة.\n\n$signOutFailure',
+        onRetry: _handleLogout,
+      );
+    }
+
+    if (!_isLoggedIn) {
+      return LoginScreen(
+        onLoginSuccess: () => setState(() => _isLoggedIn = true),
+        onCreateWellPressed: () => _openCreateWellWizard(context),
+      );
+    }
+
+    return IdentityGate(
+      key: ValueKey(_identityEpoch),
+      loadBootstrap: _loadBootstrap,
+      onSignOutRequested: _handleLogout,
+      onCreateWellRequested: () => _openCreateWellWizard(context),
+      builder: (context, identity, onWellChanged) => AuthenticatedShell(
+        identity: identity,
+        onWellChanged: onWellChanged,
+        onLogout: _handleLogout,
+      ),
+    );
+  }
+
+  void _openCreateWellWizard(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CreateWellWizardScreen(
+          onCompleted: () {
+            setState(() {
+              _isLoggedIn = true;
+              // البئر الجديد يأتي من العقد لا من الشاشة: إعادة القراءة هي
+              // ما يجعله بئرًا نشطًا، فلا يُبنى منه ملخّص محلي.
+              _identityEpoch++;
+            });
+          },
+        ),
       ),
     );
   }
 }
-
 
 class ConfigurationFailureApp extends StatelessWidget {
   const ConfigurationFailureApp({required this.message, super.key});

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/operations_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/digit_utils.dart';
@@ -11,18 +12,14 @@ import 'farmer_detail_screen.dart';
 /// شاشة دليل المزارعين والأراضي (UX-13 / 380 / ق-80 / ق-84 / ق-98)
 class FarmersDirectoryScreen extends StatefulWidget {
   const FarmersDirectoryScreen({
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.repository,
     this.onWellChanged,
     this.onLogout,
     super.key,
   });
 
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final OperationsRepository? repository;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
@@ -34,8 +31,10 @@ class FarmersDirectoryScreen extends StatefulWidget {
 class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
   late OperationsRepository _repo;
 
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
+  String get _activeWellName => _activeWell.name;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
@@ -47,8 +46,7 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
   @override
   void initState() {
     super.initState();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
 
     _repo = widget.repository ?? const OperationsRepository();
     _loadData();
@@ -61,15 +59,14 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
   }
 
   Future<void> _loadData() async {
-    if (_activeWellId == null) return;
     setState(() {
       _isLoading = true;
       _loadError = null;
     });
 
     try {
-      final farmers = await _repo.fetchFarmers(_activeWellId!);
-      final farms = await _repo.fetchFarms(_activeWellId!);
+      final farmers = await _repo.fetchFarmers(_activeWellId);
+      final farms = await _repo.fetchFarms(_activeWellId);
 
       final counts = <String, int>{};
       for (final f in farms) {
@@ -198,7 +195,7 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
                       setDialogState(() => isSubmitting = true);
                       try {
                         await _repo.createFarmer(
-                          wellId: _activeWellId!,
+                          wellId: _activeWellId,
                           fullName: name,
                           phone: phoneController.text.trim().isNotEmpty ? phoneController.text.trim() : null,
                           notes: notesController.text.trim().isNotEmpty ? notesController.text.trim() : null,
@@ -234,17 +231,6 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     final displayedFarmers = _filteredFarmers;
 
     return Scaffold(
@@ -253,13 +239,12 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'دليل المزارعين والأراضي',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadData();
             if (widget.onWellChanged != null) {
@@ -454,7 +439,7 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => FarmerDetailScreen(
-                wellId: _activeWellId!,
+                wellId: _activeWellId,
                 farmerAccountId: farmer.id,
                 wellName: _activeWellName,
                 repository: _repo,

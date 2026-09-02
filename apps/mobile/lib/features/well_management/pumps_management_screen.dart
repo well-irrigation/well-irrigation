@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api/app_bootstrap_repository.dart';
+import '../../core/identity/app_identity.dart';
 import '../../core/api/well_management_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/digit_utils.dart';
@@ -7,17 +8,13 @@ import '../../core/widgets/top_well_selector.dart';
 
 /// شاشة إدارة المضخات والمعدات التشغيلية (UX-15 / القرارات 466–472)
 class PumpsManagementScreen extends StatefulWidget {
-  final String wellName;
-  final String? wellId;
-  final List<WellSummary> wells;
+  final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final WellManagementRepository? repository;
 
   const PumpsManagementScreen({
     super.key,
-    required this.wellName,
-    this.wellId,
-    this.wells = const [],
+    required this.identity,
     this.onWellChanged,
     this.repository,
   });
@@ -28,8 +25,9 @@ class PumpsManagementScreen extends StatefulWidget {
 
 class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
   late WellManagementRepository _repo;
-  String? _activeWellId;
-  String _activeWellName = '';
+  late WellSummary _activeWell;
+
+  String get _activeWellId => _activeWell.id;
   bool _isLoading = true;
   List<PumpModel> _pumps = [];
 
@@ -37,15 +35,14 @@ class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
   void initState() {
     super.initState();
     _repo = widget.repository ?? WellManagementRepository();
-    _activeWellName = widget.wellName;
-    _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : 'well-1');
+    _activeWell = widget.identity.activeWell;
     _loadPumps();
   }
 
   Future<void> _loadPumps() async {
     setState(() => _isLoading = true);
     try {
-      final list = await _repo.fetchPumps(_activeWellId ?? 'well-1');
+      final list = await _repo.fetchPumps(_activeWellId);
       if (!mounted) return;
       setState(() {
         _pumps = list;
@@ -67,7 +64,7 @@ class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
     showDialog(
       context: context,
       builder: (dialogCtx) => _AddEditPumpDialog(
-        wellId: _activeWellId ?? 'well-1',
+        wellId: _activeWellId,
         existingPump: existingPump,
         repository: _repo,
         onPumpSaved: () {
@@ -84,30 +81,18 @@ class _PumpsManagementScreenState extends State<PumpsManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeWellSummary = widget.wells.firstWhere(
-      (w) => w.id == _activeWellId,
-      orElse: () => WellSummary(
-        id: _activeWellId ?? 'well-1',
-        tenantId: 'tenant-1',
-        name: _activeWellName,
-        status: 'active',
-        roles: const ['owner', 'operator'],
-      ),
-    );
-
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: TopWellSelector(
-          wells: widget.wells.isNotEmpty ? widget.wells : [activeWellSummary],
-          activeWell: activeWellSummary,
+          wells: widget.identity.wells,
+          activeWell: _activeWell,
           subtitle: 'إدارة المضخات والمعدات',
           onWellChanged: (newWell) {
             setState(() {
-              _activeWellId = newWell.id;
-              _activeWellName = newWell.name;
+              _activeWell = newWell;
             });
             _loadPumps();
             if (widget.onWellChanged != null) {
