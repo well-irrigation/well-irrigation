@@ -11,7 +11,10 @@
     "db:reset": "npx supabase db reset",
     "db:test": "sh scripts/db_test.sh",
     "db:index": "sh scripts/db_index.sh",
-    "cloud:verify": "sh scripts/cloud_verify.sh"
+    "cloud:verify": "sh scripts/cloud_verify.sh",
+    "c:state": "sh scripts/check_state.sh",
+    "c:app": "sh scripts/check_app.sh",
+    "c:db": "sh scripts/check_db.sh"
   },
   "keywords": [],
   "author": "",
