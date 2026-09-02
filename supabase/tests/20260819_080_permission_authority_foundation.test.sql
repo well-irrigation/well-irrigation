@@ -87,8 +87,11 @@ begin
   -- ثم صار 41 بعد Migration 091 التي أضافت `well.update`
   -- و`pump.manage`: عقود الكتابة صارت إجراءات SECURITY DEFINER
   -- بسبب ق-79، فاحتاجت صلاحية مسمّاة للتفويض الصريح.
-  if v_count = 41 and v_count_2 = 17 then
-    raise notice 'PASS 2: Permission catalog = 41 ويغطي تدفقات V1 الحالية';
+  -- ثم صار 42 بعد Migration 093 التي أضافت `price.read`: قراءة
+  -- التسعيرة كانت محكومة بـ`price.manage` (صلاحية تعديل للمالك)،
+  -- فصارت صلاحية اطلاع مستقلة لمن يشغّل البئر.
+  if v_count = 42 and v_count_2 = 17 then
+    raise notice 'PASS 2: Permission catalog = 42 ويغطي تدفقات V1 الحالية';
   else
     raise notice 'FAIL 2: permission_total=% new_codes=%', v_count, v_count_2;
   end if;
@@ -107,27 +110,30 @@ begin
   -- (owner + manager + operator) — بلا توسيع ولا تضييق.
   -- +2 منح بعد Migration 091: `well.update` و`pump.manage`
   -- للمالك وحده، مطابقةً لسياسات RLS على core.wells وcore.pumps.
-  if v_count = 75
+  -- +3 منح بعد Migration 093: `price.read` للمالك والمدير والمشغل،
+  -- وهي نفس مجموعة الأدوار التي تقبلها ops.start_irrigation_session:
+  -- من يبدأ جلسة مُسعَّرة يرى السعر الذي ستُسعَّر به.
+  if v_count = 78
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'tenant_owner'
-     ) = 41
+     ) = 42
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'well_manager'
-     ) = 13
+     ) = 14
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'operator'
-     ) = 21
+     ) = 22
   then
-    raise notice 'PASS 3: Role permission seed = owner 41 / manager 13 / operator 21';
+    raise notice 'PASS 3: Role permission seed = owner 42 / manager 14 / operator 22';
   else
     raise notice 'FAIL 3: role_permissions total=%', v_count;
   end if;

@@ -978,9 +978,25 @@ SECURITY DEFINER في api، صفر كائن علائقي في api، Direct DML =
 
 الأربعة `security invoker` + `stable` + `search_path` مثبت،
 fail-closed بـ`28000`/`22023`/`42501`، ترتيب حتمي، ولا كائن
-علائقي في `api`. `get_active_price_schedule` وحده يفحص
-`price.manage` لأن الأسعار بيانات إدارية لا تشغيلية، وغياب جدول
-ساري يعيد `schedule: null` — حالة مشروعة لا خطأ ولا أسعار صفرية.
+علائقي في `api`. وغياب جدول تسعير ساري يعيد `schedule: null` —
+حالة مشروعة لا خطأ ولا أسعار صفرية.
+
+**تعديل م-41D7 (هجرة 093):** كان `get_active_price_schedule` يفحص
+`price.manage` — أي المالك وحده — فبقي المشغل بلا سعر ساعة على شاشته
+وهو من يبدأ الجلسة. صار الفحص `price.read`، صلاحية اطلاع مستقلة
+ممنوحة لـ`tenant_owner` و`well_manager` و`operator` (نفس مجموعة
+`ops.start_irrigation_session`). ولأن سياسات 031 تحصر `SELECT` على
+جدولي التسعير بالمالك، انتقلت القراءة إلى زوج قراءة:
+
+| الغلاف في `api` | القارئ الداخلي | الصلاحية المفحوصة |
+|---|---|---|
+| `api.get_active_price_schedule` | `ops.read_active_price_schedule` | `price.read` |
+
+الغلاف يبقى `INVOKER` (جلسة + مدخل + رؤية البئر عبر RLS) ولا يكرّر
+قرار الصلاحية، والقارئ `DEFINER` + `stable` + `search_path` مثبت
+يحمل الفحص المسمّى. سياسات RLS على `ops.price_schedules` و
+`ops.price_rules` لم تُخفَّف: الجداول تبقى مغلقة والاطلاع بالعقد وحده.
+والمغلّف ومفاتيحه و`version = 1` لم تتغير.
 
 ### الكتابة كأزواج (ق-79)
 
