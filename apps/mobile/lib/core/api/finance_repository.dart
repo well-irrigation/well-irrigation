@@ -585,6 +585,10 @@ class FinanceRepository {
     });
   }
 
+  /// تخصيص دفعة قائمة على فواتير مفتوحة. العقد صحيح، لكن **لا شاشة تناديه
+  /// اليوم**: التخصيص يحتاج معرّف سند حقيقي ورصيده غير المخصَّص، ولا
+  /// يعيدهما `get_farmer_account` (يعيد رصيدًا مُجمَّعًا فقط). فبقي المنفذ
+  /// جاهزًا بلا نداء بدل أن تُرسل الشاشة معرّفًا مُلفَّقًا (م-41D5 / ق-99).
   Future<void> allocateAdvance({
     required String paymentId,
     required List<Map<String, dynamic>> allocations,

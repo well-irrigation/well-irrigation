@@ -98,7 +98,7 @@ void main() {
       expect(find.textContaining('الفواتير المستحقة'), findsOneWidget);
       expect(find.textContaining('سجل سندات القبض'), findsOneWidget);
       expect(find.text('تسجيل دفعة / سند قبض'), findsOneWidget);
-      expect(find.text('استخدام الرصيد المقدم'), findsOneWidget);
+      expect(find.text('الرصيد المقدم (غير متاح)'), findsOneWidget);
     });
 
     testWidgets('2. فتح حوار تسجيل دفعة وسند قبض جديد', (tester) async {
@@ -125,7 +125,7 @@ void main() {
       expect(find.text('إصدار سند القبض'), findsOneWidget);
     });
 
-    testWidgets('3. فتح حوار استخدام الرصيد المقدم لتسديد أقدم الفواتير', (tester) async {
+    testWidgets('3. نافذة الرصيد المقدم تعلن أن التسديد منه غير متاح ولا تُرسل أمرًا', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('ar'),
@@ -139,16 +139,64 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // الضغط على زر استخدام الرصيد المقدم
-      await tester.tap(find.text('استخدام الرصيد المقدم'));
+      await tester.tap(find.text('الرصيد المقدم (غير متاح)'));
       await tester.pumpAndSettle();
 
-      expect(find.text('استخدام الرصيد المقدم'), findsWidgets);
-      expect(find.text('الرصيد المقدم المتاح:'), findsOneWidget);
-      expect(find.text('تأكيد التسديد من المقدم'), findsOneWidget);
+      // الرصيد الحقيقي يبقى معروضًا: الحالة لا تُخفى، بل يُمنع صرفها كذبًا.
+      expect(find.text('الرصيد المقدم — التسديد منه غير متاح'), findsOneWidget);
+      expect(find.text('الرصيد المقدم المحفوظ في الحساب:'), findsOneWidget);
+      expect(find.text('20000 ريال'), findsOneWidget);
+      expect(
+        find.textContaining('لم يُرسل أي أمر تسديد'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('عرض فقط — لا تُسدَّد من هذه النافذة'),
+        findsOneWidget,
+      );
+      expect(find.text('INV-002'), findsWidgets);
+
+      // لا زر تأكيد ولا نص تسديد: لا مسار كتابة من هذه النافذة.
+      expect(find.text('تأكيد التسديد من المقدم'), findsNothing);
+      expect(find.text('إغلاق'), findsOneWidget);
+
+      await tester.tap(find.text('إغلاق'));
+      await tester.pumpAndSettle();
+
+      // لا نجاح كاذب بعد الإغلاق، ولا تغيّر في الدين ولا في الرصيد.
+      expect(
+        find.textContaining('تم استخدام الرصيد المقدم'),
+        findsNothing,
+      );
+      expect(find.text('الرصيد المقدم (غير متاح)'), findsOneWidget);
     });
 
-    testWidgets('4. فشل عقد الحساب لا يُظهر هوية ولا رصيدًا مُلفَّقًا', (tester) async {
+    testWidgets('4. لا نداء تخصيص يُرسل إلى العقد من شاشة الحساب المالي', (tester) async {
+      final spy = _WriteSpyFinanceRepository();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ar'),
+          home: FarmerFinancialAccountScreen(
+            wellId: 'well-1',
+            farmerAccountId: 'farmer-account-1',
+            wellName: 'بئر الخير الرئيسي',
+            repository: spy,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('الرصيد المقدم (غير متاح)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('إغلاق'));
+      await tester.pumpAndSettle();
+
+      expect(spy.allocateCalls, 0);
+      expect(find.textContaining('حدث خطأ'), findsNothing);
+    });
+
+    testWidgets('5. فشل عقد الحساب لا يُظهر هوية ولا رصيدًا مُلفَّقًا', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('ar'),
@@ -181,5 +229,20 @@ class _FailingFinanceRepository extends FinanceRepository {
     int limit = 50,
   }) async {
     throw StateError('لا توجد صلاحية على حساب هذا المزارع');
+  }
+}
+
+/// جاسوس كتابة: يرصد أي نداء تخصيص. الشاشة لا يجوز أن تنادي العقد بمعرّف
+/// لم يُعده عقد قراءة، فالنداء نفسه — لا نتيجته — هو العيب (ق-99 / م-41D5).
+class _WriteSpyFinanceRepository extends _FakeFinanceRepository {
+  int allocateCalls = 0;
+
+  @override
+  Future<void> allocateAdvance({
+    required String paymentId,
+    required List<Map<String, dynamic>> allocations,
+  }) async {
+    allocateCalls += 1;
+    throw StateError('تخصيص لم يخترْه المشغل: $paymentId');
   }
 }

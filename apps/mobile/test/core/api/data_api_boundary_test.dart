@@ -497,12 +497,10 @@ void main() {
       captureGroup: 1,
     );
 
-    // انكمش الدين من ثلاثة إلى واحد في م-41D4: معرّف الجلسة المُلفَّق
-    // (mock-session) والمزارع المُلفَّق (F-NEW) صارا فشلًا صريحًا. وبقيت
-    // دفعة السلفة بمعرّف ثابت في شاشة الحساب المالي (البند 8).
-    const expected = <String>[
-      'lib/features/finance/farmer_financial_account_screen.dart|mock-advance-pay',
-    ];
+    // أُغلق الدين كاملًا: ثلاثة مواضع ← واحد في م-41D4 ← صفر في م-41D5.
+    // معرّف الجلسة المُلفَّق والمزارع المُلفَّق صارا فشلًا صريحًا، وشاشة
+    // الحساب المالي لم تبق ترسل دفعة بمعرّف ثابت إلى عقد كتابة.
+    const expected = <String>[];
 
     _expectKnownDebt(
       label: 'False-success fabricated-id debt',
@@ -746,5 +744,54 @@ void main() {
 
     expect(source.contains("?? 'بئر الخير الرئيسي'"), isFalse);
     expect(source.contains("?? 'لا بئر مختار'"), isTrue);
+  });
+
+  // المقياس السادس (م-41D5): آخر مسار كتابة كان يرسل معرّفًا لم يعده عقد.
+  test('advance allocation never sends an id the contract did not return', () {
+    final source = File(
+      'lib/features/finance/farmer_financial_account_screen.dart',
+    ).readAsStringSync();
+
+    for (final claimed in const [
+      'mock-advance-pay',
+      'allocateAdvance(',
+      'تم استخدام الرصيد المقدم في تسديد الفواتير بنجاح',
+      'تأكيد التسديد من المقدم',
+      'سيتم استخدام الرصيد لتسديد أقدم الفواتير',
+      'الرصيد المقدم المتاح:',
+    ]) {
+      expect(
+        source.contains(claimed),
+        isFalse,
+        reason: 'Screen still fakes an advance allocation: $claimed',
+      );
+    }
+
+    for (final honest in const [
+      'الرصيد المقدم (غير متاح)',
+      'الرصيد المقدم — التسديد منه غير متاح',
+      'غير متاح في هذا الإصدار — لم يُرسل أي أمر تسديد',
+      'عرض فقط — لا تُسدَّد من هذه النافذة',
+      'class _AdvanceUnavailableDialog extends StatelessWidget',
+    ]) {
+      expect(
+        source.contains(honest),
+        isTrue,
+        reason: 'Explicit unavailable-advance state missing: $honest',
+      );
+    }
+
+    // النافذة لا تحمل مستودعًا أصلًا، فلا كتابة ممكنة منها لا نجاحًا ولا فشلًا.
+    final dialogStart = source.indexOf('class _AdvanceUnavailableDialog');
+    expect(dialogStart, isNonNegative);
+    final dialog = source.substring(dialogStart);
+    expect(dialog.contains('FinanceRepository'), isFalse);
+    expect(dialog.contains('await '), isFalse);
+
+    // المنفذ الصادق باقٍ في المستودع بلا نداء حتى يوجد العقد.
+    final repository = File(
+      'lib/core/api/finance_repository.dart',
+    ).readAsStringSync();
+    expect(repository.contains("rpc('allocate_payment'"), isTrue);
   });
 }
