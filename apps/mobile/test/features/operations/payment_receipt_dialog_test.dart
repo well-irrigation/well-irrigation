@@ -70,5 +70,52 @@ void main() {
       expect(capturedMethod, 'نقد');
       expect(capturedSettled, isTrue);
     });
+
+    testWidgets('زر الطباعة يعلن عدم توفرها ولا يدّعي إرسال أمر طباعة (ق-113 / م-41D4)',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: PaymentReceiptDialog(
+                wellName: 'بئر الوادي الحديث',
+                operatorName: 'خالد النجحي',
+                farmerName: 'محمد عبدالله الشامي',
+                farmName: 'أرض الجربة',
+                energySource: 'طاقة شمسية',
+                hourlyRateYER: 3500,
+                billableSeconds: 7200,
+                totalAmountYER: 7000,
+                onConfirmPayment: ({
+                  required int paidAmountYER,
+                  required String paymentMethod,
+                  required bool isFullySettled,
+                }) async {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final printFinder = find.text('طباعة حرارية (غير متاحة)');
+      expect(printFinder, findsOneWidget);
+      await tester.ensureVisible(printFinder);
+      await tester.tap(printFinder);
+      await tester.pumpAndSettle();
+
+      // لا «تم إرسال أمر الطباعة» بعد الآن: لا تكامل بلوتوث في هذا الإصدار.
+      expect(
+        find.text(
+          'الطباعة الحرارية غير متاحة في هذا الإصدار — لم يُرسل أمر طباعة',
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }

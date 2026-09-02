@@ -497,12 +497,11 @@ void main() {
       captureGroup: 1,
     );
 
-    // ما بقي بعد إصلاح البنود 1–4: معرّف جلسة مُلفَّق عند غياب العميل،
-    // ودفعة سلفة بمعرّف ثابت، ومزارع مُلفَّق في شاشة التشغيل (البنود 5–7).
+    // انكمش الدين من ثلاثة إلى واحد في م-41D4: معرّف الجلسة المُلفَّق
+    // (mock-session) والمزارع المُلفَّق (F-NEW) صارا فشلًا صريحًا. وبقيت
+    // دفعة السلفة بمعرّف ثابت في شاشة الحساب المالي (البند 8).
     const expected = <String>[
-      'lib/core/api/operations_repository.dart|mock-session-',
       'lib/features/finance/farmer_financial_account_screen.dart|mock-advance-pay',
-      'lib/features/operations/operations_screen.dart|F-NEW',
     ];
 
     _expectKnownDebt(
@@ -520,14 +519,15 @@ void main() {
 
     final files = actual.map((hit) => hit.split('|').first).toSet();
 
-    // قياس 2026-09-02: 47 موضعًا في 15 ملفًا يستعملون بئرًا افتراضيًا عند
-    // غياب البئر المختار. دين مُعلَن يُغلق في جولة الهوية الحقيقية.
+    // قياس 2026-09-02 بعد م-41D4: 45 موضعًا في 14 ملفًا (كانت 47 في 15).
+    // شاشة التشغيل خرجت من القائمة كلها. دين مُعلَن يُغلق في جولة الهوية
+    // الحقيقية، ولا يُسمح له بالنمو.
     expect(
       actual.length,
-      47,
+      45,
       reason: 'Placeholder well-id debt changed; it may only shrink.',
     );
-    expect(files.length, 15);
+    expect(files.length, 14);
   });
 
   test('account repository reports measured device state, never constants', () {
@@ -619,5 +619,132 @@ void main() {
       security.contains('oldPasswordController.clear();'),
       isTrue,
     );
+  });
+
+  // المقياس الخامس (م-41D4): كتابات التشغيل. كانت تعود بنجاح صامت — أو
+  // بفاتورة مُلفَّقة — عند غياب العميل، وتبتلعها الشاشة في مصيدة فارغة.
+  test('operations write contracts fail loudly without a client', () {
+    final source = File(
+      'lib/core/api/operations_repository.dart',
+    ).readAsStringSync();
+
+    expect(
+      source.contains('if (client == null) return'),
+      isFalse,
+      reason: 'A write still returns silently when the client is missing.',
+    );
+
+    for (final fabricated in const [
+      'mock-session-',
+      "'total_amount_minor': 10500",
+    ]) {
+      expect(
+        source.contains(fabricated),
+        isFalse,
+        reason: 'Fabricated write result still present: $fabricated',
+      );
+    }
+
+    // كل فرع «لا عميل» يرفع نفس الاستثناء الذي ترفعه القراءات: لا استثناء
+    // لكتابة على حساب المستخدم.
+    final guarded = RegExp(
+      r'if \(client == null\) \{',
+    ).allMatches(source).length;
+    final throwing = RegExp(
+      r"throw StateError\('Supabase client is unavailable'\)",
+    ).allMatches(source).length;
+
+    expect(guarded, throwing);
+    expect(throwing, greaterThanOrEqualTo(12));
+
+    for (final method in const [
+      'Future<String> startIrrigationSession',
+      'Future<void> pauseIrrigationSession',
+      'Future<void> resumeIrrigationSession',
+      'Future<void> changeEnergySource',
+      'Future<Map<String, dynamic>> completeIrrigationSession',
+    ]) {
+      expect(
+        source.contains(method),
+        isTrue,
+        reason: 'Session write contract missing: $method',
+      );
+    }
+  });
+
+  test('operations screen surfaces write failures instead of faking state', () {
+    final source = File(
+      'lib/features/operations/operations_screen.dart',
+    ).readAsStringSync();
+
+    for (final swallowed in const [
+      'catch (_) {}',
+      '// Fallback',
+      "publicCode: 'F-NEW'",
+      "tenantId: 'tenant-1'",
+      "roles: const ['owner', 'operator']",
+    ]) {
+      expect(
+        source.contains(swallowed),
+        isFalse,
+        reason: 'Screen still hides failure or fabricates identity: $swallowed',
+      );
+    }
+
+    for (final honest in const [
+      'void _showActionFailure(String message)',
+      'تعذر بدء الجلسة — لم يُسجَّل شيء',
+      'تعذر الإيقاف المؤقت — الجلسة ما زالت جارية',
+      'تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند',
+      'اختر البئر أولًا — لا يُنشأ مزارع بلا بئر',
+      'اختر البئر أولًا — لا تُنشأ أرض بلا بئر',
+      'لا بئر نشط — لا تُبدأ جلسة سقي بلا بئر',
+      'لم يُسجَّل السداد',
+    ]) {
+      expect(
+        source.contains(honest),
+        isTrue,
+        reason: 'Explicit failure path missing: $honest',
+      );
+    }
+
+    // دين مُعلَن: التسعيرة ما زالت محسوبة في العميل، لكنها في موضع واحد
+    // مُسمّى يُقاس ويُغلق في جولة التسعيرة الحقيقية — لا ثلاثة متفرقة.
+    expect(source.contains('_clientSideRateFor'), isTrue);
+    expect(RegExp(r'\b3500\b').allMatches(source).length, 1);
+    expect(RegExp(r'\b5000\b').allMatches(source).length, 1);
+  });
+
+  test('payment receipt never claims a print that did not happen', () {
+    final source = File(
+      'lib/features/operations/widgets/payment_receipt_dialog.dart',
+    ).readAsStringSync();
+
+    for (final claimed in const [
+      'تم إرسال أمر الطباعة',
+      'محاكاة اتصال البلوتوث',
+      'Future.delayed',
+      'تمت الطباعة',
+    ]) {
+      expect(
+        source.contains(claimed),
+        isFalse,
+        reason: 'Receipt still claims an unperformed print: $claimed',
+      );
+    }
+
+    expect(
+      source.contains('الطباعة الحرارية غير متاحة في هذا الإصدار'),
+      isTrue,
+    );
+  });
+
+  test('top well selector never names a well the user does not have', () {
+    final source = File(
+      'lib/core/widgets/top_well_selector.dart',
+    ).readAsStringSync();
+
+    expect(source.contains("?? 'بئر الخير الرئيسي'"), isFalse);
+    expect(source.contains("?? 'لا بئر مختار'"), isTrue);
   });
 }
