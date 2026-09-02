@@ -25,23 +25,10 @@ class OfflineSessionCoordinator {
     SupabaseClient? supabaseClient,
     PricingResolver? pricingResolver,
   })  : _store = store ?? InMemoryOutboxStore(),
-        _pricingResolver = pricingResolver ??
-            PricingResolver([
-              PricingSnapshot(
-                hourlyRateMinor: 3500,
-                effectiveFrom: DateTime.fromMillisecondsSinceEpoch(0),
-                energySource: 'طاقة شمسية',
-              ),
-              PricingSnapshot(
-                hourlyRateMinor: 5000,
-                effectiveFrom: DateTime.fromMillisecondsSinceEpoch(0),
-                energySource: 'ديزل',
-              ),
-              PricingSnapshot(
-                hourlyRateMinor: 3500,
-                effectiveFrom: DateTime.fromMillisecondsSinceEpoch(0),
-              ),
-            ]) {
+        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
+        // `api.get_active_price_schedule` عبر `updatePricing`. حتى تُغذّى،
+        // كل مقطع محتسب «بانتظار المزامنة» ولا يُسعَّر بصفر (القرار 341).
+        _pricingResolver = pricingResolver ?? const PricingResolver.none() {
     _outbox = OutboxRepository(store: _store);
     _projector = ActiveSessionProjector(
       store: _store,
@@ -67,9 +54,22 @@ class OfflineSessionCoordinator {
 
   final OutboxStore _store;
   late final OutboxRepository _outbox;
-  late final ActiveSessionProjector _projector;
+  late ActiveSessionProjector _projector;
   SyncEngine? _syncEngine;
-  final PricingResolver _pricingResolver;
+  PricingResolver _pricingResolver;
+
+  /// إحلال لقطات التسعير المقروءة من العقد محلّ ما قبلها.
+  ///
+  /// تُنادى من الشاشة بعد نجاح `api.get_active_price_schedule`، وبقائمة
+  /// فارغة إن فشلت القراءة — فيعود المستحق «بانتظار المزامنة» بدل أن يبقى
+  /// معروضًا بسعر لم يُعده العقد (م-41D6).
+  void updatePricing(List<PricingSnapshot> snapshots) {
+    _pricingResolver = PricingResolver(List.unmodifiable(snapshots));
+    _projector = ActiveSessionProjector(
+      store: _store,
+      pricing: _pricingResolver,
+    );
+  }
 
   bool _initialized = false;
   Timer? _tickerTimer;

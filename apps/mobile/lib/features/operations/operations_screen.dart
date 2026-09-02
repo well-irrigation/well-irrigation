@@ -5,9 +5,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/api/operations_repository.dart';
+import '../../core/api/well_management_repository.dart';
+import '../../core/session/active_session_projector.dart';
 import '../../core/session/offline_session_coordinator.dart';
 import '../../core/session/session_business_state.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/currency_utils.dart';
 import '../../core/utils/digit_utils.dart';
 import '../../core/widgets/currency_display.dart';
 import '../../core/widgets/smart_lookup_field.dart';
@@ -23,6 +26,7 @@ class OperationsScreen extends StatefulWidget {
     this.wells = const [],
     this.operatorName = 'المشغل',
     this.coordinator,
+    this.priceRepository,
     this.onWellChanged,
     this.onLogout,
     super.key,
@@ -33,6 +37,10 @@ class OperationsScreen extends StatefulWidget {
   final List<WellSummary> wells;
   final String operatorName;
   final OfflineSessionCoordinator? coordinator;
+
+  /// مستودع قراءة جدول التسعير الساري. يُمرَّر في الاختبار، وفي التشغيل
+  /// يُبنى افتراضيًا — والعقد هو `api.get_active_price_schedule`.
+  final WellManagementRepository? priceRepository;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
 
@@ -43,6 +51,7 @@ class OperationsScreen extends StatefulWidget {
 class _OperationsScreenState extends State<OperationsScreen> {
   late OperationsRepository _repo;
   late OfflineSessionCoordinator _coordinator;
+  late WellManagementRepository _priceRepo;
 
   String? _activeWellId;
   String _activeWellName = '';
@@ -52,20 +61,43 @@ class _OperationsScreenState extends State<OperationsScreen> {
   Farm? _selectedFarm;
   Pump? _selectedPump;
   List<Pump> _pumps = [];
-  String _currentEnergySource = 'طاقة شمسية';
 
-  /// دين مُعلَن (م-41D4): تسعيرة الساعة ما زالت محسوبة في العميل بدل عقد
-  /// `api.get_active_price_schedule`. جُمعت في موضع واحد ليُقاس الدين
-  /// ويُغلق في جولة التسعيرة الحقيقية — لا لتُعتمد كمصدر صحيح.
-  static const int _clientSideSolarRateYER = 3500;
-  static const int _clientSideDieselRateYER = 5000;
+  /// رمز مصدر الطاقة كما تعرّفه القاعدة: `solar` / `well_diesel` /
+  /// `farmer_diesel` (م-41D6). كان نصًّا عربيًّا من قيمتين يُرسل حرفيًّا إلى
+  /// `p_energy_source`، فـ«ديزل» واحدة تجمع مصدرين مختلفَي السعر ولا يقبلها
+  /// قيد القاعدة أصلًا. الخيارات من `kSessionEnergySources` لا من قواعد
+  /// السعر: المصدر قرار تشغيلي، والسعر وحده يأتي من العقد.
+  String? _energySourceCode = kSessionEnergySources.first;
 
-  static int _clientSideRateFor(String energySource) =>
-      energySource == 'طاقة شمسية'
-          ? _clientSideSolarRateYER
-          : _clientSideDieselRateYER;
+  /// جدول التسعير الساري لهذا البئر كما أعادته `api.get_active_price_schedule`.
+  /// `null` يعني «لا جدول معروف»: لا تُعرض تسعيرة ولا يُخمَّن رقم (القرار 341).
+  PriceScheduleModel? _priceSchedule;
+  bool _isLoadingSchedule = false;
+  String? _scheduleError;
 
-  int _hourlyRate = _clientSideSolarRateYER;
+  /// القراءة رُفضت بـ`42501`: حالة صلاحية مشروعة لا خطأ يُعاد. `price.manage`
+  /// للمالك وحده (هجرة 091)، فالمشغل يشغّل ولا يرى التسعيرة، ويُحتسب المال
+  /// خادميًّا عند المزامنة.
+  bool _pricingForbidden = false;
+
+  /// قواعد السعر السارية. مصدر السعر المعروض وحده، لا مصدر خيارات المصدر.
+  List<PriceRuleModel> get _priceRules => _priceSchedule?.rules ?? const [];
+
+  /// قاعدة سعر هذا المصدر إن وُجدت في الجدول الساري.
+  PriceRuleModel? _ruleFor(String? code) {
+    if (code == null) return null;
+    for (final rule in _priceRules) {
+      if (rule.energySource == code) return rule;
+    }
+    return null;
+  }
+
+  /// السعر الساعي للمصدر المختار، أو `null` إذا لم يُعده العقد.
+  ///
+  /// `null` حالة مشروعة معلنة، لا صفر ولا رقم افتراضي: قاعدة السعر قد تكون
+  /// بلا `hourly_rate_minor` (تسعير ديزل بالوقود)، وقد لا يكون للبئر جدول
+  /// ساري، وقد لا يملك المشغل صلاحية قراءة الأسعار أصلًا.
+  int? get _hourlyRateYER => _ruleFor(_energySourceCode)?.hourlyRateMinor;
 
   // حالة الجلسة المباشرة
   Timer? _timer;
@@ -83,6 +115,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
     _activeWellName = widget.wellName;
     _activeWellId = widget.wellId ?? (widget.wells.isNotEmpty ? widget.wells.first.id : null);
     _coordinator = widget.coordinator ?? OfflineSessionCoordinator.instance;
+    _priceRepo = widget.priceRepository ?? WellManagementRepository();
 
     try {
       _repo = OperationsRepository(Supabase.instance.client);
@@ -94,6 +127,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     if (_activeWellId != null) {
       _loadPumps();
+      _loadPriceSchedule();
     }
   }
 
@@ -108,6 +142,81 @@ class _OperationsScreenState extends State<OperationsScreen> {
     );
   }
 
+  /// إعلان حالة صريحة ليست فشلًا: العمل سُجِّل، وما لم يُنجز يُقال كما هو.
+  void _showNotice(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.warning),
+    );
+  }
+
+  /// قراءة جدول التسعير الساري للبئر النشط — `api.get_active_price_schedule`.
+  ///
+  /// لا سعر افتراضي في العميل (م-41D6 / ق-99): إن غاب الجدول أو فشلت
+  /// القراءة تبقى التسعيرة غير معلومة وتُعرض كذلك، ولا تُخمَّن. والقواعد
+  /// نفسها تُغذّي مُسقط الجلسة الحية حتى يكون للمال مصدر واحد.
+  ///
+  /// القراءة لا تُغيّر مصدر الطاقة المختار: الاختيار قرار المشغل، وبيانات
+  /// التسعير لا تُعيد توجيهه ولا تمحوه.
+  Future<void> _loadPriceSchedule() async {
+    final wellId = _activeWellId;
+    if (wellId == null) return;
+
+    setState(() {
+      _isLoadingSchedule = true;
+      _scheduleError = null;
+      _pricingForbidden = false;
+    });
+
+    try {
+      final schedule = await _priceRepo.fetchActivePriceSchedule(wellId);
+      if (!mounted) return;
+      setState(() {
+        _priceSchedule = schedule;
+        _isLoadingSchedule = false;
+      });
+      _coordinator.updatePricing(_snapshotsFrom(schedule));
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      // 42501 = المشغل لا يملك `price.manage`. لا تسعيرة تُعرض، والتشغيل
+      // يستمر: الخادم هو من يُسعّر المقطع عند المزامنة (هجرة 066).
+      final forbidden = e.code == '42501';
+      setState(() {
+        _priceSchedule = null;
+        _isLoadingSchedule = false;
+        _pricingForbidden = forbidden;
+        _scheduleError = forbidden ? null : e.message;
+      });
+      _coordinator.updatePricing(const []);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _priceSchedule = null;
+        _isLoadingSchedule = false;
+        _scheduleError = '$e';
+      });
+      _coordinator.updatePricing(const []);
+    }
+  }
+
+  /// تحويل قواعد الجدول إلى لقطات تسعير للمُسقط. القاعدة بلا سعر ساعي
+  /// تُستبعد فيبقى المقطع «بانتظار المزامنة» بدل أن يُسعَّر بصفر.
+  static List<PricingSnapshot> _snapshotsFrom(PriceScheduleModel? schedule) {
+    if (schedule == null) return const [];
+    return schedule.rules
+        .where((rule) => rule.hourlyRateMinor != null)
+        .map(
+          (rule) => PricingSnapshot(
+            hourlyRateMinor: rule.hourlyRateMinor!,
+            effectiveFrom: schedule.effectiveFrom,
+            effectiveTo: schedule.effectiveTo,
+            energySource: rule.energySource,
+            ruleId: rule.id,
+          ),
+        )
+        .toList(growable: false);
+  }
+
   Future<void> _recoverActiveSession() async {
     final active = await _coordinator.projectActiveSession(
       accountId: 'active-user',
@@ -120,8 +229,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         _isPaused = active.businessState == SessionBusinessState.paused;
         _secondsElapsed = active.totals.billableSeconds;
         _activeSessionId = active.localId;
-        _currentEnergySource = active.currentEnergySource ?? _currentEnergySource;
-        _hourlyRate = _clientSideRateFor(_currentEnergySource);
+        _energySourceCode = active.currentEnergySource ?? _energySourceCode;
       });
 
       _startLocalTicker();
@@ -152,6 +260,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
       });
       if (_activeWellId != null) {
         _loadPumps();
+        _loadPriceSchedule();
       }
     }
   }
@@ -400,6 +509,16 @@ class _OperationsScreenState extends State<OperationsScreen> {
       return;
     }
 
+    // مصدر الطاقة رمز قاعدة صالح، لا نصّ عربي ترفضه هجرة 066 (م-41D6).
+    // ولا يُشترط سعر معلوم لبدء الجلسة: `ops.start_irrigation_session` لا
+    // تأخذ سعرًا وتفوّض على الدور لا على `price.manage`، فمنع البدء لغياب
+    // التسعيرة منعٌ لعمل يقبله الخادم.
+    final energySourceCode = _energySourceCode;
+    if (energySourceCode == null) {
+      _showActionFailure('يرجى تحديد مصدر الطاقة قبل بدء السقي');
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final String sessionLocalId;
@@ -410,7 +529,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         pumpId: _selectedPump!.id,
         farmId: _selectedFarm!.id,
         farmerAccountId: _selectedFarmer!.id,
-        energySource: _currentEnergySource,
+        energySource: energySourceCode,
       );
       sessionLocalId = envelope.localId;
     } catch (e) {
@@ -471,7 +590,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<void> _changeEnergySource(String newSource) async {
-    if (_currentEnergySource == newSource) return;
+    if (_energySourceCode == newSource) return;
 
     final sessionId = _activeSessionId;
     if (_isSessionActive && sessionId != null) {
@@ -490,8 +609,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     if (!mounted) return;
     setState(() {
-      _currentEnergySource = newSource;
-      _hourlyRate = _clientSideRateFor(newSource);
+      _energySourceCode = newSource;
     });
   }
 
@@ -500,7 +618,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
     _timer = null;
 
     final totalSeconds = _secondsElapsed;
-    final totalAmount = (_hourlyRate * totalSeconds) ~/ 3600;
+    final hourlyRate = _hourlyRateYER;
+    final totalAmount =
+        hourlyRate == null ? null : (hourlyRate * totalSeconds) ~/ 3600;
     final activeSessionId = _activeSessionId;
 
     if (activeSessionId == null) {
@@ -530,6 +650,16 @@ class _OperationsScreenState extends State<OperationsScreen> {
     });
 
     if (mounted) {
+      // سند قبض بلا سعر معلوم = مبلغ مُخترع. الجلسة انتهت وسُجِّلت، والمستحق
+      // يحسمه الخادم بسعر وقت الحدث، فيُقال ذلك صريحًا بلا رقم (القرار 341).
+      if (hourlyRate == null || totalAmount == null) {
+        _showNotice(
+          'انتهت الجلسة وسُجِّلت. لا تسعيرة سارية لهذا المصدر، '
+          'فلا سند قبض من هنا — ${SessionStateText.pricingPending}',
+        );
+        return;
+      }
+
       await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -538,8 +668,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
           operatorName: widget.operatorName,
           farmerName: _selectedFarmer?.fullName ?? 'مزارع غير محدد',
           farmName: _selectedFarm?.name ?? 'أرض غير محددة',
-          energySource: _currentEnergySource,
-          hourlyRateYER: _hourlyRate,
+          energySource: energySourceLabel(_energySourceCode),
+          hourlyRateYER: hourlyRate,
           billableSeconds: totalSeconds,
           totalAmountYER: totalAmount,
           onConfirmPayment: ({
@@ -572,9 +702,183 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
 
+  /// خيارات مصدر الطاقة وسعرها.
+  ///
+  /// الخيارات هي مصادر القاعدة الثلاثة (`kSessionEnergySources`) لأن اختيار
+  /// المصدر قرار تشغيلي يملكه المشغل، والسعر وحده من `api.get_active_price_schedule`:
+  /// لا زرّين ثابتين ولا سعرين مكتوبين في العميل، وغياب السعر يُعرض كغياب
+  /// لا كصفر (م-41D6 / ق-99 / القرار 341).
+  Widget _buildEnergySourceSelector() {
+    final options = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: kSessionEnergySources
+          .map(_buildEnergySourceOption)
+          .toList(growable: false),
+    );
+
+    final notice = _buildPricingStateNotice();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (notice != null) ...[notice, const SizedBox(height: 10)],
+        options,
+      ],
+    );
+  }
+
+  /// حالة قراءة التسعيرة: تُعلن ما جرى فوق الأزرار ولا تحجبها.
+  ///
+  /// `null` يعني «الجدول الساري مقروء»، فلا لافتة.
+  Widget? _buildPricingStateNotice() {
+    if (_isLoadingSchedule) {
+      return const Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 10),
+          Text(
+            'جاري قراءة التسعيرة السارية...',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+        ],
+      );
+    }
+
+    if (_pricingForbidden) {
+      // ليست فشلًا فلا زرّ إعادة محاولة: صلاحية الأسعار للمالك.
+      return _buildPricingNotice(
+        icon: Icons.lock_outline,
+        color: AppColors.textSecondary,
+        message: 'التسعيرة السارية متاحة لمن يملك إدارة الأسعار — '
+            'التشغيل متاح، وتُحتسب التكلفة عند المزامنة.',
+      );
+    }
+
+    final error = _scheduleError;
+    if (error != null) {
+      return _buildPricingNotice(
+        icon: Icons.error_outline,
+        color: AppColors.error,
+        message: 'تعذر قراءة التسعيرة السارية — لا تُعرض تسعيرة: $error',
+        onRetry: _loadPriceSchedule,
+      );
+    }
+
+    if (_priceRules.isEmpty) {
+      return _buildPricingNotice(
+        icon: Icons.info_outline,
+        color: AppColors.warning,
+        message: 'لا جدول تسعير ساري لهذا البئر — لا تُعرض تسعيرة، '
+            'وتُحتسب التكلفة عند المزامنة.',
+        onRetry: _loadPriceSchedule,
+      );
+    }
+
+    return null;
+  }
+
+  /// صندوق حالة التسعيرة: يقول ما جرى، ويعرض «إعادة المحاولة» للفشل وحده.
+  Widget _buildPricingNotice({
+    required IconData icon,
+    required Color color,
+    required String message,
+    VoidCallback? onRetry,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              onPressed: onRetry,
+              child:
+                  const Text('إعادة المحاولة', style: TextStyle(fontSize: 12)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// خيار واحد = مصدر طاقة تقبله القاعدة. الاسم من الخريطة المعتمدة
+  /// `kEnergySourceLabels` (لا Blind Remap: الرمز المجهول يُعرض كما هو)،
+  /// والسعر من قاعدة الجدول الساري أو «غير متوفرة» إن لم تُعرف.
+  Widget _buildEnergySourceOption(String code) {
+    final isSelected = _energySourceCode == code;
+    final rate = _ruleFor(code)?.hourlyRateMinor;
+    final glyph = code == 'solar' ? '☀️' : '⛽';
+
+    return SizedBox(
+      width: 160,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: isSelected
+              ? AppColors.waterBlue.withValues(alpha: 0.1)
+              : Colors.white,
+          side: BorderSide(
+            color: isSelected ? AppColors.waterBlue : AppColors.border,
+            width: isSelected ? 2 : 1,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+        onPressed: () => _changeEnergySource(code),
+        child: Column(
+          children: [
+            Text(
+              '${energySourceLabel(code)} $glyph',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepBlue,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              rate == null
+                  ? 'التسعيرة غير متوفرة'
+                  : '${CurrencyUtils.formatAmount(rate)} ريال / ساعة',
+              style: TextStyle(
+                fontSize: 11,
+                color:
+                    rate == null ? AppColors.warning : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final accruedAmount = (_hourlyRate * _secondsElapsed) ~/ 3600;
+    final hourlyRate = _hourlyRateYER;
+    final accruedAmount =
+        hourlyRate == null ? null : (hourlyRate * _secondsElapsed) ~/ 3600;
 
     final hours = (_secondsElapsed ~/ 3600).toString().padLeft(2, '0');
     final minutes = ((_secondsElapsed % 3600) ~/ 60).toString().padLeft(2, '0');
@@ -603,6 +907,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
               _selectedFarm = null;
             });
             _loadPumps();
+            _loadPriceSchedule();
             if (widget.onWellChanged != null) {
               widget.onWellChanged!(newWell);
             }
@@ -709,7 +1014,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
-                                  _currentEnergySource,
+                                  energySourceLabel(_energySourceCode),
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
@@ -757,14 +1062,26 @@ class _OperationsScreenState extends State<OperationsScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          CurrencyDisplay(
-                            amount: accruedAmount,
-                            amountStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.agriculturalGreen,
+                          // لا «0 ريال» ولا رقم مخمَّن حين يغيب السعر:
+                          // النصّ المعتمد وحده (القرار 341 / م-41D6).
+                          if (accruedAmount == null)
+                            const Text(
+                              SessionStateText.pricingPending,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.warning,
+                              ),
+                            )
+                          else
+                            CurrencyDisplay(
+                              amount: accruedAmount,
+                              amountStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.agriculturalGreen,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -922,91 +1239,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: _currentEnergySource == 'طاقة شمسية'
-                                  ? AppColors.waterBlue.withValues(alpha: 0.1)
-                                  : Colors.white,
-                              side: BorderSide(
-                                color: _currentEnergySource == 'طاقة شمسية'
-                                    ? AppColors.waterBlue
-                                    : AppColors.border,
-                                width: _currentEnergySource == 'طاقة شمسية' ? 2 : 1,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            onPressed: () => _changeEnergySource('طاقة شمسية'),
-                            child: const Column(
-                              children: [
-                                Text(
-                                  'طاقة شمسية ☀️',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.deepBlue,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  '3,500 ريال / ساعة',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: _currentEnergySource == 'ديزل'
-                                  ? AppColors.waterBlue.withValues(alpha: 0.1)
-                                  : Colors.white,
-                              side: BorderSide(
-                                color: _currentEnergySource == 'ديزل'
-                                    ? AppColors.waterBlue
-                                    : AppColors.border,
-                                width: _currentEnergySource == 'ديزل' ? 2 : 1,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            onPressed: () => _changeEnergySource('ديزل'),
-                            child: const Column(
-                              children: [
-                                Text(
-                                  'ديزل شامل ⛽',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.deepBlue,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  '5,000 ريال / ساعة',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildEnergySourceSelector(),
                   ],
                 ),
               ),
