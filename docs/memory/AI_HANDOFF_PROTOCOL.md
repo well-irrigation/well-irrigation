@@ -34,7 +34,8 @@
 5. `docs/memory/RESEARCH_STANDARDS_GATE.md`
 6. `docs/memory/TERMINAL_COMMAND_PROTOCOL.md`
 7. `docs/memory/DOCUMENTATION_GATE.md`
-8. `docs/memory/RESUME_POINT.md`
+8. `docs/memory/RESUME_POINT.md` — رأس قصير؛ والتاريخ في
+   `docs/memory/RESUME_HISTORY.md` عند الحاجة وحدها
 9. `docs/memory/DECISIONS.md`
 10. `docs/technical/INVARIANTS.md`
 11. `docs/technical/API_ARCHITECTURE.md`
@@ -57,11 +58,21 @@
 
 `docs/memory/RESUME_POINT.md`
 
+وهو منذ 2026-09-03 **رأس قصير** (نحو 140 سطرًا): الحالة، والتالي، والحدود
+الحيّة، وما لا يجوز إعادة عمله، والمؤجَّل بقرار المالك. أما السرد الزمني
+لكل الجولات السابقة فقد نُقل حرفًا بحرف — بلا حذف — إلى
+`docs/memory/RESUME_HISTORY.md`، ويُقرأ عند الحاجة إلى تاريخ قرار أو سبب
+رقم، لا في كل جلسة.
+
+وتحديث كل دفعة يقع على **الرأس**. الأرشيف ليس نقطة عمل ولا يُستنتج منه
+NEXT، ولا يُضاف إليه سرد جديد إلا عند قصٍّ لاحق.
+
 لا تستنتج الخطوة التالية من:
 
 - آخر Commit فقط.
 - PROGRESS.
 - DOC_CHANGELOG.
+- `RESUME_HISTORY.md` — أرشيف لا نقطة عمل.
 - Reference documents.
 - محادثة قديمة.
 
