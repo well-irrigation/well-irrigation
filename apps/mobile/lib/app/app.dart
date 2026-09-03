@@ -7,6 +7,7 @@ import '../core/api/auth_repository.dart';
 import '../core/config/app_config.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/member_activation_screen.dart';
+import '../features/auth/password_reset_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/well_setup/create_well_wizard_screen.dart';
 import 'authenticated_shell.dart';
@@ -112,6 +113,7 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
         onLoginSuccess: () => setState(() => _isLoggedIn = true),
         onCreateWellPressed: () => _openCreateWellWizard(context),
         onActivateMemberPressed: () => _openMemberActivation(context),
+        onForgotPasswordPressed: () => _openPasswordReset(context),
       );
     }
 
@@ -146,9 +148,20 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
     );
   }
 
-  void _openCreateWellWizard(BuildContext context) {
+  /// إعادة تعيين كلمة المرور برمز من المالك (م-41F). لا تُعلن دخولًا:
+  /// صاحب الحساب يعود إلى شاشة الدخول ويدخل بكلمته الجديدة.
+  void _openPasswordReset(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        builder: (routeContext) => PasswordResetScreen(
+          onDone: () => Navigator.of(routeContext).pop(),
+        ),
+      ),
+    );
+  }
+
+  void _openCreateWellWizard(BuildContext context) {
+    Navigator.of(context).push(      MaterialPageRoute(
         builder: (_) => CreateWellWizardScreen(
           onCompleted: () {
             setState(() {
