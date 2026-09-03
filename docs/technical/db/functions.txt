@@ -6,6 +6,7 @@ api.app_bootstrap()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.approve_profit_distribution(p_cycle_id uuid)|void|volatile|invoker|search_path=pg_catalog, pg_temp
 api.calculate_profit_distribution(p_well_id uuid, p_period_start timestamp with time zone, p_period_end timestamp with time zone, p_manual_reserve_minor bigint)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.change_session_energy_source(p_session_id uuid, p_new_source text, p_changed_at timestamp with time zone, p_closed_fuel_quantity_ml bigint, p_closed_fuel_measurement_type text, p_new_fuel_owner_person_id uuid, p_command_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.claim_well_invitation(p_code text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.close_period(p_period_id uuid)|void|volatile|invoker|search_path=pg_catalog, pg_temp
 api.close_shift(p_shift_id uuid, p_allow_open_sessions boolean)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.complete_irrigation_session(p_session_id uuid, p_ended_at timestamp with time zone, p_fuel_quantity_ml bigint, p_fuel_measurement_type text, p_fuel_tank_id uuid, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -23,6 +24,7 @@ api.get_reports_summary(p_well_id uuid, p_period text, p_start timestamp with ti
 api.get_session_detail(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_details(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.health()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.invite_well_member(p_well_id uuid, p_role text, p_full_name text, p_phone text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.issue_session_invoice(p_session_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.list_well_expenses(p_well_id uuid, p_status text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farmers(p_well_id uuid, p_query text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -33,6 +35,7 @@ api.list_well_profit_cycles(p_well_id uuid, p_limit integer)|jsonb|stable|invoke
 api.list_well_pumps(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_pumps_detail(p_well_id uuid, p_include_inactive boolean)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_sessions(p_well_id uuid, p_farmer_well_account_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_unpaid_only boolean, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_team(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.open_shift(p_well_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.pause_irrigation_session(p_session_id uuid, p_reason text, p_paused_at timestamp with time zone, p_command_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.pay_partner_distribution(p_distribution_line_id uuid, p_amount_minor bigint, p_paid_at timestamp with time zone)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -46,6 +49,7 @@ api.request_session_transfer(p_session_id uuid, p_from_shift_id uuid, p_to_profi
 api.reschedule_booking(p_booking_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_reason text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.respond_session_transfer(p_transfer_id uuid, p_accept boolean, p_to_shift_id uuid)|text|volatile|invoker|search_path=pg_catalog, pg_temp
 api.resume_irrigation_session(p_session_id uuid, p_resumed_at timestamp with time zone, p_command_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.revoke_well_member(p_well_id uuid, p_role text, p_phone text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.save_well_pump(p_well_id uuid, p_name text, p_pump_id uuid, p_pump_type text, p_power_rating text, p_estimated_water_flow_liters_per_minute numeric, p_estimated_fuel_ml_per_hour bigint, p_status text, p_installed_at date, p_notes text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.settle_handover(p_handover_id uuid)|text|volatile|invoker|search_path=pg_catalog, pg_temp
 api.setup_well_full(p_setup_data jsonb)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -64,15 +68,21 @@ billing.record_payment(p_well_id uuid, p_farmer_well_account_id uuid, p_amount_m
 billing.reverse_payment(p_payment_id uuid, p_reason text, p_reversed_by uuid)|uuid|volatile|definer|search_path=billing, finance, core, pg_temp
 billing.split_overpayment_to_advance()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
 core.check_well_profit_shares_total()|trigger|volatile|invoker|-
+core.claim_well_invitation(p_code text)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 core.create_tenant_with_well(p_tenant_name text, p_well_name text)|uuid|volatile|definer|search_path=core, pg_temp
 core.find_person_duplicates(p_tenant_id uuid, p_full_name text, p_phone text)|TABLE(person_id uuid, public_code text, full_name text, match_level text, matched_on text)|stable|definer|search_path=core, public, extensions, pg_temp
 core.generate_public_code(p_prefix text)|text|stable|invoker|-
 core.handle_new_well()|trigger|volatile|definer|search_path=core, pg_temp
+core.hash_invitation_code(p_code text, p_salt text)|text|immutable|invoker|search_path=pg_catalog, pg_temp
+core.invite_well_member(p_well_id uuid, p_role text, p_full_name text, p_phone text)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 core.is_active_owner_in_tenant(p_tenant_id uuid, p_excluded_well_id uuid)|boolean|stable|definer|search_path=core, pg_temp
 core.merge_persons(p_primary_id uuid, p_duplicate_id uuid, p_reason text, p_requested_by uuid)|uuid|volatile|definer|search_path=core, ops, billing, finance, inventory, audit, pg_temp
+core.new_invitation_code()|text|volatile|invoker|search_path=pg_catalog, pg_temp
 core.normalize_arabic(p_text text)|text|immutable|invoker|-
 core.normalize_phone(p_text text)|text|immutable|invoker|-
 core.prepare_pump_identity_076()|trigger|volatile|invoker|search_path=core, pg_temp
+core.read_well_team(p_well_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
+core.revoke_well_member(p_well_id uuid, p_role text, p_phone text)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 core.save_well_pump(p_well_id uuid, p_name text, p_pump_id uuid, p_pump_type text, p_power_rating text, p_estimated_water_flow_liters_per_minute numeric, p_estimated_fuel_ml_per_hour bigint, p_status text, p_installed_at date, p_notes text)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 core.setup_well_full(p_setup_data jsonb)|jsonb|volatile|definer|search_path=core, ops, iam, pg_temp
 core.touch_pump_updated_at_076()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp

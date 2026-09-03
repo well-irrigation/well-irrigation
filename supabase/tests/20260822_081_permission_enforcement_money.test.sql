@@ -35,8 +35,9 @@ begin
   -- بسبب ق-79، فاحتاجت صلاحية مسمّاة للتفويض الصريح.
   -- ثم صار 42 بعد Migration 093 التي أضافت `price.read` لفصل
   -- الاطلاع على التسعيرة عن تعديلها.
-  if v_count = 1 and v_count_2 = 42 then
-    raise notice 'PASS 1: session.energy.change مضافة والكتالوج = 42';
+  -- ثم 43 بعد Migration 094 التي أضافت `team.manage` للمالك وحده.
+  if v_count = 1 and v_count_2 = 43 then
+    raise notice 'PASS 1: session.energy.change مضافة والكتالوج = 43';
   else
     raise notice 'FAIL 1: energy_code=% catalog_total=% (توقع 1 و42)',
       v_count, v_count_2;
@@ -84,10 +85,11 @@ begin
   -- بسبب ق-79، فاحتاجت صلاحية مسمّاة للتفويض الصريح.
   -- وصار 78 بعد هجرة 093: price.read للمالك والمدير والمشغل، وهي
   -- مجموعة الأدوار نفسها التي تقبلها ops.start_irrigation_session.
-  if v_count = 78 then
-    raise notice 'PASS 3: iam.role_permissions = 78 (70 + 3 + 2 + 3 فقط)';
+  -- ثم 79 بعد هجرة 094: `team.manage` للمالك وحده بلا توسيع.
+  if v_count = 79 then
+    raise notice 'PASS 3: iam.role_permissions = 79 (70 + 3 + 2 + 3 + 1)';
   else
-    raise notice 'FAIL 3: role_permissions = % بدل 78', v_count;
+    raise notice 'FAIL 3: role_permissions = % بدل 79', v_count;
   end if;
 
 

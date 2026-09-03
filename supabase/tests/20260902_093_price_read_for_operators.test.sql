@@ -76,15 +76,16 @@ begin
 
 
   -- ---------------------------------------------------------------
-  -- 3. أرقام الكتالوج بعد 093: 42 صلاحية و78 منحًا
+  -- 3. أرقام الكتالوج: 42 صلاحية و78 منحًا بعد 093، ثم 43 و79 بعد
+  --    هجرة 094 التي أضافت `team.manage` للمالك وحده (ق-123 §10).
   -- ---------------------------------------------------------------
 
   select count(*) into v_count from iam.permissions;
 
   select count(*) into v_count_2 from iam.role_permissions;
 
-  if v_count = 42 and v_count_2 = 78 then
-    raise notice 'PASS 3: الكتالوج 42 صلاحية وiam.role_permissions 78 منحًا';
+  if v_count = 43 and v_count_2 = 79 then
+    raise notice 'PASS 3: الكتالوج 43 صلاحية وiam.role_permissions 79 منحًا';
   else
     raise notice 'FAIL 3: أرقام السلطة غير متوقعة (% صلاحية، % منحًا)',
       v_count, v_count_2;
