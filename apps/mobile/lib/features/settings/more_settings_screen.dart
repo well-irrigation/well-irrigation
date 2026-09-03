@@ -37,8 +37,6 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
   bool _isLoading = true;
   late WellSummary _activeWell;
 
-  String get _activeWellId => _activeWell.id;
-  String get _activeWellName => _activeWell.name;
 
   @override
   void initState() {
@@ -283,13 +281,12 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   icon: Icons.people_outline,
                   iconColor: AppColors.agriculturalGreen,
                   title: 'الفريق والصلاحيات',
-                  subtitle: 'الربط الآمن لإدارة الفريق قيد الاستكمال',
+                  subtitle: 'دعوة مشغّل أو شريك وإلغاء الوصول',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => TeamPermissionsScreen(
-                          wellId: _activeWellId,
-                          wellName: _activeWellName,
+                          well: _activeWell,
                         ),
                       ),
                     );

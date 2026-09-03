@@ -23,11 +23,15 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({
     this.onLoginSuccess,
     this.onCreateWellPressed,
+    this.onActivateMemberPressed,
     super.key,
   });
 
   final VoidCallback? onLoginSuccess;
   final VoidCallback? onCreateWellPressed;
+
+  /// مسار العضو المدعو. غيابه يُخفي الزرّ ولا يعرض إجراءً معطّلًا.
+  final VoidCallback? onActivateMemberPressed;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -370,6 +374,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
+
+                  // 8. مسار العضو المدعو: يُنشئ حسابه بنفسه برمز مالكه
+                  // (ق-123). ولا استعلام قبل المصادقة، فلا شيء يُسأل عنه
+                  // الخادم من هذه الشاشة.
+                  if (widget.onActivateMemberPressed != null)
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _isLoading
+                            ? null
+                            : widget.onActivateMemberPressed,
+                        icon: const Icon(Icons.key_outlined, size: 18),
+                        label: const Text(
+                          'لديك رمز تنشيط؟ فعّل حسابك',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

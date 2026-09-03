@@ -67,6 +67,33 @@ class AuthRepository {
     );
   }
 
+  /// تسجيل حساب عضو فريق مدعو (ق-123 / م-41E المرحلة 3).
+  ///
+  /// نفس هوية الدخول في [signUpOwner] — بريد صُوري مُشتق من الرقم — والفرق
+  /// أن هذا الحساب **لا يُنشئ بئرًا**: صلاحيته تأتي من المطالبة بدعوة
+  /// (`api.claim_well_invitation`) وحدها. والاسم يكتبه صاحبه لأنه ما
+  /// يُطبع على سند القبض (الثابت 705)، ولا يُقرأ قبل المصادقة.
+  Future<AuthResponse> signUpMember({
+    required String phone,
+    required String password,
+    required String fullName,
+  }) async {
+    final cleanPhone = normalizeArabicDigits(phone.trim());
+    final cleanPassword = normalizeArabicDigits(password);
+    final formattedPhone = cleanPhone.startsWith('+')
+        ? cleanPhone
+        : '+967$cleanPhone';
+
+    return _client.auth.signUp(
+      email: phoneToInternalEmail(cleanPhone),
+      password: cleanPassword,
+      data: {
+        'phone': formattedPhone,
+        'full_name': fullName.trim(),
+      },
+    );
+  }
+
   /// تسجيل الخروج الآمن
   Future<void> signOut() async {
     await _client.auth.signOut();
