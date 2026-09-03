@@ -27,6 +27,7 @@ api.health()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.invite_well_member(p_well_id uuid, p_role text, p_full_name text, p_phone text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.issue_session_invoice(p_session_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.list_well_expenses(p_well_id uuid, p_status text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_farmer_balances(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farmers(p_well_id uuid, p_query text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farms(p_well_id uuid, p_farmer_well_account_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_fuel_tanks(p_well_id uuid, p_include_inactive boolean)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -41,6 +42,7 @@ api.pause_irrigation_session(p_session_id uuid, p_reason text, p_paused_at times
 api.pay_partner_distribution(p_distribution_line_id uuid, p_amount_minor bigint, p_paid_at timestamp with time zone)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.pay_salary(p_accrual_id uuid)|void|volatile|invoker|search_path=pg_catalog, pg_temp
 api.purchase_fuel(p_well_id uuid, p_liters numeric, p_cost_minor bigint, p_purchased_at timestamp with time zone)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.read_partner_overview(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.record_expense(p_well_id uuid, p_category_code text, p_amount_minor bigint, p_description text, p_attachment_url text, p_attachment_skipped boolean, p_payment_source text, p_note text, p_partner_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.record_fuel_consumption(p_well_id uuid, p_quantity_ml bigint, p_ownership_type text, p_measurement_type text, p_owner_person_id uuid, p_farmer_well_account_id uuid, p_fuel_tank_id uuid, p_session_segment_id uuid, p_occurred_at timestamp with time zone, p_estimated_transaction_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.record_payment(p_well_id uuid, p_farmer_well_account_id uuid, p_amount_minor bigint, p_method text, p_allocations jsonb, p_session_charge_id uuid, p_payer_person_id uuid, p_cashbox_id uuid, p_paid_at timestamp with time zone, p_note text, p_attachment_url text, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -117,6 +119,7 @@ finance.prevent_approved_line_change()|trigger|volatile|definer|search_path=fina
 finance.prevent_approved_opening_item_change()|trigger|volatile|definer|search_path=finance, pg_temp
 finance.prevent_posted_entry_change()|trigger|volatile|invoker|-
 finance.prevent_posted_line_change()|trigger|volatile|invoker|-
+finance.read_partner_overview(p_well_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 finance.record_expense(p_well_id uuid, p_category_code text, p_amount_minor bigint, p_description text, p_created_by uuid, p_attachment_url text, p_attachment_skipped boolean, p_payment_source text, p_note text, p_partner_id uuid)|uuid|volatile|definer|search_path=finance, core, ops, pg_temp
 finance.request_period_reopen(p_period_id uuid, p_requested_by uuid, p_reason text)|uuid|volatile|definer|search_path=finance, core, ops, pg_temp
 finance.reverse_journal_entry(p_entry_id uuid, p_reason text, p_posted_by uuid)|uuid|volatile|definer|search_path=finance, core, pg_temp
@@ -129,6 +132,7 @@ iam.handle_new_user()|trigger|volatile|definer|search_path=iam, pg_temp
 iam.has_farmer_self_access(p_well_id uuid)|boolean|stable|invoker|search_path=pg_catalog, pg_temp
 iam.has_well_permission(p_well_id uuid, p_permission_code text)|boolean|stable|definer|search_path=pg_catalog, pg_temp
 iam.has_well_role(p_well_id uuid, p_roles text[])|boolean|stable|definer|search_path=core, pg_temp
+iam.is_partner_only(p_well_id uuid)|boolean|stable|definer|search_path=pg_catalog, pg_temp
 iam.is_well_partner(p_well_id uuid)|boolean|stable|definer|search_path=core, pg_temp
 iam.protect_profile_person_link_history()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
 iam.update_own_profile_name(p_full_name text)|jsonb|volatile|definer|search_path=iam, pg_temp

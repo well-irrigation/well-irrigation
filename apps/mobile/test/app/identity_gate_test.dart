@@ -190,4 +190,50 @@ void main() {
       expect(find.text('auth-uid-2'), findsOneWidget);
     });
   });
+
+  group('دور الشريك على البئر النشط — م-41E/4', () {
+    test('شريك بلا دور تشغيلي = اطلاع فقط', () {
+      final identity = testIdentity(
+        activeWell: testWell(roles: const ['partner']),
+      );
+
+      expect(identity.isPartnerOnly, isTrue);
+      expect(identity.isOwner, isFalse);
+    });
+
+    test('من له دور تشغيلي إلى جانب شراكته لا يُقيَّد كشريك', () {
+      // يقابل iam.is_partner_only في هجرة 095: السلطة الأوسع تغلب، وإلا
+      // مُنع من عملٍ يقبله الخادم — وذلك فشل كاذب لا حماية.
+      expect(
+        testIdentity(
+          activeWell: testWell(roles: const ['partner', 'operator']),
+        ).isPartnerOnly,
+        isFalse,
+      );
+      expect(
+        testIdentity(
+          activeWell: testWell(roles: const ['owner', 'partner']),
+        ).isPartnerOnly,
+        isFalse,
+      );
+      expect(
+        testIdentity(
+          activeWell: testWell(roles: const ['partner', 'manager']),
+        ).isPartnerOnly,
+        isFalse,
+      );
+    });
+
+    test('الدور يتبدّل مع البئر النشط لا مع الحساب', () {
+      final partnerWell = testWell(id: 'w-1', roles: const ['partner']);
+      final ownedWell = testWell(id: 'w-2', roles: const ['owner']);
+      final identity = testIdentity(
+        wells: [partnerWell, ownedWell],
+        activeWell: partnerWell,
+      );
+
+      expect(identity.isPartnerOnly, isTrue);
+      expect(identity.withActiveWell(ownedWell).isPartnerOnly, isFalse);
+    });
+  });
 }

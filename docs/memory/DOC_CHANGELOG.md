@@ -2658,3 +2658,33 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
   **317 → 328 PASS**.
 - **Baseline تغيّر (هاتف):** 317 → **328**، والحرس 26 → **27**. أرقام
   القاعدة والسحابة بلا تغيير.
+
+## 2026-09-03 — م-41E المرحلة 4 (نطاق قراءة الشريك)
+
+- **جديد في القاعدة:** `095_partner_read_scope` واختبارها بـ25 تحققًا.
+  تضييق سياستَي اطلاع الشريك على `ops.irrigation_sessions` و
+  `ops.session_segments` (الجارية لا تُقرأ)، و`iam.is_partner_only`، وعقد
+  `api.read_partner_overview` فوق قارئ `finance.read_partner_overview`،
+  وعقد `api.list_well_farmer_balances`، وتفريغ `recorded_by_name` للشريك
+  في `api.list_well_expenses` مع مفتاح `partner_scope`.
+- **جديد في العميل:** `lib/core/api/partner_repository.dart` و
+  `lib/features/finance/partner_overview_screen.dart`.
+- **تعديل:** `authenticated_shell.dart` يوجّه الشريك بلا دور تشغيلي إلى
+  شاشته **قبل** فرع «ليس مالكًا»؛ و`WellSummary.isPartnerOnly` و
+  `AppIdentity.isPartnerOnly` يقابلان `iam.is_partner_only`.
+- **لماذا:** §26 في `ACCOUNT_SETTINGS_ARCHITECTURE.md` يمنع عن الشريك
+  بيانات الجلسة الجارية ومن اعتمد المصروف، وسياسات هجرة 050 المولَّدة
+  كانت تكشفهما بعد أن صار الشريك يدخل فعلًا في المرحلة 3.
+- **القرار المبرِّر:** ق-123 §8 (نطاق قراءة الشريك) والثوابت 713 و714.
+- **الاختبارات:** حرس الحد **27 → 28**، والحزمة **328 → 342 PASS**.
+- **Baseline تغيّر (هاتف):** 328 → **342**، والحرس 27 → **28**. **أرقام
+  القاعدة لم تتغيّر في الوثائق بعد** لأنها لم تُشغَّل: تُكتب بعد `c:db`.
+- **تصحيح بعد أول تشغيل قاعدة:** سلطة القارئ الداخلي صارت **شراكة سارية
+  وحدها** بعد أن أسقط `iam.has_well_role` اختبار 082 التحقق 5 (حرس م-18)،
+  وعدد تحققات اختبار 095 صار **26** بإضافة إعادة فحص الحرس داخله.
+  المواضع: `095_partner_read_scope.sql` و`20260903_095_...test.sql` و
+  `MIGRATIONS.md` و`OPEN_ISSUES.md` و`RESUME_POINT.md` و`PROGRESS.md` و
+  `ACCOUNT_SETTINGS_ARCHITECTURE.md`.
+- **Baseline القاعدة تغيّر (مثبت بتشغيل المالك):** `FILES=32 PASS=522` →
+  **`FILES=33 PASS=548`**، والفهرس functions 447 → **451** بلا تغيير في
+  columns 819 وconstraints 491 وtriggers 44. **وسحابيًّا: غير منشورة بعد.**

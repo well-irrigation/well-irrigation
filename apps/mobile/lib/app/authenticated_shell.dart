@@ -4,6 +4,7 @@ import '../core/api/app_bootstrap_repository.dart';
 import '../core/identity/app_identity.dart';
 import '../features/farmers/farmers_directory_screen.dart';
 import '../features/finance/expenses_screen.dart';
+import '../features/finance/partner_overview_screen.dart';
 import '../features/finance/partners_screen.dart';
 import '../features/history/session_history_screen.dart';
 import '../features/home/home_screen.dart';
@@ -35,6 +36,17 @@ class AuthenticatedShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // شريكٌ بلا دور تشغيلي: شاشته اطلاع فقط. توجيهه إلى شاشة العمليات كان
+    // يعرض عليه أزرار بدء جلسة يرفضها الخادم، وأرقام جلسة جارية خارج نطاقه
+    // المُقرَّر (ق-123 §8 / الثابت 713).
+    if (identity.isPartnerOnly) {
+      return PartnerOverviewScreen(
+        identity: identity,
+        onWellChanged: onWellChanged,
+        onLogout: onLogout,
+      );
+    }
+
     if (!identity.isOwner) {
       return OperationsScreen(
         identity: identity,
