@@ -95,6 +95,18 @@ class ManualSyncUnavailableException implements Exception {
   String toString() => 'المزامنة اليدوية غير موصولة بعد';
 }
 
+/// يُرفع عند تغيير كلمة المرور بكلمة حالية غير صحيحة (ق-105 / ق-123).
+///
+/// كانت خانة «كلمة المرور الحالية» تُعرض وتُفرَّغ ولا تُقرأ، فيغيّر كلمةَ
+/// المرور من يمسك الهاتف مفتوحًا دون معرفة القديمة. وجود هذا النوع يفصل
+/// «كلمتك الحالية خطأ» عن «تعذر الاتصال»، فلا يُقال أحدهما مكان الآخر.
+class WrongCurrentPasswordException implements Exception {
+  const WrongCurrentPasswordException();
+
+  @override
+  String toString() => 'كلمة المرور الحالية غير صحيحة';
+}
+
 class AppSettingsModel {
   const AppSettingsModel({
     this.themeMode = 'light', // light, dark, system
@@ -221,9 +233,17 @@ class AccountRepository {
 
   /// 3. تغيير كلمة المرور بأمان
   ///
+  /// [currentPassword] تُتحقَّق فعلًا بإعادة مصادقة على حساب الجلسة نفسه
+  /// قبل أي تغيير (ق-105: إعادة مصادقة مناسبة). الخانة كانت تُعرض ولا
+  /// تُقرأ، فكان من يمسك الهاتف مفتوحًا يغيّرها بلا معرفة القديمة.
+  ///
   /// لا يُبتلع أي فشل: بلا جلسة مصدَّقة أو عند رفض الخادم يُرفع الخطأ
-  /// كما هو، فلا تصل الشاشة إلى رسالة نجاح وكلمة المرور لم تتغير.
-  Future<void> updatePassword(String newPassword) async {
+  /// كما هو، فلا تصل الشاشة إلى رسالة نجاح وكلمة المرور لم تتغير. ورفض
+  /// إعادة المصادقة يُرفع نوعًا مسمّى لا رسالة عامة.
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
     if (newPassword.isEmpty) {
       throw ArgumentError.value(
         newPassword,
@@ -232,9 +252,28 @@ class AccountRepository {
       );
     }
 
+    if (currentPassword.isEmpty) {
+      throw ArgumentError.value(
+        currentPassword,
+        'currentPassword',
+        'Current password is required',
+      );
+    }
+
     final client = _effectiveClient;
-    if (client == null || client.auth.currentUser == null) {
+    final email = client?.auth.currentUser?.email;
+    if (client == null || email == null || email.isEmpty) {
       throw StateError('Authenticated session is required');
+    }
+
+    // إعادة المصادقة على بريد الجلسة نفسه — لا على رقم مأخوذ من الشاشة.
+    try {
+      await client.auth.signInWithPassword(
+        email: email,
+        password: currentPassword,
+      );
+    } on AuthException {
+      throw const WrongCurrentPasswordException();
     }
 
     await client.auth.updateUser(

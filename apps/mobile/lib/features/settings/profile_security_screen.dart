@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../core/api/account_repository.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/utils/digit_utils.dart';
 
 /// شاشة الملف الشخصي وأمان الحساب (UX-16A / القرارات 528–545 / ق-84 / ق-101)
 class ProfileSecurityScreen extends StatefulWidget {
@@ -86,107 +85,17 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
     }
   }
 
+  /// تغيير رقم الهاتف **غير متاح** في هذا الإصدار، ويُقال ذلك صريحًا.
+  ///
+  /// كان المسار تمثيلًا كاملًا: يُعلن «تم إرسال رمز التحقق في رسالة نصية»
+  /// ولا رسالة تُرسل، **ولا يُقرأ الرمز الذي يكتبه المستخدم أصلًا**، ثم
+  /// يُعلن «تم تأكيد وتحديث رقم الهاتف بنجاح» ولا شيء يتغيّر في أي مكان.
+  /// والرقم هو هوية الحساب ومفتاح الدخول (ق-84)، فقد يظن صاحبه أنه صار
+  /// يدخل برقمه الجديد فيجد نفسه محجوبًا (ق-113 / ق-123 / ق-124).
   void _showChangePhoneDialog() {
-    final phoneController = TextEditingController();
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('تغيير رقم الهاتف المعتمد', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'وفقاً للقرار 534 وق-84، تغيير رقم الهاتف هو إجراء أمني يتطلب التحقق من ملكية الرقم الجديد برمز OTP.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                ArabicToEnglishDigitsFormatter(),
-                LengthLimitingTextInputFormatter(9),
-              ],
-              decoration: const InputDecoration(
-                labelText: 'رقم الهاتف الجديد (7xxxxxxxx) *',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.phone_android),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('إلغاء')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.waterBlue,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              final phone = normalizeArabicDigits(phoneController.text).trim();
-              if (phone.length < 9) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('يرجى إدخال رقم هاتف صحيح مكون من 9 أرقام')),
-                );
-                return;
-              }
-              Navigator.of(ctx).pop();
-              _showOtpVerificationDialog(phone);
-            },
-            child: const Text('إرسال رمز التحقق'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showOtpVerificationDialog(String newPhone) {
-    final otpController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('رمز التحقق OTP', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('تم إرسال رمز التحقق في رسالة نصية إلى $newPhone'),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: otpController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [ArabicToEnglishDigitsFormatter()],
-              textAlign: TextAlign.center,
-              style: const TextStyle(letterSpacing: 8, fontSize: 20, fontWeight: FontWeight.bold),
-              decoration: const InputDecoration(
-                hintText: '------',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('إلغاء')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.agriculturalGreen,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('تم تأكيد وتحديث رقم الهاتف بنجاح ✅'),
-                  backgroundColor: AppColors.agriculturalGreen,
-                ),
-              );
-            },
-            child: const Text('تأكيد التغيير'),
-          ),
-        ],
-      ),
+      builder: (_) => const _PhoneChangeUnavailableDialog(),
     );
   }
 
@@ -251,8 +160,18 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
               onPressed: isSubmitting
                   ? null
                   : () async {
+                      final currentPass = oldPasswordController.text;
                       final newPass = newPasswordController.text;
                       final confirmPass = confirmPasswordController.text;
+
+                      // الخانة كانت تُعرض ولا تُقرأ: من يمسك الهاتف مفتوحًا
+                      // كان يغيّر كلمة المرور بلا معرفة القديمة (ق-105).
+                      if (currentPass.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('أدخل كلمة المرور الحالية أولًا')),
+                        );
+                        return;
+                      }
 
                       if (newPass.length < 6) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -274,7 +193,10 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
 
                       Object? failure;
                       try {
-                        await _repo.updatePassword(newPass);
+                        await _repo.updatePassword(
+                          currentPassword: currentPass,
+                          newPassword: newPass,
+                        );
                       } catch (error) {
                         // لا رسالة نجاح لتغيير لم يحدث (ق-118 / م-41B3B).
                         failure = error;
@@ -289,9 +211,14 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
 
                       if (failure != null) {
                         setDialogState(() => isSubmitting = false);
+                        // «كلمتك الحالية خطأ» ليست «تعذر الاتصال»: الرسالتان
+                        // تُفرَّقان وإلا بحث المستخدم عن العطب في غير موضعه.
+                        final message = failure is WrongCurrentPasswordException
+                            ? 'كلمة المرور الحالية غير صحيحة — لم يتغيّر شيء'
+                            : 'تعذر تغيير كلمة المرور — لم يتغيّر شيء، وكلمتك الحالية ما زالت صالحة';
                         messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('تعذر تغيير كلمة المرور — لم يتغيّر شيء، وكلمتك الحالية ما زالت صالحة'),
+                          SnackBar(
+                            content: Text(message),
                             backgroundColor: AppColors.error,
                           ),
                         );
@@ -404,15 +331,18 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: _hasPhone
-                              ? AppColors.agriculturalGreen.withValues(alpha: 0.1)
+                              ? AppColors.waterBlue.withValues(alpha: 0.1)
                               : AppColors.warning.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          _hasPhone ? 'معتمد وموثق ✅' : 'غير مقروء من العقد',
+                          // كانت الشارة تقول «معتمد وموثق ✅» وهي تدّعي تحقّقًا
+                          // لا وجود له في المنظومة كلها: لا رمز ولا رسالة ولا
+                          // تحقّق من الرقم في أي مكان (ق-113 / ق-124).
+                          _hasPhone ? 'رقم الدخول' : 'غير مقروء من العقد',
                           style: TextStyle(
                             color: _hasPhone
-                                ? AppColors.agriculturalGreen
+                                ? AppColors.waterBlue
                                 : AppColors.warning,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -423,7 +353,8 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'رقم الهاتف هو المعرّف الوحيد لحسابك في جميع الآبار المشترك بها (ق-84).',
+                    'رقم الهاتف هو المعرّف الوحيد لحسابك في جميع الآبار المشترك بها (ق-84). '
+                    'ولا يوجد تحقّق برسالة نصية في هذا الإصدار.',
                     style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 12),
@@ -461,12 +392,12 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.waterBlue,
-                      side: const BorderSide(color: AppColors.waterBlue),
+                      foregroundColor: AppColors.textSecondary,
+                      side: const BorderSide(color: AppColors.border),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     icon: const Icon(Icons.phone_forwarded, size: 18),
-                    label: const Text('تغيير رقم الهاتف المعتمد'),
+                    label: const Text('تغيير رقم الهاتف (غير متاح)'),
                     onPressed: _showChangePhoneDialog,
                   ),
                 ],
@@ -515,6 +446,53 @@ class _ProfileSecurityScreenState extends State<ProfileSecurityScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// حالة صريحة بدل تمثيل تغيير رقم لم يحدث (ق-113 / ق-123 / ق-124).
+///
+/// بلا مستودع وبلا `await`: لا مسار كتابة من هذه النافذة أصلًا، فلا يمكن
+/// أن تُعلن نجاحًا ولا فشلًا. نفس نمط `_AdvanceUnavailableDialog` في م-41D5.
+class _PhoneChangeUnavailableDialog extends StatelessWidget {
+  const _PhoneChangeUnavailableDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'تغيير رقم الهاتف غير متاح في هذا الإصدار',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+      ),
+      content: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'رقم هاتفك هو هوية حسابك ومفتاح دخولك (ق-84)، فتغييره يحتاج '
+            'إثبات ملكيتك للرقم الجديد برمز يُرسل إليه.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          SizedBox(height: 10),
+          Text(
+            'ولا يوجد إرسال رسائل نصية في هذا الإصدار — ولن نُظهر لك تأكيدًا '
+            'لتغيير لم يحدث. رقمك الحالي هو ما تدخل به، ولم يُرسل أي طلب.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          SizedBox(height: 10),
+          Text(
+            'لتغييره الآن راجع مسؤول التطبيق.',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('حسنًا'),
+        ),
+      ],
     );
   }
 }

@@ -15,6 +15,10 @@ import '../../core/utils/digit_utils.dart';
 /// - زر «تسجيل الدخول» الرئيسي + إجراء «إنشاء بئر جديد».
 /// - حالة انتظار هادئة تمنع الضغط المكرر.
 /// - رسالة خطأ موحدة «رقم الهاتف أو كلمة المرور غير صحيحة.» دون كشف أيهما الخطأ.
+///
+/// **لا دخول بلا جلسة (ق-123 / م-41E المرحلة 1):** كان أي فشل ليس رفضًا من
+/// الخادم — انقطاع الشبكة مثلًا — يُبتلع بانتظار 400ms ثم يُعلن الدخول
+/// ناجحًا. صار انقطاع الشبكة يُقال كما هو، ووجود الجلسة يُقاس قبل الإعلان.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
     this.onLoginSuccess,
@@ -61,28 +65,38 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      try {
-        final authRepo = AuthRepository(Supabase.instance.client);
-        await authRepo.signIn(
-          phoneOrEmail: phone,
-          password: password,
-        );
-      } catch (authErr) {
-        // في حال تشغيل العرض التوضيحي أو عدم اتصال الشبكة المباشر، يتم المحاكاة الآمنة
-        if (authErr is! AuthException && authErr is! PostgrestException) {
-          await Future.delayed(const Duration(milliseconds: 400));
-        } else {
-          rethrow;
+      final authRepo = AuthRepository(Supabase.instance.client);
+      await authRepo.signIn(
+        phoneOrEmail: phone,
+        password: password,
+      );
+
+      // الجلسة تُقاس قبل الإعلان: نجاح النداء بلا جلسة ليس دخولًا (ق-113).
+      if (!authRepo.isAuthenticated) {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'لم تُنشأ جلسة دخول — أعد المحاولة.';
+          });
         }
+        return;
       }
 
       if (mounted) {
         widget.onLoginSuccess?.call();
       }
-    } catch (_) {
+    } on AuthException {
+      // رفض الخادم: رسالة موحدة لا تكشف أيهما الخطأ (القرار 153).
       if (mounted) {
         setState(() {
           _errorMessage = 'رقم الهاتف أو كلمة المرور غير صحيحة.';
+        });
+      }
+    } catch (_) {
+      // ما ليس رفضًا من الخادم — انقطاع شبكة أو حزمة غير مهيّأة — كان
+      // يُبتلع فيُعلن دخولًا لم يحدث. صار يُقال كما هو.
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'تعذر الاتصال بالخادم — لم يتم التحقق من بياناتك.';
         });
       }
     } finally {

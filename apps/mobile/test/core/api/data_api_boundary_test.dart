@@ -611,6 +611,15 @@ void main() {
     expect(passwordSection.contains('catch ('), isFalse);
     expect(passwordSection.contains('client.auth.updateUser('), isTrue);
 
+    // إعادة المصادقة على بريد الجلسة نفسه قبل أي تغيير: الخانة كانت تُعرض
+    // ولا تُقرأ، فيغيّرها من يمسك الهاتف مفتوحًا بلا معرفة القديمة (ق-105).
+    expect(passwordSection.contains('signInWithPassword('), isTrue);
+    expect(
+      passwordSection.contains('throw const WrongCurrentPasswordException()'),
+      isTrue,
+    );
+    expect(passwordSection.contains('currentPassword'), isTrue);
+
     for (final fabricated in const [
       'isOnline: true',
       'backgroundSyncActive: true',
@@ -654,8 +663,95 @@ void main() {
     }
   });
 
-  test('settings screens surface failure instead of claiming success', () {
-    final deviceSync = File(
+  // المقياس الثامن (م-41E المرحلة 1): باب المصادقة نفسه. لا يقيسه أي مقياس
+  // سابق لأنه لا يخاطب القاعدة، وهو أخطرها: دخول يُعلن بلا جلسة، وتغيير
+  // هوية حساب يُعلن بلا أن يجري.
+  test('login never announces a session that was not created', () {
+    final source = File(
+      'lib/features/auth/login_screen.dart',
+    ).readAsStringSync();
+
+    // المصيدة التي كانت تُعلن دخولًا عند انقطاع الشبكة: انتظار ثم نجاح.
+    for (final faked in const [
+      'Future.delayed',
+      'المحاكاة الآمنة',
+      'authErr is! AuthException',
+      'PostgrestException',
+    ]) {
+      expect(
+        source.contains(faked),
+        isFalse,
+        reason: 'Login still fakes a session on non-auth failure: $faked',
+      );
+    }
+
+    // الجلسة تُقاس قبل الإعلان، والرفض يُفرَّق عن انقطاع الشبكة.
+    for (final honest in const [
+      'authRepo.isAuthenticated',
+      'لم تُنشأ جلسة دخول',
+      'on AuthException',
+      'رقم الهاتف أو كلمة المرور غير صحيحة.',
+      'تعذر الاتصال بالخادم — لم يتم التحقق من بياناتك.',
+    ]) {
+      expect(
+        source.contains(honest),
+        isTrue,
+        reason: 'Login is missing an explicit state: $honest',
+      );
+    }
+  });
+
+  test('phone change is announced unavailable instead of being simulated', () {
+    final source = File(
+      'lib/features/settings/profile_security_screen.dart',
+    ).readAsStringSync();
+
+    // تمثيل كامل: رسالة لم تُرسل، ورمز لا يُقرأ، ونجاح لتغيير لم يحدث،
+    // وشارة تحقّق لا وجود له في المنظومة كلها. الفحص على ما **يُبنى** في
+    // شجرة العرض، فذكر النصّ في تعليق شرحٌ لتاريخ أُغلق لا ادّعاء.
+    for (final claimed in const [
+      r"Text('تم إرسال رمز التحقق",
+      r"Text('تم تأكيد وتحديث رقم الهاتف",
+      r"Text('إرسال رمز التحقق')",
+      r"Text('رمز التحقق OTP'",
+      r"'معتمد وموثق ✅' :",
+      '_showOtpVerificationDialog',
+    ]) {
+      expect(
+        source.contains(claimed),
+        isFalse,
+        reason: 'Screen still simulates phone verification: $claimed',
+      );
+    }
+
+    for (final honest in const [
+      'class _PhoneChangeUnavailableDialog extends StatelessWidget',
+      'تغيير رقم الهاتف غير متاح في هذا الإصدار',
+      'تغيير رقم الهاتف (غير متاح)',
+      'ولا يوجد تحقّق برسالة نصية في هذا الإصدار',
+      'لا رقم هاتف في بيانات الحساب',
+    ]) {
+      expect(
+        source.contains(honest),
+        isTrue,
+        reason: 'Explicit unavailable-phone state missing: $honest',
+      );
+    }
+
+    // النافذة بلا مستودع ولا انتظار، فلا مسار كتابة منها أصلًا.
+    final dialogStart = source.indexOf('class _PhoneChangeUnavailableDialog');
+    expect(dialogStart, isNonNegative);
+    final dialog = source.substring(dialogStart);
+    expect(dialog.contains('AccountRepository'), isFalse);
+    expect(dialog.contains('await '), isFalse);
+
+    // وكلمة المرور الحالية تُقرأ وتُرسل، ورفضها يُفرَّق عن تعذر الاتصال.
+    expect(source.contains('currentPassword: currentPass'), isTrue);
+    expect(source.contains('WrongCurrentPasswordException'), isTrue);
+    expect(source.contains('أدخل كلمة المرور الحالية أولًا'), isTrue);
+  });
+
+  test('settings screens surface failure instead of claiming success', () {    final deviceSync = File(
       'lib/features/settings/device_sync_screen.dart',
     ).readAsStringSync();
 

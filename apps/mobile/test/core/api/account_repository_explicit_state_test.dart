@@ -66,12 +66,27 @@ void main() {
     test('4. تغيير كلمة المرور بلا جلسة مصدَّقة يفشل ولا يعود نجاحًا',
         () async {
       await expectLater(
-        repository.updatePassword('كلمة-مرور-قوية-1'),
+        repository.updatePassword(
+          currentPassword: 'كلمة-قديمة-1',
+          newPassword: 'كلمة-مرور-قوية-1',
+        ),
         throwsA(isA<StateError>()),
       );
 
       await expectLater(
-        repository.updatePassword(''),
+        repository.updatePassword(
+          currentPassword: 'كلمة-قديمة-1',
+          newPassword: '',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      // كلمة المرور الحالية الفارغة تُرفض قبل أي نداء: الخانة تُقرأ فعلًا.
+      await expectLater(
+        repository.updatePassword(
+          currentPassword: '',
+          newPassword: 'كلمة-مرور-قوية-1',
+        ),
         throwsA(isA<ArgumentError>()),
       );
     });
