@@ -63,6 +63,14 @@ class WellSummary {
   bool get isOwner => roles.contains('owner');
   bool get isOperator => roles.contains('operator');
   bool get isPartner => roles.contains('partner');
+  bool get isManager => roles.contains('manager');
+
+  /// سلطته على هذا البئر شراكةٌ وحدها: لا مالك ولا مدير ولا مشغّل.
+  ///
+  /// يقابل `iam.is_partner_only` في هجرة 095 حرفًا بحرف، فما تحجبه الواجهة
+  /// هو ما يحجبه الخادم — والعكس: من له دور تشغيلي لا يُقيَّد لأنه شريك.
+  bool get isPartnerOnly =>
+      isPartner && !isOwner && !isManager && !isOperator;
 }
 
 class BootstrapData {

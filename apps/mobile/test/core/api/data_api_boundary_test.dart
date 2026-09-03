@@ -1135,4 +1135,109 @@ void main() {
     ).readAsStringSync();
     expect(repository.contains("rpc('allocate_payment'"), isTrue);
   });
+
+  // المقياس الثامن والعشرون (م-41E/4): الشريك صار يدخل فعلًا بعد المرحلة 3،
+  // وكان يُوجَّه إلى شاشة العمليات — أزرار كتابة يرفضها الخادم، وأرقام جلسة
+  // جارية خارج نطاقه المُقرَّر (§26 / الثابت 713).
+  test('partner-only access lands on a read-only screen, never operations', () {
+    final shell = File('lib/app/authenticated_shell.dart').readAsStringSync();
+
+    // الشريك يُفحص **قبل** فرع «ليس مالكًا»، وإلا سقط في شاشة العمليات.
+    final partnerBranch = shell.indexOf('identity.isPartnerOnly');
+    final operatorBranch = shell.indexOf('!identity.isOwner');
+    expect(partnerBranch, isNonNegative);
+    expect(operatorBranch, isNonNegative);
+    expect(partnerBranch < operatorBranch, isTrue);
+    expect(shell.contains('PartnerOverviewScreen('), isTrue);
+
+    // الدور من العقد لا من نصّ في الشاشة، ويقابل iam.is_partner_only.
+    final bootstrap = File(
+      'lib/core/api/app_bootstrap_repository.dart',
+    ).readAsStringSync();
+    expect(
+      bootstrap.contains(
+        'isPartner && !isOwner && !isManager && !isOperator',
+      ),
+      isTrue,
+    );
+
+    final screen = File(
+      'lib/features/finance/partner_overview_screen.dart',
+    ).readAsStringSync();
+
+    // العقود عبر مخطط api وحده، ولا جدول ولا مخطط داخلي.
+    expect(screen.contains('.from('), isFalse);
+    for (final internal in const ['ops.', 'billing.', 'finance.', 'core.']) {
+      expect(
+        screen.contains("'$internal"),
+        isFalse,
+        reason: 'Partner screen addresses an internal schema: $internal',
+      );
+    }
+
+    // لا مسار كتابة واحد: الشريك بلا صلاحية كتابة في هذه الجولة.
+    for (final write in const [
+      'record_expense',
+      'record_payment',
+      'decide_expense',
+      'pay_partner_distribution',
+      'start_irrigation_session',
+      'invite_well_member',
+      'recordExpense(',
+      'recordGeneralPayment(',
+      'payPartnerDistribution(',
+    ]) {
+      expect(
+        screen.contains(write),
+        isFalse,
+        reason: 'Partner screen carries a write path: $write',
+      );
+    }
+
+    // أرقام الجلسة الجارية لا تُقرأ ولا تُبنى هنا: الحضور وعدده فقط.
+    for (final sessionNumber in const [
+      'total_amount_minor',
+      'billable_seconds',
+      'list_well_sessions',
+      'get_session_detail',
+      'pump_name',
+    ]) {
+      expect(
+        screen.contains(sessionNumber),
+        isFalse,
+        reason: 'Partner screen reads a live-session number: $sessionNumber',
+      );
+    }
+
+    // والوسم صريح: فترة غير مقفلة موسومة في شجرة العرض نفسها، وسبب حجب
+    // أرقام الجارية مكتوب. الفحص على شكل البناء لا على النصّ مجرّدًا — وهو
+    // الدرس المتكرر من «لا بئر مختار» و«تم إرسال رمز التحقق».
+    expect(
+      RegExp(r"Text\(\s*'غير مُقفلة — أرقام غير نهائية'").hasMatch(screen),
+      isTrue,
+    );
+    for (final honest in const [
+      'أرقام الجلسة الجارية — المستحق والمدة والمضخة',
+      'هذه الشاشة اطلاع فقط',
+      'نسبتك في هذه الفترة',
+    ]) {
+      expect(
+        screen.contains(honest),
+        isTrue,
+        reason: 'Partner scope is hidden instead of declared: $honest',
+      );
+    }
+
+    // المستودع يمر بالعقدين الجديدين وحدهما.
+    final repo = File(
+      'lib/core/api/partner_repository.dart',
+    ).readAsStringSync();
+    expect(repo.contains("schema('api')"), isTrue);
+    expect(RegExp(r"rpc\(\s*'read_partner_overview'").hasMatch(repo), isTrue);
+    expect(
+      RegExp(r"rpc\(\s*'list_well_farmer_balances'").hasMatch(repo),
+      isTrue,
+    );
+    expect(repo.contains('.from('), isFalse);
+  });
 }

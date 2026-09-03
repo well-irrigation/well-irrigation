@@ -31,6 +31,9 @@ class AppIdentity {
   /// دور المستخدم على البئر النشط وحده — لا دور افتراضي، ويتغيّر بالتبديل.
   bool get isOwner => activeWell.isOwner;
 
+  /// شريكٌ بلا دور تشغيلي على البئر النشط. شاشته اطلاع فقط (ق-123 §8).
+  bool get isPartnerOnly => activeWell.isPartnerOnly;
+
   AppIdentity withActiveWell(WellSummary well) => AppIdentity(
     profile: profile,
     wells: wells,
