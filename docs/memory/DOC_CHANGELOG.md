@@ -2687,4 +2687,5 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
   `ACCOUNT_SETTINGS_ARCHITECTURE.md`.
 - **Baseline القاعدة تغيّر (مثبت بتشغيل المالك):** `FILES=32 PASS=522` →
   **`FILES=33 PASS=548`**، والفهرس functions 447 → **451** بلا تغيير في
-  columns 819 وconstraints 491 وtriggers 44. **وسحابيًّا: غير منشورة بعد.**
+  columns 819 وconstraints 491 وtriggers 44. **وسحابيًّا بعد دمج PR #29:**
+  94/94 و`MISSING_IN_CLOUD=0`، و`43`/`79` بلا تغيير.
