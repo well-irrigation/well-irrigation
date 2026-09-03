@@ -599,4 +599,63 @@ class FinanceRepository {
       'p_allocations': allocations,
     });
   }
+
+  /// سندات الرصيد المقدَّم لحساب مزارع — `api.list_advance_receipts`
+  /// (م-41G / هجرة 097).
+  ///
+  /// كانت الشاشة تُعلن «غير متاح» لأن العقد القديم يعيد رصيدًا **مُجمَّعًا**
+  /// فلا يُعرف أي سند بقي فيه رصيد ولا كم. هذا العقد يعيد السند ورصيده،
+  /// فيختار الإنسانُ السند والفاتورة والمبلغ ولا يشتقّ العميل رقمًا (ق-99).
+  Future<List<AdvanceReceipt>> fetchAdvanceReceipts(
+    String farmerAccountId, {
+    int limit = 50,
+  }) async {
+    final res = await _requireClient.schema('api').rpc(
+      'list_advance_receipts',
+      params: {
+        'p_farmer_well_account_id': farmerAccountId,
+        'p_limit': limit,
+      },
+    );
+    return _asList(_asMap(res)['receipts'])
+        .map(AdvanceReceipt.fromJson)
+        .toList(growable: false);
+  }
+}
+
+/// سند رصيد مقدَّم كما يعيده العقد: مبلغه والمخصَّص منه والمتبقّي فيه.
+class AdvanceReceipt {
+  const AdvanceReceipt({
+    required this.paymentId,
+    required this.publicCode,
+    required this.amountYER,
+    required this.allocatedYER,
+    required this.remainingYER,
+    required this.isExhausted,
+    this.paidAt,
+    this.method,
+  });
+
+  factory AdvanceReceipt.fromJson(Map<String, dynamic> json) {
+    final rawPaidAt = json['paid_at'] as String?;
+    return AdvanceReceipt(
+      paymentId: json['payment_id'] as String? ?? '',
+      publicCode: json['public_code'] as String? ?? '',
+      amountYER: (json['amount_minor'] as num?)?.toInt() ?? 0,
+      allocatedYER: (json['allocated_minor'] as num?)?.toInt() ?? 0,
+      remainingYER: (json['remaining_minor'] as num?)?.toInt() ?? 0,
+      isExhausted: json['is_exhausted'] as bool? ?? false,
+      paidAt: rawPaidAt == null ? null : DateTime.tryParse(rawPaidAt),
+      method: json['method'] as String?,
+    );
+  }
+
+  final String paymentId;
+  final String publicCode;
+  final int amountYER;
+  final int allocatedYER;
+  final int remainingYER;
+  final bool isExhausted;
+  final DateTime? paidAt;
+  final String? method;
 }
