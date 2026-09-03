@@ -6,6 +6,7 @@ import '../core/api/app_bootstrap_repository.dart';
 import '../core/api/auth_repository.dart';
 import '../core/config/app_config.dart';
 import '../features/auth/login_screen.dart';
+import '../features/auth/member_activation_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/well_setup/create_well_wizard_screen.dart';
 import 'authenticated_shell.dart';
@@ -110,6 +111,7 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
       return LoginScreen(
         onLoginSuccess: () => setState(() => _isLoggedIn = true),
         onCreateWellPressed: () => _openCreateWellWizard(context),
+        onActivateMemberPressed: () => _openMemberActivation(context),
       );
     }
 
@@ -122,6 +124,24 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
         identity: identity,
         onWellChanged: onWellChanged,
         onLogout: _handleLogout,
+      ),
+    );
+  }
+
+  /// تنشيط عضو مدعو: لا يُعلن الدخول إلا بعد **تعيين نافذ** على بئر،
+  /// فإنشاء الحساب وحده ليس وصولًا (ق-123).
+  void _openMemberActivation(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (routeContext) => MemberActivationScreen(
+          onActivated: () {
+            Navigator.of(routeContext).pop();
+            setState(() {
+              _isLoggedIn = true;
+              _identityEpoch++;
+            });
+          },
+        ),
       ),
     );
   }

@@ -751,6 +751,94 @@ void main() {
     expect(source.contains('أدخل كلمة المرور الحالية أولًا'), isTrue);
   });
 
+  // المقياس التاسع (م-41E المرحلة 3): عقود الفريق ومسار التنشيط.
+  test('team contracts go through api and the code is shown once only', () {
+    final repository = File(
+      'lib/core/api/team_repository.dart',
+    ).readAsStringSync();
+
+    for (final contract in const [
+      "'list_well_team'",
+      "'invite_well_member'",
+      "'revoke_well_member'",
+      "'claim_well_invitation'",
+    ]) {
+      expect(
+        repository.contains("schema('api')"),
+        isTrue,
+        reason: 'Team repository must call api schema only',
+      );
+      expect(
+        repository.contains(contract),
+        isTrue,
+        reason: 'Missing team contract: $contract',
+      );
+    }
+
+    // لا قراءة مباشرة من جدول ولا مخطط داخلي من مستودع الفريق.
+    expect(repository.contains('.from('), isFalse);
+    expect(repository.contains("schema('core')"), isFalse);
+
+    final screen = File(
+      'lib/features/settings/team_permissions_screen.dart',
+    ).readAsStringSync();
+
+    // ادعاء الإصدار السابق زال لأن العقد صار موجودًا (هجرة 094). والفحص
+    // على ما يُبنى في شجرة العرض: ذكره في تعليق شرحٌ لتاريخ أُغلق.
+    expect(
+      RegExp(r"Text\(\s*'إدارة الفريق غير متاحة").allMatches(screen),
+      isEmpty,
+    );
+
+    for (final honest in const [
+      'class _InviteConfirmDialog extends StatelessWidget',
+      'class _InvitationCodeDialog extends StatelessWidget',
+      'اقرأ الرقم حرفًا حرفًا',
+      'الرمز يُعرض مرة واحدة',
+      'تعذر قراءة فريق البئر',
+      'لم يُضف أحد',
+      'ولم يُحذف أي سجل',
+    ]) {
+      expect(
+        screen.contains(honest),
+        isTrue,
+        reason: 'Team screen is missing an explicit state: $honest',
+      );
+    }
+
+    // ولا اسم عضو مكتوب في الشاشة: الأعضاء من العقد وحده.
+    expect(screen.contains('محمد عبدالله الشامي'), isFalse);
+    expect(screen.contains('أحمد علي الريمي'), isFalse);
+
+    final activation = File(
+      'lib/features/auth/member_activation_screen.dart',
+    ).readAsStringSync();
+
+    for (final honest in const [
+      'widget.onActivated?.call()',
+      'result.isSuccess',
+      '_auth.isAuthenticated',
+      'لم تُنشأ جلسة دخول',
+      'يوجد حساب بهذا الرقم وكلمة المرور غير مطابقة',
+      'لا توجد دعوة سارية لرقمك',
+    ]) {
+      expect(
+        activation.contains(honest),
+        isTrue,
+        reason: 'Activation screen is missing an explicit state: $honest',
+      );
+    }
+
+    // التنشيط يُعلن **بعد** نتيجة المطالبة لا بعد إنشاء الحساب: النداء
+    // الوحيد لـonActivated يقع داخل فرع النجاح.
+    expect(
+      activation.split('widget.onActivated?.call()').length - 1,
+      1,
+      reason: 'onActivated must be called from exactly one place',
+    );
+    expect(activation.contains('Future.delayed'), isFalse);
+  });
+
   test('settings screens surface failure instead of claiming success', () {    final deviceSync = File(
       'lib/features/settings/device_sync_screen.dart',
     ).readAsStringSync();

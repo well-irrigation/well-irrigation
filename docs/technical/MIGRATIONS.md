@@ -1376,9 +1376,14 @@ ACL بلا anon، صفر DEFINER وصفر كائن علائقي في `api`، ا�
 بنمو مطابق للتصميم: columns 800 → **819**، constraints 481 → **491**،
 functions 437 → **447**، triggers **44 بلا تغيير**.
 
-**سحابيًّا: غير منشورة بعد.** الدمج في `main` هو ما ينشرها، والمتوقَّع
-بعده `MIGRATIONS_LOCAL=93` / `MIGRATIONS_CLOUD=93` و`IAM_PERMISSIONS=43`
-/ `IAM_ROLE_PERMISSIONS=79`.
+**الإثبات السحابي (2026-09-03 بعد دمج PR #27):**
+`MIGRATIONS_LOCAL=93` / `MIGRATIONS_CLOUD=93` / `MISSING_IN_CLOUD=0`؛
+و`FUNCTIONS_INDEX=434` / `FUNCTIONS_CLOUD=436` /
+`FUNCTIONS_MISSING_IN_CLOUD=0` (الزائدتان `public.max`/`public.min`
+مجموعتا تجميع من إضافة مثبَّتة سحابيًا لا محليًا، تُطبعان كانحراف بلا
+إفشال)؛ و**`IAM_PERMISSIONS=43` / `IAM_ROLE_PERMISSIONS=79`** — وهما
+الدليل على أن `team.manage` ومنحتها وصلتا الإنتاج على مستوى البيانات لا
+على مستوى صفّ الهجرة.
 
 **تحذير النشر:** أثرها على الإنتاج **إضافة قدرة لا توسيع اطلاع**: جدول
 جديد مغلق وعقود لا يناديها التطبيق بعد (شاشاتها في المرحلة 3). ولا تمسّ
