@@ -24,6 +24,7 @@ class LoginScreen extends StatefulWidget {
     this.onLoginSuccess,
     this.onCreateWellPressed,
     this.onActivateMemberPressed,
+    this.onForgotPasswordPressed,
     super.key,
   });
 
@@ -32,6 +33,10 @@ class LoginScreen extends StatefulWidget {
 
   /// مسار العضو المدعو. غيابه يُخفي الزرّ ولا يعرض إجراءً معطّلًا.
   final VoidCallback? onActivateMemberPressed;
+
+  /// مسار من نسي كلمة مروره (م-41F). غيابه يُخفي الزرّ: لا يُعرض مسار
+  /// استعادة لا يعمل — ذلك وعدٌ بلا ما يفي به.
+  final VoidCallback? onForgotPasswordPressed;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -387,6 +392,25 @@ class _LoginScreenState extends State<LoginScreen> {
                         icon: const Icon(Icons.key_outlined, size: 18),
                         label: const Text(
                           'لديك رمز تنشيط؟ فعّل حسابك',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // 9. من نسي كلمة مروره (م-41F): الرمز يعطيه المالك بعد
+                  // تحقّق بشري، وصاحب الحساب وحده يكتب كلمته الجديدة.
+                  if (widget.onForgotPasswordPressed != null)
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _isLoading
+                            ? null
+                            : widget.onForgotPasswordPressed,
+                        icon: const Icon(Icons.lock_reset, size: 18),
+                        label: const Text(
+                          'نسيت كلمة المرور؟',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,

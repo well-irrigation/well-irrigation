@@ -141,6 +141,20 @@ core.partner_irrigation_policies|period_end|date|null|-
 core.partner_irrigation_policies|notes|text|null|-
 core.partner_irrigation_policies|created_at|timestamp with time zone|NOT NULL|now()
 core.partner_irrigation_policies|updated_at|timestamp with time zone|NOT NULL|now()
+core.password_reset_tickets|id|uuid|NOT NULL|gen_random_uuid()
+core.password_reset_tickets|tenant_id|uuid|NOT NULL|-
+core.password_reset_tickets|well_id|uuid|NOT NULL|-
+core.password_reset_tickets|profile_id|uuid|NOT NULL|-
+core.password_reset_tickets|person_id|uuid|null|-
+core.password_reset_tickets|normalized_phone|text|NOT NULL|-
+core.password_reset_tickets|code_salt|text|NOT NULL|-
+core.password_reset_tickets|code_hash|text|NOT NULL|-
+core.password_reset_tickets|expires_at|timestamp with time zone|NOT NULL|-
+core.password_reset_tickets|attempts_left|integer|NOT NULL|5
+core.password_reset_tickets|status|text|NOT NULL|'pending'::text
+core.password_reset_tickets|requested_by|uuid|NOT NULL|-
+core.password_reset_tickets|requested_at|timestamp with time zone|NOT NULL|now()
+core.password_reset_tickets|consumed_at|timestamp with time zone|null|-
 core.person_aliases|id|uuid|NOT NULL|gen_random_uuid()
 core.person_aliases|tenant_id|uuid|NOT NULL|-
 core.person_aliases|person_id|uuid|NOT NULL|-

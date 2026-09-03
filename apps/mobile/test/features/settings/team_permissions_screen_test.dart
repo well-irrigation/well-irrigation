@@ -11,16 +11,44 @@ class _FakeTeamRepository extends TeamRepository {
     this.failRead = false,
     this.inviteResult,
     this.failInvite = false,
+    this.resetTickets = const [],
+    this.resetIssue,
+    this.failReset = false,
   });
 
   final WellTeam? team;
   final bool failRead;
   final InviteResult? inviteResult;
   final bool failInvite;
+  final List<ResetTicket> resetTickets;
+  final ResetIssueResult? resetIssue;
+  final bool failReset;
 
   int reads = 0;
   final List<Map<String, String>> invites = [];
   final List<Map<String, String>> revokes = [];
+  final List<Map<String, String>> resetRequests = [];
+
+  @override
+  Future<List<ResetTicket>> fetchResetRequests(String wellId) async {
+    if (failRead) {
+      throw StateError('reset contract unavailable');
+    }
+    return resetTickets;
+  }
+
+  @override
+  Future<ResetIssueResult> requestMemberPasswordReset({
+    required String wellId,
+    required String phone,
+  }) async {
+    resetRequests.add({'wellId': wellId, 'phone': phone});
+    if (failReset) {
+      throw StateError('reset rejected');
+    }
+    return resetIssue ??
+        const ResetIssueResult(outcome: 'issued', code: '654321');
+  }
 
   @override
   Future<WellTeam> fetchWellTeam(String wellId) async {
@@ -302,5 +330,129 @@ void main() {
         );
       },
     );
+  });
+
+  group('إعادة تعيين كلمة المرور بإثبات بشري (م-41F / هجرة 096)', () {
+    WellTeam teamWithOperator() => const WellTeam(
+      members: [
+        TeamMember(
+          profileId: 'p-2',
+          fullName: 'صالح المشغّل',
+          phone: '771000096',
+          role: 'operator',
+          status: 'active',
+        ),
+      ],
+      invitations: [],
+    );
+
+    testWidgets('التأكيد يعرض الرقم، والرمز يُعرض مرة واحدة بلا رسالة', (
+      tester,
+    ) async {
+      final repository = _FakeTeamRepository(
+        team: teamWithOperator(),
+        resetIssue: const ResetIssueResult(
+          outcome: 'issued',
+          code: '135790',
+          fullName: 'صالح المشغّل',
+        ),
+      );
+
+      await _pump(tester, repository);
+      await tester.tap(find.text('إعادة تعيين كلمة المرور'));
+      await tester.pumpAndSettle();
+
+      // الرقم يُقرأ بالعين قبل الإصدار: رمزٌ لغير صاحبه يفتح حسابه لغيره.
+      expect(find.text('771000096'), findsWidgets);
+      expect(
+        find.textContaining('اقرأ الرقم حرفًا حرفًا'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('أصدر الرمز'));
+      await tester.pumpAndSettle();
+
+      expect(repository.resetRequests.single['phone'], '771000096');
+      expect(find.text('135790'), findsOneWidget);
+      expect(
+        find.textContaining('يُعرض مرة واحدة فقط'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('لم تُرسل أي رسالة الآن'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('«لا عضو بهذا الرقم» يُقال ولا يُعرض رمز', (tester) async {
+      final repository = _FakeTeamRepository(
+        team: teamWithOperator(),
+        resetIssue: const ResetIssueResult(outcome: 'no_member'),
+      );
+
+      await _pump(tester, repository);
+      await tester.tap(find.text('إعادة تعيين كلمة المرور'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('أصدر الرمز'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('لا عضو بهذا الرقم على هذا البئر'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('يُعرض مرة واحدة فقط'), findsNothing);
+    });
+
+    testWidgets('فشل الإصدار يُعلَن ولا يُعرض رمز مُلفَّق', (tester) async {
+      final repository = _FakeTeamRepository(
+        team: teamWithOperator(),
+        failReset: true,
+      );
+
+      await _pump(tester, repository);
+      await tester.tap(find.text('إعادة تعيين كلمة المرور'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('أصدر الرمز'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('لم يُصدر أي رمز'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('الرموز السارية تُعرض بحالتها ومحاولاتها', (tester) async {
+      final repository = _FakeTeamRepository(
+        team: teamWithOperator(),
+        resetTickets: [
+          ResetTicket(
+            ticketId: 't-1',
+            fullName: 'صالح المشغّل',
+            phone: '771000096',
+            status: 'pending',
+            attemptsLeft: 4,
+            expiresAt: DateTime.utc(2026, 9, 4, 10),
+          ),
+          const ResetTicket(
+            ticketId: 't-0',
+            fullName: 'صالح المشغّل',
+            phone: '771000096',
+            status: 'consumed',
+            attemptsLeft: 5,
+          ),
+        ],
+      );
+
+      await _pump(tester, repository);
+
+      // السارية وحدها تُعرض، والمستهلكة ليست حالة انتظار.
+      expect(find.text('رموز إعادة تعيين سارية (1)'), findsOneWidget);
+      expect(find.text('بانتظار الاستخدام'), findsOneWidget);
+      expect(find.textContaining('بقيت 4 محاولات'), findsOneWidget);
+      expect(
+        find.textContaining('الرمز عُرض مرة واحدة ولا يمكن قراءته من جديد'),
+        findsOneWidget,
+      );
+    });
   });
 }

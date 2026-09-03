@@ -1240,4 +1240,59 @@ void main() {
     );
     expect(repo.contains('.from('), isFalse);
   });
+
+  // المقياس التاسع والعشرون (م-41F): الاستعادة تحدث قبل الدخول، فلا عقد في
+  // القاعدة يخدمها ولا يكتب أحدٌ كلمة مرور لأحد (الثابت 706).
+  test('password reset is owner-proofed and never written by the owner', () {
+    final screen = File(
+      'lib/features/auth/password_reset_screen.dart',
+    ).readAsStringSync();
+    final auth = File(
+      'lib/core/api/auth_repository.dart',
+    ).readAsStringSync();
+    final team = File(
+      'lib/features/settings/team_permissions_screen.dart',
+    ).readAsStringSync();
+    final login = File(
+      'lib/features/auth/login_screen.dart',
+    ).readAsStringSync();
+    final edge = File('../../supabase/functions/reset-password/index.ts');
+
+    // المسار الوحيد إلى إعادة التعيين هو الطرف الخادمي: لا عقد قاعدة هنا.
+    expect(auth.contains("functions.invoke(\n        'reset-password'"), isTrue);
+    expect(screen.contains('.rpc('), isFalse);
+    expect(screen.contains('.from('), isFalse);
+
+    // المالك يُصدر رمزًا ولا يكتب كلمة مرور: لا حقل ولا وسيط لها عنده.
+    expect(team.contains('password'), isFalse);
+    expect(team.contains('كلمة المرور الجديدة'), isFalse);
+    expect(RegExp(r"rpc\(\s*'request_member_password_reset'").hasMatch(
+      File('lib/core/api/team_repository.dart').readAsStringSync(),
+    ), isTrue);
+
+    // الشاشة تقول الحقيقة: الرمز باليد، ولا رسائل في هذا الإصدار.
+    for (final honest in const [
+      'الرمز يعطيك إياه مالك البئر',
+      'رسائل نصية في هذا الإصدار',
+      'كلمة مرورك القديمة لم تتغيّر',
+      'نسيت كلمة المرور؟',
+    ]) {
+      expect(
+        screen.contains(honest) || login.contains(honest),
+        isTrue,
+        reason: 'Reset path hides a declared state: $honest',
+      );
+    }
+
+    // الطرف الخادمي موجود، وينادي العقد المخصَّص لمفتاح الخدمة، ولا يسجّل
+    // رمزًا ولا كلمة مرور في أي سجل.
+    expect(edge.existsSync(), isTrue);
+    final edgeSource = edge.readAsStringSync();
+    expect(edgeSource.contains("'consume_password_reset'"), isTrue);
+    expect(edgeSource.contains('updateUserById'), isTrue);
+    expect(edgeSource.contains('console.log'), isFalse);
+    expect(RegExp(r'console\.(log|info|debug)\(.*code').hasMatch(edgeSource),
+        isFalse);
+    expect(RegExp(r'console\.\w+\(.*newPassword').hasMatch(edgeSource), isFalse);
+  });
 }

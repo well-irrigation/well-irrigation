@@ -249,4 +249,120 @@ class TeamRepository {
       'استجابة غير متوقعة من عقد claim_well_invitation',
     );
   }
+
+  /// إصدار رمز إعادة تعيين لعضو (م-41F / هجرة 096). الرمز يُعاد **مرة
+  /// واحدة** لمن سيسلّمه باليد، ولا يُخزَّن نصًّا في القاعدة.
+  Future<ResetIssueResult> requestMemberPasswordReset({
+    required String wellId,
+    required String phone,
+  }) async {
+    final raw = await _client.schema('api').rpc(
+      'request_member_password_reset',
+      params: {'p_well_id': wellId, 'p_phone': phone},
+    );
+
+    if (raw is Map<String, dynamic>) {
+      return ResetIssueResult.fromJson(raw);
+    }
+    throw const FormatException(
+      'استجابة غير متوقعة من عقد request_member_password_reset',
+    );
+  }
+
+  Future<List<ResetTicket>> fetchResetRequests(String wellId) async {
+    final raw = await _client.schema('api').rpc(
+      'list_member_reset_requests',
+      params: {'p_well_id': wellId},
+    );
+
+    if (raw is Map<String, dynamic>) {
+      final items = raw['requests'];
+      if (items is List) {
+        return items
+            .whereType<Map<String, dynamic>>()
+            .map(ResetTicket.fromJson)
+            .toList(growable: false);
+      }
+    }
+    throw const FormatException(
+      'استجابة غير متوقعة من عقد list_member_reset_requests',
+    );
+  }
+}
+
+/// نتيجة إصدار تذكرة إعادة التعيين. `code` يأتي مرة واحدة ولا يُقرأ بعدها.
+class ResetIssueResult {
+  const ResetIssueResult({
+    required this.outcome,
+    this.ticketId,
+    this.fullName,
+    this.phone,
+    this.code,
+    this.expiresAt,
+  });
+
+  factory ResetIssueResult.fromJson(Map<String, dynamic> json) {
+    final rawExpires = json['expires_at'] as String?;
+    return ResetIssueResult(
+      outcome: json['outcome'] as String? ?? '',
+      ticketId: json['ticket_id'] as String?,
+      fullName: json['full_name'] as String?,
+      phone: json['phone'] as String?,
+      code: json['code'] as String?,
+      expiresAt: rawExpires == null ? null : DateTime.tryParse(rawExpires),
+    );
+  }
+
+  final String outcome;
+  final String? ticketId;
+  final String? fullName;
+  final String? phone;
+  final String? code;
+  final DateTime? expiresAt;
+
+  bool get isIssued => outcome == 'issued';
+  bool get hasNoMember => outcome == 'no_member';
+}
+
+/// تذكرة إعادة تعيين كما يعيدها العقد: حالتها ومحاولاتها ومدتها، بلا رمز.
+class ResetTicket {
+  const ResetTicket({
+    required this.ticketId,
+    required this.fullName,
+    required this.phone,
+    required this.status,
+    required this.attemptsLeft,
+    this.expiresAt,
+    this.requestedAt,
+    this.consumedAt,
+  });
+
+  factory ResetTicket.fromJson(Map<String, dynamic> json) {
+    DateTime? parse(String key) {
+      final raw = json[key] as String?;
+      return raw == null ? null : DateTime.tryParse(raw);
+    }
+
+    return ResetTicket(
+      ticketId: json['ticket_id'] as String? ?? '',
+      fullName: json['full_name'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      attemptsLeft: (json['attempts_left'] as num?)?.toInt() ?? 0,
+      expiresAt: parse('expires_at'),
+      requestedAt: parse('requested_at'),
+      consumedAt: parse('consumed_at'),
+    );
+  }
+
+  final String ticketId;
+  final String fullName;
+  final String phone;
+  final String status;
+  final int attemptsLeft;
+  final DateTime? expiresAt;
+  final DateTime? requestedAt;
+  final DateTime? consumedAt;
+
+  bool get isPending => status == 'pending';
 }

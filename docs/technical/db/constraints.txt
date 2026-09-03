@@ -88,6 +88,16 @@ core.partner_irrigation_policies|partner_irrigation_policies_pkey|p|PRIMARY KEY 
 core.partner_irrigation_policies|partner_irrigation_policies_policy_type_check|c|CHECK ((policy_type = ANY (ARRAY['normal_customer'::text, 'deduct_from_profit'::text])))
 core.partner_irrigation_policies|partner_irrigation_policies_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id) ON DELETE CASCADE
 core.partner_irrigation_policies|partner_irrigation_policies_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
+core.password_reset_tickets|password_reset_tickets_attempts_check|c|CHECK (((attempts_left >= 0) AND (attempts_left <= 5)))
+core.password_reset_tickets|password_reset_tickets_consumed_check|c|CHECK (((status = 'consumed'::text) = (consumed_at IS NOT NULL)))
+core.password_reset_tickets|password_reset_tickets_person_id_fkey|f|FOREIGN KEY (person_id) REFERENCES core.persons(id) ON DELETE SET NULL
+core.password_reset_tickets|password_reset_tickets_phone_check|c|CHECK ((btrim(normalized_phone) <> ''::text))
+core.password_reset_tickets|password_reset_tickets_pkey|p|PRIMARY KEY (id)
+core.password_reset_tickets|password_reset_tickets_profile_id_fkey|f|FOREIGN KEY (profile_id) REFERENCES iam.profiles(id) ON DELETE CASCADE
+core.password_reset_tickets|password_reset_tickets_requested_by_fkey|f|FOREIGN KEY (requested_by) REFERENCES iam.profiles(id) ON DELETE RESTRICT
+core.password_reset_tickets|password_reset_tickets_status_check|c|CHECK ((status = ANY (ARRAY['pending'::text, 'consumed'::text, 'expired'::text, 'revoked'::text])))
+core.password_reset_tickets|password_reset_tickets_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id) ON DELETE CASCADE
+core.password_reset_tickets|password_reset_tickets_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
 core.person_aliases|person_aliases_alias_type_check|c|CHECK ((alias_type = ANY (ARRAY['known_as'::text, 'nickname'::text, 'old_name'::text, 'local_name'::text, 'other'::text])))
 core.person_aliases|person_aliases_person_id_fkey|f|FOREIGN KEY (person_id) REFERENCES core.persons(id)
 core.person_aliases|person_aliases_pkey|p|PRIMARY KEY (id)

@@ -32,6 +32,7 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
   late TeamRepository _repo;
 
   WellTeam? _team;
+  List<ResetTicket> _resetPending = const [];
   bool _isLoading = true;
   String? _error;
 
@@ -50,15 +51,18 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
 
     try {
       final team = await _repo.fetchWellTeam(widget.well.id);
+      final resets = await _repo.fetchResetRequests(widget.well.id);
       if (!mounted) return;
       setState(() {
         _team = team;
+        _resetPending = resets.where((r) => r.isPending).toList();
         _isLoading = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _team = null;
+        _resetPending = const [];
         _isLoading = false;
         _error = '$error';
       });
@@ -351,6 +355,11 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
             _sectionTitle('دعوات مُغلقة (${closed.length})'),
             ...closed.map(_closedCard),
           ],
+          if (_resetPending.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _sectionTitle('رموز إعادة تعيين سارية (${_resetPending.length})'),
+            ..._resetPending.map(_resetCard),
+          ],
         ],
       ),
     );
@@ -401,6 +410,82 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
     ),
   );
 
+  /// إعادة تعيين كلمة مرور عضو (م-41F): المالك يتحقق من هويته أمامه، ثم
+  /// يقرأ له الرمز. ولا يكتب المالك كلمة المرور — يكتبها صاحبها (706).
+  Future<void> _resetPassword(TeamMember member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ResetConfirmDialog(member: member),
+    );
+    if (confirmed != true || !mounted) return;
+
+    ResetIssueResult result;
+    try {
+      result = await _repo.requestMemberPasswordReset(
+        wellId: widget.well.id,
+        phone: member.phone,
+      );
+    } catch (_) {
+      _showFailure('تعذر إصدار رمز إعادة التعيين — لم يُصدر أي رمز');
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (!result.isIssued || result.code == null) {
+      _showFailure(
+        result.hasNoMember
+            ? 'لا عضو بهذا الرقم على هذا البئر — لم يُصدر أي رمز'
+            : 'لم يُصدر رمز — لم يتغيّر شيء',
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _ResetCodeDialog(
+        name: member.fullName,
+        code: result.code!,
+        expiresAt: result.expiresAt,
+      ),
+    );
+
+    await _load();
+  }
+
+  Widget _resetCard(ResetTicket ticket) {
+    return _card(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                ticket.fullName.isEmpty ? 'بلا اسم مسجَّل' : ticket.fullName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            _badge('بانتظار الاستخدام', AppColors.warning),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${ticket.phone} · ينتهي ${_formatDate(ticket.expiresAt)} · '
+          'بقيت ${ticket.attemptsLeft} محاولات',
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'الرمز عُرض مرة واحدة ولا يمكن قراءته من جديد. إن فُقد فأصدر '
+          'رمزًا جديدًا — ويُبطل هذا تلقائيًّا.',
+          style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+        ),
+      ],
+    );
+  }
+
   Widget _memberCard(TeamMember member) {
     final canRevoke =
         member.isActive && (member.role == 'operator' || member.role == 'partner');
@@ -433,6 +518,14 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
         ),
         if (canRevoke) ...[
           const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: () => _resetPassword(member),
+              icon: const Icon(Icons.lock_reset, size: 18),
+              label: const Text('إعادة تعيين كلمة المرور'),
+            ),
+          ),
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
@@ -813,6 +906,167 @@ class _InvitationCodeDialog extends StatelessWidget {
             'أي رسالة.',
             style: TextStyle(fontSize: 12, color: AppColors.warning),
           ),
+        ],
+      ),
+      actions: [
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.agriculturalGreen,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('أبلغته شفويًّا'),
+        ),
+      ],
+    );
+  }
+}
+
+/// تأكيد قبل إصدار رمز إعادة التعيين: الرقم يُعرض كبيرًا ليقرأه المالك
+/// بعينه. رمزٌ يُسلَّم لغير صاحب الرقم يفتح حسابه لغيره.
+class _ResetConfirmDialog extends StatelessWidget {
+  const _ResetConfirmDialog({required this.member});
+
+  final TeamMember member;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'إعادة تعيين كلمة المرور',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'سيُصدر رمز لـ${member.fullName}. تحقق من هويته أمامك أولًا، ثم '
+            'اقرأ له الرمز — ولا تكتب كلمة مروره أنت.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSubtle,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Text(
+              member.phone.isEmpty ? 'لا رقم مسجَّل' : member.phone,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                color: AppColors.deepBlue,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'اقرأ الرقم حرفًا حرفًا: رمزٌ يُسلَّم لغير صاحبه يفتح حسابه لغيره.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('إلغاء'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.deepBlue,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('أصدر الرمز'),
+        ),
+      ],
+    );
+  }
+}
+
+/// بطاقة الرمز: تقول صريحًا إنه يُعرض **مرة واحدة** وإنه لم تُرسل رسالة،
+/// فلا ينتظر أحدٌ رسالة لا تأتي (الثابتان 711 و715).
+class _ResetCodeDialog extends StatelessWidget {
+  const _ResetCodeDialog({
+    required this.name,
+    required this.code,
+    this.expiresAt,
+  });
+
+  final String name;
+  final String code;
+  final DateTime? expiresAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final expiry = expiresAt?.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    final expiryText = expiry == null
+        ? null
+        : '${two(expiry.day)}/${two(expiry.month)}/${expiry.year} '
+              '${two(expiry.hour)}:${two(expiry.minute)}';
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'رمز إعادة التعيين',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'اقرأ هذا الرمز على $name ليكتب كلمة مروره الجديدة بنفسه.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: AppColors.waterBlue.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.waterBlue),
+            ),
+            child: Text(
+              code,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 10,
+                color: AppColors.deepBlue,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'يُعرض مرة واحدة فقط، ولا يمكن قراءته بعد إغلاق النافذة.',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'لا تُرسل رسائل نصية في هذا الإصدار، ولم تُرسل أي رسالة الآن.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+          if (expiryText != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'ينتهي: $expiryText',
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
         ],
       ),
       actions: [
