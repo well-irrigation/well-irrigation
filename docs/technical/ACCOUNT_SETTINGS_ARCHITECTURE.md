@@ -351,14 +351,16 @@ Password policy follows ق-105.
 عقد واحد — سياستا اطلاع الشريك على `ops.irrigation_sessions` و
 `ops.session_segments` تستثنيان `status='open'`، فكل عقد يفوّض على RLS
 يستفيد. والحضور يأتي من `api.read_partner_overview` (فوق قارئ
-`SECURITY DEFINER` غرضه العدّ وحده) بلا معرّف جلسة ولا مستحق ولا مدة ولا
-مضخة. و«من اعتمد المصروف» يُفرَّغ في `api.list_well_expenses` لمن سلطته
-شراكة وحدها (`iam.is_partner_only`) مع مفتاح `partner_scope` يُعلن الحدّ.
-و«المزارعون وديونهم» عقدها `api.list_well_farmer_balances`. والنِسب
-التاريخية من `api.list_well_profit_cycles` كما هي مخزَّنة، والفترة
-المفتوحة موسومة `is_final = false` بلا صافٍ محسوب. والشاشة
+`SECURITY DEFINER` سلطته **شراكة سارية وحدها** وغرض تجاوزه العدّ فقط) بلا
+معرّف جلسة ولا مستحق ولا مدة ولا مضخة. و«من اعتمد المصروف» يُفرَّغ في
+`api.list_well_expenses` لمن سلطته شراكة وحدها (`iam.is_partner_only`) مع
+مفتاح `partner_scope` يُعلن الحدّ. و«المزارعون وديونهم» عقدها
+`api.list_well_farmer_balances`. والنِسب التاريخية من
+`api.list_well_profit_cycles` كما هي مخزَّنة، والفترة المفتوحة موسومة
+`is_final = false` بلا صافٍ محسوب. والشاشة
 `lib/features/finance/partner_overview_screen.dart` بلا زرّ كتابة ولا حقل
-إدخال — مقيس في حرس الحد.
+إدخال — مقيس في حرس الحد. **والمالك ليس ضمن سلطة هذا العقد**: عقوده هو
+تعرض الجلسة الجارية بأرقامها، فحصره بالشريك حصرُ نطاق لا حجب معلومة.
 
 ## 27. حدّ هذه الجولة — ما ليس فيها ولماذا
 

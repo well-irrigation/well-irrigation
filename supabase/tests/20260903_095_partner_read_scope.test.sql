@@ -290,15 +290,19 @@ begin
     'اختبار', v_dual_user, 'ملاحظة داخلية 095'
   );
 
-  -- دورة توزيع مقفلة: نهايتها هي بداية الفترة المفتوحة.
+  -- دورة توزيع منتهية المدة: نهايتها هي بداية الفترة المفتوحة. وحالتها
+  -- 'calculated' لا 'approved': الزناد finance.prevent_approved_line_change
+  -- (هجرة 052) يمنع إدخال بند في دورة معتمدة، والاعتماد ليس محلّ القياس
+  -- هنا — المحسوب من الدورة هو مداها ومدفوع بندها، وكلاهما لا يشترط
+  -- الاعتماد ('cancelled' وحدها مستثناة في العقد).
   insert into finance.profit_distribution_cycles (
     tenant_id, well_id, period_start, period_end, status,
     eligible_collections_minor, eligible_cash_expenses_minor,
-    distributable_amount_minor, calculated_at, approved_at
+    distributable_amount_minor, calculated_at
   ) values (
     v_tenant, v_well, v_started - interval '30 days',
-    v_started - interval '2 days', 'approved',
-    500000, 100000, 400000, now(), now()
+    v_started - interval '2 days', 'calculated',
+    500000, 100000, 400000, now()
   ) returning id into v_cycle;
 
   -- سطر الشريك في الدورة: نسبته لحظتها 60، ومنه يُقرأ المدفوع فعلًا.
@@ -488,8 +492,10 @@ begin
   -- ---------------------------------------------------------------
   -- 7. لا كتابة للشريك — مُثبتًا على الخادم لا بإخفاء زرّ
   --
-  -- الرمز المتوقَّع 42501 وحده يُحتسب: احتساب «أي خطأ» نجاحًا هو نجاح كاذب
-  -- في أداة التحقق نفسها (ق-113 / الثابت 699).
+  -- يُحتسب **رمزان معروفان وحدهما**: 42501 حيث كُتب صريحًا (عقود 094 وما
+  -- بعدها)، وP0001 وهو رمز `raise exception` بلا errcode في العقود الأقدم
+  -- (074 و081 و066). واحتساب «أي خطأ» رفضًا نجاحٌ كاذب في أداة التحقق
+  -- نفسها (ق-113 / الثابت 699). ومعهما الدليل الحقيقي: لا صفّ جديد.
   -- ---------------------------------------------------------------
 
   v_count := 0;
@@ -504,10 +510,10 @@ begin
     when others then
       v_text := sqlstate;
   end;
-  if v_text = '42501' then
+  if v_text in ('42501', 'P0001') then
     v_count := v_count + 1;
   else
-    raise notice 'INFO: record_expense أعاد % لا 42501', v_text;
+    raise notice 'INFO: record_expense أعاد % لا رمز رفض', v_text;
   end if;
 
   begin
@@ -519,10 +525,10 @@ begin
     when others then
       v_text := sqlstate;
   end;
-  if v_text = '42501' then
+  if v_text in ('42501', 'P0001') then
     v_count := v_count + 1;
   else
-    raise notice 'INFO: start_irrigation_session أعاد % لا 42501', v_text;
+    raise notice 'INFO: start_irrigation_session أعاد % لا رمز رفض', v_text;
   end if;
 
   begin
@@ -534,16 +540,21 @@ begin
     when others then
       v_text := sqlstate;
   end;
-  if v_text = '42501' then
+  if v_text in ('42501', 'P0001') then
     v_count := v_count + 1;
   else
-    raise notice 'INFO: invite_well_member أعاد % لا 42501', v_text;
+    raise notice 'INFO: invite_well_member أعاد % لا رمز رفض', v_text;
   end if;
 
-  if v_count = 3 then
-    raise notice 'PASS 15: الشريك لا يكتب: ثلاثة عقود كتابة تردّ 42501';
+  -- الدليل على أن الرفض رفضٌ فعلي: المصروف واحد كما كان، بلا صفّ جديد.
+  select count(*) into v_count_2
+  from finance.expenses e
+  where e.well_id = v_well;
+
+  if v_count = 3 and v_count_2 = 1 then
+    raise notice 'PASS 15: الشريك لا يكتب: ثلاثة عقود ترفض ولا صفّ جديد';
   else
-    raise notice 'FAIL 15: % من 3 عقود كتابة ردّت 42501 على الشريك', v_count;
+    raise notice 'FAIL 15: رفضت % من 3، والمصروفات = %', v_count, v_count_2;
   end if;
 
   -- ---------------------------------------------------------------
@@ -638,18 +649,22 @@ begin
     raise notice 'FAIL 20: اطلاع المالك انحدر بعد التضييق';
   end if;
 
-  v_payload := api.read_partner_overview(v_well);
+  -- سلطة العقد شراكةٌ سارية وحدها، بلا مصفوفة أدوار نصية (م-18 / اختبار
+  -- 082 التحقق 5). والمالك لا يخسر بيانة: عقوده هو تُعيد الجلستين
+  -- بأرقامهما كما ثبت في الفحص 20، فالرفض هنا حصرُ نطاق لا حجب معلومة.
+  begin
+    perform api.read_partner_overview(v_well);
+    v_text := 'no-error';
+  exception
+    when others then
+      v_text := sqlstate;
+  end;
 
-  if (v_payload ->> 'is_partner')::boolean is false
-     and v_payload -> 'partner' = 'null'::jsonb
-     and (v_payload -> 'active_sessions' ->> 'count')::int = 1
-  then
-    raise notice 'PASS 21: المالك يقرأ العقد بحالة «ليس شريكًا» صريحة';
+  if v_text = '42501' then
+    raise notice 'PASS 21: مالكٌ بلا سطر شراكة يُرفض صريحًا من عقد الشريك';
   else
-    raise notice 'FAIL 21: حالة المالك في عقد الشريك غير صريحة: %', v_payload;
-  end if;
-
-  -- ---------------------------------------------------------------
+    raise notice 'FAIL 21: عقد الشريك أعاد % للمالك لا 42501', v_text;
+  end if;  -- ---------------------------------------------------------------
   -- 11. الغريب: لا شراكة ولا دور ⟹ رفض صريح لا مغلّف فارغ
   -- ---------------------------------------------------------------
 
@@ -707,6 +722,30 @@ begin
     raise notice 'PASS 23: anon لا ينفّذ عقد ملخص الشريك';
   else
     raise notice 'FAIL 23: نداء anon أعاد % لا 42501', v_text;
+  end if;
+
+  -- ---------------------------------------------------------------
+  -- 13. حرس م-18 يبقى صفرًا بعد هذه الهجرة
+  --
+  -- الفحص الأول لهجرة 095 أسقط اختبار 082 التحقق 5: فرعُ «أو من يديره» في
+  -- القارئ الداخلي كان مصفوفة أدوار نصية داخل مخطط finance. يُعاد الفحص
+  -- هنا في ملف الهجرة نفسها حتى تُكتشف العودة في موضعها لا في ملف آخر.
+  -- ---------------------------------------------------------------
+
+  select count(*)
+  into v_count
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname in (
+    'api', 'ops', 'billing', 'finance', 'inventory', 'core', 'reporting'
+  )
+    and p.prokind = 'f'
+    and pg_get_functiondef(p.oid) like '%iam.has_well_role%';
+
+  if v_count = 0 then
+    raise notice 'PASS 26: صفر دوال عمل على مصفوفات الأدوار النصية بعد 095';
+  else
+    raise notice 'FAIL 26: بقيت % دالة على السلطة النصية', v_count;
   end if;
 end;
 $test$;
