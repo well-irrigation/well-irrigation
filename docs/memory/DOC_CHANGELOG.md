@@ -2685,3 +2685,6 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
   المواضع: `095_partner_read_scope.sql` و`20260903_095_...test.sql` و
   `MIGRATIONS.md` و`OPEN_ISSUES.md` و`RESUME_POINT.md` و`PROGRESS.md` و
   `ACCOUNT_SETTINGS_ARCHITECTURE.md`.
+- **Baseline القاعدة تغيّر (مثبت بتشغيل المالك):** `FILES=32 PASS=522` →
+  **`FILES=33 PASS=548`**، والفهرس functions 447 → **451** بلا تغيير في
+  columns 819 وconstraints 491 وtriggers 44. **وسحابيًّا: غير منشورة بعد.**
