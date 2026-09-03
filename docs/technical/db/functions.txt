@@ -27,6 +27,7 @@ api.get_well_details(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog
 api.health()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.invite_well_member(p_well_id uuid, p_role text, p_full_name text, p_phone text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.issue_session_invoice(p_session_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.list_advance_receipts(p_farmer_well_account_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_member_reset_requests(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_expenses(p_well_id uuid, p_status text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farmer_balances(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp

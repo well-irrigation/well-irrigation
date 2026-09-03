@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/api/finance_repository.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/currency_utils.dart';
 import '../../core/widgets/currency_display.dart';
 import '../../core/widgets/currency_text_form_field.dart';
 
@@ -86,17 +87,33 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
     );
   }
 
-  /// الرصيد المقدم يُعرض ولا يُصرف. التسديد منه يحتاج سند الرصيد غير
-  /// المخصَّص ورصيده المتبقي، ولا يعيدهما العقد الحالي (يعيد رصيدًا
-  /// مُجمَّعًا فقط)، فكان الزر يرسل معرّف دفعة ثابتًا وقائمة تخصيصات فارغة
-  /// إلى عقد كتابة حقيقي ثم يعلن نجاحًا. الآن تُعرض الحالة صريحة ولا يُرسل
-  /// شيء (ق-99 / ق-113 / م-41D5؛ القرار 420 يبقى مفتوحًا بانتظار العقد).
-  void _showAdvanceUnavailableDialog() {
+  /// التسديد من الرصيد المقدم (م-41G / هجرة 097). صار ممكنًا لأن العقد
+  /// `api.list_advance_receipts` يعيد **كل سند ورصيده المتبقي**؛ وقبله كان
+  /// الزر يرسل معرّف دفعة ثابتًا وقائمة تخصيصات فارغة ثم يعلن نجاحًا، ثم
+  /// صار يعلن «غير متاح» صريحًا (م-41D5).
+  ///
+  /// والإنسان هو من يختار السند والفاتورة والمبلغ: لا رقم يُشتقّ في العميل
+  /// ولا مبلغ يُملأ تلقائيًّا (ق-99)، والخادم يتحقق من المجموع.
+  Future<void> _openAdvanceAllocation() async {
     if (_accountData == null) return;
-    showDialog(
+
+    final allocated = await showDialog<bool>(
       context: context,
-      builder: (dialogCtx) =>
-          _AdvanceUnavailableDialog(accountData: _accountData!),
+      builder: (dialogCtx) => _AdvanceAllocationDialog(
+        accountData: _accountData!,
+        repository: _repo,
+      ),
+    );
+
+    if (allocated != true || !mounted) return;
+
+    await _loadAccount();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('خُصِّص المبلغ من الرصيد المقدم على الفاتورة ✅'),
+        backgroundColor: AppColors.agriculturalGreen,
+      ),
     );
   }
 
@@ -163,9 +180,9 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    icon: const Icon(Icons.info_outline, size: 18),
-                    label: const Text('الرصيد المقدم (غير متاح)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    onPressed: _showAdvanceUnavailableDialog,
+                    icon: const Icon(Icons.savings_outlined, size: 18),
+                    label: const Text('استخدام الرصيد المقدم', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    onPressed: _openAdvanceAllocation,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -604,106 +621,260 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
   }
 }
 
-/// نافذة الرصيد المقدم: تعرض الرصيد والفواتير المستحقة كما أعادهما العقد،
-/// وتقول صريحًا إن التسديد من الرصيد غير متاح في هذا الإصدار. لا مستودع
-/// فيها ولا زر تأكيد — لا شيء يُرسل من هنا (القرار 420 مفتوح، ق-120).
-class _AdvanceUnavailableDialog extends StatelessWidget {
-  final FarmerFinancialAccountData accountData;
 
-  const _AdvanceUnavailableDialog({required this.accountData});
+/// نافذة التسديد من الرصيد المقدم (م-41G / هجرة 097).
+///
+/// ثلاث خطوات صريحة: سندٌ من سندات الرصيد كما أعادها العقد بمتبقّيه، ثم
+/// فاتورة من الفواتير المستحقة بمتبقّيها، ثم مبلغ **يكتبه الإنسان**. لا
+/// مبلغ مُعبَّأ تلقائيًّا ولا رقم يُشتقّ هنا: العميل ينقل قرارًا ولا يحسبه
+/// (ق-99)، والخادم `api.allocate_payment` هو من يتحقق من الحالة والمجموع.
+class _AdvanceAllocationDialog extends StatefulWidget {
+  const _AdvanceAllocationDialog({
+    required this.accountData,
+    required this.repository,
+  });
+
+  final FarmerFinancialAccountData accountData;
+  final FinanceRepository repository;
+
+  @override
+  State<_AdvanceAllocationDialog> createState() =>
+      _AdvanceAllocationDialogState();
+}
+
+class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
+  final _amountController = TextEditingController();
+
+  List<AdvanceReceipt> _receipts = const [];
+  String? _receiptId;
+  String? _invoiceId;
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final receipts = await widget.repository.fetchAdvanceReceipts(
+        widget.accountData.farmerAccountId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _receipts = receipts.where((r) => !r.isExhausted).toList();
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _receipts = const [];
+        _isLoading = false;
+        _error = 'تعذر قراءة سندات الرصيد المقدم — لم يُرسل أي تسديد.\n\n$error';
+      });
+    }
+  }
+
+  /// المبلغ يكتبه الإنسان ويتحقق منه الخادم. وما نرسله ثلاثة معرّفات ومبلغ
+  /// واحد: لا قائمة تخصيصات تُبنى محليًّا ولا معرّف لم يعده عقد.
+  Future<void> _submit() async {
+    final receiptId = _receiptId;
+    final invoiceId = _invoiceId;
+    final amount = CurrencyUtils.parseRawInt(_amountController.text);
+
+    if (receiptId == null) {
+      setState(() => _error = 'اختر سند الرصيد المقدم أولًا');
+      return;
+    }
+    if (invoiceId == null) {
+      setState(() => _error = 'اختر الفاتورة المراد تسديدها');
+      return;
+    }
+    if (amount <= 0) {
+      setState(() => _error = 'أدخل المبلغ المراد تسديده من السند');
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _error = null;
+    });
+
+    try {
+      await widget.repository.allocateAdvance(
+        paymentId: receiptId,
+        allocations: [
+          {'invoice_id': invoiceId, 'amount_minor': amount},
+        ],
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+        _error = 'تعذر التسديد — لم يتغيّر شيء.\n\n$error';
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final unpaidInvoices = accountData.invoices.where((i) => i.status != 'paid').toList();
-    final advanceBalance = accountData.advanceBalanceYER;
+    final unpaid = widget.accountData.invoices
+        .where((i) => i.remainingAmountYER > 0)
+        .toList(growable: false);
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Row(
-        children: const [
-          Icon(Icons.info_outline, color: AppColors.warning),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text('الرصيد المقدم — التسديد منه غير متاح', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-          ),
-        ],
+      title: const Text(
+        'تسديد من الرصيد المقدم',
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.purple.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.purple.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('الرصيد المقدم المحفوظ في الحساب:', style: TextStyle(fontSize: 12)),
-                  Text('$advanceBalance ريال', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.purple)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'التسديد من الرصيد المقدم غير متاح في هذا الإصدار — لم يُرسل أي أمر تسديد.',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'الرصيد محفوظ في القاعدة كما هو والدين لم يتغير. التسديد يحتاج سند '
-                    'الرصيد غير المخصَّص ورصيده المتبقي، ولا يعيدهما العقد الحالي.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.5),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'الفواتير المستحقة (عرض فقط — لا تُسدَّد من هذه النافذة):',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 8),
-            ...unpaidInvoices.take(3).map((inv) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      content: SizedBox(
+        width: 420,
+        child: _isLoading
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(inv.invoiceNumber, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    Text('المتبقي: ${inv.remainingAmountYER} ريال', style: const TextStyle(fontSize: 11, color: Colors.red)),
+                    if (_receipts.isEmpty)
+                      const Text(
+                        'لا يوجد سند رصيد مقدم فيه متبقٍّ على هذا الحساب.',
+                        style: TextStyle(fontSize: 12),
+                      )
+                    else ...[
+                      const Text(
+                        'اختر السند:',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      ..._receipts.map(
+                        (receipt) => ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            _receiptId == receipt.paymentId
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                            size: 18,
+                            color: AppColors.deepBlue,
+                          ),
+                          onTap: _isSubmitting
+                              ? null
+                              : () => setState(
+                                  () => _receiptId = receipt.paymentId,
+                                ),
+                          title: Text(
+                            receipt.publicCode,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          subtitle: Text(
+                            'المتبقي في السند: '
+                            '${CurrencyUtils.formatAmount(receipt.remainingYER)} ريال',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'اختر الفاتورة:',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      if (unpaid.isEmpty)
+                        const Text(
+                          'لا فاتورة مستحقة على هذا الحساب.',
+                          style: TextStyle(fontSize: 12),
+                        )
+                      else
+                        ...unpaid.map(
+                          (invoice) => ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              _invoiceId == invoice.id
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off,
+                              size: 18,
+                              color: AppColors.deepBlue,
+                            ),
+                            onTap: _isSubmitting
+                                ? null
+                                : () => setState(() => _invoiceId = invoice.id),
+                            title: Text(
+                              invoice.invoiceNumber,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            subtitle: Text(
+                              'المتبقي على الفاتورة: '
+                              '${CurrencyUtils.formatAmount(invoice.remainingAmountYER)} ريال',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 10),
+                      CurrencyTextFormField(
+                        controller: _amountController,
+                        labelText: 'المبلغ المسدَّد من السند',
+                        hintText: '0',
+                        enabled: !_isSubmitting,
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'المبلغ تكتبه بنفسك: لا يُملأ تلقائيًّا ولا يُحسب في '
+                        'التطبيق، والخادم يرفض ما يتجاوز متبقي السند أو '
+                        'متبقي الفاتورة.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                    if (_error != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-              );
-            }),
-          ],
-        ),
+              ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('إغلاق', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('إلغاء'),
         ),
+        if (_receipts.isNotEmpty)
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.agriculturalGreen,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: _isSubmitting ? null : _submit,
+            child: Text(_isSubmitting ? 'جارٍ التسديد…' : 'تسديد'),
+          ),
       ],
     );
   }
 }
+

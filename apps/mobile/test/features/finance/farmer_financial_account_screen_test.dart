@@ -98,7 +98,7 @@ void main() {
       expect(find.textContaining('الفواتير المستحقة'), findsOneWidget);
       expect(find.textContaining('سجل سندات القبض'), findsOneWidget);
       expect(find.text('تسجيل دفعة / سند قبض'), findsOneWidget);
-      expect(find.text('الرصيد المقدم (غير متاح)'), findsOneWidget);
+      expect(find.text('استخدام الرصيد المقدم'), findsOneWidget);
     });
 
     testWidgets('2. فتح حوار تسجيل دفعة وسند قبض جديد', (tester) async {
@@ -125,53 +125,9 @@ void main() {
       expect(find.text('إصدار سند القبض'), findsOneWidget);
     });
 
-    testWidgets('3. نافذة الرصيد المقدم تعلن أن التسديد منه غير متاح ولا تُرسل أمرًا', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('ar'),
-          home: FarmerFinancialAccountScreen(
-            wellId: 'well-1',
-            farmerAccountId: 'farmer-account-1',
-            wellName: 'بئر الخير الرئيسي',
-            repository: _FakeFinanceRepository(),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('الرصيد المقدم (غير متاح)'));
-      await tester.pumpAndSettle();
-
-      // الرصيد الحقيقي يبقى معروضًا: الحالة لا تُخفى، بل يُمنع صرفها كذبًا.
-      expect(find.text('الرصيد المقدم — التسديد منه غير متاح'), findsOneWidget);
-      expect(find.text('الرصيد المقدم المحفوظ في الحساب:'), findsOneWidget);
-      expect(find.text('20000 ريال'), findsOneWidget);
-      expect(
-        find.textContaining('لم يُرسل أي أمر تسديد'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('عرض فقط — لا تُسدَّد من هذه النافذة'),
-        findsOneWidget,
-      );
-      expect(find.text('INV-002'), findsWidgets);
-
-      // لا زر تأكيد ولا نص تسديد: لا مسار كتابة من هذه النافذة.
-      expect(find.text('تأكيد التسديد من المقدم'), findsNothing);
-      expect(find.text('إغلاق'), findsOneWidget);
-
-      await tester.tap(find.text('إغلاق'));
-      await tester.pumpAndSettle();
-
-      // لا نجاح كاذب بعد الإغلاق، ولا تغيّر في الدين ولا في الرصيد.
-      expect(
-        find.textContaining('تم استخدام الرصيد المقدم'),
-        findsNothing,
-      );
-      expect(find.text('الرصيد المقدم (غير متاح)'), findsOneWidget);
-    });
-
-    testWidgets('4. لا نداء تخصيص يُرسل إلى العقد من شاشة الحساب المالي', (tester) async {
+    testWidgets('3. نافذة الرصيد المقدم تعرض السندات ومتبقّي كل سند', (
+      tester,
+    ) async {
       final spy = _WriteSpyFinanceRepository();
 
       await tester.pumpWidget(
@@ -187,13 +143,68 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('الرصيد المقدم (غير متاح)'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('إغلاق'));
+      await tester.tap(find.text('استخدام الرصيد المقدم'));
       await tester.pumpAndSettle();
 
+      // السندات من العقد بمتبقّي كل واحد، والمستنفَد لا يُعرض للاختيار.
+      expect(find.text('تسديد من الرصيد المقدم'), findsOneWidget);
+      expect(find.text('PAY-ADV-1'), findsOneWidget);
+      expect(find.textContaining('المتبقي في السند: 40,000 ريال'), findsOneWidget);
+      expect(find.text('PAY-ADV-SPENT'), findsNothing);
+      expect(
+        find.textContaining('المبلغ تكتبه بنفسك'),
+        findsOneWidget,
+      );
       expect(spy.allocateCalls, 0);
-      expect(find.textContaining('حدث خطأ'), findsNothing);
+    });
+
+    testWidgets('4. لا تسديد بلا اختيار، والمُرسَل معرّفٌ من العقد ومبلغ مكتوب', (
+      tester,
+    ) async {
+      final spy = _WriteSpyFinanceRepository();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ar'),
+          home: FarmerFinancialAccountScreen(
+            wellId: 'well-1',
+            farmerAccountId: 'farmer-account-1',
+            wellName: 'بئر الخير الرئيسي',
+            repository: spy,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('استخدام الرصيد المقدم'));
+      await tester.pumpAndSettle();
+
+      // ضغط التسديد بلا اختيار: لا نداء، ورسالة تقول ما ينقص.
+      await tester.tap(find.text('تسديد'));
+      await tester.pumpAndSettle();
+      expect(spy.allocateCalls, 0);
+      expect(find.textContaining('اختر سند الرصيد المقدم'), findsOneWidget);
+
+      await tester.tap(find.text('PAY-ADV-1'));
+      await tester.pumpAndSettle();
+      // النصّ نفسه موجود في الشاشة تحت النافذة، فالنقر على نسخة النافذة.
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('INV-002'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).last, '15000');
+      await tester.tap(find.text('تسديد'));
+      await tester.pumpAndSettle();
+
+      // معرّف السند جاء من العقد، والمبلغ هو ما كُتب — لا رقم مُشتقّ.
+      expect(spy.allocateCalls, 1);
+      expect(spy.lastPaymentId, 'pay-adv-1');
+      expect(spy.lastAllocations, [
+        {'invoice_id': 'invoice-1', 'amount_minor': 15000},
+      ]);
     });
 
     testWidgets('5. فشل عقد الحساب لا يُظهر هوية ولا رصيدًا مُلفَّقًا', (tester) async {
@@ -234,8 +245,36 @@ class _FailingFinanceRepository extends FinanceRepository {
 
 /// جاسوس كتابة: يرصد أي نداء تخصيص. الشاشة لا يجوز أن تنادي العقد بمعرّف
 /// لم يُعده عقد قراءة، فالنداء نفسه — لا نتيجته — هو العيب (ق-99 / م-41D5).
+/// جاسوس يرصد **ما أُرسل** لا مجرّد أنه أُرسل: المعرّف والمبلغ كما وصلا.
 class _WriteSpyFinanceRepository extends _FakeFinanceRepository {
   int allocateCalls = 0;
+  String? lastPaymentId;
+  List<Map<String, dynamic>>? lastAllocations;
+
+  @override
+  Future<List<AdvanceReceipt>> fetchAdvanceReceipts(
+    String farmerAccountId, {
+    int limit = 50,
+  }) async {
+    return [
+      AdvanceReceipt.fromJson(const {
+        'payment_id': 'pay-adv-1',
+        'public_code': 'PAY-ADV-1',
+        'amount_minor': 50000,
+        'allocated_minor': 10000,
+        'remaining_minor': 40000,
+        'is_exhausted': false,
+      }),
+      AdvanceReceipt.fromJson(const {
+        'payment_id': 'pay-adv-spent',
+        'public_code': 'PAY-ADV-SPENT',
+        'amount_minor': 20000,
+        'allocated_minor': 20000,
+        'remaining_minor': 0,
+        'is_exhausted': true,
+      }),
+    ];
+  }
 
   @override
   Future<void> allocateAdvance({
@@ -243,6 +282,7 @@ class _WriteSpyFinanceRepository extends _FakeFinanceRepository {
     required List<Map<String, dynamic>> allocations,
   }) async {
     allocateCalls += 1;
-    throw StateError('تخصيص لم يخترْه المشغل: $paymentId');
+    lastPaymentId = paymentId;
+    lastAllocations = allocations;
   }
 }

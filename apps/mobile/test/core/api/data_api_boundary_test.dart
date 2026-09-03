@@ -1087,52 +1087,65 @@ void main() {
     expect(RegExp(r"roles: (const )?\['").allMatches(source), isEmpty);
   });
 
-  // المقياس السادس (م-41D5): آخر مسار كتابة كان يرسل معرّفًا لم يعده عقد.
-  test('advance allocation never sends an id the contract did not return', () {
-    final source = File(
+  // المقياس السادس — أُعيد في م-41G: العقد صار موجودًا (هجرة 097) فعاد
+  // المسار للعمل. والمقياس الآن يحرس **شكل ما يُرسل**: معرّف سند جاء من
+  // العقد، ومبلغ كتبه إنسان، بلا قائمة تخصيصات تُبنى محليًّا ولا رقم مُعبَّأ.
+  test('advance allocation sends only contract ids and a typed amount', () {
+    final screen = File(
       'lib/features/finance/farmer_financial_account_screen.dart',
     ).readAsStringSync();
-
-    for (final claimed in const [
-      'mock-advance-pay',
-      'allocateAdvance(',
-      'تم استخدام الرصيد المقدم في تسديد الفواتير بنجاح',
-      'تأكيد التسديد من المقدم',
-      'سيتم استخدام الرصيد لتسديد أقدم الفواتير',
-      'الرصيد المقدم المتاح:',
-    ]) {
-      expect(
-        source.contains(claimed),
-        isFalse,
-        reason: 'Screen still fakes an advance allocation: $claimed',
-      );
-    }
-
-    for (final honest in const [
-      'الرصيد المقدم (غير متاح)',
-      'الرصيد المقدم — التسديد منه غير متاح',
-      'غير متاح في هذا الإصدار — لم يُرسل أي أمر تسديد',
-      'عرض فقط — لا تُسدَّد من هذه النافذة',
-      'class _AdvanceUnavailableDialog extends StatelessWidget',
-    ]) {
-      expect(
-        source.contains(honest),
-        isTrue,
-        reason: 'Explicit unavailable-advance state missing: $honest',
-      );
-    }
-
-    // النافذة لا تحمل مستودعًا أصلًا، فلا كتابة ممكنة منها لا نجاحًا ولا فشلًا.
-    final dialogStart = source.indexOf('class _AdvanceUnavailableDialog');
-    expect(dialogStart, isNonNegative);
-    final dialog = source.substring(dialogStart);
-    expect(dialog.contains('FinanceRepository'), isFalse);
-    expect(dialog.contains('await '), isFalse);
-
-    // المنفذ الصادق باقٍ في المستودع بلا نداء حتى يوجد العقد.
     final repository = File(
       'lib/core/api/finance_repository.dart',
     ).readAsStringSync();
+
+    // لا بقايا من مسار التلفيق القديم ولا من حالة «غير متاح» بعد وجود العقد.
+    for (final gone in const [
+      'mock-advance-pay',
+      '_AdvanceUnavailableDialog',
+      'الرصيد المقدم (غير متاح)',
+      'التسديد من الرصيد المقدم غير متاح',
+    ]) {
+      expect(
+        screen.contains(gone),
+        isFalse,
+        reason: 'Stale advance path remains: $gone',
+      );
+    }
+
+    // المسار الحقيقي: قراءة السندات من العقد، ثم تخصيص بمبلغ مكتوب.
+    expect(screen.contains('fetchAdvanceReceipts('), isTrue);
+    expect(screen.contains('allocateAdvance('), isTrue);
+    expect(
+      screen.contains("{'invoice_id': invoiceId, 'amount_minor': amount}"),
+      isTrue,
+    );
+
+    // المبلغ من الحقل لا من حساب محلي: لا اشتقاق ولا تعبئة تلقائية.
+    expect(
+      screen.contains('CurrencyUtils.parseRawInt(_amountController.text)'),
+      isTrue,
+    );
+    expect(screen.contains('_amountController.text ='), isFalse);
+    for (final math in const [
+      'remainingYER -',
+      'remainingAmountYER -',
+      'math.min',
+      'clamp(',
+    ]) {
+      expect(
+        screen.contains(math),
+        isFalse,
+        reason: 'Client computes an advance amount: $math',
+      );
+    }
+
+    // ومعرّف السند من العقد وحده: لا نصّ ثابت يُرسل مكانه.
+    expect(screen.contains('paymentId: receiptId'), isTrue);
+    expect(RegExp(r"paymentId: '").hasMatch(screen), isFalse);
+
+    // والعقدان في المستودع يمرّان بمخطط api وحده.
+    expect(RegExp(r"rpc\(\s*'list_advance_receipts'").hasMatch(repository),
+        isTrue);
     expect(repository.contains("rpc('allocate_payment'"), isTrue);
   });
 
