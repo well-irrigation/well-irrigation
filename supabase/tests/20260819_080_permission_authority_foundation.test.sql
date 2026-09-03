@@ -90,8 +90,12 @@ begin
   -- ثم صار 42 بعد Migration 093 التي أضافت `price.read`: قراءة
   -- التسعيرة كانت محكومة بـ`price.manage` (صلاحية تعديل للمالك)،
   -- فصارت صلاحية اطلاع مستقلة لمن يشغّل البئر.
-  if v_count = 42 and v_count_2 = 17 then
-    raise notice 'PASS 2: Permission catalog = 42 ويغطي تدفقات V1 الحالية';
+  -- ثم صار 43 بعد Migration 094 التي أضافت `team.manage`: دعوة أعضاء
+  -- البئر وإلغاء وصولهم وقراءة الفريق، للمالك وحده في جولة م-41E.
+  -- و`v_count_2` قائمة تدفقات V1 الثابتة (17) ولا تتغير بإضافة صلاحية
+  -- خارجها — فهي تقيس تغطية التدفقات لا حجم الكتالوج.
+  if v_count = 43 and v_count_2 = 17 then
+    raise notice 'PASS 2: Permission catalog = 43 ويغطي تدفقات V1 الحالية';
   else
     raise notice 'FAIL 2: permission_total=% new_codes=%', v_count, v_count_2;
   end if;
@@ -113,13 +117,15 @@ begin
   -- +3 منح بعد Migration 093: `price.read` للمالك والمدير والمشغل،
   -- وهي نفس مجموعة الأدوار التي تقبلها ops.start_irrigation_session:
   -- من يبدأ جلسة مُسعَّرة يرى السعر الذي ستُسعَّر به.
-  if v_count = 78
+  -- +1 منحة بعد Migration 094: `team.manage` للمالك وحده — إدارة
+  -- الفريق تفويض سلطة، وتفويضها لـwell_manager قرار مستقل (ق-123 §10).
+  if v_count = 79
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'tenant_owner'
-     ) = 42
+     ) = 43
      and (
        select count(*)
        from iam.role_permissions rp

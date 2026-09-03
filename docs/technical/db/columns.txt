@@ -232,6 +232,25 @@ core.well_assignments|role|text|NOT NULL|-
 core.well_assignments|status|text|NOT NULL|'active'::text
 core.well_assignments|created_at|timestamp with time zone|NOT NULL|now()
 core.well_assignments|updated_at|timestamp with time zone|NOT NULL|now()
+core.well_invitations|id|uuid|NOT NULL|gen_random_uuid()
+core.well_invitations|tenant_id|uuid|NOT NULL|-
+core.well_invitations|well_id|uuid|NOT NULL|-
+core.well_invitations|role|text|NOT NULL|-
+core.well_invitations|person_id|uuid|NOT NULL|-
+core.well_invitations|phone|text|NOT NULL|-
+core.well_invitations|normalized_phone|text|NOT NULL|-
+core.well_invitations|code_salt|text|NOT NULL|-
+core.well_invitations|code_hash|text|NOT NULL|-
+core.well_invitations|expires_at|timestamp with time zone|NOT NULL|-
+core.well_invitations|attempts_left|integer|NOT NULL|5
+core.well_invitations|status|text|NOT NULL|'invited'::text
+core.well_invitations|invited_by|uuid|NOT NULL|-
+core.well_invitations|invited_at|timestamp with time zone|NOT NULL|now()
+core.well_invitations|claimed_at|timestamp with time zone|null|-
+core.well_invitations|claimed_profile_id|uuid|null|-
+core.well_invitations|revoked_at|timestamp with time zone|null|-
+core.well_invitations|created_at|timestamp with time zone|NOT NULL|now()
+core.well_invitations|updated_at|timestamp with time zone|NOT NULL|now()
 core.well_partners|id|uuid|NOT NULL|gen_random_uuid()
 core.well_partners|tenant_id|uuid|NOT NULL|-
 core.well_partners|well_id|uuid|NOT NULL|-
