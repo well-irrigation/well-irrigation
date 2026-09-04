@@ -87,6 +87,7 @@ core.merge_persons(p_primary_id uuid, p_duplicate_id uuid, p_reason text, p_requ
 core.new_invitation_code()|text|volatile|invoker|search_path=pg_catalog, pg_temp
 core.normalize_arabic(p_text text)|text|immutable|invoker|-
 core.normalize_phone(p_text text)|text|immutable|invoker|-
+core.period_bounds(p_well_id uuid, p_period text, p_start timestamp with time zone, p_end timestamp with time zone)|tstzrange|stable|invoker|search_path=pg_catalog, pg_temp
 core.prepare_pump_identity_076()|trigger|volatile|invoker|search_path=core, pg_temp
 core.read_member_reset_requests(p_well_id uuid, p_limit integer)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 core.read_well_team(p_well_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
@@ -96,6 +97,7 @@ core.save_well_pump(p_well_id uuid, p_name text, p_pump_id uuid, p_pump_type tex
 core.setup_well_full(p_setup_data jsonb)|jsonb|volatile|definer|search_path=core, ops, iam, pg_temp
 core.touch_pump_updated_at_076()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
 core.update_well_details(p_well_id uuid, p_name text, p_location text, p_depth_meters numeric, p_static_water_level_meters numeric, p_notes text)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
+core.well_timezone(p_well_id uuid)|text|stable|definer|search_path=pg_catalog, pg_temp
 finance.accrue_payroll(p_well_id uuid, p_person_id uuid, p_period_start date, p_period_end date, p_gross_minor bigint, p_deductions_minor bigint, p_created_by uuid)|uuid|volatile|definer|search_path=finance, core, pg_temp
 finance.approve_opening_balance_batch(p_batch_id uuid, p_approved_by uuid)|void|volatile|definer|search_path=finance, pg_temp
 finance.approve_period_reopen(p_request_id uuid, p_partner_id uuid)|void|volatile|definer|search_path=finance, core, ops, iam, pg_temp
