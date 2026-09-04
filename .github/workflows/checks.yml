@@ -45,6 +45,12 @@ jobs:
       - name: npm run c:app
         run: npm run c:app
 
+      # الأداة تكتب سجلها الكامل في ملف لا في المخرَج، فبلا هذه الخطوة
+      # يظهر الفشل بلا سببه — وفحصٌ لا يقول لماذا فشل نصف أداة.
+      - name: سجل الفحص عند الفشل
+        if: failure()
+        run: tail -n 60 /tmp/wi-checks/app-test.log || true
+
   db:
     name: القاعدة — reset ثم tests ثم مطابقة الفهرس
     runs-on: ubuntu-latest

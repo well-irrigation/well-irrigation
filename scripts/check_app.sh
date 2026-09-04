@@ -195,6 +195,13 @@ if [ "$test_state" = FAIL ] || [ "$test_state" = UNKNOWN ]; then
   [ -n "$first" ] && printf '       first-fail: %s\n' "$first"
   first=$(grep -m1 -E '^(Error|Exception|Unhandled)' "$test_log" | cut -c1-160)
   [ -n "$first" ] && printf '       tool-error: %s\n' "$first"
+  # وإن لم يطابق المخرَج أيًّا من النمطين، فالسبب غير معروف للأداة —
+  # فتُظهر آخر سطوره كما هي بدل أن تصمت. أداة تفشل بلا سبب مقروء
+  # تُنتج تخمينًا، والتخمين أغلى من سطور قليلة (ق-113).
+  if [ -z "$first" ] && ! grep -q '\[E\]' "$test_log"; then
+    printf '       last-lines:\n'
+    tail -n 6 "$test_log" | sed 's/^/         | /'
+  fi
 fi
 
 printf 'LOGS=%s\n' "$log_dir"
