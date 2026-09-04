@@ -12,10 +12,23 @@ class AuthRepository {
   User? get currentUser => _client.auth.currentUser;
   String? get currentUserId => _client.auth.currentUser?.id;
 
+  /// نطاق البريد الداخلي الذي يُبنى من رقم الهاتف.
+  ///
+  /// **قرار هوية دائم.** كل حساب يُنشأ بهذا النطاق، وتغييره بعد وجود
+  /// حسابات يفصل أصحابها عن حساباتهم — فيصير رقم الهاتف نفسه بريدًا آخر
+  /// لا يعرفه نظام المصادقة. تغييره ممكن بلا كلفة **فقط** بينما القاعدة
+  /// بلا حسابات.
+  ///
+  /// وكان `phone.well-irrigation.local` فرفضه الإنتاج في أول تسجيل حقيقي
+  /// (`email_address_invalid`): الامتداد `.local` ليس نطاقًا عامًّا صالحًا،
+  /// والقاعدة المحلية كانت تقبله — فنجحت 354 اختبارًا و603 تحققات ولم
+  /// يكشفه شيء. هذا ما لا يقيسه إلا التشغيل الحقيقي.
+  static const String _identityEmailDomain = 'phone.wellirrigation.app';
+
   /// تحويل رقم الهاتف إلى بريد هوية داخلي موثوق لنظام المصادقة
   static String phoneToInternalEmail(String phone) {
     final digits = normalizeArabicDigits(phone).replaceAll(RegExp(r'\D'), '');
-    return '$digits@phone.well-irrigation.local';
+    return '$digits@$_identityEmailDomain';
   }
 
   /// تسجيل الدخول برقم الهاتف وكلمة المرور

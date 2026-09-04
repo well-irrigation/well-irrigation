@@ -87,3 +87,8 @@ supabase/.temp/
 _evidence/
 evidence.tgz
 WELL-IRRIGATION_FULL_TECHNICAL_REPORT.md
+
+# قناة جلسة الفحص الحيّة: سجل التشغيل وملاحظات المالك.
+# داخل المستودع لأن ${TMPDIR} يختلف بين المالك والمساعد، وغير متعقَّبة
+# لأنها مخرَج جلسة لا مصدر حقيقة.
+.wi-live/

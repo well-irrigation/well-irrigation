@@ -102,6 +102,20 @@ class WellSetupSubmissionResult {
     message: 'تعذر إنشاء البئر. تحقق من الاتصال وحاول مرة أخرى.',
   );
 
+  /// فشل بسبب **يعرفه الخادم**، فيُعرض كما هو بدل «تحقق من الاتصال».
+  ///
+  /// أُضيف في 2026-09-04 بعد أول تسجيل حقيقي على الإنتاج: الخادم رفض
+  /// بسببين مختلفين (نطاق بريد الهوية غير صالح، ثم كلمة مرور غير مقبولة)
+  /// والشاشة قالت في الحالتين «تحقق من الاتصال» — والاتصال قائم. رسالةٌ
+  /// تُخفي السبب الحقيقي تُوجّه المستخدم إلى إصلاح ما ليس معطوبًا، وهي وجهٌ
+  /// من عائلة النجاح الكاذب: نصٌّ لا يطابق الحقيقة التي يعرفها النظام.
+  factory WellSetupSubmissionResult.serverRejected(String reason) {
+    return WellSetupSubmissionResult._(
+      succeeded: false,
+      message: 'تعذر إنشاء البئر: $reason',
+    );
+  }
+
   final bool succeeded;
   final String message;
 }
@@ -123,6 +137,14 @@ class WellSetupSubmissionFlow {
       return WellSetupSubmissionResult.success;
     } catch (error) {
       debugPrint('Setup error: $error');
+      // خطأ من نظام المصادقة أو من عقد القاعدة يحمل سببًا صريحًا كتبه
+      // الخادم: يُعرض للإنسان بدل تعميمٍ يرسله إلى إصلاح الاتصال السليم.
+      if (error is AuthException) {
+        return WellSetupSubmissionResult.serverRejected(error.message);
+      }
+      if (error is PostgrestException) {
+        return WellSetupSubmissionResult.serverRejected(error.message);
+      }
       return WellSetupSubmissionResult.failure;
     }
   }
