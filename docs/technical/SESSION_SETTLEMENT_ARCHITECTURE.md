@@ -353,7 +353,7 @@ Settlement Command يحتاج Stable Command ID.
 8. notification event deduplication.
 9. permanent acceptance tests.
 
-لا تعدل migrations 071–084.
+لا تعدل الهجرات المختومة (السقف: `AGENTS.md` §4).
 
 ## 22. Acceptance tests
 

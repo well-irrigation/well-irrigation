@@ -3006,7 +3006,7 @@ Backend هو مصدر الحقيقة عند إغلاق الجلسة.
 - Read/Calculation data اللازمة لعداد المستحق الحي.
 - دمج البحث المحلي والخادم دون تكرار.
 - اختبارات قبول دائمة لكل قاعدة جديدة.
-- عدم تعديل migrations 071–084 المقبولة.
+- عدم تعديل الهجرات المختومة (السقف: `AGENTS.md` §4).
 - أي تغيير DB جديد يبدأ من Migration 085+.
 
 ---
@@ -3435,7 +3435,7 @@ UX-09 لا تعتبر منفذة حتى توجد:
 - Android integration tests.
 - field tests تحت Doze/background restrictions.
 - no Direct DML.
-- migrations 071–084 تبقى دون تعديل.
+- الهجرات المختومة تبقى دون تعديل (السقف: `AGENTS.md` §4).
 - أول DB change جديد Migration 085+.
 
 ---
@@ -4426,7 +4426,7 @@ Retry يستخدم نفس الهوية المنطقية.
 - permanent backend tests.
 - Android integration tests.
 - no Direct DML.
-- migrations 071–084 لا تعدل.
+- الهجرات المختومة لا تعدل (السقف: `AGENTS.md` §4).
 - أول DB change جديد Migration 085+.
 
 ---
@@ -4709,7 +4709,7 @@ Migration 066.
 - permanent Backend tests.
 - Android Offline/Retry tests.
 - لا Direct DML.
-- migrations 071–084 لا تعدل.
+- الهجرات المختومة لا تعدل (السقف: `AGENTS.md` §4).
 - أي DB change جديد يبدأ من Migration 085+.
 
 ---
