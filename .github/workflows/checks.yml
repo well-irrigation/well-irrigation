@@ -1,0 +1,76 @@
+# الفحص التلقائي لكل طلب دمج — ق-120/4
+#
+# الغرض: أن يكون ما يُدمج في `main` (= نشر على الإنتاج) قد فُحص بآلة لا
+# بذاكرة. والفحوص هنا ليست قائمة أوامر ثانية: هي **نفس** سكربتات المستودع
+# (`c:app` و`c:db`)، فمعيار النجاح واحد على جهاز المالك وفي السحابة. أي
+# قائمة أوامر موازية تتقادم بصمت — وذلك نجاح كاذب في أداة التحقق (ق-113).
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# طلب دمج يُدفع إليه مرارًا: يُلغى الفحص القديم ولا يُزاحم الجديد.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# أقل صلاحية ممكنة: الفحص يقرأ الكود ولا يكتب شيئًا في المستودع.
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: كود التطبيق — analyze ثم test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # الإصدار مثبَّت على ما يعمل به المالك (3.47.0 stable) لا على "الأحدث":
+      # قناة متحركة تجعل الفحص يفشل وينجح بلا تغيير في الكود.
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+
+      # الحزم تُهيَّأ هنا بشبكة. بدونها يحاول c:app تهيئة بلا شبكة فيسقط
+      # لسبب بيئي لا علاقة له بجودة الكود.
+      - name: تهيئة الحزم
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: npm run c:app
+        run: npm run c:app
+
+  db:
+    name: القاعدة — reset ثم tests ثم مطابقة الفهرس
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: تثبيت أدوات المستودع
+        run: npm ci
+
+      - name: تشغيل Supabase المحلية
+        run: npx supabase start
+
+      - name: npm run c:db
+        run: npm run c:db
+
+      # الفهرس المولَّد يجب أن يطابق ما تنتجه القاعدة فعلًا. اختلافه يعني
+      # أن الفهرس في المستودع متقادم — والوثائق تُقرأ بدل القاعدة، فيصير
+      # التقادم غيابًا كاذبًا لا يكشفه أي اختبار وحدة.
+      - name: الفهرس المولَّد يطابق القاعدة
+        run: git diff --exit-code -- docs/technical/db
+
+      - name: سجل الفحوص عند الفشل
+        if: failure()
+        run: tail -n 40 /tmp/wi-checks/*.log || true

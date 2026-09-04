@@ -15,8 +15,21 @@ gerr="$log_dir/state-git.err"
 # نجمع stderr ثم نُظهر ما بقي بعد تصفية هذا التحذير وحده.
 g() { git "$@" 2>>"$gerr"; }
 
+# وقد يعجز git عن العمل أصلًا (ملف تهيئة محجوب في مجلد عمل معزول). حينها
+# مخرَجه فارغ، و`git status | wc -l` = 0 — فيُقرأ الصمت «لا تغييرات غير
+# محفوظة» وهو نجاح كاذب داخل أداة التحقق نفسها (ق-113 / الثابت 699).
+# فنفصل الحالتين: حقول git تُعلن BLOCKED عند العجز ولا تُلفَّق أرقامًا.
+git_ok=yes
+if ! g rev-parse --git-dir >/dev/null 2>>"$gerr"; then
+  git_ok=no
+fi
+
 count_vs() {
   ref=$1
+  if [ "$git_ok" = no ]; then
+    printf 'BLOCKED'
+    return
+  fi
   if ! g rev-parse --verify --quiet "$ref" >/dev/null; then
     printf 'MISSING'
     return
@@ -35,9 +48,15 @@ lines_of() {
   if [ -f "$1" ]; then wc -l < "$1" | tr -d ' '; else printf '?'; fi
 }
 
-branch=$(g rev-parse --abbrev-ref HEAD)
-head_line=$(g log --oneline -1)
-dirty=$(g status --porcelain --untracked-files=no | wc -l | tr -d ' ')
+if [ "$git_ok" = yes ]; then
+  branch=$(g rev-parse --abbrev-ref HEAD)
+  head_line=$(g log --oneline -1)
+  dirty=$(g status --porcelain --untracked-files=no | wc -l | tr -d ' ')
+else
+  branch=BLOCKED
+  head_line=BLOCKED
+  dirty=BLOCKED
+fi
 
 mig_dir="supabase/migrations"
 mig_count=$(find "$mig_dir" -maxdepth 1 -type f -name '*.sql' 2>/dev/null | wc -l | tr -d ' ')
@@ -73,6 +92,12 @@ left=$(grep -v 'config\.worktree' "$gerr" \
   | grep -v '^[[:space:]]*$' || true)
 if [ -n "$left" ]; then
   printf 'GIT_WARN=%s\n' "$(printf '%s' "$left" | tr '\n' ';' | cut -c1-200)"
+fi
+
+if [ "$git_ok" = no ]; then
+  printf 'GIT=BLOCKED سبب: git لا يعمل في هذا المجلد — لا تُقرأ حقوله رقمًا\n'
+  printf 'RESULT=BLOCKED_GIT\n'
+  exit 0
 fi
 
 printf 'RESULT=SUCCESS\n'
