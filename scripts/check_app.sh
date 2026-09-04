@@ -144,7 +144,11 @@ if [ "$has_errors" = yes ]; then
   test_detail='analyze-has-errors'
   test_status=0
 else
-  run_flutter test --no-pub > "$test_log" 2>&1
+  # `--reporter compact` يُثبّت صيغة المخرَج. بدونه تختار الأداة مُخرِجًا
+  # بحسب البيئة: في GitHub Actions تطبع `🎉 354 tests passed.` وفي الطرفية
+  # `All tests passed!` — فقياسٌ يقرأ الجملة الثانية يُعلن UNKNOWN لحزمة
+  # ناجحة. مقياس نصّي يتغيّر بتغيّر البيئة، وهذا خامس ظهور للعائلة.
+  run_flutter test --no-pub --reporter compact > "$test_log" 2>&1
   test_status=$?
 
   # حالة معروفة ومنفصلة عن جودة الكود: حزمة sqlite3 تبني أصلًا أصيلًا
@@ -155,14 +159,21 @@ else
     test_detail='native-assets-need-network'
     test_hint='run c:app once where GitHub is reachable, then it is cached here'
   else
-    sum_line=$(grep -E 'All tests passed!|Some tests failed' "$test_log" | tail -n 1)
+    # تُقرأ الصيغتان معًا: صيغة الطرفية `+354: All tests passed!` وصيغة
+    # GitHub `🎉 354 tests passed.`. تثبيت المُخرِج أعلاه يمنع السبب،
+    # وقبول الصيغتين هنا يمنع أن يعود الفشل لو تغيّرت جملة واحدة.
+    sum_line=$(grep -E 'All tests passed!|Some tests failed|[0-9]+ tests? passed\.' "$test_log" | tail -n 1)
     pass=$(printf '%s\n' "$sum_line" | sed -n 's/.*+\([0-9]\{1,\}\).*/\1/p')
+    if [ -z "$pass" ]; then
+      pass=$(printf '%s\n' "$sum_line" | sed -n 's/.*[^0-9]\([0-9]\{1,\}\) tests\{0,1\} passed\..*/\1/p')
+    fi
     fail=$(printf '%s\n' "$sum_line" | sed -n 's/.* -\([0-9]\{1,\}\).*/\1/p')
     [ -z "$pass" ] && pass='?'
     [ -z "$fail" ] && fail=0
     test_detail="PASS=$pass FAIL=$fail"
 
-    if [ "$test_status" -eq 0 ] && printf '%s' "$sum_line" | grep -q 'All tests passed!'; then
+    if [ "$test_status" -eq 0 ] && printf '%s' "$sum_line" \
+      | grep -qE 'All tests passed!|[0-9]+ tests? passed\.'; then
       test_state=OK
     elif [ "$test_status" -ne 0 ]; then
       test_state=FAIL
