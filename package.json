@@ -12,6 +12,10 @@
     "db:test": "sh scripts/db_test.sh",
     "db:index": "sh scripts/db_index.sh",
     "cloud:verify": "sh scripts/cloud_verify.sh",
+    "cloud:state": "sh scripts/cloud_state.sh",
+    "app:run": "sh scripts/app_launch.sh run",
+    "app:apk": "sh scripts/app_launch.sh apk",
+    "n": "sh scripts/note.sh",
     "c:state": "sh scripts/check_state.sh",
     "c:app": "sh scripts/check_app.sh",
     "c:db": "sh scripts/check_db.sh"
