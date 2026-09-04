@@ -563,7 +563,7 @@ UX يسمح بإدخال دفعة عند البداية.
 13. Idempotency integration for new writes.
 14. Audit events for new sensitive operations.
 15. Permanent acceptance tests.
-16. No edits to accepted migrations 071–084.
+16. No edits to sealed migrations (ceiling: `AGENTS.md` §4).
 
 ---
 

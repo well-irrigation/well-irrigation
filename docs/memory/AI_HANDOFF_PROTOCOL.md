@@ -369,7 +369,7 @@ Gap Closing.
 
 Do not start arbitrary screens.
 
-Do not edit migrations 071–093.
+Do not edit sealed migrations (ceiling: `AGENTS.md` §4).
 
 New DB changes begin 094+.
 

@@ -422,7 +422,7 @@ Defect يمنع الإغلاق التقني.
 9. reconciliation responses.
 10. permanent acceptance tests.
 
-Migrations 071–084 لا تعدل.
+الهجرات المختومة لا تعدل (السقف: `AGENTS.md` §4).
 
 ## 21. Acceptance tests
 

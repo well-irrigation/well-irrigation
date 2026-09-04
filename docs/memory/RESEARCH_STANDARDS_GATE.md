@@ -906,14 +906,15 @@ Current official guidance supports:
 
 Project decision:
 
-071–077 remain immutable.
+Sealed migrations remain immutable (ceiling: `AGENTS.md` §4).
 
 New work begins 078+ and continues in coherent
 domain-sized migrations.
 
 > **تجاوُز — 2026-08-22:** السطران أعلاه يمثلان حالة 2026-08-19.
 > بعد تطبيق 078 إلى 084 فعلًا (ق-110 إلى ق-114) صار النافذ:
-> **071–084 immutable، وأي DB change جديد يبدأ 085+.**
+> **الهجرات المختومة immutable، وأي DB change جديد يبدأ من الرقم التالي
+> لها — والسقف في `AGENTS.md` §4 وحده.**
 > منهج «domain-sized migrations» نفسه لم يتغير.
 
 ### Android Offline-first
