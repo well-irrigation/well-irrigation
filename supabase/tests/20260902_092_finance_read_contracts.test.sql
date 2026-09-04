@@ -679,13 +679,22 @@ begin
 
   v_payload := api.get_reports_summary(v_well, 'today');
 
+  -- حُدِّث في 098: كان هذا التحقق يشترط `period_start = date_trunc('day',
+  -- now())` — أي **يُرسّخ العطب**: يُثبّت أن حدّ اليوم منتصف ليل الخادم،
+  -- فيمنع إصلاحه. كُتب من الكود لا من القرار. والآن يقيس الخاصية المطلوبة
+  -- نفسها لا صيغة حسابها: الحدّ يقع عند منتصف الليل بمنطقة الجهة.
   if v_payload ->> 'contract' = 'get_reports_summary'
      and v_payload ->> 'period_code' = 'today'
      and v_payload ->> 'week_starts_on' = 'saturday'
-     and (v_payload ->> 'period_start')::timestamptz
-         = date_trunc('day', now())
+     and v_payload ->> 'timezone' = 'Asia/Aden'
+     and (
+       ((v_payload ->> 'period_start')::timestamptz
+         at time zone (v_payload ->> 'timezone'))::time = '00:00:00'
+     )
+     and (v_payload ->> 'period_end')::timestamptz
+         - (v_payload ->> 'period_start')::timestamptz = interval '1 day'
   then
-    raise notice 'PASS 28: غلاف التقارير وحدود اليوم صحيحة';
+    raise notice 'PASS 28: غلاف التقارير وحدّ اليوم بمنطقة الجهة';
   else
     raise notice 'FAIL 28: غلاف التقارير أو حدود الفترة غير مطابقة';
   end if;
