@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../utils/digit_utils.dart';
 
 /// نماذج وبيانات التشغيل الميداني وسجل الجلسات (UX-07 / UX-08 / UX-13 / ق-80 / ق-84 / ق-98 / ق-114)
@@ -27,6 +28,140 @@ class FarmerAccount {
   final String publicCode;
   final String? phone;
   final String status;
+}
+
+/// سطر في دليل المزارعين كما يعيده عقد 099: الهوية والأراضي والمال وآخر سقي.
+///
+/// كل رقم هنا **من الخادم**: عدد الأراضي، والمبالغ من عرض الأرصدة، وتاريخ آخر
+/// جلسة منتهية. ولا يُحسب شيء في العميل (ق-99). و`lastSessionDay` هو اليوم
+/// بمنطقة الجهة كما حسبه الخادم — فلا يختلف «آخر سقي» باختلاف منطقة الجهاز.
+class FarmerDirectoryEntry {
+  const FarmerDirectoryEntry({
+    required this.id,
+    required this.fullName,
+    required this.publicCode,
+    required this.status,
+    required this.farmsCount,
+    required this.debtYER,
+    required this.advanceYER,
+    required this.sessionsCount,
+    required this.hasOpenSession,
+    this.phone,
+    this.lastSessionAt,
+    this.lastSessionDay,
+  });
+
+  factory FarmerDirectoryEntry.fromJson(Map<String, dynamic> json) {
+    String requiredText(String key) {
+      final value = json[key];
+      if (value is! String || value.trim().isEmpty) {
+        throw StateError('دليل المزارعين أعاد حقلًا نصيًا غير صالح: $key');
+      }
+      return value;
+    }
+
+    int requiredInt(String key) {
+      final value = json[key];
+      final parsed = value is num
+          ? value.toInt()
+          : int.tryParse(value?.toString() ?? '');
+      if (parsed == null || parsed < 0) {
+        throw StateError('دليل المزارعين أعاد رقمًا غير صالح: $key');
+      }
+      return parsed;
+    }
+
+    DateTime? optionalTime(String key) {
+      final value = json[key];
+      if (value == null) return null;
+      final parsed = DateTime.tryParse(value.toString());
+      if (parsed == null) {
+        throw StateError('دليل المزارعين أعاد تاريخًا غير صالح: $key');
+      }
+      return parsed;
+    }
+
+    final openSession = json['has_open_session'];
+    if (openSession is! bool) {
+      throw StateError('دليل المزارعين لم يُعِد حالة الجلسة الجارية');
+    }
+
+    return FarmerDirectoryEntry(
+      id: requiredText('id'),
+      fullName: requiredText('full_name'),
+      publicCode: requiredText('public_code'),
+      status: requiredText('status'),
+      phone: json['phone'] as String?,
+      farmsCount: requiredInt('farms_count'),
+      debtYER: requiredInt('debt_minor'),
+      advanceYER: requiredInt('advance_minor'),
+      sessionsCount: requiredInt('sessions_count'),
+      hasOpenSession: openSession,
+      lastSessionAt: optionalTime('last_session_at'),
+      lastSessionDay: optionalTime('last_session_day'),
+    );
+  }
+
+  final String id;
+  final String fullName;
+  final String publicCode;
+  final String status;
+  final String? phone;
+  final int farmsCount;
+  final int debtYER;
+  final int advanceYER;
+  final int sessionsCount;
+  final bool hasOpenSession;
+  final DateTime? lastSessionAt;
+  final DateTime? lastSessionDay;
+
+  bool get hasDebt => debtYER > 0;
+  bool get hasNeverIrrigated => lastSessionAt == null && !hasOpenSession;
+}
+
+class FarmerDirectoryData {
+  const FarmerDirectoryData({required this.entries, required this.currentDay});
+
+  factory FarmerDirectoryData.fromContract(dynamic response) {
+    if (response is! Map) {
+      throw StateError('استجابة دليل المزارعين غير متوقعة');
+    }
+    if (response['contract'] != 'list_well_farmer_directory' ||
+        response['version'] != 1) {
+      throw StateError('إصدار عقد دليل المزارعين غير متوافق');
+    }
+
+    final items = response['items'];
+    if (items is! List) {
+      throw StateError('دليل المزارعين لم يُعِد قائمة عناصر');
+    }
+
+    final currentDay = DateTime.tryParse(
+      response['current_day']?.toString() ?? '',
+    );
+    if (currentDay == null) {
+      throw StateError('دليل المزارعين لم يُعِد يوم البئر الحالي');
+    }
+
+    return FarmerDirectoryData(
+      entries: items
+          .map((item) {
+            if (item is! Map) {
+              throw StateError('دليل المزارعين أعاد عنصرًا غير صالح');
+            }
+            return FarmerDirectoryEntry.fromJson(
+              Map<String, dynamic>.from(item),
+            );
+          })
+          .toList(growable: false),
+      currentDay: currentDay,
+    );
+  }
+
+  final List<FarmerDirectoryEntry> entries;
+
+  /// اليوم الحالي بمنطقة الجهة كما يعيده عقد 099.
+  final DateTime currentDay;
 }
 
 class Farm {
@@ -164,7 +299,7 @@ class SessionHistoryItem {
       operatorName: json['operator_name'] as String? ?? 'غير محدد',
       startedAt:
           DateTime.tryParse(json['started_at'] as String? ?? '')?.toLocal() ??
-              DateTime.now(),
+          DateTime.now(),
       endedAt: json['ended_at'] != null
           ? DateTime.tryParse(json['ended_at'] as String)?.toLocal()
           : null,
@@ -207,8 +342,9 @@ class SessionHistoryItem {
 
   bool get isBilled => hasCharge;
 
-  int get remainingAmountYER =>
-      (totalAmountYER - paidAmountYER) > 0 ? (totalAmountYER - paidAmountYER) : 0;
+  int get remainingAmountYER => (totalAmountYER - paidAmountYER) > 0
+      ? (totalAmountYER - paidAmountYER)
+      : 0;
 
   bool get isFullySettled => hasCharge && paymentStatus == 'settled';
 }
@@ -240,7 +376,7 @@ class SessionSegmentItem {
       isBillable: json['is_billable'] as bool? ?? false,
       startedAt:
           DateTime.tryParse(json['started_at'] as String? ?? '')?.toLocal() ??
-              DateTime.now(),
+          DateTime.now(),
       endedAt: json['ended_at'] != null
           ? DateTime.tryParse(json['ended_at'] as String)?.toLocal()
           : null,
@@ -346,21 +482,66 @@ class OperationsRepository {
     String wellId, {
     String? query,
   }) async {
-    final cleanQuery = query != null ? normalizeArabicDigits(query).trim() : null;
+    final cleanQuery = query != null
+        ? normalizeArabicDigits(query).trim()
+        : null;
     final client = _effectiveClient;
     if (client == null) {
       throw StateError('Supabase client is unavailable');
     }
 
-    final response = await client.schema('api').rpc(
-      'list_well_farmers',
-      params: {
-        'p_well_id': wellId,
-        'p_query': (cleanQuery != null && cleanQuery.isNotEmpty) ? cleanQuery : null,
-      },
-    );
+    final response = await client
+        .schema('api')
+        .rpc(
+          'list_well_farmers',
+          params: {
+            'p_well_id': wellId,
+            'p_query': (cleanQuery != null && cleanQuery.isNotEmpty)
+                ? cleanQuery
+                : null,
+          },
+        );
 
     return _contractItems(response).map(FarmerAccount.fromJson).toList();
+  }
+
+  /// دليل المزارعين الغنيّ — `api.list_well_farmer_directory` (هجرة 099).
+  ///
+  /// يعيد العناصر ومعها يوم البئر الحالي المحسوب من حدّ منتصف الليل المحلي؛
+  /// فلا تقارن الشاشة يوم البئر بيوم الجهاز عند عرض «اليوم/أمس».
+  ///
+  /// يختلف عن [fetchFarmers] بأنه يعيد عدد الأراضي والأرصدة وآخر سقي،
+  /// **ومرتَّبًا من الخادم بآخر سقي**. و[fetchFarmers] يبقى لسياق اختيار
+  /// المزارع أثناء بدء جلسة: هناك يُحتاج الاسم والرقم وحدهما، وحمله بأرقام
+  /// مالية يوسّع سطح الكشف بلا حاجة.
+  ///
+  /// والترتيب لا يُعاد في العميل: الخادم يعلن أساسه في `sort` بالحمولة،
+  /// وإعادة ترتيبه هنا تجعل شاشتين تعرضان الترتيب نفسه بأساسين مختلفين.
+  Future<FarmerDirectoryData> fetchFarmerDirectory(
+    String wellId, {
+    String? query,
+  }) async {
+    final cleanQuery = query != null
+        ? normalizeArabicDigits(query).trim()
+        : null;
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+
+    final response = await client
+        .schema('api')
+        .rpc(
+          'list_well_farmer_directory',
+          params: {
+            'p_well_id': wellId,
+            'p_query': (cleanQuery != null && cleanQuery.isNotEmpty)
+                ? cleanQuery
+                : null,
+          },
+        );
+
+    return FarmerDirectoryData.fromContract(response);
   }
 
   /// جلب أراضي البئر أو أراضي مزارع معين عبر عقد `api.list_well_farms`
@@ -373,14 +554,18 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    final response = await client.schema('api').rpc(
-      'list_well_farms',
-      params: {
-        'p_well_id': wellId,
-        'p_farmer_well_account_id':
-            (farmerAccountId != null && farmerAccountId.isNotEmpty) ? farmerAccountId : null,
-      },
-    );
+    final response = await client
+        .schema('api')
+        .rpc(
+          'list_well_farms',
+          params: {
+            'p_well_id': wellId,
+            'p_farmer_well_account_id':
+                (farmerAccountId != null && farmerAccountId.isNotEmpty)
+                ? farmerAccountId
+                : null,
+          },
+        );
 
     return _contractItems(response).map(Farm.fromJson).toList();
   }
@@ -392,10 +577,9 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    final response = await client.schema('api').rpc(
-      'list_well_pumps',
-      params: {'p_well_id': wellId},
-    );
+    final response = await client
+        .schema('api')
+        .rpc('list_well_pumps', params: {'p_well_id': wellId});
 
     return _contractItems(response).map(Pump.fromJson).toList();
   }
@@ -416,17 +600,21 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    final result = await client.schema('api').rpc(
-      'create_farmer',
-      params: {
-        'p_well_id': wellId,
-        'p_full_name': fullName.trim(),
-        'p_phone': cleanPhone,
-        'p_notes': notes,
-      },
-    );
+    final result = await client
+        .schema('api')
+        .rpc(
+          'create_farmer',
+          params: {
+            'p_well_id': wellId,
+            'p_full_name': fullName.trim(),
+            'p_phone': cleanPhone,
+            'p_notes': notes,
+          },
+        );
 
-    final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
+    final resMap = result is Map<String, dynamic>
+        ? result
+        : <String, dynamic>{};
     final accountId = resMap['farmer_well_account_id'] as String? ?? '';
     if (accountId.isEmpty) {
       throw StateError('عقد create_farmer لم يُعِد معرّف حساب المزارع');
@@ -451,16 +639,20 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    final result = await client.schema('api').rpc(
-      'create_farm',
-      params: {
-        'p_well_id': wellId,
-        'p_name': name.trim(),
-        'p_farmer_well_account_id': farmerAccountId,
-      },
-    );
+    final result = await client
+        .schema('api')
+        .rpc(
+          'create_farm',
+          params: {
+            'p_well_id': wellId,
+            'p_name': name.trim(),
+            'p_farmer_well_account_id': farmerAccountId,
+          },
+        );
 
-    final resMap = result is Map<String, dynamic> ? result : <String, dynamic>{};
+    final resMap = result is Map<String, dynamic>
+        ? result
+        : <String, dynamic>{};
     final farmId = resMap['farm_id'] as String? ?? '';
     if (farmId.isEmpty) {
       throw StateError('عقد create_farm لم يُعِد معرّف الأرض');
@@ -492,17 +684,19 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    final result = await client.schema('api').rpc(
-      'start_irrigation_session',
-      params: {
-        'p_well_id': wellId,
-        'p_pump_id': pumpId,
-        'p_farm_id': farmId,
-        'p_farmer_well_account_id': farmerAccountId,
-        'p_energy_source': energySource,
-        if (commandId != null) ...{'p_command_id': commandId},
-      },
-    );
+    final result = await client
+        .schema('api')
+        .rpc(
+          'start_irrigation_session',
+          params: {
+            'p_well_id': wellId,
+            'p_pump_id': pumpId,
+            'p_farm_id': farmId,
+            'p_farmer_well_account_id': farmerAccountId,
+            'p_energy_source': energySource,
+            if (commandId != null) ...{'p_command_id': commandId},
+          },
+        );
 
     return result.toString();
   }
@@ -518,14 +712,16 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    await client.schema('api').rpc(
-      'pause_irrigation_session',
-      params: {
-        'p_session_id': sessionId,
-        'p_reason': reason,
-        if (commandId != null) ...{'p_command_id': commandId},
-      },
-    );
+    await client
+        .schema('api')
+        .rpc(
+          'pause_irrigation_session',
+          params: {
+            'p_session_id': sessionId,
+            'p_reason': reason,
+            if (commandId != null) ...{'p_command_id': commandId},
+          },
+        );
   }
 
   /// استئناف الجلسة (api.resume_irrigation_session)
@@ -538,13 +734,15 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    await client.schema('api').rpc(
-      'resume_irrigation_session',
-      params: {
-        'p_session_id': sessionId,
-        if (commandId != null) ...{'p_command_id': commandId},
-      },
-    );
+    await client
+        .schema('api')
+        .rpc(
+          'resume_irrigation_session',
+          params: {
+            'p_session_id': sessionId,
+            if (commandId != null) ...{'p_command_id': commandId},
+          },
+        );
   }
 
   /// تغيير مصدر الطاقة أثناء السقي (api.change_session_energy_source)
@@ -558,14 +756,16 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    await client.schema('api').rpc(
-      'change_session_energy_source',
-      params: {
-        'p_session_id': sessionId,
-        'p_new_energy_source': newEnergySource,
-        if (commandId != null) ...{'p_command_id': commandId},
-      },
-    );
+    await client
+        .schema('api')
+        .rpc(
+          'change_session_energy_source',
+          params: {
+            'p_session_id': sessionId,
+            'p_new_energy_source': newEnergySource,
+            if (commandId != null) ...{'p_command_id': commandId},
+          },
+        );
   }
 
   /// إنهاء جلسة السقي وإصدار الفاتورة والمستحق (api.complete_irrigation_session)
@@ -579,13 +779,15 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    final result = await client.schema('api').rpc(
-      'complete_irrigation_session',
-      params: {
-        'p_session_id': sessionId,
-        if (commandId != null) ...{'p_command_id': commandId},
-      },
-    );
+    final result = await client
+        .schema('api')
+        .rpc(
+          'complete_irrigation_session',
+          params: {
+            'p_session_id': sessionId,
+            if (commandId != null) ...{'p_command_id': commandId},
+          },
+        );
 
     if (result is Map<String, dynamic>) {
       return result;
@@ -628,19 +830,21 @@ class OperationsRepository {
 
     final (from, to) = historyWindow(filter);
 
-    final response = await client.schema('api').rpc(
-      'list_well_sessions',
-      params: {
-        'p_well_id': wellId,
-        'p_farmer_well_account_id':
-            (farmerAccountId != null && farmerAccountId.isNotEmpty)
+    final response = await client
+        .schema('api')
+        .rpc(
+          'list_well_sessions',
+          params: {
+            'p_well_id': wellId,
+            'p_farmer_well_account_id':
+                (farmerAccountId != null && farmerAccountId.isNotEmpty)
                 ? farmerAccountId
                 : null,
-        'p_from': from?.toUtc().toIso8601String(),
-        'p_to': to?.toUtc().toIso8601String(),
-        'p_unpaid_only': filter == 'unpaid',
-      },
-    );
+            'p_from': from?.toUtc().toIso8601String(),
+            'p_to': to?.toUtc().toIso8601String(),
+            'p_unpaid_only': filter == 'unpaid',
+          },
+        );
 
     return _contractItems(response)
         .map(SessionHistoryItem.fromContract)
@@ -657,10 +861,9 @@ class OperationsRepository {
       throw StateError('Supabase client is unavailable');
     }
 
-    final response = await client.schema('api').rpc(
-      'get_session_detail',
-      params: {'p_session_id': sessionId},
-    );
+    final response = await client
+        .schema('api')
+        .rpc('get_session_detail', params: {'p_session_id': sessionId});
 
     if (response is! Map) {
       throw StateError('استجابة عقد تفصيل الجلسة غير متوقعة');
@@ -673,7 +876,9 @@ class OperationsRepository {
 
     final segments = (response['segments'] as List<dynamic>? ?? const [])
         .whereType<Map>()
-        .map((e) => SessionSegmentItem.fromContract(Map<String, dynamic>.from(e)))
+        .map(
+          (e) => SessionSegmentItem.fromContract(Map<String, dynamic>.from(e)),
+        )
         .toList();
 
     final paymentJson = response['payment'];
@@ -706,7 +911,10 @@ class OperationsRepository {
     );
 
     final farms = await fetchFarms(wellId, farmerAccountId: farmerAccountId);
-    final sessions = await fetchSessionHistory(wellId: wellId, farmerAccountId: farmerAccountId);
+    final sessions = await fetchSessionHistory(
+      wellId: wellId,
+      farmerAccountId: farmerAccountId,
+    );
 
     int billed = 0;
     int paid = 0;

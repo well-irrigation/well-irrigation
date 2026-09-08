@@ -62,7 +62,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('محمد علي الحبيشي'), findsWidgets);
-      expect(find.text('F-001'), findsOneWidget);
+      // الكود الداخلي (`F-001` هنا، و`FWA-…` في الإنتاج) **لا يُعرض** في
+      // الملف الشخصي: معرّف بأحرف لاتينية لا يقرؤه مستخدم عادي ولا يفعل به
+      // شيئًا. موضعه الوحيد نافذة سند القبض، حيث ورقةٌ تُطبع وتُطابَق.
+      expect(find.text('F-001'), findsNothing);
       expect(find.textContaining('الأراضي'), findsOneWidget);
       expect(find.textContaining('الجلسات'), findsOneWidget);
       expect(find.text('كشف الحساب'), findsOneWidget);

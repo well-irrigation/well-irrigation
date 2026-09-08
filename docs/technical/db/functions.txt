@@ -31,6 +31,7 @@ api.list_advance_receipts(p_farmer_well_account_id uuid, p_limit integer)|jsonb|
 api.list_member_reset_requests(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_expenses(p_well_id uuid, p_status text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farmer_balances(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_well_farmer_directory(p_well_id uuid, p_query text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farmers(p_well_id uuid, p_query text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farms(p_well_id uuid, p_farmer_well_account_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_fuel_tanks(p_well_id uuid, p_include_inactive boolean)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp

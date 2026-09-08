@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:well_irrigation_mobile/features/well_setup/create_well_wizard_screen.dart';
 
 void main() {
@@ -46,5 +47,26 @@ void main() {
     expect(data.ownerFullName, 'مالك الاختبار');
     expect(data.wellName, 'بئر الاختبار');
     expect(data.district, 'همدان');
+  });
+
+  test('server rejection surfaces the server reason, not a connection hint',
+      () async {
+    // مقيس على الإنتاج في 2026-09-04: الخادم رفض التسجيل بسببين مختلفين
+    // (نطاق بريد الهوية، ثم كلمة مرور غير مقبولة) والشاشة قالت في الحالتين
+    // «تحقق من الاتصال» والاتصال قائم — فوُجّه المالك إلى إصلاح ما ليس
+    // معطوبًا. رسالةٌ لا تطابق ما يعرفه النظام من عائلة النجاح الكاذب.
+    final flow = WellSetupSubmissionFlow((_) async {
+      throw const AuthException('Signup requires a valid password');
+    });
+
+    final result = await flow.submit(
+      WellSetupData(),
+      onCompleted: () {},
+      close: () {},
+    );
+
+    expect(result.succeeded, isFalse);
+    expect(result.message, contains('Signup requires a valid password'));
+    expect(result.message, isNot(contains('تحقق من الاتصال')));
   });
 }

@@ -16,6 +16,7 @@
     "app:run": "sh scripts/app_launch.sh run",
     "app:apk": "sh scripts/app_launch.sh apk",
     "n": "sh scripts/note.sh",
+    "s": "sh scripts/shot.sh",
     "c:state": "sh scripts/check_state.sh",
     "c:app": "sh scripts/check_app.sh",
     "c:db": "sh scripts/check_db.sh"

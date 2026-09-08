@@ -269,32 +269,29 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            account.fullName,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: AppColors.border, width: 0.5),
-                            ),
-                            child: Text(
-                              account.publicCode,
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
-                            ),
-                          ),
-                        ],
+                      // الكود `FWA-…` لا يُعرض: معرّف داخلي بأحرف لاتينية لا
+                      // يقرؤه مستخدم عادي. موضعه الوحيد نافذة سند القبض، حيث
+                      // ورقةٌ تُطبع وتُطابَق.
+                      Text(
+                        account.fullName,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        account.phone != null && account.phone!.isNotEmpty ? '+967 ${account.phone}' : 'بدون رقم هاتف مسجل',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
+                      // الرقم وحدة لاتينية داخل نصّ عربي: بلا عزل يقع المفتاح
+                      // في غير موضعه فيُقرأ الرقم معكوسًا.
+                      account.phone != null && account.phone!.isNotEmpty
+                          ? Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: Text(
+                                '+967${account.phone}',
+                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              ),
+                            )
+                          : const Text(
+                              'بدون رقم هاتف مسجل',
+                              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                            ),
                     ],
                   ),
                 ),
@@ -515,11 +512,14 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                   unitStyle: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'فقط ${Tafqeet.format(data.netBalanceYER.abs())} لا غير.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                ),
+                // التفقيط للمبالغ الحقيقية وحدها: «فقط صفر ريال لا غير» صيغة
+                // سندٍ يُطبع بمبلغ، وتُقرأ ساخرة على رصيد فارغ.
+                if (data.netBalanceYER.abs() > 0)
+                  Text(
+                    'فقط ${Tafqeet.format(data.netBalanceYER.abs())} لا غير.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
               ],
             ),
           ),
@@ -585,7 +585,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-              label: const Text('فتح الحساب المالي وسندات القبض (UX-14)', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text('فتح الحساب المالي وسندات القبض', style: TextStyle(fontWeight: FontWeight.bold)),
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(

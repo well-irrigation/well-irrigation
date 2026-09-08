@@ -76,6 +76,8 @@
 | م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
 | م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count؛ م-41B2 أصلحت account profile read؛ م-41B3A أضافت 088 وapi.update_profile_name ومنعت false-success في حفظ الاسم؛ 088 موجودة Cloud وعقدها الأمني Verified؛ م-41B3B أزالت Team RPC/Mock غير المدعومة وجعلت الشاشة fail-closed؛ current debt = 7 internal + 9 bare + 5 dotted؛ DB = 26/369 PASS؛ Flutter = 234/234 PASS؛ Team management الفعلية تبقى Backend/Auth Gap؛ **تحديث 2026-09-02: الدين المعلَن كله = 0** (م-41C2 أغلقت internal-schema بـ090، وم-41D1 أغلقت bare RPC إلى 1 بـ091، وم-41D2 أغلقت الباقي بـ092: 0 internal + 0 bare + 0 dotted)؛ Flutter = 265/265 PASS؛ NEXT = تحقق DB لـ092 ثم حماية `main` ثم الدمج |
 
+| م-41H / 099 | دليل المزارعين من عقد خادمي واحد: لا ترتيب ولا حساب مال ولا عدّ أرض في Flutter | 099 + `OperationsRepository.fetchFarmerDirectory` + `FarmersDirectoryScreen` | DB `FILES=38 PASS=615 FAIL=0 ERROR=0`؛ الفهرس 833/501/197/44؛ Flutter analyze نظيف و`370/370 PASS`؛ حرس نسخة العقد والأرقام الناقصة وسباق تبديل البئر | **Implemented + Verified local 2026-09-08؛ غير منشور، والتحقق السحابي Pending** |
+
 ## baseline المرجعي
 
 ## ق-120 — بوابة التدقيق والتثبيت

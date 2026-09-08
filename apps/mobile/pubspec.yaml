@@ -36,3 +36,18 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+
+  # الخط المعتمد في docs/design/VISUAL_IDENTITY.md §6. يُحزَم في التطبيق ولا
+  # يُترك لخط الجهاز: بلا ملف خط يختار كل هاتف خطًّا عربيًّا من عنده، فيختلف
+  # عرض الحروف وشكل الأرقام من جهاز إلى جهاز — وفي تطبيق مالي يُقرأ فيه عمود
+  # مبالغ، ذلك ليس تفصيلًا. وثلاثة أوزان وحدها كما نصّت الوثيقة (740KB):
+  # كل وزن إضافي يزيد الحجم بلا فرق يُرى.
+  fonts:
+    - family: NotoSansArabic
+      fonts:
+        - asset: assets/fonts/NotoSansArabic-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansArabic-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansArabic-Bold.ttf
+          weight: 700
