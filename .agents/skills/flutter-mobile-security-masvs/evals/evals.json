@@ -1,0 +1,28 @@
+{
+  "skill_name": "flutter-mobile-security-masvs",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "دقق مصدر تطبيق Flutter وAndroidManifest قبل الإصدار وفق MASVS، دون اختبار الشبكة.",
+      "expected_output": "تدقيق أبيض الصندوق يغطي التخزين والجلسة والشبكة والمنصة مع أدلة ومسارات.",
+      "files": [],
+      "expectations": [
+        "يقرأ سلطة المشروع قبل معيار MASVS",
+        "يفرق anon key عن service role secret",
+        "يفصل فحص المصدر عن APK والجهاز",
+        "لا يطبع قيمة سر"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "حلل هذا APK وقل هل توقيعه Release آمن.",
+      "expected_output": "يفوض تحليل artifact إلى flutter-apk-security ولا يستنتج التوقيع من المصدر.",
+      "files": [],
+      "expectations": [
+        "يوجه إلى مهارة artifact المتخصصة",
+        "يتطلب دليل أداة توقيع",
+        "لا يدعي تغطية MASVS كاملة"
+      ]
+    }
+  ]
+}
