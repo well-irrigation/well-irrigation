@@ -1,0 +1,86 @@
+stages:
+  - check
+  - deploy
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+default:
+  interruptible: true
+
+app:
+  stage: check
+  image: debian:bookworm-slim
+  timeout: 25 minutes
+  before_script:
+    - apt-get update
+    - apt-get install -y curl git xz-utils
+    - sh scripts/install_flutter_ci.sh
+    - export PATH="$CI_PROJECT_DIR/.ci/flutter/bin:$PATH"
+    - export PUB_CACHE="$CI_PROJECT_DIR/.ci/pub-cache"
+    - cd apps/mobile
+    - flutter pub get
+    - cd ../..
+  script:
+    - sh scripts/check_app.sh
+  artifacts:
+    when: on_failure
+    expire_in: 7 days
+    paths:
+      - .ci-logs/wi-checks/app-analyze.log
+      - .ci-logs/wi-checks/app-test.log
+  variables:
+    TMPDIR: $CI_PROJECT_DIR/.ci-logs
+  cache:
+    key: flutter-3.47.0
+    paths:
+      - .ci/flutter/
+      - .ci/pub-cache/
+
+database:
+  stage: check
+  image: docker:27-cli
+  services:
+    - name: docker:27-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    TMPDIR: $CI_PROJECT_DIR/.ci-logs
+  timeout: 30 minutes
+  before_script:
+    - apk add --no-cache nodejs npm bash git
+    - npm ci
+    - npx supabase start
+  script:
+    - npm run deploy:cloud:test
+    - npm run deploy:edge:test
+    - npm run c:db
+    - git diff --exit-code -- docs/technical/db
+  artifacts:
+    when: on_failure
+    expire_in: 7 days
+    paths:
+      - .ci-logs/wi-checks/db-reset.log
+      - .ci-logs/wi-checks/db-test.log
+      - .ci-logs/wi-checks/db-index.log
+
+production:
+  stage: deploy
+  image: node:22-alpine
+  resource_group: supabase-production
+  interruptible: false
+  environment:
+    name: production
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - when: never
+  before_script:
+    - apk add --no-cache postgresql-client curl
+    - npm ci
+  script:
+    - sh scripts/cloud_deploy.sh
+    - sh scripts/deploy_edge_functions.sh

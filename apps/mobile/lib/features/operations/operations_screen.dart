@@ -18,12 +18,12 @@ import '../../core/widgets/smart_lookup_field.dart';
 import '../../core/widgets/top_well_selector.dart';
 import 'widgets/payment_receipt_dialog.dart';
 
-
 /// شاشة تشغيل البئر وجلسات السقي الميدانية (UX-07 / UX-08 / ق-88 / ق-114)
 class OperationsScreen extends StatefulWidget {
   const OperationsScreen({
     required this.identity,
     this.coordinator,
+    this.repository,
     this.priceRepository,
     this.onWellChanged,
     this.onLogout,
@@ -35,6 +35,7 @@ class OperationsScreen extends StatefulWidget {
   /// ويُكتب في الطابور المحلي باسم لا يملكه أحد (ق-113).
   final AppIdentity identity;
   final OfflineSessionCoordinator? coordinator;
+  final OperationsRepository? repository;
 
   /// مستودع قراءة جدول التسعير الساري. يُمرَّر في الاختبار، وفي التشغيل
   /// يُبنى افتراضيًا — والعقد هو `api.get_active_price_schedule`.
@@ -117,10 +118,15 @@ class _OperationsScreenState extends State<OperationsScreen> {
     _coordinator = widget.coordinator ?? OfflineSessionCoordinator.instance;
     _priceRepo = widget.priceRepository ?? WellManagementRepository();
 
-    try {
-      _repo = OperationsRepository(Supabase.instance.client);
-    } catch (_) {
-      _repo = const OperationsRepository();
+    final repository = widget.repository;
+    if (repository != null) {
+      _repo = repository;
+    } else {
+      try {
+        _repo = OperationsRepository(Supabase.instance.client);
+      } catch (_) {
+        _repo = const OperationsRepository();
+      }
     }
 
     _recoverActiveSession();
@@ -241,7 +247,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
     });
   }
 
-
   @override
   void didUpdateWidget(covariant OperationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -319,7 +324,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text(
           'إضافة مزارع جديد',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepBlue,
+          ),
         ),
         content: Form(
           key: formKey,
@@ -470,7 +478,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<void> _startSession() async {
-    if (_selectedFarmer == null || _selectedFarm == null || _selectedPump == null) {
+    if (_selectedFarmer == null ||
+        _selectedFarm == null ||
+        _selectedPump == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('يرجى تحديد المزارع والأرض والمضخة قبل بدء السقي'),
@@ -592,8 +602,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     final totalSeconds = _secondsElapsed;
     final hourlyRate = _hourlyRateYER;
-    final totalAmount =
-        hourlyRate == null ? null : (hourlyRate * totalSeconds) ~/ 3600;
+    final totalAmount = hourlyRate == null
+        ? null
+        : (hourlyRate * totalSeconds) ~/ 3600;
     final activeSessionId = _activeSessionId;
 
     if (activeSessionId == null) {
@@ -645,35 +656,35 @@ class _OperationsScreenState extends State<OperationsScreen> {
           hourlyRateYER: hourlyRate,
           billableSeconds: totalSeconds,
           totalAmountYER: totalAmount,
-          onConfirmPayment: ({
-            required int paidAmountYER,
-            required String paymentMethod,
-            required bool isFullySettled,
-          }) async {
-            if (paidAmountYER <= 0) return;
+          onConfirmPayment:
+              ({
+                required int paidAmountYER,
+                required String paymentMethod,
+                required bool isFullySettled,
+              }) async {
+                if (paidAmountYER <= 0) return;
 
-            final paymentWellId = _activeWellId;
-            final farmer = _selectedFarmer;
-            if (farmer == null) {
-              // كان السداد يُتجاهل صامتًا فتُغلق النافذة كأنه سُجِّل.
-              throw StateError('لا مزارع محدد — لم يُسجَّل السداد');
-            }
+                final paymentWellId = _activeWellId;
+                final farmer = _selectedFarmer;
+                if (farmer == null) {
+                  // كان السداد يُتجاهل صامتًا فتُغلق النافذة كأنه سُجِّل.
+                  throw StateError('لا مزارع محدد — لم يُسجَّل السداد');
+                }
 
-            await _coordinator.recordPayment(
-              accountId: _accountId,
-              wellId: paymentWellId,
-              farmerAccountId: farmer.id,
-              amountMinor: paidAmountYER,
-              paymentMethod: paymentMethod,
-              sessionLocalId: activeSessionId,
-              reference: 'سداد جلسة سقي',
-            );
-          },
+                await _coordinator.recordPayment(
+                  accountId: _accountId,
+                  wellId: paymentWellId,
+                  farmerAccountId: farmer.id,
+                  amountMinor: paidAmountYER,
+                  paymentMethod: paymentMethod,
+                  sessionLocalId: activeSessionId,
+                  reference: 'سداد جلسة سقي',
+                );
+              },
         ),
       );
     }
   }
-
 
   /// خيارات مصدر الطاقة وسعرها.
   ///
@@ -727,7 +738,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
       return _buildPricingNotice(
         icon: Icons.lock_outline,
         color: AppColors.textSecondary,
-        message: 'التسعيرة السارية متاحة لمن يملك إدارة الأسعار — '
+        message:
+            'التسعيرة السارية متاحة لمن يملك إدارة الأسعار — '
             'التشغيل متاح، وتُحتسب التكلفة عند المزامنة.',
       );
     }
@@ -746,7 +758,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
       return _buildPricingNotice(
         icon: Icons.info_outline,
         color: AppColors.warning,
-        message: 'لا جدول تسعير ساري لهذا البئر — لا تُعرض تسعيرة، '
+        message:
+            'لا جدول تسعير ساري لهذا البئر — لا تُعرض تسعيرة، '
             'وتُحتسب التكلفة عند المزامنة.',
         onRetry: _loadPriceSchedule,
       );
@@ -786,8 +799,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
           if (onRetry != null)
             TextButton(
               onPressed: onRetry,
-              child:
-                  const Text('إعادة المحاولة', style: TextStyle(fontSize: 12)),
+              child: const Text(
+                'إعادة المحاولة',
+                style: TextStyle(fontSize: 12),
+              ),
             ),
         ],
       ),
@@ -837,8 +852,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                   : '${CurrencyUtils.formatAmount(rate)} ريال / ساعة',
               style: TextStyle(
                 fontSize: 11,
-                color:
-                    rate == null ? AppColors.warning : AppColors.textSecondary,
+                color: rate == null
+                    ? AppColors.warning
+                    : AppColors.textSecondary,
               ),
             ),
           ],
@@ -850,8 +866,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
   @override
   Widget build(BuildContext context) {
     final hourlyRate = _hourlyRateYER;
-    final accruedAmount =
-        hourlyRate == null ? null : (hourlyRate * _secondsElapsed) ~/ 3600;
+    final accruedAmount = hourlyRate == null
+        ? null
+        : (hourlyRate * _secondsElapsed) ~/ 3600;
 
     final hours = (_secondsElapsed ~/ 3600).toString().padLeft(2, '0');
     final minutes = ((_secondsElapsed % 3600) ~/ 60).toString().padLeft(2, '0');
@@ -902,7 +919,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: _isSessionActive
-                        ? (_isPaused ? AppColors.warning : AppColors.agriculturalGreen)
+                        ? (_isPaused
+                              ? AppColors.warning
+                              : AppColors.agriculturalGreen)
                         : AppColors.border,
                     width: 2,
                   ),
@@ -927,20 +946,26 @@ class _OperationsScreenState extends State<OperationsScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: _isSessionActive
-                                    ? (_isPaused ? AppColors.warning : AppColors.agriculturalGreen)
+                                    ? (_isPaused
+                                          ? AppColors.warning
+                                          : AppColors.agriculturalGreen)
                                     : AppColors.textMuted,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Text(
                               _isSessionActive
-                                  ? (_isPaused ? 'جلسة سقي متوقفة مؤقتاً' : 'جلسة سقي جارية الآن')
+                                  ? (_isPaused
+                                        ? 'جلسة سقي متوقفة مؤقتاً'
+                                        : 'جلسة سقي جارية الآن')
                                   : 'لا توجد جلسة سقي نشطة',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: _isSessionActive
-                                    ? (_isPaused ? AppColors.warning : AppColors.agriculturalGreen)
+                                    ? (_isPaused
+                                          ? AppColors.warning
+                                          : AppColors.agriculturalGreen)
                                     : AppColors.textSecondary,
                               ),
                             ),
@@ -950,15 +975,24 @@ class _OperationsScreenState extends State<OperationsScreen> {
                           children: [
                             if (_isSessionActive) ...[
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.agriculturalGreen.withValues(alpha: 0.08),
+                                  color: AppColors.agriculturalGreen.withValues(
+                                    alpha: 0.08,
+                                  ),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.cloud_done_outlined, size: 13, color: AppColors.agriculturalGreen),
+                                    Icon(
+                                      Icons.cloud_done_outlined,
+                                      size: 13,
+                                      color: AppColors.agriculturalGreen,
+                                    ),
                                     SizedBox(width: 4),
                                     Text(
                                       'مزامن',
@@ -974,7 +1008,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.surface,
                                   borderRadius: BorderRadius.circular(20),
@@ -1004,7 +1041,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                         fontWeight: FontWeight.bold,
                         fontFamily: 'monospace',
                         color: _isSessionActive
-                            ? (_isPaused ? AppColors.warning : AppColors.deepBlue)
+                            ? (_isPaused
+                                  ? AppColors.warning
+                                  : AppColors.deepBlue)
                             : AppColors.textMuted,
                       ),
                     ),
@@ -1012,7 +1051,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
                     // المستحق المالي اللحظي
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
                         borderRadius: BorderRadius.circular(10),
@@ -1091,7 +1133,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
                       onChanged: (farmer) {
                         setState(() {
                           _selectedFarmer = farmer;
-                          _selectedFarm = null; // إعادة تعيين الأرض لتوافقها مع المزارع
+                          _selectedFarm =
+                              null; // إعادة تعيين الأرض لتوافقها مع المزارع
                         });
                       },
                       onAddNew: _showAddFarmerDialog,
@@ -1160,6 +1203,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                           )
                         : DropdownButtonFormField<Pump>(
                             initialValue: _selectedPump,
+                            isExpanded: true,
                             decoration: InputDecoration(
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 14,
@@ -1167,7 +1211,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: AppColors.border),
+                                borderSide: const BorderSide(
+                                  color: AppColors.border,
+                                ),
                               ),
                               prefixIcon: const Icon(
                                 Icons.water,
@@ -1226,7 +1272,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
                       : const Icon(Icons.play_arrow, size: 24),
                   label: Text(
                     _isSubmitting ? 'جاري بدء الجلسة...' : 'بدء جلسة سقي جديدة',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.agriculturalGreen,
@@ -1250,8 +1299,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _isPaused ? AppColors.agriculturalGreen : AppColors.warning,
+                          backgroundColor: _isPaused
+                              ? AppColors.agriculturalGreen
+                              : AppColors.warning,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(

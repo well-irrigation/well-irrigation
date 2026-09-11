@@ -38,6 +38,8 @@ Thumbs.db
 
 # Tests and generated reports
 test-results/
+.ci-logs/
+.ci/
 
 # ===== اضافات Flutter و Android و الاسرار =====
 # أسرار — لا تُرفع أبدًا (ق-44)
