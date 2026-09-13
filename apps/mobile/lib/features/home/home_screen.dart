@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/identity/app_identity.dart';
 import '../../core/theme/app_colors.dart';
@@ -61,7 +62,10 @@ class HomeScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary),
+            icon: const Icon(
+              Icons.settings_outlined,
+              color: AppColors.textSecondary,
+            ),
             tooltip: 'الإعدادات والمزيد',
             onPressed: onNavigateToMoreSettings,
           ),
@@ -73,14 +77,23 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+        // لا تمرير في الرئيسية: كل المداخل تُعرض معًا. والتمرير في شاشة
+        // المداخل يُخفي أبوابًا لا يعرف المستخدم أنها موجودة، ومَن يعمل عند
+        // رأس البئر بيد واحدة لا يمرّر ليجد بابًا. فالمساحة تُقسَّم على ما
+        // هو موجود: `Expanded` يُوزّع ما بقي بعد بطاقة البئر على الصفوف
+        // الثلاثة، فتنضبط الشاشة على أي حجم جهاز بلا تمرير وبلا فيض.
+        child: Padding(
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // كرت البئر الحالي المعتمد
+              // بطاقة البئر: الحالة وحدها بلا تكرار الاسم.
+              //
+              // اسم البئر يظهر في الرأس (القرار 212) وهو **عنصر تبديل البئر**
+              // نفسه، فتكراره هنا يأخذ مساحة بلا معلومة جديدة. والقرار 213
+              // يعدّ اسم البئر واحدًا من محتويات **ممكنة** لا واجبة.
               Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [AppColors.deepBlue, AppColors.waterBlue],
@@ -96,167 +109,170 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'البئر النشط الحالي',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.agriculturalGreen,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'جاهز للتشغيل',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      activeWell.name,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact =
+                        MediaQuery.textScalerOf(context).scale(12) > 18;
+
+                    final statusText = Text(
+                      activeWell.status == 'active'
+                          ? 'نشط ومتاح للعمليات'
+                          : 'غير نشط',
                       style: const TextStyle(
-                        fontSize: 20,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'الحالة: ${activeWell.status == "active" ? "نشط ومتاح للعمليات" : "غير نشط"}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
+                    );
+                    final readiness = _ReadinessBadge(
+                      isActive: activeWell.status == 'active',
+                    );
+
+                    if (compact || constraints.maxWidth < 300) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'البئر النشط الحالي',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          statusText,
+                          const SizedBox(height: 8),
+                          readiness,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'البئر النشط الحالي',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              statusText,
+                            ],
+                          ),
+                        ),
+                        readiness,
+                      ],
+                    );
+                  },
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               const Text(
                 'الخدمات والأقسام الرئيسية',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: AppColors.deepBlue,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
-              // شبكة كروت الوصول السريع للخدمات (UX-07 / UX-13 / UX-14 / UX-15 / UX-16A)
-              Row(
-                children: [
-                  Expanded(
-                    child: _ServiceCard(
-                      icon: Icons.play_circle_filled,
-                      title: 'لوحة التشغيل',
-                      subtitle: 'بدء وإيقاف العداد المباشر',
-                      color: AppColors.waterBlue,
-                      onTap: onNavigateToOperations,
+              // شبكة المداخل التسعة: ثلاثة في ثلاثة — فلا مدخل وحيد في صفّ
+              // يبدو أهمّ من أخواته، ولا صفٌّ ناقص. و«التشغيل والسقي» أول
+              // مدخل في أول صفّ: أبرز موضع بصريًّا (قرار المالك).
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _ServiceRow(
+                        children: [
+                          _ServiceCard(
+                            icon: Icons.play_circle_filled,
+                            title: 'التشغيل والسقي',
+                            color: AppColors.waterBlue,
+                            onTap: onNavigateToOperations,
+                          ),
+                          _ServiceCard(
+                            icon: Icons.history,
+                            title: 'سجل الجلسات',
+                            color: AppColors.deepBlueLight,
+                            onTap: onNavigateToHistory,
+                          ),
+                          _ServiceCard(
+                            icon: Icons.people_alt,
+                            title: 'المزارعون والأراضي',
+                            color: AppColors.agriculturalGreen,
+                            onTap: onNavigateToFarmers,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _ServiceCard(
-                      icon: Icons.history,
-                      title: 'سجل الجلسات',
-                      subtitle: 'تاريخ السقي والتفاصيل',
-                      color: AppColors.deepBlue,
-                      onTap: onNavigateToHistory,
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: _ServiceRow(
+                        children: [
+                          _ServiceCard(
+                            icon: Icons.account_balance_wallet,
+                            title: 'الحسابات',
+                            color: AppColors.waterBlueDark,
+                            // مدخل «الحسابات» (القرار 223) يقود إلى دليل
+                            // المزارعين اليوم، لأن كشف الحساب هناك: لكل مزارع
+                            // حسابه ورصيده. وشاشةٌ تجمع أرصدة البئر كلها تحتاج
+                            // عقد قراءة لا وجود له بعد — فالمدخل يقود إلى ما
+                            // يوجد فعلًا ولا يُفتح باب على شاشة تُلفِّق أرقامًا.
+                            onTap: onNavigateToFarmers,
+                          ),
+                          _ServiceCard(
+                            icon: Icons.receipt_long,
+                            title: 'المصروفات',
+                            color: AppColors.deepBlue,
+                            onTap: onNavigateToExpenses,
+                          ),
+                          _ServiceCard(
+                            icon: Icons.handshake,
+                            title: 'الشركاء والأرباح',
+                            color: AppColors.greenDeep,
+                            onTap: onNavigateToPartners,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ServiceCard(
-                      icon: Icons.people_alt,
-                      title: 'المزارعون والأراضي',
-                      subtitle: 'دليل المزارعين والأراضي',
-                      color: AppColors.agriculturalGreen,
-                      onTap: onNavigateToFarmers,
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: _ServiceRow(
+                        children: [
+                          _ServiceCard(
+                            icon: Icons.settings_suggest,
+                            title: 'البئر والمعدات',
+                            color: AppColors.deepBlueLight,
+                            onTap: onNavigateToWellManagement,
+                          ),
+                          _ServiceCard(
+                            icon: Icons.analytics_outlined,
+                            title: 'التقارير',
+                            color: AppColors.greenLight,
+                            onTap: onNavigateToReports,
+                          ),
+                          _ServiceCard(
+                            icon: Icons.more_horiz_rounded,
+                            title: 'المزيد',
+                            color: AppColors.waterBlue,
+                            onTap: onNavigateToMoreSettings,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _ServiceCard(
-                      icon: Icons.receipt_long,
-                      title: 'المصروفات والمالية',
-                      subtitle: 'تسجيل واعتماد المصروفات',
-                      color: Colors.deepOrange,
-                      onTap: onNavigateToExpenses,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ServiceCard(
-                      icon: Icons.handshake,
-                      title: 'الشركاء والأرباح',
-                      subtitle: 'النسب ودورات التوزيع',
-                      color: AppColors.warning,
-                      onTap: onNavigateToPartners,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _ServiceCard(
-                      icon: Icons.settings_suggest,
-                      title: 'إدارة البئر والمعدات',
-                      subtitle: 'المضخات والوقود والأسعار',
-                      color: Colors.indigo,
-                      onTap: onNavigateToWellManagement,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ServiceCard(
-                      icon: Icons.analytics_outlined,
-                      title: 'التقارير والمؤشرات',
-                      subtitle: 'التحصيل والمصروفات والوقود',
-                      color: Colors.teal,
-                      onTap: onNavigateToReports,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _ServiceCard(
-                      icon: Icons.more_horiz_rounded,
-                      title: 'المزيد والإعدادات',
-                      subtitle: 'الحساب، الفريق والمزامنة',
-                      color: AppColors.waterBlue,
-                      onTap: onNavigateToMoreSettings,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -266,18 +282,71 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+class _ReadinessBadge extends StatelessWidget {
+  const _ReadinessBadge({required this.isActive});
+
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.agriculturalGreen : AppColors.textSecondary,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        isActive ? 'جاهز للتشغيل' : 'غير متاح للتشغيل',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+/// صفّ من ثلاثة مداخل متساوية العرض بمسافة 8dp بينها.
+///
+/// يُستعمل داخل `Expanded` فارتفاعه محدود، فـ`stretch` آمن هنا. وبلا حدّ
+/// أعلى للارتفاع كان `stretch` يطلب ارتفاعًا لا نهائيًّا فتسقط الشاشة بيضاء —
+/// وهو ما جرى في 2026-09-04 حين كان الصفّ داخل قائمة تمرير.
+class _ServiceRow extends StatelessWidget {
+  const _ServiceRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(child: children[i]),
+        ],
+      ],
+    );
+  }
+}
+
+/// بطاقة مدخل قسم: أيقونة واسم قصير ومساحة لمس كبيرة — بلا وصف.
+///
+/// **لماذا حُذف الوصف:** القرار 220 ينصّ «لا نضع وصفًا طويلًا داخل كل بطاقة».
+/// وأثره مقيس لا جماليّ: السطر الوصفي كان يُطيل البطاقة فيُخرج مدخلين من
+/// الشاشة الأولى، والمستخدم اليومي يقرأ الاسم ولا يقرأ الوصف بعد المرة
+/// الثالثة — فيبقى ضجيجًا يزاحم ما يُقرأ فعلًا.
 class _ServiceCard extends StatelessWidget {
   const _ServiceCard({
     required this.icon,
     required this.title,
-    required this.subtitle,
     required this.color,
     this.onTap,
   });
 
   final IconData icon;
   final String title;
-  final String subtitle;
   final Color color;
   final VoidCallback? onTap;
 
@@ -287,7 +356,7 @@ class _ServiceCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -300,32 +369,34 @@ class _ServiceCard extends StatelessWidget {
             ),
           ],
         ),
+        // المحتوى في الوسط لا موزَّعًا بين الطرفين: التوزيع كان يحشر الأيقونة
+        // في الزاوية العليا ويترك فراغًا في وسط البطاقة.
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
+                // 0.14 لا 0.10: الألوان الداكنة (الأزرق الداكن ودرجاته) بعد
+                // التخفيف إلى 10% تُقرأ رماديًّا باهتًا فتفقد تمييزها — مقيس
+                // على الجهاز في 2026-09-04.
+                color: color.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 26),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            // الاسم قد يطول («المزارعون والأراضي») فيُلفّ على سطرين ويُوسَّط.
             Text(
               title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
                 color: AppColors.deepBlue,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textSecondary,
+                height: 1.25,
               ),
             ),
           ],

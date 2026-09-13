@@ -82,7 +82,10 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: ThemeData(
         useMaterial3: true,
-        fontFamily: 'Roboto',
+        // الخط المعتمد في VISUAL_IDENTITY §6 ومحزوم في pubspec. كان 'Roboto'
+        // وهو خط لاتيني لا يحمل العربية، فكان النظام يستبدله بخط الجهاز:
+        // شكلٌ مختلف على كل هاتف، وعرضُ حروف مختلف يُزيح التخطيط.
+        fontFamily: 'NotoSansArabic',
         colorSchemeSeed: const Color(0xFF0265BA),
       ),
       home: Builder(builder: _buildHome),

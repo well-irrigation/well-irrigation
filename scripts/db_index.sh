@@ -26,6 +26,18 @@ app_schemas="n.nspname not like 'pg\\_%'
     'net', 'cron', 'pgsodium', 'pgsodium_masks'
   )"
 
+# ودوال الإضافات تُستثنى بملكيّتها لا باسمها: ما يعتمد على إضافة في
+# pg_depend بنوع 'e' ليس من كتابتنا ولا نتحكّم في وجوده. المرشِّح نفسه
+# مكتوب في scripts/cloud_verify.sh حتى تُعرَّف المجموعتان بنفس الحد — فحدّان
+# مختلفان يُنتجان فرقًا يُقرأ عطبًا وهو تعريف (ق-113). ولا تُستثنى بقائمة
+# أسماء يدويًا: قائمةٌ مكتوبة تتقادم بصمت.
+not_extension="not exists (
+    select 1 from pg_depend d
+    where d.classid = 'pg_proc'::regclass
+      and d.objid = p.oid
+      and d.deptype = 'e'
+  )"
+
 # الترتيب في كل استعلام يجب أن يكون **حاسمًا** حتى لا يُنتج التوليد فرقًا
 # كاذبًا بعد كل db:reset. الثلاثة الأولى مفاتيحها فريدة أصلًا:
 # (schema, table, attnum) و(schema, table, conname) و(schema, table, tgname).
@@ -98,7 +110,7 @@ write_index functions.txt \
           coalesce(array_to_string(p.proconfig, ' '), '-')
    from pg_proc p
    join pg_namespace n on n.oid = p.pronamespace
-   where p.prokind = 'f' and $app_schemas
+   where p.prokind = 'f' and $app_schemas and $not_extension
    order by n.nspname, p.proname,
             pg_get_function_identity_arguments(p.oid) collate \"C\""
 

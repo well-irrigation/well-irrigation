@@ -4,6 +4,7 @@ import '../core/api/app_bootstrap_repository.dart';
 import '../core/api/team_repository.dart';
 import '../core/identity/app_identity.dart';
 import '../core/theme/app_colors.dart';
+import '../core/widgets/well_loading_indicator.dart';
 
 /// بوابة الهوية: تقرأ عقد الحساب مرة واحدة وتُعلن نتيجته الثلاثية (ق-113).
 ///
@@ -162,6 +163,15 @@ class IdentityGateState extends State<IdentityGate> {
   }
 }
 
+/// انتظار حلّ الهوية: القطرة وحدها بلا نصّ ولا بطاقة.
+///
+/// **لماذا لا شاشة كاملة بنصّ:** كانت شاشة مستقلة تُعرض ثوانٍ ثم تختفي —
+/// فيبدو الانتظار انتقالًا إلى مكان آخر لا لحظةً في مكانه. والنصّ «جاري
+/// تحميل بيانات حسابك» لا يضيف شيئًا للحركة، ويُقرأ في كل فتح فيصير ضجيجًا.
+///
+/// وهذه أول شاشة في التطبيق فلا شيء خلفها ليُعتَّم، فتُعرض القطرة على خلفية
+/// الإقلاع بالأزرق. أمّا `WellLoadingOverlay` فلما له خلفية فعلًا: التنقل
+/// بين الأقسام وانتظار العقود.
 class _IdentityLoadingView extends StatelessWidget {
   const _IdentityLoadingView();
 
@@ -169,19 +179,7 @@ class _IdentityLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       backgroundColor: AppColors.splashBackground,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-              'جاري تحميل بيانات حسابك',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-      ),
+      body: Center(child: WellLoadingIndicator(size: 112)),
     );
   }
 }

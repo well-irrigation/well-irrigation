@@ -215,30 +215,31 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
               children: [
                 Row(
                   children: [
-                    // كرت المستحق عليه (الديون)
+                    // كرت المستحق عليه (الديون) — لون الخطأ الدلالي: دَينٌ
+                    // مستحق حالةٌ تستحق الانتباه فعلًا، فاللون في موضعه.
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFC0392B).withValues(alpha: 0.08),
+                          color: AppColors.error.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFC0392B).withValues(alpha: 0.25)),
+                          border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: const [
-                                Icon(Icons.receipt_outlined, color: Color(0xFFC0392B), size: 16),
+                                Icon(Icons.receipt_outlined, color: AppColors.error, size: 16),
                                 SizedBox(width: 4),
-                                Text('إجمالي الديون المستحقة', style: TextStyle(fontSize: 11, color: Color(0xFFC0392B), fontWeight: FontWeight.bold)),
+                                Text('إجمالي الديون المستحقة', style: TextStyle(fontSize: 11, color: AppColors.error, fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const SizedBox(height: 6),
                             CurrencyDisplay(
                               amount: data.totalDebtYER,
                               showTafqeet: false,
-                              amountStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFFC0392B)),
+                              amountStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.error),
                             ),
                             const SizedBox(height: 2),
                             const Text('فواتير غير مسددة', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
@@ -248,30 +249,32 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                     ),
                     const SizedBox(width: 10),
 
-                    // كرت الرصيد المقدم (Advance)
+                    // كرت الرصيد المقدَّم — بأزرق الماء لا بالبنفسجي: الوثيقة
+                    // تنصّ «لا يضاف لون رابع إلى ألوان العلامة»، والبنفسجي
+                    // والوردي كانا يُدخلان هوية غريبة في شاشة مالية.
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.purple.withValues(alpha: 0.08),
+                          color: AppColors.waterBlue.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.purple.withValues(alpha: 0.25)),
+                          border: Border.all(color: AppColors.waterBlue.withValues(alpha: 0.25)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: const [
-                                Icon(Icons.account_balance_wallet_outlined, color: Colors.purple, size: 16),
+                                Icon(Icons.account_balance_wallet_outlined, color: AppColors.waterBlue, size: 16),
                                 SizedBox(width: 4),
-                                Text('الرصيد المقدم بحسابه', style: TextStyle(fontSize: 11, color: Colors.purple, fontWeight: FontWeight.bold)),
+                                Text('الرصيد المقدم بحسابه', style: TextStyle(fontSize: 11, color: AppColors.waterBlue, fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const SizedBox(height: 6),
                             CurrencyDisplay(
                               amount: data.advanceBalanceYER,
                               showTafqeet: false,
-                              amountStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.purple),
+                              amountStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.waterBlue),
                             ),
                             const SizedBox(height: 2),
                             const Text('رصيد مدفوع مقدماً', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
@@ -523,9 +526,31 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('المزارع: ${widget.accountData.fullName} (${widget.accountData.publicCode})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              // اسم المزارع بارزًا، والكود `FWA-…` هامشًا صغيرًا: هذه النافذة
+              // تُصدر **سندًا ورقيًّا يُطابَق لاحقًا**، فهي الموضع الوحيد الذي
+              // يخدم فيه المعرّف غرضًا — وأُزيل من الشاشات الثلاث الأخرى.
+              Text(
+                'المزارع: ${widget.accountData.fullName}',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                widget.accountData.publicCode,
+                style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+              ),
               const SizedBox(height: 4),
-              Text('الديون المستحقة: ${widget.accountData.totalDebtYER} ريال', style: const TextStyle(fontSize: 12, color: Colors.red)),
+              // «لا ديون» حقيقةٌ تُعلَن لا رقمٌ أحمر: قبضُ مبلغ بلا دين مقبول
+              // ويُسجَّل رصيدًا مقدَّمًا، لكن المالك يجب أن يعرف ذلك قبل
+              // الإصدار — لا أن يظنّه تسديدًا. والخادم يقبله فلا يُحجب.
+              if (widget.accountData.totalDebtYER > 0)
+                Text(
+                  'الديون المستحقة: ${widget.accountData.totalDebtYER} ريال',
+                  style: const TextStyle(fontSize: 12, color: AppColors.error),
+                )
+              else
+                const Text(
+                  'لا ديون مستحقة — سيُسجَّل المبلغ رصيدًا مقدَّمًا بحسابه',
+                  style: TextStyle(fontSize: 12, color: AppColors.info),
+                ),
               const SizedBox(height: 14),
 
               // المبلغ
@@ -551,7 +576,9 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
                   prefixIcon: Icon(Icons.payment, size: 20),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('نقداً (Cash)')),
+                  // بلا ترجمة مزدوجة: «نقداً (Cash)» في تطبيق عربي بالكامل
+                  // حشوٌ لا يفهمه من لا يقرأ الإنجليزية ولا يحتاجه من يقرؤها.
+                  DropdownMenuItem(value: 'cash', child: Text('نقداً')),
                   DropdownMenuItem(value: 'transfer', child: Text('حوالة / إيداع بنكي')),
                 ],
                 onChanged: (val) => setState(() => _paymentMethod = val ?? 'cash'),

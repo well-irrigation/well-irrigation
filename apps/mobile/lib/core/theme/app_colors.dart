@@ -29,4 +29,20 @@ class AppColors {
   // الحدود
   static const Color border = Color(0xFFCBD5E1);
   static const Color borderFocused = Color(0xFF0265BA);
+
+  // درجات مشتقّة من ألوان العلامة الثلاثة — لتمييز مداخل الأقسام.
+  //
+  // **لماذا لا ألوان جاهزة:** كانت الشبكة تستعمل `Colors.deepOrange` و
+  // `Colors.indigo` و`Colors.teal` — ألوان مكتبة Flutter لا لوحة المشروع،
+  // والوثيقة تنصّ: «لا يضاف لون دافئ رابع إلى ألوان العلامة». وكانت تستعمل
+  // `warning` (لون تحذير **دلالي**) لمدخل «الشركاء والأرباح»: فلونُ خطرٍ على
+  // باب عادي يقول للعين «انتبه، هنا مشكلة» ولا مشكلة — والوثيقة تفصل الألوان
+  // الدلالية عن ألوان العلامة، ولا تجعل أخضر العلامة يعني «نجاح».
+  //
+  // فهذه درجات من الثلاثة وحدها: تُمايز المداخل بلا أن تُدخل هوية غريبة ولا
+  // أن تُلبس بابًا معنى حالة.
+  static const Color deepBlueLight = Color(0xFF1E4E8C);
+  static const Color waterBlueDark = Color(0xFF014C8C);
+  static const Color greenDeep = Color(0xFF1E6B1E);
+  static const Color greenLight = Color(0xFF43A047);
 }

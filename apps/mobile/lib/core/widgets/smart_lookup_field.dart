@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../theme/app_colors.dart';
 import '../utils/digit_utils.dart';
 
@@ -106,7 +107,9 @@ class SmartLookupField<T> extends StatelessWidget {
                 Icon(
                   prefixIcon,
                   size: 20,
-                  color: hasSelection ? AppColors.waterBlue : AppColors.textMuted,
+                  color: hasSelection
+                      ? AppColors.waterBlue
+                      : AppColors.textMuted,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -123,7 +126,8 @@ class SmartLookupField<T> extends StatelessWidget {
                               ),
                             ),
                             if (itemSecondaryLabel != null &&
-                                itemSecondaryLabel!(selectedItem as T) != null) ...[
+                                itemSecondaryLabel!(selectedItem as T) !=
+                                    null) ...[
                               const SizedBox(height: 2),
                               Text(
                                 itemSecondaryLabel!(selectedItem as T)!,
@@ -145,13 +149,20 @@ class SmartLookupField<T> extends StatelessWidget {
                 ),
                 if (hasSelection && enabled)
                   IconButton(
-                    icon: const Icon(Icons.close, size: 18, color: AppColors.textMuted),
+                    icon: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: AppColors.textMuted,
+                    ),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     onPressed: () => onChanged(null),
                   )
                 else
-                  const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.arrow_drop_down,
+                    color: AppColors.textSecondary,
+                  ),
               ],
             ),
           ),
@@ -189,7 +200,8 @@ class _SmartLookupBottomSheet<T> extends StatefulWidget {
       _SmartLookupBottomSheetState<T>();
 }
 
-class _SmartLookupBottomSheetState<T> extends State<_SmartLookupBottomSheet<T>> {
+class _SmartLookupBottomSheetState<T>
+    extends State<_SmartLookupBottomSheet<T>> {
   final TextEditingController _searchController = TextEditingController();
   List<T> _results = [];
   bool _isLoading = true;
@@ -226,7 +238,8 @@ class _SmartLookupBottomSheetState<T> extends State<_SmartLookupBottomSheet<T>> 
       if (mounted) {
         setState(() {
           _results = [];
-          _searchError = 'تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.';
+          _searchError =
+              'تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.';
           _isLoading = false;
         });
       }
@@ -235,6 +248,12 @@ class _SmartLookupBottomSheetState<T> extends State<_SmartLookupBottomSheet<T>> 
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final availableHeight =
+        mediaQuery.size.height > mediaQuery.viewInsets.bottom
+        ? mediaQuery.size.height - mediaQuery.viewInsets.bottom
+        : 0.0;
+
     return Material(
       color: Colors.white,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -250,215 +269,246 @@ class _SmartLookupBottomSheetState<T> extends State<_SmartLookupBottomSheet<T>> 
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-
-              // 1. مقبض السحب والعنوان
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'اختيار ${widget.title}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.deepBlue,
+                // 1. مقبض السحب والعنوان
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  if (widget.onAddNew != null)
-                    TextButton.icon(
-                      onPressed: () => widget.onAddNew!(),
-                      icon: const Icon(Icons.add, size: 18, color: AppColors.waterBlue),
-                      label: Text(
-                        widget.addNewLabel ?? 'إضافة جديد',
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'اختيار ${widget.title}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.waterBlue,
+                          color: AppColors.deepBlue,
                         ),
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 10),
-
-              // 2. حقل البحث اللحظي مع توحيد الأرقام
-              TextField(
-                controller: _searchController,
-                autofocus: true,
-                inputFormatters: const [
-                  ArabicToEnglishDigitsFormatter(),
-                ],
-                decoration: InputDecoration(
-                  hintText: widget.hintText,
-                  hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                  prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.waterBlue),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, size: 18, color: AppColors.textMuted),
-                          onPressed: () {
-                            _searchController.clear();
-                            _performSearch('');
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: AppColors.surface,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                onChanged: (val) => _performSearch(val.trim()),
-              ),
-              const SizedBox(height: 12),
-
-              // 3. قائمة النتائج
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.45,
-                ),
-                child: _isLoading
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: CircularProgressIndicator(),
+                    if (widget.onAddNew != null)
+                      TextButton.icon(
+                        onPressed: () => widget.onAddNew!(),
+                        icon: const Icon(
+                          Icons.add,
+                          size: 18,
+                          color: AppColors.waterBlue,
                         ),
-                      )
-                    : _searchError != null
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 32),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.cloud_off_rounded,
-                                    size: 48, color: AppColors.error),
-                                const SizedBox(height: 10),
-                                Text(
-                                  _searchError!,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.error,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                OutlinedButton.icon(
-                                  onPressed: () => _performSearch(_currentQuery),
-                                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                                  label: const Text('إعادة المحاولة'),
-                                ),
-                              ],
-                            ),
-                          )
-                        : _results.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 32),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.person_search_outlined,
-                                    size: 48, color: AppColors.textMuted),
-                                const SizedBox(height: 10),
-                                Text(
-                                  widget.emptyMessage,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                if (widget.onAddNew != null) ...[
-                                  const SizedBox(height: 12),
-                                  ElevatedButton.icon(
-                                    onPressed: () => widget.onAddNew!(),
-                                    icon: const Icon(Icons.add, size: 18),
-                                    label: Text(
-                                      widget.addNewLabel ?? 'إضافة جديد الآن',
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.waterBlue,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          )
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: _results.length,
-                            separatorBuilder: (context, index) => const Divider(height: 1),
-                            itemBuilder: (context, index) {
-
-                              final item = _results[index];
-                              final primary = widget.itemLabel(item);
-                              final secondary = widget.itemSecondaryLabel != null
-                                  ? widget.itemSecondaryLabel!(item)
-                                  : null;
-
-                              return ListTile(
-                                dense: true,
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                leading: CircleAvatar(
-                                  radius: 18,
-                                  backgroundColor:
-                                      AppColors.waterBlue.withValues(alpha: 0.1),
-                                  child: Text(
-                                    primary.isNotEmpty ? primary[0] : '؟',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.waterBlue,
-                                    ),
-                                  ),
-                                ),
-                                title: Text(
-                                  primary,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.deepBlue,
-                                  ),
-                                ),
-                                subtitle: secondary != null
-                                    ? Text(
-                                        secondary,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      )
-                                    : null,
-                                trailing: const Icon(
-                                  Icons.chevron_left,
-                                  size: 20,
-                                  color: AppColors.textMuted,
-                                ),
-                                onTap: () => widget.onSelected(item),
-                              );
-                            },
+                        label: Text(
+                          widget.addNewLabel ?? 'إضافة جديد',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.waterBlue,
                           ),
-              ),
-            ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // 2. حقل البحث اللحظي مع توحيد الأرقام
+                TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  inputFormatters: const [ArabicToEnglishDigitsFormatter()],
+                  decoration: InputDecoration(
+                    hintText: widget.hintText,
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textMuted,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      size: 20,
+                      color: AppColors.waterBlue,
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.clear,
+                              size: 18,
+                              color: AppColors.textMuted,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              _performSearch('');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (val) => _performSearch(val.trim()),
+                ),
+                const SizedBox(height: 12),
+
+                // 3. قائمة النتائج
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: availableHeight * 0.45,
+                  ),
+                  child: _isLoading
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      : _searchError != null
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.cloud_off_rounded,
+                                size: 48,
+                                color: AppColors.error,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                _searchError!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.error,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: () => _performSearch(_currentQuery),
+                                icon: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 18,
+                                ),
+                                label: const Text('إعادة المحاولة'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _results.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.person_search_outlined,
+                                size: 48,
+                                color: AppColors.textMuted,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                widget.emptyMessage,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              if (widget.onAddNew != null) ...[
+                                const SizedBox(height: 12),
+                                ElevatedButton.icon(
+                                  onPressed: () => widget.onAddNew!(),
+                                  icon: const Icon(Icons.add, size: 18),
+                                  label: Text(
+                                    widget.addNewLabel ?? 'إضافة جديد الآن',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.waterBlue,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _results.length,
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final item = _results[index];
+                            final primary = widget.itemLabel(item);
+                            final secondary = widget.itemSecondaryLabel != null
+                                ? widget.itemSecondaryLabel!(item)
+                                : null;
+
+                            return ListTile(
+                              dense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              leading: CircleAvatar(
+                                radius: 18,
+                                backgroundColor: AppColors.waterBlue.withValues(
+                                  alpha: 0.1,
+                                ),
+                                child: Text(
+                                  primary.isNotEmpty ? primary[0] : '؟',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.waterBlue,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                primary,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.deepBlue,
+                                ),
+                              ),
+                              subtitle: secondary != null
+                                  ? Text(
+                                      secondary,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    )
+                                  : null,
+                              trailing: const Icon(
+                                Icons.chevron_left,
+                                size: 20,
+                                color: AppColors.textMuted,
+                              ),
+                              onTap: () => widget.onSelected(item),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
-}
-
-

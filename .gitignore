@@ -38,6 +38,8 @@ Thumbs.db
 
 # Tests and generated reports
 test-results/
+.ci-logs/
+.ci/
 
 # ===== اضافات Flutter و Android و الاسرار =====
 # أسرار — لا تُرفع أبدًا (ق-44)
@@ -83,7 +85,15 @@ supabase/.temp/
 # ملف مثال المتغيرات يجب ان يبقى محفوظا في Git
 !.env.example
 
+# ZCode session plans are transient; project truth lives in docs/memory.
+.zcode/plans/
+
 # Security audit artifacts - never commit
 _evidence/
 evidence.tgz
 WELL-IRRIGATION_FULL_TECHNICAL_REPORT.md
+
+# قناة جلسة الفحص الحيّة: سجل التشغيل وملاحظات المالك.
+# داخل المستودع لأن ${TMPDIR} يختلف بين المالك والمساعد، وغير متعقَّبة
+# لأنها مخرَج جلسة لا مصدر حقيقة.
+.wi-live/

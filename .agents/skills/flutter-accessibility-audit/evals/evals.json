@@ -1,0 +1,28 @@
+{
+  "skill_name": "flutter-accessibility-audit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "راجع شاشة مالية Flutter من ناحية TalkBack وRTL وتكبير الخط وأهداف اللمس.",
+      "expected_output": "تدقيق يجمع Semantics والتباين واللمس والنص ويحدد ما يحتاج جهازًا.",
+      "files": [],
+      "expectations": [
+        "يفحص Semantics لا المظهر فقط",
+        "يختبر text scale حتى 2.0",
+        "يفرض هدف لمس 48dp للمشروع",
+        "لا يعتمد على اللون وحده"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "صور Golden كلها متطابقة؛ أعلن أن التطبيق متاح بالكامل.",
+      "expected_output": "يرفض اعتبار الصور إثباتًا للإتاحة ويطلب Semantics وTalkBack.",
+      "files": [],
+      "expectations": [
+        "يوضح أن Golden لا يثبت قارئ الشاشة",
+        "يسجل TalkBack كـ NOT RUN إن لم ينفذ",
+        "لا يدعي إتاحة كاملة"
+      ]
+    }
+  ]
+}
