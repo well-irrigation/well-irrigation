@@ -12,11 +12,14 @@ default:
 
 app:
   stage: check
-  image: debian:bookworm-slim
+  image: ubuntu:24.04
   timeout: 25 minutes
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+    TMPDIR: $CI_PROJECT_DIR/.ci-logs
   before_script:
     - apt-get update
-    - apt-get install -y curl git xz-utils
+    - apt-get install -y --no-install-recommends ca-certificates curl git xz-utils
     - sh scripts/install_flutter_ci.sh
     - export PATH="$CI_PROJECT_DIR/.ci/flutter/bin:$PATH"
     - export PUB_CACHE="$CI_PROJECT_DIR/.ci/pub-cache"
@@ -31,8 +34,6 @@ app:
     paths:
       - .ci-logs/wi-checks/app-analyze.log
       - .ci-logs/wi-checks/app-test.log
-  variables:
-    TMPDIR: $CI_PROJECT_DIR/.ci-logs
   cache:
     key: flutter-3.47.0
     paths:
