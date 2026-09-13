@@ -25,6 +25,7 @@ app:
         -o Dpkg::Options::="--force-confold"
         -o Dpkg::Options::="--force-unsafe-io"
         ca-certificates curl git xz-utils
+    - git config --global --add safe.directory '*'
     - sh scripts/install_flutter_ci.sh
     - export PATH="$CI_PROJECT_DIR/.ci/flutter/bin:$PATH"
     - export PUB_CACHE="$CI_PROJECT_DIR/.ci/pub-cache"
