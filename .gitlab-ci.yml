@@ -16,8 +16,8 @@ app:
   timeout: 25 minutes
   variables:
     DEBIAN_FRONTEND: noninteractive
-    TMPDIR: $CI_PROJECT_DIR/.ci-logs
   before_script:
+    - mkdir -p "$CI_PROJECT_DIR/.ci-logs"
     - apt-get update
     - apt-get install -y --no-install-recommends ca-certificates curl git xz-utils
     - sh scripts/install_flutter_ci.sh
@@ -27,6 +27,7 @@ app:
     - flutter pub get
     - cd ../..
   script:
+    - export TMPDIR="$CI_PROJECT_DIR/.ci-logs"
     - sh scripts/check_app.sh
   artifacts:
     when: on_failure
