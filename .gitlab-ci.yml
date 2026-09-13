@@ -18,8 +18,13 @@ app:
     DEBIAN_FRONTEND: noninteractive
   before_script:
     - mkdir -p "$CI_PROJECT_DIR/.ci-logs"
-    - apt-get update
-    - apt-get install -y --no-install-recommends ca-certificates curl git xz-utils
+    - rm -f /var/lib/dpkg/info/man-db.postinst
+    - dpkg --configure -a || true
+    - apt-get update -qq
+    - apt-get install -y -qq --no-install-recommends
+        -o Dpkg::Options::="--force-confold"
+        -o Dpkg::Options::="--force-unsafe-io"
+        ca-certificates curl git xz-utils
     - sh scripts/install_flutter_ci.sh
     - export PATH="$CI_PROJECT_DIR/.ci/flutter/bin:$PATH"
     - export PUB_CACHE="$CI_PROJECT_DIR/.ci/pub-cache"
