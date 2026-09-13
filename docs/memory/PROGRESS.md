@@ -1,6 +1,6 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-09-03
+**آخر تحديث:** 2026-09-13
 
 ## 2026-08-30 — Audit 1: Flutter Data API Boundary
 
@@ -2680,3 +2680,24 @@ GitHub Actions `🎉 354 tests passed.` وفي الطرفية `+354: All tests p
 
 هذه أدلة محلية على الأدوات، ولا تحول GitLab CI/CD إلى Verified قبل تشغيله
 داخل GitLab ثم تشغيل النشر الحقيقي.
+
+## 2026-09-13 — إغلاق م-42 ونشر هجرة 099 سحابيًا
+
+### ما ثبت فعلًا
+
+- أُضيفت متغيرات Supabase المشفرة والمحمية في إعدادات GitLab CI/CD (`SUPABASE_DB_PASSWORD` و `SUPABASE_ACCESS_TOKEN`).
+- نجح أول خط عمل (GitLab CI Pipeline) لفحص التطبيق والقاعدة وحرس الفهرس على طلب الدمج !1.
+- دُمج فرع العمل `fix/live-session-and-auth` إلى `main` عند `96d7dba`.
+- نُفِّذت وظيفة النشر السحابي اليدوية (`production`) بنجاح:
+  - طُبّقت هجرة 099 (`farmer_directory_reads.sql`) على قاعدة Supabase السحابية عبر المنفذ 6543.
+  - نُشرت دالة الحافة `reset-password`.
+- شُغِّل `npm run cloud:verify` محليًا على يد المالك بعد سحب `main`، وأثبت:
+  - `MIGRATIONS_LOCAL=98` مقابل `MIGRATIONS_CLOUD=98` (`MISSING_IN_CLOUD=0`).
+  - `FUNCTIONS_INDEX=195` مقابل `FUNCTIONS_CLOUD=195` (`FUNCTIONS_MISSING_IN_CLOUD=0`، `FUNCTIONS_EXTRA_IN_CLOUD=0`).
+  - `IAM_PERMISSIONS=43` و `IAM_ROLE_PERMISSIONS=79` بلا تغيير.
+  - نجاح الفحص السحابي الكامل: كل ترحيلات القرص ودوال الفهرس موجودة سحابيًا ومطابقة.
+- إغلاق م-42 بالكامل وصارت قناة GitLab CI/CD معتمدة ومثبتة عمليًا.
+
+### التالي
+
+تقرير إغلاق ق-120.
