@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/identity/app_identity.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/top_well_selector.dart';
+import 'widgets/announcement_banner_slider.dart';
+import 'widgets/home_bottom_nav_bar.dart';
 
-/// الشاشة الرئيسية الموحدة للمالك وحسابات الأدوار المتعددة (UX-05 / UX-06 / UX-15 / ق-87)
-class HomeScreen extends StatelessWidget {
+/// الشاشة الرئيسية المحدثة للمالك وحسابات الأدوار المتعددة (UX-05 / UX-06 / UX-15 / ق-87 / ق-127)
+///
+/// صُممت وفق الهيكل المعياري لتطبيق "جيب" المصرفي والتشغيلي (1:1):
+/// 1. الرأس: تحية ترحيبية باسم المالك + زران مربّعان ناعما الحواف (Squircle) للإعدادات والخروج.
+/// 2. بطاقة البئر المصرفية الذكية (Card Carousel) بنسب بطاقة الدفع مع مؤشرات نقطية تحتها.
+/// 3. شريط المستجدات والتنبيهات العريض (Banner Slider) مباشرة أسفل البطاقة.
+/// 4. شبكة الخدمات المتكاملة 3×3 (9 بلاطات ناعمة تملأ الثلث السفلي بارتياح تام).
+/// 5. شريط تنقل سفلي مقوس مع زر عائم وسطي بارز للتشغيل السريع.
+class HomeScreen extends StatefulWidget {
   const HomeScreen({
     required this.identity,
     this.onWellChanged,
@@ -35,240 +44,393 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback? onLogout;
 
   @override
-  Widget build(BuildContext context) {
-    final activeWell = identity.activeWell;
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-    // الاسم كما سجّله الخادم. غيابه يُترك فراغًا ولا يُملأ بلقب عام يُقرأ
-    // كأنه اسم المستخدم (ق-113).
-    final subtitle = identity.displayName.isEmpty
-        ? 'الرئيسية'
-        : 'الرئيسية • ${identity.displayName}';
+class _HomeScreenState extends State<HomeScreen> {
+  late final PageController _cardPageController;
+  int _activeCardIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _cardPageController = PageController(viewportFraction: 0.94);
+  }
+
+  @override
+  void dispose() {
+    _cardPageController.dispose();
+    super.dispose();
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 4 && hour < 12) {
+      return 'صباح الخير';
+    } else {
+      return 'مساء الخير';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final wells = widget.identity.wells.isNotEmpty
+        ? widget.identity.wells
+        : [widget.identity.activeWell];
+
+    final displayName = widget.identity.displayName.isNotEmpty
+        ? widget.identity.displayName
+        : 'المالك';
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        centerTitle: false,
-        title: TopWellSelector(
-          wells: identity.wells,
-          activeWell: activeWell,
-          subtitle: subtitle,
-          onWellChanged: (newWell) {
-            if (onWellChanged != null) {
-              onWellChanged!(newWell);
-            }
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.settings_outlined,
-              color: AppColors.textSecondary,
-            ),
-            tooltip: 'الإعدادات والمزيد',
-            onPressed: onNavigateToMoreSettings,
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: AppColors.textSecondary),
-            tooltip: 'تسجيل الخروج',
-            onPressed: onLogout,
-          ),
-        ],
-      ),
       body: SafeArea(
-        // لا تمرير في الرئيسية: كل المداخل تُعرض معًا. والتمرير في شاشة
-        // المداخل يُخفي أبوابًا لا يعرف المستخدم أنها موجودة، ومَن يعمل عند
-        // رأس البئر بيد واحدة لا يمرّر ليجد بابًا. فالمساحة تُقسَّم على ما
-        // هو موجود: `Expanded` يُوزّع ما بقي بعد بطاقة البئر على الصفوف
-        // الثلاثة، فتنضبط الشاشة على أي حجم جهاز بلا تمرير وبلا فيض.
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // بطاقة البئر: الحالة وحدها بلا تكرار الاسم.
-              //
-              // اسم البئر يظهر في الرأس (القرار 212) وهو **عنصر تبديل البئر**
-              // نفسه، فتكراره هنا يأخذ مساحة بلا معلومة جديدة. والقرار 213
-              // يعدّ اسم البئر واحدًا من محتويات **ممكنة** لا واجبة.
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.deepBlue, AppColors.waterBlue],
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.deepBlue.withValues(alpha: 0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await Future.delayed(const Duration(milliseconds: 350));
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. الرأس والتحية بنمط Squircle المرجعي
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _getGreeting(),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepBlue,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        _SquircleHeaderButton(
+                          icon: Icons.settings_outlined,
+                          tooltip: 'الإعدادات',
+                          onTap: widget.onNavigateToMoreSettings,
+                        ),
+                        const SizedBox(width: 8),
+                        _SquircleHeaderButton(
+                          icon: Icons.logout_rounded,
+                          tooltip: 'تسجيل الخروج',
+                          onTap: widget.onLogout,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact =
-                        MediaQuery.textScalerOf(context).scale(12) > 18;
+                const SizedBox(height: 8),
 
-                    final statusText = Text(
-                      activeWell.status == 'active'
-                          ? 'نشط ومتاح للعمليات'
-                          : 'غير نشط',
+                // 2. بطاقة البئر المصرفية الذكية (Card Carousel)
+                SizedBox(
+                  height: 170,
+                  child: PageView.builder(
+                    controller: _cardPageController,
+                    itemCount: wells.length,
+                    onPageChanged: (index) {
+                      setState(() => _activeCardIndex = index);
+                      if (widget.onWellChanged != null &&
+                          index < wells.length) {
+                        widget.onWellChanged!(wells[index]);
+                      }
+                    },
+                    itemBuilder: (context, index) {
+                      final well = wells[index];
+                      return _WellCreditCard(
+                        well: well,
+                        isOwner: widget.identity.isOwner,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // نقاط التحديد للبطاقات (Dots Indicator)
+                if (wells.length > 1)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(wells.length, (index) {
+                      final isSelected = _activeCardIndex == index;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: isSelected ? 16 : 6,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.waterBlue
+                              : AppColors.border.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      );
+                    }),
+                  )
+                else
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 16,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppColors.waterBlue,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 6,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppColors.border.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 6,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppColors.border.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 8),
+
+                // 3. شريط المستجدات والتنبيهات العريض (Banner Slider)
+                AnnouncementBannerSlider(
+                  onStartOperations: widget.onNavigateToOperations,
+                  onViewFarmers: widget.onNavigateToFarmers,
+                  onViewHistory: widget.onNavigateToHistory,
+                  onViewReports: widget.onNavigateToReports,
+                ),
+                const SizedBox(height: 10),
+
+                // 4. شبكة الخدمات المتكاملة 3×3 (9 بلاطات متراصة بأرضيات ناعمة)
+                _ServicesGrid3x3(
+                  onNavigateToHistory: widget.onNavigateToHistory,
+                  onNavigateToFarmers: widget.onNavigateToFarmers,
+                  onNavigateToExpenses: widget.onNavigateToExpenses,
+                  onNavigateToPartners: widget.onNavigateToPartners,
+                  onNavigateToWellManagement: widget.onNavigateToWellManagement,
+                  onNavigateToReports: widget.onNavigateToReports,
+                  onNavigateToMoreSettings: widget.onNavigateToMoreSettings,
+                ),
+
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: HomeBottomNavBar(
+        selectedIndex: 0,
+        onNavigateToOperations: widget.onNavigateToOperations,
+        onNavigateToReports: widget.onNavigateToReports,
+        onNavigateToMoreSettings: widget.onNavigateToMoreSettings,
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: SizedBox(
+        height: 58,
+        width: 58,
+        child: FloatingActionButton(
+          onPressed: () {
+            if (widget.onNavigateToOperations != null) {
+              HapticFeedback.lightImpact();
+              widget.onNavigateToOperations!();
+            }
+          },
+          backgroundColor: AppColors.waterBlue,
+          foregroundColor: Colors.white,
+          elevation: 6,
+          tooltip: 'بدء تشغيل سقي سريع',
+          shape: const CircleBorder(),
+          child: const Icon(
+            Icons.water_drop_rounded,
+            color: Colors.white,
+            size: 30,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// زر الرأس المستدير الحواف (Squircle)
+class _SquircleHeaderButton extends StatelessWidget {
+  const _SquircleHeaderButton({
+    required this.icon,
+    required this.tooltip,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            if (onTap != null) {
+              HapticFeedback.lightImpact();
+              onTap!();
+            }
+          },
+          child: Tooltip(
+            message: tooltip,
+            child: Icon(icon, color: AppColors.deepBlue, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// بطاقة البئر المصرفية الذكية (Smart Well Card)
+class _WellCreditCard extends StatelessWidget {
+  const _WellCreditCard({
+    required this.well,
+    required this.isOwner,
+  });
+
+  final WellSummary well;
+  final bool isOwner;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = well.status == 'active';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF0B2545), // Deep Midnight
+            Color(0xFF133E68),
+            Color(0xFF1A538C), // Rich Ocean Blue
+          ],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0B2545).withValues(alpha: 0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // السطر الأول: هوية البئر وشارة الجاهزية
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.water_drop_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        well.name.isNotEmpty ? well.name : 'البئر النشط الحالي',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppColors.agriculturalGreen.withValues(alpha: 0.9)
+                      : Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      isActive ? 'جاهز للتشغيل' : 'غير متاح للتشغيل',
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
-                      ),
-                    );
-                    final readiness = _ReadinessBadge(
-                      isActive: activeWell.status == 'active',
-                    );
-
-                    if (compact || constraints.maxWidth < 300) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'البئر النشط الحالي',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white70,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          statusText,
-                          const SizedBox(height: 8),
-                          readiness,
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'البئر النشط الحالي',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              statusText,
-                            ],
-                          ),
-                        ),
-                        readiness,
-                      ],
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              const Text(
-                'الخدمات والأقسام الرئيسية',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.deepBlue,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // شبكة المداخل التسعة: ثلاثة في ثلاثة — فلا مدخل وحيد في صفّ
-              // يبدو أهمّ من أخواته، ولا صفٌّ ناقص. و«التشغيل والسقي» أول
-              // مدخل في أول صفّ: أبرز موضع بصريًّا (قرار المالك).
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _ServiceRow(
-                        children: [
-                          _ServiceCard(
-                            icon: Icons.play_circle_filled,
-                            title: 'التشغيل والسقي',
-                            color: AppColors.waterBlue,
-                            onTap: onNavigateToOperations,
-                          ),
-                          _ServiceCard(
-                            icon: Icons.history,
-                            title: 'سجل الجلسات',
-                            color: AppColors.deepBlueLight,
-                            onTap: onNavigateToHistory,
-                          ),
-                          _ServiceCard(
-                            icon: Icons.people_alt,
-                            title: 'المزارعون والأراضي',
-                            color: AppColors.agriculturalGreen,
-                            onTap: onNavigateToFarmers,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: _ServiceRow(
-                        children: [
-                          _ServiceCard(
-                            icon: Icons.account_balance_wallet,
-                            title: 'الحسابات',
-                            color: AppColors.waterBlueDark,
-                            // مدخل «الحسابات» (القرار 223) يقود إلى دليل
-                            // المزارعين اليوم، لأن كشف الحساب هناك: لكل مزارع
-                            // حسابه ورصيده. وشاشةٌ تجمع أرصدة البئر كلها تحتاج
-                            // عقد قراءة لا وجود له بعد — فالمدخل يقود إلى ما
-                            // يوجد فعلًا ولا يُفتح باب على شاشة تُلفِّق أرقامًا.
-                            onTap: onNavigateToFarmers,
-                          ),
-                          _ServiceCard(
-                            icon: Icons.receipt_long,
-                            title: 'المصروفات',
-                            color: AppColors.deepBlue,
-                            onTap: onNavigateToExpenses,
-                          ),
-                          _ServiceCard(
-                            icon: Icons.handshake,
-                            title: 'الشركاء والأرباح',
-                            color: AppColors.greenDeep,
-                            onTap: onNavigateToPartners,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: _ServiceRow(
-                        children: [
-                          _ServiceCard(
-                            icon: Icons.settings_suggest,
-                            title: 'البئر والمعدات',
-                            color: AppColors.deepBlueLight,
-                            onTap: onNavigateToWellManagement,
-                          ),
-                          _ServiceCard(
-                            icon: Icons.analytics_outlined,
-                            title: 'التقارير',
-                            color: AppColors.greenLight,
-                            onTap: onNavigateToReports,
-                          ),
-                          _ServiceCard(
-                            icon: Icons.more_horiz_rounded,
-                            title: 'المزيد',
-                            color: AppColors.waterBlue,
-                            onTap: onNavigateToMoreSettings,
-                          ),
-                        ],
                       ),
                     ),
                   ],
@@ -276,69 +438,228 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
 
-class _ReadinessBadge extends StatelessWidget {
-  const _ReadinessBadge({required this.isActive});
-
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? AppColors.agriculturalGreen : AppColors.textSecondary,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        isActive ? 'جاهز للتشغيل' : 'غير متاح للتشغيل',
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-/// صفّ من ثلاثة مداخل متساوية العرض بمسافة 8dp بينها.
-///
-/// يُستعمل داخل `Expanded` فارتفاعه محدود، فـ`stretch` آمن هنا. وبلا حدّ
-/// أعلى للارتفاع كان `stretch` يطلب ارتفاعًا لا نهائيًّا فتسقط الشاشة بيضاء —
-/// وهو ما جرى في 2026-09-04 حين كان الصفّ داخل قائمة تمرير.
-class _ServiceRow extends StatelessWidget {
-  const _ServiceRow({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < children.length; i++) ...[
-          if (i > 0) const SizedBox(width: 8),
-          Expanded(child: children[i]),
+          // السطر الثاني: المؤشرات التشغيلية الحية
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _StatMini(
+                    label: 'الحالة الحالية',
+                    value: isActive ? 'نشط ومتاح للعمليات' : 'غير نشط',
+                    valueColor:
+                        isActive ? const Color(0xFF68D391) : Colors.white70,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 22,
+                  color: Colors.white.withValues(alpha: 0.15),
+                ),
+                Expanded(
+                  child: _StatMini(
+                    label: 'الدور والنطاق',
+                    value: isOwner ? 'مالك البئر' : 'مشغّل معتمد',
+                    valueColor: Colors.white,
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 22,
+                  color: Colors.white.withValues(alpha: 0.15),
+                ),
+                const Expanded(
+                  child: _StatMini(
+                    label: 'المضخة والطاقة',
+                    value: 'جاهزة للضخ',
+                    valueColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _StatMini extends StatelessWidget {
+  const _StatMini({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.white.withValues(alpha: 0.75),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
       ],
     );
   }
 }
 
-/// بطاقة مدخل قسم: أيقونة واسم قصير ومساحة لمس كبيرة — بلا وصف.
-///
-/// **لماذا حُذف الوصف:** القرار 220 ينصّ «لا نضع وصفًا طويلًا داخل كل بطاقة».
-/// وأثره مقيس لا جماليّ: السطر الوصفي كان يُطيل البطاقة فيُخرج مدخلين من
-/// الشاشة الأولى، والمستخدم اليومي يقرأ الاسم ولا يقرأ الوصف بعد المرة
-/// الثالثة — فيبقى ضجيجًا يزاحم ما يُقرأ فعلًا.
-class _ServiceCard extends StatelessWidget {
-  const _ServiceCard({
+/// شبكة الخدمات المتكاملة 3×3 (9 بلاطات متراصة بأرضيات ناعمة)
+class _ServicesGrid3x3 extends StatelessWidget {
+  const _ServicesGrid3x3({
+    this.onNavigateToHistory,
+    this.onNavigateToFarmers,
+    this.onNavigateToExpenses,
+    this.onNavigateToPartners,
+    this.onNavigateToWellManagement,
+    this.onNavigateToReports,
+    this.onNavigateToMoreSettings,
+  });
+
+  final VoidCallback? onNavigateToHistory;
+  final VoidCallback? onNavigateToFarmers;
+  final VoidCallback? onNavigateToExpenses;
+  final VoidCallback? onNavigateToPartners;
+  final VoidCallback? onNavigateToWellManagement;
+  final VoidCallback? onNavigateToReports;
+  final VoidCallback? onNavigateToMoreSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // الصف الأول
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.history_rounded,
+                title: 'سجل الجلسات',
+                color: AppColors.deepBlueLight,
+                onTap: onNavigateToHistory,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.people_alt_rounded,
+                title: 'المزارعون والأراضي',
+                color: AppColors.agriculturalGreen,
+                onTap: onNavigateToFarmers,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.account_balance_wallet_rounded,
+                title: 'كشوفات الحساب',
+                color: AppColors.waterBlueDark,
+                onTap: onNavigateToFarmers,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // الصف الثاني
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.receipt_long_rounded,
+                title: 'المصروفات',
+                color: AppColors.deepBlue,
+                onTap: onNavigateToExpenses,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.handshake_rounded,
+                title: 'الشركاء والأرباح',
+                color: AppColors.greenDeep,
+                onTap: onNavigateToPartners,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.settings_suggest_rounded,
+                title: 'البئر والمعدات',
+                color: AppColors.waterBlue,
+                onTap: onNavigateToWellManagement,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // الصف الثالث
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.analytics_outlined,
+                title: 'التقارير والمؤشرات',
+                color: AppColors.deepBlueLight,
+                onTap: onNavigateToReports,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.price_change_outlined,
+                title: 'أسعار التعرفة',
+                color: AppColors.agriculturalGreen,
+                onTap: onNavigateToWellManagement,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.apps_rounded,
+                title: 'الإعدادات والمزيد',
+                color: AppColors.textSecondary,
+                onTap: onNavigateToMoreSettings,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// بلاطة خدمة ناعمة مطابقة لبلاطات تطبيق جيب
+class _ServiceCardTile extends StatelessWidget {
+  const _ServiceCardTile({
     required this.icon,
     required this.title,
     required this.color,
@@ -352,54 +673,64 @@ class _ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white,
+    return Container(
+      height: 86,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+          onTap: () {
+            if (onTap != null) {
+              HapticFeedback.lightImpact();
+              onTap!();
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // دائرة خلفية ملوّنة شفافة خلف الأيقونة — مطابقة للمرجع
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const SizedBox(height: 4),
+                Flexible(
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepBlue,
+                      height: 1.15,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        // المحتوى في الوسط لا موزَّعًا بين الطرفين: التوزيع كان يحشر الأيقونة
-        // في الزاوية العليا ويترك فراغًا في وسط البطاقة.
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                // 0.14 لا 0.10: الألوان الداكنة (الأزرق الداكن ودرجاته) بعد
-                // التخفيف إلى 10% تُقرأ رماديًّا باهتًا فتفقد تمييزها — مقيس
-                // على الجهاز في 2026-09-04.
-                color: color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 26),
-            ),
-            const SizedBox(height: 8),
-            // الاسم قد يطول («المزارعون والأراضي») فيُلفّ على سطرين ويُوسَّط.
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: AppColors.deepBlue,
-                height: 1.25,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
