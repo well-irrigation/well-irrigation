@@ -8,6 +8,7 @@ import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.
 import 'package:well_irrigation_mobile/core/session/session_business_state.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
+
 import '../../support/identity_fixture.dart';
 
 /// مستودع تسعير مُتحكَّم به: يُعيد ما يُعيده العقد أو يفشل مثله، ويعدّ
@@ -46,13 +47,13 @@ class _RecordingCoordinator extends OfflineSessionCoordinator {
 }
 
 PriceScheduleModel _schedule(List<PriceRuleModel> rules) => PriceScheduleModel(
-      id: 'sched-092',
-      wellId: 'well-1',
-      name: 'تعرفة 2026',
-      status: 'active',
-      effectiveFrom: DateTime(2026, 1, 1),
-      rules: rules,
-    );
+  id: 'sched-092',
+  wellId: 'well-1',
+  name: 'تعرفة 2026',
+  status: 'active',
+  effectiveFrom: DateTime(2026, 1, 1),
+  rules: rules,
+);
 
 /// تسعيرة شاشة التشغيل تأتي من `api.get_active_price_schedule` وحده
 /// (م-41D6 / ق-99 / القرار 341).
@@ -112,6 +113,7 @@ void main() {
     WidgetTester tester, {
     required _FakePriceRepository repo,
     required OfflineSessionCoordinator coordinator,
+    DateTime Function()? clock,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -119,6 +121,7 @@ void main() {
           identity: testIdentity(accountId: accountId, wells: const [well]),
           coordinator: coordinator,
           priceRepository: repo,
+          clock: clock,
         ),
       ),
     );
@@ -134,8 +137,9 @@ void main() {
     coordinator.dispose();
   });
 
-  testWidgets('1. الأسعار المعروضة هي أسعار العقد لا أسعار مكتوبة في العميل',
-      (tester) async {
+  testWidgets('1. الأسعار المعروضة هي أسعار العقد لا أسعار مكتوبة في العميل', (
+    tester,
+  ) async {
     final repo = _FakePriceRepository(
       schedule: _schedule(const [solarRule, wellDieselRule]),
     );
@@ -158,8 +162,9 @@ void main() {
     expect(repo.calls, 1);
   });
 
-  testWidgets('2. قاعدة بلا سعر ساعي تُعلن الغياب ولا تُسلَّم للمُسقط',
-      (tester) async {
+  testWidgets('2. قاعدة بلا سعر ساعي تُعلن الغياب ولا تُسلَّم للمُسقط', (
+    tester,
+  ) async {
     final repo = _FakePriceRepository(
       schedule: _schedule(const [solarRule, farmerDieselRule]),
     );
@@ -179,8 +184,9 @@ void main() {
     expect(snapshots.single.ruleId, 'rule-solar');
   });
 
-  testWidgets('3. غياب الجدول الساري يُعرض كغياب ولا يُخمَّن سعر',
-      (tester) async {
+  testWidgets('3. غياب الجدول الساري يُعرض كغياب ولا يُخمَّن سعر', (
+    tester,
+  ) async {
     final repo = _FakePriceRepository();
     await pumpScreen(tester, repo: repo, coordinator: coordinator);
 
@@ -199,17 +205,15 @@ void main() {
     expect(find.text('التسعيرة غير متوفرة'), findsNWidgets(3));
   });
 
-  testWidgets('4. فشل قراءة التسعيرة يُعلن، و«إعادة المحاولة» قراءة جديدة',
-      (tester) async {
+  testWidgets('4. فشل قراءة التسعيرة يُعلن، و«إعادة المحاولة» قراءة جديدة', (
+    tester,
+  ) async {
     final repo = _FakePriceRepository(
       failure: StateError('Supabase client is unavailable'),
     );
     await pumpScreen(tester, repo: repo, coordinator: coordinator);
 
-    expect(
-      find.textContaining('تعذر قراءة التسعيرة السارية'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('تعذر قراءة التسعيرة السارية'), findsOneWidget);
     expect(find.textContaining('ريال / ساعة'), findsNothing);
     expect(coordinator.pricingUpdates.single, isEmpty);
 
@@ -235,8 +239,9 @@ void main() {
     expect(find.text('طاقة شمسية'), findsOneWidget);
   });
 
-  testWidgets('6. رفض 42501 حالة صلاحية معلنة لا فشل ولا منع تشغيل',
-      (tester) async {
+  testWidgets('6. رفض 42501 حالة صلاحية معلنة لا فشل ولا منع تشغيل', (
+    tester,
+  ) async {
     // `price.manage` للمالك وحده (هجرة 091) بينما `session.start` للمشغل،
     // و`ops.start_irrigation_session` لا تأخذ سعرًا — فالمشغل يشغّل بلا
     // تسعيرة، ويُسعّر الخادم المقطع عند المزامنة.
@@ -263,5 +268,73 @@ void main() {
     expect(find.text('ديزل البئر ⛽'), findsOneWidget);
     expect(find.text('ديزل المزارع ⛽'), findsOneWidget);
     expect(coordinator.pricingUpdates.single, isEmpty);
+  });
+
+  testWidgets('7. FIN-001 يعرض وينهي الجلسة المختلطة بمجموع المقاطع', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final t0 = DateTime.utc(2026, 9, 15, 6);
+    final now = t0.add(const Duration(seconds: 2451));
+    const solar = PriceRuleModel(
+      id: 'solar-5000',
+      energySource: 'solar',
+      hourlyRateMinor: 5000,
+    );
+    const diesel = PriceRuleModel(
+      id: 'diesel-10000',
+      energySource: 'well_diesel',
+      hourlyRateMinor: 10000,
+    );
+    coordinator.updatePricing([
+      PricingSnapshot(
+        hourlyRateMinor: 5000,
+        effectiveFrom: t0,
+        energySource: 'solar',
+      ),
+      PricingSnapshot(
+        hourlyRateMinor: 10000,
+        effectiveFrom: t0,
+        energySource: 'well_diesel',
+      ),
+    ]);
+    final session = await coordinator.startSession(
+      accountId: accountId,
+      wellId: 'well-1',
+      pumpId: 'pump-1',
+      farmId: 'farm-1',
+      farmerAccountId: 'farmer-1',
+      energySource: 'solar',
+      startedAt: t0,
+    );
+    await coordinator.changeEnergySource(
+      accountId: accountId,
+      sessionLocalId: session.localId,
+      newEnergySource: 'well_diesel',
+      changedAt: t0.add(const Duration(seconds: 2386)),
+    );
+
+    await pumpScreen(
+      tester,
+      repo: _FakePriceRepository(schedule: _schedule(const [solar, diesel])),
+      coordinator: coordinator,
+      clock: () => now,
+    );
+
+    expect(find.text('3,493'), findsOneWidget);
+    expect(find.text('6,808'), findsNothing);
+
+    final end = find.text('إنهاء واحتساب');
+    await tester.ensureVisible(end);
+    await tester.tap(end);
+    await tester.pumpAndSettle();
+
+    expect(find.text('3,493'), findsWidgets);
+    expect(find.text('حسب مقاطع الجلسة'), findsOneWidget);
+    expect(find.textContaining('سعر الساعة ('), findsNothing);
   });
 }

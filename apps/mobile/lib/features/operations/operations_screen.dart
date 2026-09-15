@@ -10,6 +10,7 @@ import '../../core/identity/app_identity.dart';
 import '../../core/session/active_session_projector.dart';
 import '../../core/session/offline_session_coordinator.dart';
 import '../../core/session/session_business_state.dart';
+import '../../core/session/session_segment.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_utils.dart';
 import '../../core/utils/digit_utils.dart';
@@ -25,6 +26,7 @@ class OperationsScreen extends StatefulWidget {
     this.coordinator,
     this.repository,
     this.priceRepository,
+    this.clock,
     this.onWellChanged,
     this.onLogout,
     super.key,
@@ -40,6 +42,7 @@ class OperationsScreen extends StatefulWidget {
   /// مستودع قراءة جدول التسعير الساري. يُمرَّر في الاختبار، وفي التشغيل
   /// يُبنى افتراضيًا — والعقد هو `api.get_active_price_schedule`.
   final WellManagementRepository? priceRepository;
+  final DateTime Function()? clock;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
 
@@ -57,6 +60,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   String get _activeWellId => _activeWell.id;
   String get _activeWellName => _activeWell.name;
   String get _accountId => widget.identity.accountId;
+  DateTime _now() => (widget.clock ?? DateTime.now)();
 
   // خيارات الجلسة
   FarmerAccount? _selectedFarmer;
@@ -93,13 +97,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
     }
     return null;
   }
-
-  /// السعر الساعي للمصدر المختار، أو `null` إذا لم يُعده العقد.
-  ///
-  /// `null` حالة مشروعة معلنة، لا صفر ولا رقم افتراضي: قاعدة السعر قد تكون
-  /// بلا `hourly_rate_minor` (تسعير ديزل بالوقود)، وقد لا يكون للبئر جدول
-  /// ساري، وقد لا يملك المشغل صلاحية قراءة الأسعار أصلًا.
-  int? get _hourlyRateYER => _ruleFor(_energySourceCode)?.hourlyRateMinor;
 
   // حالة الجلسة المباشرة
   Timer? _timer;
@@ -176,6 +173,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         _isLoadingSchedule = false;
       });
       _coordinator.updatePricing(_snapshotsFrom(schedule));
+      await _recoverActiveSession();
     } on PostgrestException catch (e) {
       if (!mounted) return;
       // 42501 = المشغل لا يملك `price.manage`. لا تسعيرة تُعرض، والتشغيل
@@ -188,6 +186,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         _scheduleError = forbidden ? null : e.message;
       });
       _coordinator.updatePricing(const []);
+      await _recoverActiveSession();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -196,6 +195,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         _scheduleError = '$e';
       });
       _coordinator.updatePricing(const []);
+      await _recoverActiveSession();
     }
   }
 
@@ -600,24 +600,40 @@ class _OperationsScreenState extends State<OperationsScreen> {
     _timer?.cancel();
     _timer = null;
 
-    final totalSeconds = _secondsElapsed;
-    final hourlyRate = _hourlyRateYER;
-    final totalAmount = hourlyRate == null
-        ? null
-        : (hourlyRate * totalSeconds) ~/ 3600;
+    final completedAt = _now();
+    final activeSession = _coordinator.currentActiveSession;
     final activeSessionId = _activeSessionId;
 
-    if (activeSessionId == null) {
+    if (activeSessionId == null || activeSession == null) {
       // جلسة معروضة بلا معرّف: لا سند قبض لمجهول (ق-113).
-      _showActionFailure('لا معرّف جلسة — تعذر الإنهاء وإصدار سند القبض');
+      _showActionFailure('تعذر قراءة الجلسة — لم يُحسب مبلغ ولم يصدر سند');
       _startLocalTicker();
       return;
     }
+
+    final totals = summarize(activeSession.segments, completedAt);
+    final totalSeconds = totals.billableSeconds;
+    final totalAmount = totals.accruedMinor;
+    final billableSegments = activeSession.segments
+        .where((segment) => segment.kind == SegmentKind.running)
+        .toList(growable: false);
+    final sources = billableSegments
+        .map((segment) => segment.energySource)
+        .toSet();
+    final rates = billableSegments
+        .map((segment) => segment.hourlyRateMinor)
+        .toSet();
+    final usesCompositePricing = sources.length > 1 || rates.length > 1;
+    final singleHourlyRate = usesCompositePricing
+        ? null
+        : billableSegments.firstOrNull?.hourlyRateMinor;
+    final singleEnergySource = sources.length == 1 ? sources.single : null;
 
     try {
       await _coordinator.completeSession(
         accountId: _accountId,
         sessionLocalId: activeSessionId,
+        completedAt: completedAt,
       );
     } catch (e) {
       // إنهاء لم يُسجَّل: الجلسة ما زالت جارية، فيعود العداد ولا يُصدر سند.
@@ -636,7 +652,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
     if (mounted) {
       // سند قبض بلا سعر معلوم = مبلغ مُخترع. الجلسة انتهت وسُجِّلت، والمستحق
       // يحسمه الخادم بسعر وقت الحدث، فيُقال ذلك صريحًا بلا رقم (القرار 341).
-      if (hourlyRate == null || totalAmount == null) {
+      if (totalAmount == null) {
         _showNotice(
           'انتهت الجلسة وسُجِّلت. لا تسعيرة سارية لهذا المصدر، '
           'فلا سند قبض من هنا — ${SessionStateText.pricingPending}',
@@ -652,8 +668,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
           operatorName: widget.identity.displayName,
           farmerName: _selectedFarmer?.fullName ?? 'مزارع غير محدد',
           farmName: _selectedFarm?.name ?? 'أرض غير محددة',
-          energySource: energySourceLabel(_energySourceCode),
-          hourlyRateYER: hourlyRate,
+          energySource: usesCompositePricing
+              ? 'مصادر متعددة'
+              : energySourceLabel(singleEnergySource ?? _energySourceCode),
+          hourlyRateYER: singleHourlyRate,
           billableSeconds: totalSeconds,
           totalAmountYER: totalAmount,
           onConfirmPayment:
@@ -865,14 +883,16 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hourlyRate = _hourlyRateYER;
-    final accruedAmount = hourlyRate == null
+    final activeSession = _coordinator.currentActiveSession;
+    final liveTotals = activeSession == null
         ? null
-        : (hourlyRate * _secondsElapsed) ~/ 3600;
+        : summarize(activeSession.segments, _now());
+    final displaySeconds = liveTotals?.billableSeconds ?? _secondsElapsed;
+    final accruedAmount = liveTotals?.accruedMinor;
 
-    final hours = (_secondsElapsed ~/ 3600).toString().padLeft(2, '0');
-    final minutes = ((_secondsElapsed % 3600) ~/ 60).toString().padLeft(2, '0');
-    final seconds = (_secondsElapsed % 60).toString().padLeft(2, '0');
+    final hours = (displaySeconds ~/ 3600).toString().padLeft(2, '0');
+    final minutes = ((displaySeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+    final seconds = (displaySeconds % 60).toString().padLeft(2, '0');
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,

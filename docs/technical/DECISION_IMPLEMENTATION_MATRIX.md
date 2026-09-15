@@ -350,7 +350,7 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 
 - المصدر: `reports/DEVICE_ACCEPTANCE_TEST_LOG.md`.
 - UX الحاكم: ملحق ق-129 في `design/UX_UI_SPEC.md`.
-- الفجوة التنفيذية: م-43.
-- NEXT: W2-02d ثم FIN-001 ثم UX session repair.
-- الدليل الحالي: اختبار Android حقيقي.
-- الحالة: Adopted + Field Verified؛ Implementation Partial — durable foreground outbox and foreground sync verified local; device/server reacceptance remains.
+- الفجوة التنفيذية: م-43 (مفتوحة كـ Release Blocker).
+- NEXT: معالجة عيوب تجربة الجلسة والتأكيدات والتخطيط (Session UX remediation).
+- الدليل الحالي: اختبار Android حقيقي؛ وحزمة الاختبارات المحلية (385 PASS / 0 FAIL).
+- الحالة: Adopted + Field Verified؛ Implementation Partial — W2-02d (durable outbox + foreground sync) وFIN-001 (حساب المقاطع المستقلة للجلسة المختلطة: 3313 + 180 = 3493) كلاهما Implementation Verified Local؛ وDevice Acceptance / Reacceptance على الجهاز الحقيقي لا تزال معلقة؛ ولا يُعد ق-129 مكتملًا بالكامل لبقاء بنود تجربة الجلسة الميدانية مفتوحة.

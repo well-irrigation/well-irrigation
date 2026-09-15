@@ -2962,3 +2962,28 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - الطابور الفارغ يعرض حالة محايدة بلا نجاح أو خطأ كاذب.
 - التحقق الكامل: 381 PASS / 0 FAIL؛ analyze = 0.
 - NEXT: FIN-001 — الحساب المالي متعدد مصادر الطاقة.
+
+## 2026-09-15 — FIN-001: الحساب المالي متعدد مصادر الطاقة (VERIFIED LOCAL)
+
+- **المجال:** مالي ميداني / شاشة العمليات وسند القبض / توثيق.
+- **الملفات الرئيسية:**
+  - `apps/mobile/lib/features/operations/operations_screen.dart`
+  - `apps/mobile/lib/features/operations/widgets/payment_receipt_dialog.dart`
+  - `apps/mobile/test/core/session/billable_time_test.dart`
+  - `apps/mobile/test/features/operations/operations_pricing_test.dart`
+  - التوثيق: `RESUME_POINT.md`, `PROGRESS.md`, `OPEN_ISSUES.md`, `DOC_CHANGELOG.md`, `DEVICE_ACCEPTANCE_TEST_LOG.md`, `ACTIVE_SESSION_ARCHITECTURE.md`, `DECISION_IMPLEMENTATION_MATRIX.md`, `TEST_SCENARIOS.md`.
+- **ماذا تغير:**
+  - إصلاح حساب المبلغ للجلسة متعددة المصادر ليجمع اقتطاع المقاطع المستقلة `(seconds * hourly_rate) ~/ 3600` بدل ضرب إجمالي زمن الجلسة في آخر سعر.
+  - إثبات انحدار الحالة الميدانية: شمس 2386 ثانية @ 5000 = 3313 ريال + ديزل بئر 65 ثانية @ 10000 = 180 ريال ⟹ 3493 ريال (ورفض 6808 ريال).
+  - سند القبض يعرض «حسب مقاطع الجلسة» للجلسة متعددة المصادر بدل سعر مفرد مضلل.
+  - عدم إعادة تسعير المقاطع السابقة عند تغيير المصدر، وتغيير المصدر أثناء التوقف لا يضيف تكلفة.
+  - غياب سعر موثوق لأي مقطع يبقي المبلغ بانتظار التسعير (`pricing pending`).
+  - الخادم هو المرجع المالي النهائي للتسوية؛ ولا تغيير في القاعدة أو API.
+  - إضافة سيناريو الانحدار س-10 إلى `TEST_SCENARIOS.md`.
+- **لماذا تغير:**
+  - معالجة العطب المالي الحرج المكتشف ميدانيًا في القبول على جهاز Android حقيقي (ق-129 / م-43 / FIN-001).
+- **القرار المبرر:** ق-17، ق-77، ق-91، ق-99، ق-129، ونتائج القبول الميداني.
+- **طبيعة التغيير:** كود Flutter وتوثيق (تنفيذ مثبت محليًا).
+- **Baseline:** ارتفع من 381 إلى **385 PASS / 0 FAIL** (4 اختبارات جديدة)؛ `flutter analyze` = 0 issues.
+- **حالة القبول:** VERIFIED LOCAL / Device Reacceptance معلقة؛ م-43 تبقى مفتوحة كـ Release Blocker.
+- **NEXT:** معالجة عيوب تجربة الجلسة والتأكيدات والتخطيط (Session UX remediation) استنادًا إلى ق-129 والقبول الميداني.
