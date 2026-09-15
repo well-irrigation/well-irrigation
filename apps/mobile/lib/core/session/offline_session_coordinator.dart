@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../sync/command_envelope.dart';
+import '../sync/command_transport.dart';
 import '../sync/command_type.dart';
 import '../sync/outbox_repository.dart';
 import '../sync/outbox_store.dart';
@@ -22,6 +23,7 @@ class OfflineSessionCoordinator {
   OfflineSessionCoordinator({
     OutboxStore? store,
     SupabaseClient? supabaseClient,
+    CommandTransport? commandTransport,
     PricingResolver? pricingResolver,
   }) : _store = store ?? SqliteOutboxStore(),
        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
@@ -33,17 +35,29 @@ class OfflineSessionCoordinator {
       store: _store,
       pricing: _pricingResolver,
     );
-    if (supabaseClient != null) {
-      _syncEngine = SyncEngine(
-        store: _store,
-        transport: SupabaseCommandTransport(supabaseClient),
-      );
+    final transport =
+        commandTransport ??
+        (supabaseClient == null
+            ? null
+            : SupabaseCommandTransport(supabaseClient));
+    if (transport != null) {
+      _syncEngine = SyncEngine(store: _store, transport: transport);
     }
   }
 
   static OfflineSessionCoordinator? _instance;
-  static OfflineSessionCoordinator get instance =>
-      _instance ??= OfflineSessionCoordinator();
+  static SupabaseClient? _foregroundSupabaseClient;
+
+  /// يربط النسخة العامة بعميل التطبيق الحقيقي قبل أن تستخدمها الشاشات.
+  static void configureForegroundSync(SupabaseClient client) {
+    if (_instance != null) {
+      throw StateError('يجب ربط مزامنة المقدمة قبل إنشاء المنسق العام');
+    }
+    _foregroundSupabaseClient = client;
+  }
+
+  static OfflineSessionCoordinator get instance => _instance ??=
+      OfflineSessionCoordinator(supabaseClient: _foregroundSupabaseClient);
 
   final OutboxStore _store;
   late final OutboxRepository _outbox;

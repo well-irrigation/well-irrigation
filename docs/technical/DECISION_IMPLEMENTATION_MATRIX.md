@@ -353,4 +353,4 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 - الفجوة التنفيذية: م-43.
 - NEXT: W2-02d ثم FIN-001 ثم UX session repair.
 - الدليل الحالي: اختبار Android حقيقي.
-- الحالة: Adopted + Field Verified؛ Implementation Partial — durable foreground outbox verified local; foreground sync wiring remains.
+- الحالة: Adopted + Field Verified؛ Implementation Partial — durable foreground outbox and foreground sync verified local; device/server reacceptance remains.

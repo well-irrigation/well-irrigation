@@ -3,8 +3,12 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
+import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/outbox_database.dart';
 import 'package:well_irrigation_mobile/core/sync/sqlite_outbox_store.dart';
+import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
+
+import '../sync/fake_command_transport.dart';
 
 void main() {
   setUpAll(() {
@@ -105,5 +109,75 @@ void main() {
       throwsA(isA<Exception>()),
     );
     expect(foreground.currentActiveSession, isNull);
+  });
+
+  test('فشل النقل يبقي الأمر المتين ثم يؤكده إقرار لاحق بنفس هويته', () async {
+    final path = await resolveOutboxDatabasePath();
+    final store = SqliteOutboxStore(databasePath: path);
+    stores.add(store);
+    final writer = OfflineSessionCoordinator(store: store);
+    coordinators.add(writer);
+    final command = await writer.startSession(
+      accountId: 'account-a',
+      wellId: 'well-a',
+      pumpId: 'pump-a',
+      farmId: 'farm-a',
+      farmerAccountId: 'farmer-a',
+      energySource: 'solar',
+    );
+
+    final transport = FakeCommandTransport()
+      ..scheduleNetworkFailure(CommandType.startIrrigationSession);
+    final wired = OfflineSessionCoordinator(
+      store: store,
+      commandTransport: transport,
+    );
+    coordinators.add(wired);
+    expect(wired.canSyncNow, isTrue);
+
+    final failed = await wired.syncNow('account-a');
+    expect(failed.retryScheduled, 1);
+    final pending = await store.commandByLocalId('account-a', command.localId);
+    expect(pending!.status, CommandStatus.pending);
+    expect(pending.commandId, command.commandId);
+
+    final accepted = await wired.syncNow('account-a');
+    expect(accepted.confirmed, 1);
+    final confirmed = await store.commandByLocalId(
+      'account-a',
+      command.localId,
+    );
+    expect(confirmed!.status, CommandStatus.confirmed);
+    expect(confirmed.commandId, command.commandId);
+  });
+
+  test('الأمر المتين يشغّل محرك المقدمة الموصول ويؤكده الرد فقط', () async {
+    final store = SqliteOutboxStore(
+      databasePath: await resolveOutboxDatabasePath(),
+    );
+    stores.add(store);
+    final transport = FakeCommandTransport();
+    final foreground = OfflineSessionCoordinator(
+      store: store,
+      commandTransport: transport,
+    );
+    coordinators.add(foreground);
+    final syncProjection = foreground.activeSessionStream.skip(1).first;
+
+    final command = await foreground.startSession(
+      accountId: 'account-a',
+      wellId: 'well-a',
+      pumpId: 'pump-a',
+      farmId: 'farm-a',
+      farmerAccountId: 'farmer-a',
+      energySource: 'solar',
+    );
+    await syncProjection;
+
+    expect(transport.requests.single.commandId, command.commandId);
+    expect(
+      (await store.commandByLocalId('account-a', command.localId))!.status,
+      CommandStatus.confirmed,
+    );
   });
 }

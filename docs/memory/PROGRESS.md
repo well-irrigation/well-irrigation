@@ -2755,3 +2755,15 @@ GitHub Actions `🎉 354 tests passed.` وفي الطرفية `+354: All tests p
 - لا Migration ولا API ولا تغيير مالي في هذه الجولة.
 - غير مثبت بعد: Process Death على جهاز حقيقي
   والمزامنة الفعلية في foreground.
+
+## 2026-09-15 — W2-02d/2: Foreground Sync Wiring
+
+- رُبط المنسق العام بعميل Supabase الحقيقي قبل إنشائه.
+- يستخدم foreground محرك `SyncEngine` و`SupabaseCommandTransport` الموجودين.
+- الحفظ يبقى SQLite-first قبل أي محاولة شبكة.
+- فشل النقل يبقي الأمر Pending بنفس command ID.
+- النجاح اليدوي يتطلب ACK حقيقيًا وإفراغ العمل المطلوب.
+- الطابور الفارغ وسباق مزامنة أخرى يعرضان حالة محايدة.
+- `c:app`: analyze = 0؛ tests = 381 PASS / 0 FAIL.
+- لا Migration ولا API ولا تغيير مالي في هذه الجولة.
+- غير مثبت بعد: Process Death والمزامنة الحقيقية على جهاز Android.

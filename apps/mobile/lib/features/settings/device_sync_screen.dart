@@ -6,11 +6,7 @@ import '../../core/theme/app_colors.dart';
 
 /// شاشة تشخيص الجهاز والمزامنة وقاعدة البيانات المحلية (UX-16A / القرارات 556–570 / ق-89 / ق-90 / ق-114)
 class DeviceSyncScreen extends StatefulWidget {
-  const DeviceSyncScreen({
-    required this.accountId,
-    this.repository,
-    super.key,
-  });
+  const DeviceSyncScreen({required this.accountId, this.repository, super.key});
 
   /// هوية صاحب الطابور من العقد. الطابور يُقرأ بمفتاح صاحبه وحده، وإلا ظهر
   /// «لا عمليات معلَّقة» لحساب عليه عمليات لم تُرسل (ق-113).
@@ -68,6 +64,9 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
       // لا يُرسل شيء ولا يُقال إنه أُرسل.
       message = 'المزامنة اليدوية غير متاحة في هذا الإصدار — لم يُرسل شيء';
       background = AppColors.warning;
+    } on ManualSyncNothingPendingException {
+      message = 'لا توجد عمليات بانتظار المزامنة';
+      background = AppColors.info;
     } catch (_) {
       message = 'تعذرت المزامنة الآن. عملياتك محفوظة ولم يُفقد شيء.';
       background = AppColors.error;
@@ -78,10 +77,7 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
     if (!mounted) return;
     setState(() => _isSyncing = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: background,
-      ),
+      SnackBar(content: Text(message), backgroundColor: background),
     );
   }
 
@@ -124,7 +120,11 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
           const SizedBox(height: 6),
           const Text(
             'لا تُعرض هنا أرقام لم تُقرأ من هذا الجهاز. أعد المحاولة لقراءة الحالة الفعلية.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -144,7 +144,10 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: const Text('الجهاز والمزامنة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text(
+          'الجهاز والمزامنة',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -165,25 +168,39 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.agriculturalGreen.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.agriculturalGreen.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: AppColors.agriculturalGreen.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.wifi_off, color: AppColors.agriculturalGreen, size: 20),
+                          Icon(
+                            Icons.wifi_off,
+                            color: AppColors.agriculturalGreen,
+                            size: 20,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'العمل الميداني دون اتصال (Offline-First)',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.agriculturalGreen),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: AppColors.agriculturalGreen,
+                            ),
                           ),
                         ],
                       ),
                       SizedBox(height: 6),
                       Text(
                         'صُمم التطبيق ليعمل في المزارع والحقول عند انقطاع شبكة الإنترنت: تُحفظ جلسات السقي وسندات القبض والمصروفات في طابور الهاتف ثم تُرفع للسحابة (ق-89/ق-90). وما تراه أعلاه هو المقيس فعلًا على هذا الجهاز؛ وما لم يُقس بعد يُكتب «غير مقيس» ولا يُعرض كأنه يعمل.',
-                        style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textPrimary,
+                          height: 1.4,
+                        ),
                       ),
                     ],
                   ),
@@ -198,7 +215,9 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
   Widget _buildStatusCard(DeviceSyncStatusModel status) {
     final pending = status.pendingOperationsCount;
     final isClear = pending == 0;
-    final headerColor = isClear ? AppColors.agriculturalGreen : AppColors.warning;
+    final headerColor = isClear
+        ? AppColors.agriculturalGreen
+        : AppColors.warning;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -216,7 +235,9 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                 radius: 20,
                 backgroundColor: headerColor.withValues(alpha: 0.12),
                 child: Icon(
-                  isClear ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
+                  isClear
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_upload_outlined,
                   color: headerColor,
                 ),
               ),
@@ -229,12 +250,18 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                       isClear
                           ? 'لا توجد عمليات بانتظار المزامنة'
                           : 'بانتظار المزامنة: $pending عملية',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       _connectionLabel(status.isOnline),
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -273,7 +300,9 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
       _buildStatusRow(
         icon: Icons.history,
         label: 'آخر مزامنة ناجحة',
-        value: lastSync == null ? 'لم تنجح مزامنة بعد' : _formatSyncTime(lastSync),
+        value: lastSync == null
+            ? 'لم تنجح مزامنة بعد'
+            : _formatSyncTime(lastSync),
         isGood: lastSync != null,
       ),
       const SizedBox(height: 10),
@@ -297,7 +326,10 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
             ? const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : const Icon(Icons.sync, size: 18),
         label: Text(_isSyncing ? 'جارٍ المحاولة…' : 'مزامنة الآن'),
@@ -321,7 +353,13 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
         Icon(icon, size: 16, color: AppColors.textSecondary),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ),
         Text(
           value,
