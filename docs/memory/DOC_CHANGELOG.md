@@ -2941,3 +2941,14 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 **Baseline:**
 لا يتغير في هذه الدفعة؛ لا Flutter/DB test جديد.
 الدليل الجديد Field Evidence على جهاز Android حقيقي.
+
+## 2026-09-15 — W2-02d/1: توصيل الطابور الدائم في المقدمة
+
+- النوع: تنفيذ Flutter + توثيق؛ بلا DB/API change.
+- `OfflineSessionCoordinator` صار يستخدم SQLite
+  الدائم افتراضيًا بدل RAM.
+- foreground والـworker يشتركان في مسار DB واحد.
+- لا fallback صامت إلى الذاكرة عند فشل SQLite.
+- اختبار دائم جديد يثبت إعادة الفتح والترتيب والعزل.
+- التحقق الكامل: 374 PASS / 0 FAIL؛ analyze = 0.
+- NEXT: W2-02d/2 — foreground sync wiring.

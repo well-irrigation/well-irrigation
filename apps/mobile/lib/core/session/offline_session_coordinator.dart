@@ -4,14 +4,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../sync/command_envelope.dart';
 import '../sync/command_type.dart';
-import '../sync/in_memory_outbox_store.dart';
 import '../sync/outbox_repository.dart';
 import '../sync/outbox_store.dart';
+import '../sync/sqlite_outbox_store.dart';
 import '../sync/supabase_command_transport.dart';
 import '../sync/sync_engine.dart';
 import 'active_session_projector.dart';
 import 'active_session_record.dart';
-
 
 /// منسق جلسات السقي والعمل دون اتصال والمزامنة المتينة (ق-89 / ق-90 / ق-114)
 ///
@@ -24,11 +23,11 @@ class OfflineSessionCoordinator {
     OutboxStore? store,
     SupabaseClient? supabaseClient,
     PricingResolver? pricingResolver,
-  })  : _store = store ?? InMemoryOutboxStore(),
-        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
-        // `api.get_active_price_schedule` عبر `updatePricing`. حتى تُغذّى،
-        // كل مقطع محتسب «بانتظار المزامنة» ولا يُسعَّر بصفر (القرار 341).
-        _pricingResolver = pricingResolver ?? const PricingResolver.none() {
+  }) : _store = store ?? SqliteOutboxStore(),
+       // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
+       // `api.get_active_price_schedule` عبر `updatePricing`. حتى تُغذّى،
+       // كل مقطع محتسب «بانتظار المزامنة» ولا يُسعَّر بصفر (القرار 341).
+       _pricingResolver = pricingResolver ?? const PricingResolver.none() {
     _outbox = OutboxRepository(store: _store);
     _projector = ActiveSessionProjector(
       store: _store,
@@ -41,7 +40,6 @@ class OfflineSessionCoordinator {
       );
     }
   }
-
 
   static OfflineSessionCoordinator? _instance;
   static OfflineSessionCoordinator get instance =>
@@ -98,11 +96,7 @@ class OfflineSessionCoordinator {
     await initialize();
 
     final now = DateTime.now();
-    final activeSessions = await _projector.activeSessions(
-      accountId,
-      now: now,
-    );
-
+    final activeSessions = await _projector.activeSessions(accountId, now: now);
 
     if (activeSessions.isEmpty) {
       _currentProjectedSession = null;
@@ -113,7 +107,7 @@ class OfflineSessionCoordinator {
     // إذا تم تحديد البئر، نبحث عن الجلسة الخاصة به، وإلا نأخذ أول جلسة فعالة
     final match = wellId != null
         ? activeSessions.where((s) => s.wellId == wellId).firstOrNull ??
-            activeSessions.first
+              activeSessions.first
         : activeSessions.first;
 
     _currentProjectedSession = match;
@@ -168,10 +162,7 @@ class OfflineSessionCoordinator {
       aggregateLocalId: sessionLocalId,
       type: CommandType.pauseIrrigationSession,
       occurredAt: eventTime,
-      payload: {
-        'p_session_id': sessionLocalId,
-        'p_reason': reason,
-      },
+      payload: {'p_session_id': sessionLocalId, 'p_reason': reason},
     );
 
     await projectActiveSession(accountId: accountId);
@@ -193,9 +184,7 @@ class OfflineSessionCoordinator {
       aggregateLocalId: sessionLocalId,
       type: CommandType.resumeIrrigationSession,
       occurredAt: eventTime,
-      payload: {
-        'p_session_id': sessionLocalId,
-      },
+      payload: {'p_session_id': sessionLocalId},
     );
 
     await projectActiveSession(accountId: accountId);
@@ -222,7 +211,6 @@ class OfflineSessionCoordinator {
         'p_session_id': sessionLocalId,
         'p_new_source': newEnergySource,
       },
-
     );
 
     await projectActiveSession(accountId: accountId);
@@ -244,9 +232,7 @@ class OfflineSessionCoordinator {
       aggregateLocalId: sessionLocalId,
       type: CommandType.completeIrrigationSession,
       occurredAt: eventTime,
-      payload: {
-        'p_session_id': sessionLocalId,
-      },
+      payload: {'p_session_id': sessionLocalId},
     );
 
     await projectActiveSession(accountId: accountId);
@@ -283,8 +269,6 @@ class OfflineSessionCoordinator {
       },
     );
 
-
-
     await projectActiveSession(accountId: accountId, wellId: wellId);
     _triggerSync(accountId);
     return envelope;
@@ -292,17 +276,19 @@ class OfflineSessionCoordinator {
 
   void _triggerSync(String accountId) {
     if (_syncEngine == null) return;
-    _syncEngine!.run(accountId).then((_) {
-      // بعد المزامنة، نعيد إسقاط الحالة لتحديث معرّفات الخادم
-      if (_currentProjectedSession != null) {
-        projectActiveSession(
-          accountId: _currentProjectedSession!.accountId,
-          wellId: _currentProjectedSession!.wellId,
-        );
-      }
-    }).catchError((_) {});
+    _syncEngine!
+        .run(accountId)
+        .then((_) {
+          // بعد المزامنة، نعيد إسقاط الحالة لتحديث معرّفات الخادم
+          if (_currentProjectedSession != null) {
+            projectActiveSession(
+              accountId: _currentProjectedSession!.accountId,
+              wellId: _currentProjectedSession!.wellId,
+            );
+          }
+        })
+        .catchError((_) {});
   }
-
 
   /// جلب عدد العمليات المعلقة في الطابور المتين (القرار 563 / القرار 578)
   ///
@@ -313,10 +299,8 @@ class OfflineSessionCoordinator {
     return _outbox.pendingCount(accountId);
   }
 
-  /// هل الطابور المستعمل مخزَّن على قرص الهاتف فعلًا؟ الافتراضي في هذا
-  /// البناء طابور ذاكرة، فلا يجوز إعلان جاهزية تخزين محلي دائم للمستخدم
-  /// قبل توصيل الطابور الدائم في واجهة التطبيق.
-  bool get usesDurableStore => _store is! InMemoryOutboxStore;
+  /// المخزن الافتراضي يفتح ملف الطابور نفسه الذي يستخدمه العامل الخلفي.
+  bool get usesDurableStore => _store is SqliteOutboxStore;
 
   /// هل يوجد ناقل مزامنة موصول بهذا المنسق؟ بلا ناقل لا يجوز الادعاء أن
   /// المزامنة جرت.

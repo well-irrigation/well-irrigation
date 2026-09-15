@@ -794,3 +794,23 @@ Reminder record يحتاج منطقًا محليًا يضمن:
 - 24-hour reminder deduplication.
 - manufacturer guidance absent when not validated.
 - status is understandable without color.
+
+---
+
+## تحديث 2026-09-15 — W2-02d/1
+
+الـforeground لم يعد يستخدم `InMemoryOutboxStore`
+افتراضيًا. `OfflineSessionCoordinator` يفتح
+`SqliteOutboxStore`، والمسار الافتراضي يأتي من
+`resolveOutboxDatabasePath()` نفسه المستخدم في
+`background_sync_worker.dart`.
+
+لا fallback إلى RAM عند فشل فتح الملف.
+حقن Store صريح للاختبارات ما زال مسموحًا.
+
+المثبت محليًا: إعادة فتح الملف تحفظ الأوامر
+والترتيب وعزل الحسابات؛ Full Flutter = 374 PASS.
+
+غير منفذ في هذه الجولة: foreground SyncEngine،
+manual sync الحقيقي، Server ACK UI، واختبار
+Process Death على جهاز Android.

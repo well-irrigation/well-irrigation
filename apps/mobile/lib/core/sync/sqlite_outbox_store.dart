@@ -20,19 +20,19 @@ import 'package:sqflite/sqflite.dart';
 
 import 'command_envelope.dart';
 import 'command_type.dart';
+import 'outbox_database.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
 class SqliteOutboxStore implements OutboxStore {
-  SqliteOutboxStore({
-    required this.databasePath,
-    DatabaseFactory? sqfliteFactory,
-  }) : _factory = sqfliteFactory ?? databaseFactory;
+  SqliteOutboxStore({this.databasePath, DatabaseFactory? sqfliteFactory})
+    : _factory = sqfliteFactory;
 
-  /// مسار ملف قاعدة البيانات. `inMemoryDatabasePath` مسموح في الاختبار.
-  final String databasePath;
+  /// عند غيابه يُستخدم مسار الطابور الموحد للمقدمة والعامل الخلفي.
+  /// `inMemoryDatabasePath` مسموح في الاختبار.
+  final String? databasePath;
 
-  final DatabaseFactory _factory;
+  final DatabaseFactory? _factory;
 
   static const int schemaVersion = 1;
   static const String commandsTable = 'outbox_commands';
@@ -55,8 +55,8 @@ class SqliteOutboxStore implements OutboxStore {
 
   @override
   Future<void> initialize() async {
-    _database ??= await _factory.openDatabase(
-      databasePath,
+    _database ??= await (_factory ?? databaseFactory).openDatabase(
+      databasePath ?? await resolveOutboxDatabasePath(),
       options: OpenDatabaseOptions(
         version: schemaVersion,
         onConfigure: (db) => db.execute('pragma foreign_keys = on'),

@@ -2740,3 +2740,18 @@ GitHub Actions `🎉 354 tests passed.` وفي الطرفية `+354: All tests p
   بسبب هذه الجولة؛ الدليل ميداني.
 - Pilot Readiness = BLOCKED حتى إصلاح
   موانع م-43 وإعادة القبول على الجهاز.
+
+## 2026-09-15 — W2-02d/1: Durable Foreground Outbox
+
+- استُبدل المخزن الافتراضي في `OfflineSessionCoordinator`
+  من RAM إلى `SqliteOutboxStore`.
+- foreground والعامل الخلفي يستخدمان نفس
+  `resolveOutboxDatabasePath()`.
+- فشل فتح SQLite يفشل الأمر ولا يرجع إلى الذاكرة.
+- بقي حقن `OutboxStore` للاختبارات.
+- الاختبار الجديد يثبت بقاء Start/Pause بعد إعادة الفتح،
+  واستمرار sequence من 1،2 إلى 3، وعزل الحسابات.
+- `c:app`: analyze = 0 issues؛ tests = 374 PASS / 0 FAIL.
+- لا Migration ولا API ولا تغيير مالي في هذه الجولة.
+- غير مثبت بعد: Process Death على جهاز حقيقي
+  والمزامنة الفعلية في foreground.
