@@ -1,6 +1,6 @@
 # سجل تغييرات الوثائق
 
-**آخر تحديث:** 2026-09-13
+**آخر تحديث:** 2026-09-15
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 
@@ -2905,3 +2905,39 @@ Migration 071–084 immutable. أي DB change جديد يبدأ 085+.
 - **ما لم يثبت:** GitLab Pipeline والنشر السحابي الفعلي؛ لا تتغير حالة
   م-42 قبل الدليلين.
 - **القرار المبرر:** ق-113 وق-126؛ المسألة م-42.
+
+## 2026-09-15 — ق-128 وق-129: الحوكمة والقبول الميداني
+
+**نوع الدفعة:** توثيقية فقط.
+
+**ق-128:**
+- اعتماد نموذج Owner ← Principal Engineer ← Local Agent.
+- إضافة `LOCAL_AGENT_EXECUTION_PROTOCOL.md`.
+- الوكيل المحلي منفذ كود محدود، لا يكتب التوثيق
+  ولا ينفذ Commit/Push/DB/Docker/Cloud.
+- اقتصاد الرصيد بتضييق القراءة والتكرار،
+  وليس بتقليل التحقق.
+
+**ق-129:**
+- ترقية نتائج Device Acceptance إلى عقد UX حاكم.
+- تسجيل م-43 كمجموعة Release Blockers.
+- تثبيت W2-02d كـNEXT الفعلي.
+- تثبيت segment billing ومنع whole-session repricing.
+- تثبيت التفقيط مع كل مبلغ والمصطلحات المختصرة.
+- تثبيت صدق حالات Sync والحفظ وLogout.
+
+**الملفات الرئيسية:**
+`AGENTS.md`، `PROJECT_MAP.md`، `memory/DECISIONS.md`،
+`memory/AI_HANDOFF_PROTOCOL.md`،
+`memory/AI_COLLABORATION_PROTOCOL.md`،
+`memory/LOCAL_AGENT_EXECUTION_PROTOCOL.md`،
+`memory/TERMINAL_COMMAND_PROTOCOL.md`،
+`memory/DOCUMENTATION_GATE.md`،
+`memory/OPEN_ISSUES.md`، `memory/PROGRESS.md`،
+`memory/RESUME_POINT.md`، `design/UX_UI_SPEC.md`،
+`technical/INVARIANTS.md`،
+`technical/DECISION_IMPLEMENTATION_MATRIX.md`.
+
+**Baseline:**
+لا يتغير في هذه الدفعة؛ لا Flutter/DB test جديد.
+الدليل الجديد Field Evidence على جهاز Android حقيقي.
