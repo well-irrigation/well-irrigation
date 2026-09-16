@@ -863,3 +863,24 @@ Critical field features in W4+ build on this foundation.
 
 This ordering prevents UI from being designed around
 always-online assumptions that contradict ق-89/ق-90.
+
+## ق-129 — حزمة المزامنة الميدانية والتخزين الدائم (W2-02d / ق-129)
+
+**التاريخ:** 2026-09-16
+**الحالة:** منفَّذ ومُثبت محليًا (VERIFIED LOCAL)؛ وإعادة القبول على الجهاز الحقيقي معلقة (Device Reacceptance Pending).
+
+1. **طابور المقدمة الدائم (Durable Foreground Outbox):**
+   - استُبدل طابور الذاكرة المؤقتة بالكامل بـ `SqliteOutboxStore` المشترك مع العامل الخلفي عبر مسار ملف قاعدة بيانات موحد (`resolveOutboxDatabasePath`).
+   - لا عودة للذاكرة (RAM-only) في الأوامر الميدانية الجديدة؛ وفشل الكتابة الدائمة يُفشل العملية فورًا ولا يخفي العطب.
+2. **مراجع الأوامر الخادمية الموحدة (Canonical Command References):**
+   - أمر البدء `start_irrigation_session` يحل مرجع جلسته إلى معرّف الجلسة الخادمي الرسمي (Canonical Session ID).
+   - كافة الأوامر الميدانية اللاحقة للجلسة (Pause, Resume, Change Energy, Complete) تستند إلى المعرّف الخادمي الرسمي.
+3. **الإسقاط الدقيق للجلسة (Exact-Session Projection):**
+   - يعمل مسقط الجلسة حصريًا على معرّف الجلسة المطابق، مانعًا أي تداخل أو استعارة بيانات بين الآبار (Prevent cross-well fallback).
+4. **صدق المزامنة (ACK Truth):**
+   - لا تُعرض شارة «مزامن» إلا بعد استلام ACK خادمي صريح؛ فشل النقل يبقي الأمر بحالة `pending` بنفس المعرّف الثابت `p_command_id`.
+   - الطابور الفارغ أو الذي تفرغه مزامنة أخرى متزامنة يعرض حالة محايدة بلا ادعاء كاذب.
+5. **سلسلة الإنهاء والسداد المنفصل:**
+   - التسلسل المعتمد:
+     `START → الأحداث (Pause / Resume / Change Energy) → COMPLETE → السداد الاختياري`
+   - أمر الإكمال `complete_irrigation_session` ينتج ربط مرجع الرسوم `sessionCharge`، وعملية السداد الاختيارية التالية تشير صراحة إلى هذا المرجع.

@@ -116,6 +116,8 @@ class FakeCommandTransport implements CommandTransport {
 
     return normalizeAcceptedResponse(type, {
       type.resultKey!: id,
+      if (type == CommandType.completeIrrigationSession)
+        'session_id': request.arguments['p_session_id'],
       if (type == CommandType.createFarmer)
         'already_exists': matchExistingFarmer,
     });

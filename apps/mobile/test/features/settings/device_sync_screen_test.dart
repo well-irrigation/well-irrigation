@@ -134,23 +134,44 @@ void main() {
       },
     );
 
-    testWidgets(
-      '3. فشل قراءة الحالة يعرض خطأ صريحًا مع إعادة المحاولة',
-      (tester) async {
-        final repository = _FakeSyncRepository(failStatus: true);
+    testWidgets('2ج. الطابور الفارغ يعرض نتيجة محايدة بلا نجاح أو خطأ', (
+      tester,
+    ) async {
+      final repository = _FakeSyncRepository(
+        syncError: const ManualSyncNothingPendingException(),
+      );
 
-        await _pumpScreen(tester, repository);
+      await _pumpScreen(tester, repository);
+      await tester.tap(find.text('مزامنة الآن'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('تعذر قراءة حالة الجهاز والمزامنة'), findsOneWidget);
-        expect(find.text('مزامنة الآن'), findsNothing);
-        expect(repository.statusReads, 1);
+      expect(find.text('لا توجد عمليات بانتظار المزامنة'), findsWidgets);
+      expect(
+        find.text('اكتملت المزامنة وتحديث البيانات بنجاح ✅'),
+        findsNothing,
+      );
+      expect(
+        find.text('تعذرت المزامنة الآن. عملياتك محفوظة ولم يُفقد شيء.'),
+        findsNothing,
+      );
+    });
 
-        await tester.tap(find.text('إعادة المحاولة'));
-        await tester.pumpAndSettle();
+    testWidgets('3. فشل قراءة الحالة يعرض خطأ صريحًا مع إعادة المحاولة', (
+      tester,
+    ) async {
+      final repository = _FakeSyncRepository(failStatus: true);
 
-        expect(repository.statusReads, 2);
-      },
-    );
+      await _pumpScreen(tester, repository);
+
+      expect(find.text('تعذر قراءة حالة الجهاز والمزامنة'), findsOneWidget);
+      expect(find.text('مزامنة الآن'), findsNothing);
+      expect(repository.statusReads, 1);
+
+      await tester.tap(find.text('إعادة المحاولة'));
+      await tester.pumpAndSettle();
+
+      expect(repository.statusReads, 2);
+    });
 
     testWidgets(
       '4. الحالة المقيسة تُعرض كما هي، والنجاح الحقيقي وحده يعرض نجاحًا',

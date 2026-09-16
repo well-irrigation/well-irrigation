@@ -31,18 +31,18 @@ enum SessionBusinessState {
       SessionBusinessState.values.firstWhere((state) => state.name == value);
 }
 
-/// نصوص الحالة التجارية المعتمدة حرفيًا في `design/UX_UI_SPEC.md`.
+/// نصوص الحالة التجارية المعتمدة حرفيًا في `design/UX_UI_SPEC.md` (ق-129).
 ///
 /// لا تُصَغ من جديد هنا — نفس قاعدة `SyncStatusText` في طبقة المزامنة.
 abstract final class SessionStateText {
-  /// القرار 344 وما بعده.
-  static const String running = 'جلسة جارية';
+  /// ق-129: المصطلح القصير المعتمد في الواجهة الميدانية.
+  static const String running = 'جاري';
 
-  /// القرار 346 والقرار 266.
-  static const String paused = 'الجلسة متوقفة مؤقتًا';
+  /// ق-129: المصطلح القصير المعتمد للتوقف المؤقت.
+  static const String paused = 'توقف مؤقت';
 
-  /// القرار 4286 في المواصفة: نصّ إنهاء الجلسة محليًا.
-  static const String completed = 'تم إنهاء الجلسة';
+  /// ق-129: المصطلح المعتمد للجلسة المنتهية.
+  static const String completed = 'منتهي';
 
   /// القرار 339: عنوان العدّاد الرئيسي.
   static const String billableLabel = 'مدة السقي المحتسبة';
@@ -56,8 +56,8 @@ abstract final class SessionStateText {
   /// القرار 339.
   static const String totalPauseLabel = 'إجمالي التوقف';
 
-  /// القرار 340.
-  static const String accruedLabel = 'المستحق حتى الآن';
+  /// ق-129 / القرار 340: المسمى المالي المعتمد للمستحق.
+  static const String accruedLabel = 'المبلغ';
 
   /// القرار 341: يظهر **بدل** الرقم، لا معه. لا «0 ريال» ولا رقم مخمَّن.
   static const String pricingPending = 'التكلفة بانتظار المزامنة';
@@ -67,4 +67,20 @@ String sessionStateText(SessionBusinessState state) => switch (state) {
   SessionBusinessState.running => SessionStateText.running,
   SessionBusinessState.paused => SessionStateText.paused,
   SessionBusinessState.completed => SessionStateText.completed,
+};
+
+/// أيقونة / رمز مصدر الطاقة المعتمد (ق-81 / ق-129)
+String energySourceGlyph(String? code) => switch (code) {
+  'solar' => '☀️',
+  'well_diesel' => '⛽',
+  'farmer_diesel' => '⛽',
+  _ => '⚡',
+};
+
+/// وصف مختصر لمصدر الطاقة للبطاقات المدمجة والملخصات (ق-129)
+String energySourceShortLabel(String? code) => switch (code) {
+  'solar' => 'شمس',
+  'well_diesel' => 'ديزل البئر',
+  'farmer_diesel' => 'ديزل المزارع',
+  _ => code ?? 'غير محدد',
 };

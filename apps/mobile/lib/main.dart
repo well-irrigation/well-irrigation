@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app/app.dart';
 import 'core/config/app_config.dart';
+import 'core/session/offline_session_coordinator.dart';
 import 'core/sync/background_sync_worker.dart';
 import 'core/sync/workmanager_sync_scheduler.dart';
 
@@ -16,6 +17,8 @@ Future<void> main() async {
       url: config.supabaseUrl,
       publishableKey: config.supabasePublishableKey,
     );
+
+    OfflineSessionCoordinator.configureForegroundSync(Supabase.instance.client);
 
     // تسجيل نقطة الدخول الخلفية قبل أي جدولة. بلا هذا النداء لا يعرف
     // نظام التشغيل ماذا ينفّذ حين يحلّ موعد الإرسال، فيصمت الإرسال

@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../sync/command_envelope.dart';
+import '../sync/command_transport.dart';
 import '../sync/command_type.dart';
-import '../sync/in_memory_outbox_store.dart';
 import '../sync/outbox_repository.dart';
 import '../sync/outbox_store.dart';
+import '../sync/sqlite_outbox_store.dart';
 import '../sync/supabase_command_transport.dart';
 import '../sync/sync_engine.dart';
 import 'active_session_projector.dart';
 import 'active_session_record.dart';
-
 
 /// منسق جلسات السقي والعمل دون اتصال والمزامنة المتينة (ق-89 / ق-90 / ق-114)
 ///
@@ -23,29 +23,41 @@ class OfflineSessionCoordinator {
   OfflineSessionCoordinator({
     OutboxStore? store,
     SupabaseClient? supabaseClient,
+    CommandTransport? commandTransport,
     PricingResolver? pricingResolver,
-  })  : _store = store ?? InMemoryOutboxStore(),
-        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
-        // `api.get_active_price_schedule` عبر `updatePricing`. حتى تُغذّى،
-        // كل مقطع محتسب «بانتظار المزامنة» ولا يُسعَّر بصفر (القرار 341).
-        _pricingResolver = pricingResolver ?? const PricingResolver.none() {
+  }) : _store = store ?? SqliteOutboxStore(),
+       // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
+       // `api.get_active_price_schedule` عبر `updatePricing`. حتى تُغذّى،
+       // كل مقطع محتسب «بانتظار المزامنة» ولا يُسعَّر بصفر (القرار 341).
+       _pricingResolver = pricingResolver ?? const PricingResolver.none() {
     _outbox = OutboxRepository(store: _store);
     _projector = ActiveSessionProjector(
       store: _store,
       pricing: _pricingResolver,
     );
-    if (supabaseClient != null) {
-      _syncEngine = SyncEngine(
-        store: _store,
-        transport: SupabaseCommandTransport(supabaseClient),
-      );
+    final transport =
+        commandTransport ??
+        (supabaseClient == null
+            ? null
+            : SupabaseCommandTransport(supabaseClient));
+    if (transport != null) {
+      _syncEngine = SyncEngine(store: _store, transport: transport);
     }
   }
 
-
   static OfflineSessionCoordinator? _instance;
-  static OfflineSessionCoordinator get instance =>
-      _instance ??= OfflineSessionCoordinator();
+  static SupabaseClient? _foregroundSupabaseClient;
+
+  /// يربط النسخة العامة بعميل التطبيق الحقيقي قبل أن تستخدمها الشاشات.
+  static void configureForegroundSync(SupabaseClient client) {
+    if (_instance != null) {
+      throw StateError('يجب ربط مزامنة المقدمة قبل إنشاء المنسق العام');
+    }
+    _foregroundSupabaseClient = client;
+  }
+
+  static OfflineSessionCoordinator get instance => _instance ??=
+      OfflineSessionCoordinator(supabaseClient: _foregroundSupabaseClient);
 
   final OutboxStore _store;
   late final OutboxRepository _outbox;
@@ -88,6 +100,7 @@ class OfflineSessionCoordinator {
   }
 
   ActiveSessionRecord? _currentProjectedSession;
+  int _syncProjectionGeneration = 0;
   ActiveSessionRecord? get currentActiveSession => _currentProjectedSession;
 
   /// استرجاع وإسقاط الجلسة النشطة الحالية لبئر معين
@@ -98,11 +111,7 @@ class OfflineSessionCoordinator {
     await initialize();
 
     final now = DateTime.now();
-    final activeSessions = await _projector.activeSessions(
-      accountId,
-      now: now,
-    );
-
+    final activeSessions = await _projector.activeSessions(accountId, now: now);
 
     if (activeSessions.isEmpty) {
       _currentProjectedSession = null;
@@ -110,11 +119,12 @@ class OfflineSessionCoordinator {
       return null;
     }
 
-    // إذا تم تحديد البئر، نبحث عن الجلسة الخاصة به، وإلا نأخذ أول جلسة فعالة
-    final match = wellId != null
-        ? activeSessions.where((s) => s.wellId == wellId).firstOrNull ??
-            activeSessions.first
-        : activeSessions.first;
+    // طلب بئر محدد لا يجوز أن يسقط إلى جلسة بئر آخر.
+    final match = wellId == null
+        ? activeSessions.first
+        : activeSessions
+              .where((session) => session.wellId == wellId)
+              .firstOrNull;
 
     _currentProjectedSession = match;
     _sessionController.add(_currentProjectedSession);
@@ -149,7 +159,7 @@ class OfflineSessionCoordinator {
     );
 
     await projectActiveSession(accountId: accountId, wellId: wellId);
-    _triggerSync(accountId);
+    _triggerSync(accountId, sessionLocalId: envelope.localId, wellId: wellId);
     return envelope;
   }
 
@@ -161,21 +171,26 @@ class OfflineSessionCoordinator {
     DateTime? pausedAt,
   }) async {
     await initialize();
+    if (reason != 'operator_pause' && reason != 'farmer_requested_pause') {
+      throw ArgumentError.value(reason, 'reason', 'سبب إيقاف غير معتمد');
+    }
 
     final eventTime = pausedAt ?? DateTime.now();
+    final start = await _sessionStart(accountId, sessionLocalId);
     final envelope = await _outbox.enqueue(
       accountId: accountId,
+      wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
       type: CommandType.pauseIrrigationSession,
       occurredAt: eventTime,
       payload: {
-        'p_session_id': sessionLocalId,
+        'p_session_id': _outbox.referenceTo(start).toJson(),
         'p_reason': reason,
       },
     );
 
-    await projectActiveSession(accountId: accountId);
-    _triggerSync(accountId);
+    await _projectExactSession(accountId, sessionLocalId);
+    _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
   }
 
@@ -188,18 +203,18 @@ class OfflineSessionCoordinator {
     await initialize();
 
     final eventTime = resumedAt ?? DateTime.now();
+    final start = await _sessionStart(accountId, sessionLocalId);
     final envelope = await _outbox.enqueue(
       accountId: accountId,
+      wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
       type: CommandType.resumeIrrigationSession,
       occurredAt: eventTime,
-      payload: {
-        'p_session_id': sessionLocalId,
-      },
+      payload: {'p_session_id': _outbox.referenceTo(start).toJson()},
     );
 
-    await projectActiveSession(accountId: accountId);
-    _triggerSync(accountId);
+    await _projectExactSession(accountId, sessionLocalId);
+    _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
   }
 
@@ -213,20 +228,21 @@ class OfflineSessionCoordinator {
     await initialize();
 
     final eventTime = changedAt ?? DateTime.now();
+    final start = await _sessionStart(accountId, sessionLocalId);
     final envelope = await _outbox.enqueue(
       accountId: accountId,
+      wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
       type: CommandType.changeSessionEnergySource,
       occurredAt: eventTime,
       payload: {
-        'p_session_id': sessionLocalId,
+        'p_session_id': _outbox.referenceTo(start).toJson(),
         'p_new_source': newEnergySource,
       },
-
     );
 
-    await projectActiveSession(accountId: accountId);
-    _triggerSync(accountId);
+    await _projectExactSession(accountId, sessionLocalId);
+    _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
   }
 
@@ -239,18 +255,18 @@ class OfflineSessionCoordinator {
     await initialize();
 
     final eventTime = completedAt ?? DateTime.now();
+    final start = await _sessionStart(accountId, sessionLocalId);
     final envelope = await _outbox.enqueue(
       accountId: accountId,
+      wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
       type: CommandType.completeIrrigationSession,
       occurredAt: eventTime,
-      payload: {
-        'p_session_id': sessionLocalId,
-      },
+      payload: {'p_session_id': _outbox.referenceTo(start).toJson()},
     );
 
-    await projectActiveSession(accountId: accountId);
-    _triggerSync(accountId);
+    await _projectExactSession(accountId, sessionLocalId);
+    _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
   }
 
@@ -261,13 +277,36 @@ class OfflineSessionCoordinator {
     required String farmerAccountId,
     required int amountMinor,
     required String paymentMethod,
-    String? reference,
+    String? note,
     String? sessionLocalId,
+    String? sessionCompletionLocalId,
     DateTime? paidAt,
   }) async {
     await initialize();
 
     final eventTime = paidAt ?? DateTime.now();
+    Map<String, Object?>? chargeReference;
+    if (sessionCompletionLocalId != null) {
+      if (sessionLocalId == null) {
+        throw StateError('ربط تكلفة الجلسة يتطلب مرجع الجلسة المحلية');
+      }
+      final start = await _sessionStart(accountId, sessionLocalId);
+      if (start.wellId != wellId) {
+        throw StateError('بئر الدفعة لا يطابق بئر الجلسة');
+      }
+      final completion = await _outbox.byLocalId(
+        accountId,
+        sessionCompletionLocalId,
+      );
+      if (completion == null ||
+          completion.type != CommandType.completeIrrigationSession ||
+          completion.aggregateLocalId != sessionLocalId) {
+        throw StateError('أمر إنهاء الجلسة غير صالح لربط الدفعة');
+      }
+      chargeReference = _outbox.referenceTo(completion).toJson();
+    } else if (sessionLocalId != null) {
+      throw StateError('دفعة الجلسة تتطلب مرجع أمر الإنهاء');
+    }
     final envelope = await _outbox.enqueue(
       accountId: accountId,
       wellId: wellId,
@@ -277,32 +316,68 @@ class OfflineSessionCoordinator {
       payload: {
         'p_well_id': wellId,
         'p_farmer_well_account_id': farmerAccountId,
-        'p_amount': amountMinor,
-        'p_payment_method': paymentMethod,
-        'p_reference': ?reference,
+        'p_amount_minor': amountMinor,
+        'p_method': paymentMethod,
+        'p_session_charge_id': ?chargeReference,
+        'p_note': ?note,
       },
     );
 
-
-
-    await projectActiveSession(accountId: accountId, wellId: wellId);
-    _triggerSync(accountId);
+    if (sessionLocalId != null) {
+      await _projectExactSession(accountId, sessionLocalId);
+    } else {
+      await projectActiveSession(accountId: accountId, wellId: wellId);
+    }
+    _triggerSync(accountId, sessionLocalId: sessionLocalId, wellId: wellId);
     return envelope;
   }
 
-  void _triggerSync(String accountId) {
-    if (_syncEngine == null) return;
-    _syncEngine!.run(accountId).then((_) {
-      // بعد المزامنة، نعيد إسقاط الحالة لتحديث معرّفات الخادم
-      if (_currentProjectedSession != null) {
-        projectActiveSession(
-          accountId: _currentProjectedSession!.accountId,
-          wellId: _currentProjectedSession!.wellId,
-        );
-      }
-    }).catchError((_) {});
+  Future<CommandEnvelope> _sessionStart(
+    String accountId,
+    String sessionLocalId,
+  ) async {
+    final start = await _outbox.byLocalId(accountId, sessionLocalId);
+    if (start == null || start.type != CommandType.startIrrigationSession) {
+      throw StateError('مرجع جلسة محلي غير صالح: $sessionLocalId');
+    }
+    return start;
   }
 
+  Future<ActiveSessionRecord?> _projectExactSession(
+    String accountId,
+    String sessionLocalId,
+  ) async {
+    final record = await _projector.projectSession(
+      accountId,
+      sessionLocalId,
+      now: DateTime.now(),
+    );
+    _currentProjectedSession = record?.businessState.isActive == true
+        ? record
+        : null;
+    _sessionController.add(_currentProjectedSession);
+    return record;
+  }
+
+  void _triggerSync(
+    String accountId, {
+    String? sessionLocalId,
+    String? wellId,
+  }) {
+    if (_syncEngine == null) return;
+    final projectionGeneration = ++_syncProjectionGeneration;
+    _syncEngine!
+        .run(accountId)
+        .then((_) async {
+          if (projectionGeneration != _syncProjectionGeneration) return;
+          if (sessionLocalId != null) {
+            await _projectExactSession(accountId, sessionLocalId);
+          } else {
+            await projectActiveSession(accountId: accountId, wellId: wellId);
+          }
+        })
+        .catchError((_) {});
+  }
 
   /// جلب عدد العمليات المعلقة في الطابور المتين (القرار 563 / القرار 578)
   ///
@@ -313,10 +388,8 @@ class OfflineSessionCoordinator {
     return _outbox.pendingCount(accountId);
   }
 
-  /// هل الطابور المستعمل مخزَّن على قرص الهاتف فعلًا؟ الافتراضي في هذا
-  /// البناء طابور ذاكرة، فلا يجوز إعلان جاهزية تخزين محلي دائم للمستخدم
-  /// قبل توصيل الطابور الدائم في واجهة التطبيق.
-  bool get usesDurableStore => _store is! InMemoryOutboxStore;
+  /// المخزن الافتراضي يفتح ملف الطابور نفسه الذي يستخدمه العامل الخلفي.
+  bool get usesDurableStore => _store is SqliteOutboxStore;
 
   /// هل يوجد ناقل مزامنة موصول بهذا المنسق؟ بلا ناقل لا يجوز الادعاء أن
   /// المزامنة جرت.

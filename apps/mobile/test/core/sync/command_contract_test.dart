@@ -102,9 +102,10 @@ void main() {
       expect(
         normalizeAcceptedResponse(CommandType.completeIrrigationSession, {
           'session_id': 'session-uuid',
+          'session_charge_id': 'charge-uuid',
           'total_minor': 125000,
         }).entityId,
-        'session-uuid',
+        'charge-uuid',
       );
       expect(
         normalizeAcceptedResponse(CommandType.recordPayment, {
@@ -180,7 +181,7 @@ void main() {
       expect(CommandType.recordPayment.eventTimeArgument, 'p_paid_at');
     });
 
-    test('الكيانات المُنتَجة أربعة فقط', () {
+    test('الكيانات المُنتَجة تشمل تكلفة الجلسة الناتجة من الإنهاء', () {
       final producers = {
         for (final type in CommandType.values)
           if (type.produces != null) type: type.produces!,
@@ -191,6 +192,7 @@ void main() {
         CommandType.createFarm: EntityKind.farm,
         CommandType.startIrrigationSession: EntityKind.session,
         CommandType.recordPayment: EntityKind.payment,
+        CommandType.completeIrrigationSession: EntityKind.sessionCharge,
       });
     });
 

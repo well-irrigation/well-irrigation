@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'app_bootstrap_repository.dart';
 import '../session/offline_session_coordinator.dart';
 
@@ -30,7 +31,8 @@ class UserProfileData {
       fullName: json['full_name'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
       isPlatformAdmin: json['is_platform_admin'] as bool? ?? false,
-      rolesSummary: (json['roles_summary'] as List<dynamic>?)
+      rolesSummary:
+          (json['roles_summary'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           const [],
@@ -93,6 +95,22 @@ class ManualSyncUnavailableException implements Exception {
 
   @override
   String toString() => 'المزامنة اليدوية غير موصولة بعد';
+}
+
+/// يُرفع إذا انتهت المحاولة بلا إقرار خادمي كامل لكل العمل المطلوب.
+class ManualSyncIncompleteException implements Exception {
+  const ManualSyncIncompleteException();
+
+  @override
+  String toString() => 'لم يؤكد الخادم اكتمال المزامنة';
+}
+
+/// نتيجة محايدة: لم يوجد عمل يحتاج إقرارًا، أو أفرغته مزامنة متزامنة.
+class ManualSyncNothingPendingException implements Exception {
+  const ManualSyncNothingPendingException();
+
+  @override
+  String toString() => 'لا توجد عمليات بانتظار المزامنة';
 }
 
 /// يُرفع عند تغيير كلمة المرور بكلمة حالية غير صحيحة (ق-105 / ق-123).
@@ -176,8 +194,7 @@ class AccountRepository {
       throw StateError('Authenticated session is required');
     }
 
-    final bootstrap =
-        await AppBootstrapRepository(client).fetchBootstrap();
+    final bootstrap = await AppBootstrapRepository(client).fetchBootstrap();
 
     String roleLabel(String role) {
       switch (role) {
@@ -203,8 +220,7 @@ class AccountRepository {
       isPlatformAdmin: bootstrap.profile.isPlatformAdmin,
       rolesSummary: [
         for (final well in bootstrap.wells)
-          for (final role in well.roles)
-            '${well.name} — ${roleLabel(role)}',
+          for (final role in well.roles) '${well.name} — ${roleLabel(role)}',
       ],
     );
   }
@@ -213,11 +229,7 @@ class AccountRepository {
   Future<void> updateUserName(String newName) async {
     final cleanName = newName.trim();
     if (cleanName.isEmpty) {
-      throw ArgumentError.value(
-        newName,
-        'newName',
-        'Profile name is required',
-      );
+      throw ArgumentError.value(newName, 'newName', 'Profile name is required');
     }
 
     final client = _effectiveClient;
@@ -225,10 +237,9 @@ class AccountRepository {
       throw StateError('Authenticated session is required');
     }
 
-    await client.schema('api').rpc(
-      'update_profile_name',
-      params: {'p_full_name': cleanName},
-    );
+    await client
+        .schema('api')
+        .rpc('update_profile_name', params: {'p_full_name': cleanName});
   }
 
   /// 3. تغيير كلمة المرور بأمان
@@ -276,9 +287,7 @@ class AccountRepository {
       throw const WrongCurrentPasswordException();
     }
 
-    await client.auth.updateUser(
-      UserAttributes(password: newPassword),
-    );
+    await client.auth.updateUser(UserAttributes(password: newPassword));
   }
 
   /// 7. جلب حالة الجهاز والمزامنة — المقيس فقط
@@ -291,8 +300,7 @@ class AccountRepository {
   /// تُظهر طابورًا فارغًا لحساب عليه عمليات لم تُرسل (ق-113).
   Future<DeviceSyncStatusModel> fetchDeviceSyncStatus(String accountId) async {
     final coordinator = _coordinator;
-    final pendingCount =
-        await coordinator.getPendingOperationsCount(accountId);
+    final pendingCount = await coordinator.getPendingOperationsCount(accountId);
     final lastSync = await coordinator.lastSuccessfulSyncAt(accountId);
 
     return DeviceSyncStatusModel(
@@ -312,7 +320,21 @@ class AccountRepository {
       throw const ManualSyncUnavailableException();
     }
 
-    await coordinator.syncNow(accountId);
+    final pendingBefore = await coordinator.getPendingOperationsCount(
+      accountId,
+    );
+    if (pendingBefore == 0) {
+      throw const ManualSyncNothingPendingException();
+    }
+
+    final report = await coordinator.syncNow(accountId);
+    final pendingAfter = await coordinator.getPendingOperationsCount(accountId);
+    if (pendingAfter == 0) {
+      if (report.confirmed > 0) return;
+      throw const ManualSyncNothingPendingException();
+    }
+
+    throw const ManualSyncIncompleteException();
   }
 
   /// 9. فحص الأمان قبل تسجيل الخروج (القرار 578)
