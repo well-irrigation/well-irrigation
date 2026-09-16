@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-09-15
+**آخر تحديث:** 2026-09-17
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -76,7 +76,7 @@
 | م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
 | م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count؛ م-41B2 أصلحت account profile read؛ م-41B3A أضافت 088 وapi.update_profile_name ومنعت false-success في حفظ الاسم؛ 088 موجودة Cloud وعقدها الأمني Verified؛ م-41B3B أزالت Team RPC/Mock غير المدعومة وجعلت الشاشة fail-closed؛ current debt = 7 internal + 9 bare + 5 dotted؛ DB = 26/369 PASS؛ Flutter = 234/234 PASS؛ Team management الفعلية تبقى Backend/Auth Gap؛ **تحديث 2026-09-02: الدين المعلَن كله = 0** (م-41C2 أغلقت internal-schema بـ090، وم-41D1 أغلقت bare RPC إلى 1 بـ091، وم-41D2 أغلقت الباقي بـ092: 0 internal + 0 bare + 0 dotted)؛ Flutter = 265/265 PASS؛ NEXT = تحقق DB لـ092 ثم حماية `main` ثم الدمج |
 
-| م-41H / 099 | دليل المزارعين من عقد خادمي واحد: لا ترتيب ولا حساب مال ولا عدّ أرض في Flutter | 099 + `OperationsRepository.fetchFarmerDirectory` + `FarmersDirectoryScreen` | DB `FILES=38 PASS=615 FAIL=0 ERROR=0`؛ الفهرس 833/501/197/44؛ Flutter analyze نظيف و`370/370 PASS`؛ حرس نسخة العقد والأرقام الناقصة وسباق تبديل البئر | **Implemented + Verified local 2026-09-08؛ غير منشور، والتحقق السحابي Pending** |
+| م-41H / 099 | دليل المزارعين من عقد خادمي واحد: لا ترتيب ولا حساب مال ولا عدّ أرض في Flutter | 099 + `OperationsRepository.fetchFarmerDirectory` + `FarmersDirectoryScreen` | DB `FILES=38 PASS=615 FAIL=0 ERROR=0`؛ الفهرس 833/501/197/44؛ Flutter analyze نظيف و`370/370 PASS`؛ حرس نسخة العقد والأرقام الناقصة وسباق تبديل البئر | **Implemented + Verified local + Cloud Verified** (مدموج ومنشور سحابيًا عبر GitLab CI MR !1) |
 
 ## baseline المرجعي
 
@@ -351,14 +351,16 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 - المصدر: `reports/DEVICE_ACCEPTANCE_TEST_LOG.md`.
 - UX الحاكم: ملحق ق-129 في `design/UX_UI_SPEC.md`.
 - المعمارية الحاكمة: `ACTIVE_SESSION_ARCHITECTURE.md`، `SYNC_ARCHITECTURE.md`، و`SESSION_SETTLEMENT_ARCHITECTURE.md`.
-- الهجرة المرتبطة: الهجرة 100 (`20260916010001_100_paused_energy_source_change.sql`) مع اختبارها الدائم (PASS=7/0/0) — محلية فقط.
-- الفجوة التنفيذية: م-43 (مفتوحة كـ Release Blocker لإعادة القبول الميداني على الجهاز وحماية الـ 13 عملية القديمة في RAM).
+- الهجرة المرتبطة: الهجرة 100 (`20260916010001_100_paused_energy_source_change.sql`) مع اختبارها الدائم (PASS=7/0/0) — **منشورة ومتحقق منها سحابيًا ومحليًا عبر GitLab CI (MR !3 / Job 16548801073)**.
+- الفجوة التنفيذية: م-43 (مفتوحة كـ Release Blocker لإعادة القبول الميداني على الجهاز الفعلي وإثبات صمود مخزن SQLite بعد Process Death).
+- تسوية حادثة الـ 13 عملية القديمة: فُقدت محليًا بزوال العملية القديمة، وانعدم أثرها سحابيًا، وزال مانع الحفاظ على العملية القديمة.
 - NEXT:
-  1. أولًا (FIRST): حسم المالك لمصير/حالة العمليات الـ 13 المعلقة في الذاكرة الحية (RAM-only) مع الحفاظ على العملية القديمة قيد التشغيل (دون اختراع آلية استرداد، فالقرار للمالك وحده).
-  2. ثم (THEN): إجراء الانتقال الآمن إلى البناء الدائم الجديد (Safe transition to durable build).
-  3. فقط بعد ذلك (ONLY AFTER THAT): تشغيل إعادة القبول الميداني لـ ق-129 على جهاز Android الحقيقي، شاملة إثبات استعادة الحالة بعد موت العملية أو إعادة التشغيل (Process Death / Reboot recovery).
+  1. تثبيت البناء الدائم الجديد بأمان على جهاز Android الحقيقي (Samsung Galaxy A13).
+  2. تشغيل إعادة القبول الميداني لـ ق-129 على الجهاز الحقيقي.
+  3. إثبات استعادة الحالة بعد موت العملية أو إعادة التشغيل (Process Death / Reboot recovery evidence) لمخزن SQLite الدائم.
+  4. إغلاق ق-129 و م-43 فقط عند اجتياز كافة أدلة الجهاز الحقيقي بنجاح.
 - الدليل الحالي:
-  - قاعدة البيانات محليًا: **39 ملفًا / 622 PASS / 0 FAIL / 0 ERROR** (شاملة الهجرة 100 واختبارها، وتصحيح حرس 092 لليوم المحلي).
+  - قاعدة البيانات محليًا وسحابيًا: **39 ملفًا / 622 PASS / 0 FAIL / 0 ERROR** محليًا؛ وسحابيًا 99/99 هجرة مطبقة ومتحقق منها، 195/195 دالة، و43/79 صلاحيات.
   - تطبيق الهاتف محليًا: `flutter analyze` نظيف (0 ملاحظات)؛ واختبارات فلاتر: **409 PASS / 0 FAIL**؛ وفحص الشجرة `git diff --check` نظيف.
-- الحالة: **LOCAL VERIFIED / DEVICE REACCEPTANCE PENDING**
-  التنفيذ البرمجي مكتمل ومُثبت محليًا بالكامل (W2-02d، FIN-001، الهجرة 100، وشاشة العمليات وحماية التزامن والإسقاط الدقيق للجلسة). لا يُعد ق-129 مغلقًا كليًا (Closed) لأن إغلاقه النهائي مشروط بإعادة فحص القبول الميداني بنجاح على جهاز Android الحقيقي وإثبات استعادة الحالة بعد موت العملية.
+- الحالة: **CLOUD DEPLOYED / DEVICE RE-ACCEPTANCE PENDING**
+  التنفيذ البرمجي والنشر السحابي للهجرة 100 مكتملان ومُثبتان بالكامل. لا يُعد ق-129 مغلقًا كليًا (Closed) لأن إغلاقه النهائي مشروط بإعادة فحص القبول الميداني بنجاح على جهاز Android الحقيقي وإثبات استعادة الحالة بعد موت العملية.
