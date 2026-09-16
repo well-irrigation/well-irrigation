@@ -113,11 +113,13 @@ void main() {
           );
           await tester.pumpAndSettle();
 
-          // التحقق من أن الشاشة استعادت الجلسة فوراً
-          expect(find.text('جلسة سقي جارية الآن'), findsOneWidget);
-          expect(find.text('إنهاء واحتساب'), findsOneWidget);
+          // التحقق من أن الشاشة استعادت الجلسة فوراً وفق ق-129
+          expect(find.text('جاري'), findsOneWidget);
+          expect(find.text('تفاصيل الجلسة الحالية'), findsOneWidget);
+          expect(find.text('إنهاء الجلسة'), findsOneWidget);
           expect(find.text('إيقاف مؤقت'), findsOneWidget);
-          expect(find.text('مزامن'), findsOneWidget);
+          expect(find.text('محفوظ على الجهاز'), findsOneWidget);
+          expect(find.text('مزامن'), findsNothing);
         },
       );
 

@@ -8,18 +8,22 @@ import '../../core/api/operations_repository.dart';
 import '../../core/api/well_management_repository.dart';
 import '../../core/identity/app_identity.dart';
 import '../../core/session/active_session_projector.dart';
+import '../../core/session/active_session_record.dart';
 import '../../core/session/offline_session_coordinator.dart';
 import '../../core/session/session_business_state.dart';
 import '../../core/session/session_segment.dart';
+import '../../core/sync/command_envelope.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_utils.dart';
 import '../../core/utils/digit_utils.dart';
-import '../../core/widgets/currency_display.dart';
+import '../../core/utils/tafqeet_utils.dart';
 import '../../core/widgets/smart_lookup_field.dart';
 import '../../core/widgets/top_well_selector.dart';
+import 'widgets/compact_energy_selector.dart';
 import 'widgets/payment_receipt_dialog.dart';
+import 'widgets/session_confirmation_dialogs.dart';
 
-/// شاشة تشغيل البئر وجلسات السقي الميدانية (UX-07 / UX-08 / ق-88 / ق-114)
+/// شاشة تشغيل البئر وجلسات السقي الميدانية (UX-07 / UX-08 / ق-88 / ق-114 / ق-129)
 class OperationsScreen extends StatefulWidget {
   const OperationsScreen({
     required this.identity,
@@ -33,14 +37,11 @@ class OperationsScreen extends StatefulWidget {
   });
 
   /// هوية الجولة كما قرأها العقد: صاحب العملية، وآباره، وبئره النشط.
-  /// لا اسم مشغّل افتراضي ولا مفتاح حساب ثابت: كلاهما كان يُطبع على السند
-  /// ويُكتب في الطابور المحلي باسم لا يملكه أحد (ق-113).
   final AppIdentity identity;
   final OfflineSessionCoordinator? coordinator;
   final OperationsRepository? repository;
 
-  /// مستودع قراءة جدول التسعير الساري. يُمرَّر في الاختبار، وفي التشغيل
-  /// يُبنى افتراضيًا — والعقد هو `api.get_active_price_schedule`.
+  /// مستودع قراءة جدول التسعير الساري.
   final WellManagementRepository? priceRepository;
   final DateTime Function()? clock;
   final ValueChanged<WellSummary>? onWellChanged;
@@ -58,7 +59,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
   late WellSummary _activeWell;
 
   String get _activeWellId => _activeWell.id;
-  String get _activeWellName => _activeWell.name;
   String get _accountId => widget.identity.accountId;
   DateTime _now() => (widget.clock ?? DateTime.now)();
 
@@ -68,28 +68,18 @@ class _OperationsScreenState extends State<OperationsScreen> {
   Pump? _selectedPump;
   List<Pump> _pumps = [];
 
-  /// رمز مصدر الطاقة كما تعرّفه القاعدة: `solar` / `well_diesel` /
-  /// `farmer_diesel` (م-41D6). كان نصًّا عربيًّا من قيمتين يُرسل حرفيًّا إلى
-  /// `p_energy_source`، فـ«ديزل» واحدة تجمع مصدرين مختلفَي السعر ولا يقبلها
-  /// قيد القاعدة أصلًا. الخيارات من `kSessionEnergySources` لا من قواعد
-  /// السعر: المصدر قرار تشغيلي، والسعر وحده يأتي من العقد.
-  String? _energySourceCode = kSessionEnergySources.first;
+  /// رمز مصدر الطاقة: يبدأ فارغًا (null) قبل كل جلسة جديدة وفق ق-129
+  /// (لا اختيار افتراضي تلقائي ذو أثر تشغيلي أو مالي).
+  String? _energySourceCode;
 
-  /// جدول التسعير الساري لهذا البئر كما أعادته `api.get_active_price_schedule`.
-  /// `null` يعني «لا جدول معروف»: لا تُعرض تسعيرة ولا يُخمَّن رقم (القرار 341).
   PriceScheduleModel? _priceSchedule;
   bool _isLoadingSchedule = false;
   String? _scheduleError;
-
-  /// القراءة رُفضت بـ`42501`: حالة صلاحية مشروعة لا خطأ يُعاد. `price.manage`
-  /// للمالك وحده (هجرة 091)، فالمشغل يشغّل ولا يرى التسعيرة، ويُحتسب المال
-  /// خادميًّا عند المزامنة.
   bool _pricingForbidden = false;
+  int _priceLoadGeneration = 0;
 
-  /// قواعد السعر السارية. مصدر السعر المعروض وحده، لا مصدر خيارات المصدر.
   List<PriceRuleModel> get _priceRules => _priceSchedule?.rules ?? const [];
 
-  /// قاعدة سعر هذا المصدر إن وُجدت في الجدول الساري.
   PriceRuleModel? _ruleFor(String? code) {
     if (code == null) return null;
     for (final rule in _priceRules) {
@@ -100,6 +90,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   // حالة الجلسة المباشرة
   Timer? _timer;
+  StreamSubscription<ActiveSessionRecord?>? _activeSessionSubscription;
+  ActiveSessionRecord? _activeSession;
   bool _isSessionActive = false;
   bool _isPaused = false;
   int _secondsElapsed = 0;
@@ -107,6 +99,25 @@ class _OperationsScreenState extends State<OperationsScreen> {
   bool _isLoadingPumps = false;
   String? _pumpsError;
   bool _isSubmitting = false;
+  bool _isSessionActionInProgress = false;
+  int _pumpLoadGeneration = 0;
+  int _projectionGeneration = 0;
+
+  /// اكتمال حقول النموذج الإلزامية لبدء السقي (ق-129 / A8)
+  bool get _isFormComplete =>
+      _selectedFarmer != null &&
+      _selectedFarm != null &&
+      _selectedPump != null &&
+      _energySourceCode != null;
+
+  /// إرشاد الحقل الناقص الفعلي (ق-129 / A8)
+  String? get _missingFieldGuidance {
+    if (_selectedFarmer == null) return 'يرجى تحديد المزارع المستفيد';
+    if (_selectedFarm == null) return 'يرجى تحديد الأرض الزراعية';
+    if (_selectedPump == null) return 'يرجى اختيار المضخة العاملة';
+    if (_energySourceCode == null) return 'يرجى تحديد مصدر الطاقة';
+    return null;
+  }
 
   @override
   void initState() {
@@ -126,15 +137,14 @@ class _OperationsScreenState extends State<OperationsScreen> {
       }
     }
 
+    _activeSessionSubscription = _coordinator.activeSessionStream.listen(
+      _handleActiveSessionUpdate,
+    );
     _recoverActiveSession();
     _loadPumps();
     _loadPriceSchedule();
   }
 
-  /// إظهار فشل إجراء **دون** تغيير الحالة المعروضة (ق-113 / م-41B3B).
-  ///
-  /// كل كتابات الجلسة كانت تُبتلع في مصيدة استثناء فارغة ثم تُغيَّر الحالة
-  /// على الشاشة، فيرى المشغّل إيقافًا أو إنهاءً لم يُسجَّل في أي مكان.
   void _showActionFailure(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -142,23 +152,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
     );
   }
 
-  /// إعلان حالة صريحة ليست فشلًا: العمل سُجِّل، وما لم يُنجز يُقال كما هو.
-  void _showNotice(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.warning),
-    );
-  }
-
-  /// قراءة جدول التسعير الساري للبئر النشط — `api.get_active_price_schedule`.
-  ///
-  /// لا سعر افتراضي في العميل (م-41D6 / ق-99): إن غاب الجدول أو فشلت
-  /// القراءة تبقى التسعيرة غير معلومة وتُعرض كذلك، ولا تُخمَّن. والقواعد
-  /// نفسها تُغذّي مُسقط الجلسة الحية حتى يكون للمال مصدر واحد.
-  ///
-  /// القراءة لا تُغيّر مصدر الطاقة المختار: الاختيار قرار المشغل، وبيانات
-  /// التسعير لا تُعيد توجيهه ولا تمحوه.
   Future<void> _loadPriceSchedule() async {
+    final requestedWellId = _activeWellId;
+    final requestGeneration = ++_priceLoadGeneration;
     setState(() {
       _isLoadingSchedule = true;
       _scheduleError = null;
@@ -166,8 +162,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
     });
 
     try {
-      final schedule = await _priceRepo.fetchActivePriceSchedule(_activeWellId);
-      if (!mounted) return;
+      final schedule = await _priceRepo.fetchActivePriceSchedule(
+        requestedWellId,
+      );
+      if (!_isCurrentPriceRequest(requestGeneration, requestedWellId)) return;
       setState(() {
         _priceSchedule = schedule;
         _isLoadingSchedule = false;
@@ -175,9 +173,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
       _coordinator.updatePricing(_snapshotsFrom(schedule));
       await _recoverActiveSession();
     } on PostgrestException catch (e) {
-      if (!mounted) return;
-      // 42501 = المشغل لا يملك `price.manage`. لا تسعيرة تُعرض، والتشغيل
-      // يستمر: الخادم هو من يُسعّر المقطع عند المزامنة (هجرة 066).
+      if (!_isCurrentPriceRequest(requestGeneration, requestedWellId)) return;
       final forbidden = e.code == '42501';
       setState(() {
         _priceSchedule = null;
@@ -188,7 +184,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
       _coordinator.updatePricing(const []);
       await _recoverActiveSession();
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentPriceRequest(requestGeneration, requestedWellId)) return;
       setState(() {
         _priceSchedule = null;
         _isLoadingSchedule = false;
@@ -199,8 +195,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
     }
   }
 
-  /// تحويل قواعد الجدول إلى لقطات تسعير للمُسقط. القاعدة بلا سعر ساعي
-  /// تُستبعد فيبقى المقطع «بانتظار المزامنة» بدل أن يُسعَّر بصفر.
+  bool _isCurrentPriceRequest(int generation, String wellId) =>
+      mounted && generation == _priceLoadGeneration && _activeWellId == wellId;
+
   static List<PricingSnapshot> _snapshotsFrom(PriceScheduleModel? schedule) {
     if (schedule == null) return const [];
     return schedule.rules
@@ -218,13 +215,35 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<void> _recoverActiveSession() async {
+    final requestedWellId = _activeWellId;
+    final generation = ++_projectionGeneration;
     final active = await _coordinator.projectActiveSession(
       accountId: _accountId,
-      wellId: _activeWellId,
+      wellId: requestedWellId,
     );
 
-    if (active != null && mounted) {
+    if (!mounted ||
+        generation != _projectionGeneration ||
+        requestedWellId != _activeWellId) {
+      return;
+    }
+
+    if (active == null) {
+      _timer?.cancel();
+      _timer = null;
       setState(() {
+        _activeSession = null;
+        _isSessionActive = false;
+        _isPaused = false;
+        _secondsElapsed = 0;
+        _activeSessionId = null;
+      });
+      return;
+    }
+
+    if (active.accountId == _accountId && active.wellId == requestedWellId) {
+      setState(() {
+        _activeSession = active;
         _isSessionActive = true;
         _isPaused = active.businessState == SessionBusinessState.paused;
         _secondsElapsed = active.totals.billableSeconds;
@@ -232,8 +251,89 @@ class _OperationsScreenState extends State<OperationsScreen> {
         _energySourceCode = active.currentEnergySource ?? _energySourceCode;
       });
 
+      if (_selectedFarmer == null && active.farmerReference != null) {
+        try {
+          final farmers = await _repo.fetchFarmers(requestedWellId);
+          final matched = farmers
+              .where((f) => f.id == active.farmerReference)
+              .firstOrNull;
+          if (matched != null &&
+              mounted &&
+              generation == _projectionGeneration &&
+              requestedWellId == _activeWellId) {
+            setState(() {
+              _selectedFarmer = matched;
+            });
+            if (_selectedFarm == null && active.farmReference != null) {
+              final farms = await _repo.fetchFarms(
+                requestedWellId,
+                farmerAccountId: matched.id,
+              );
+              final matchedFarm = farms
+                  .where((f) => f.id == active.farmReference)
+                  .firstOrNull;
+              if (matchedFarm != null &&
+                  mounted &&
+                  generation == _projectionGeneration &&
+                  requestedWellId == _activeWellId) {
+                setState(() {
+                  _selectedFarm = matchedFarm;
+                });
+              }
+            }
+          }
+        } catch (e) {
+          if (mounted &&
+              generation == _projectionGeneration &&
+              requestedWellId == _activeWellId) {
+            _showActionFailure(
+              'تعذر تحميل بيانات المزارع أو الأرض للجلسة النشطة',
+            );
+          }
+        }
+      }
+
+      if (_selectedPump == null && active.pumpId != null) {
+        try {
+          final pumps = await _repo.fetchPumps(requestedWellId);
+          final matchedPump = pumps
+              .where((p) => p.id == active.pumpId)
+              .firstOrNull;
+          if (matchedPump != null &&
+              mounted &&
+              generation == _projectionGeneration &&
+              requestedWellId == _activeWellId) {
+            setState(() {
+              _selectedPump = matchedPump;
+            });
+          }
+        } catch (e) {
+          if (mounted &&
+              generation == _projectionGeneration &&
+              requestedWellId == _activeWellId) {
+            _showActionFailure('تعذر تحميل بيانات المضخة للجلسة النشطة');
+          }
+        }
+      }
+
       _startLocalTicker();
     }
+  }
+
+  void _handleActiveSessionUpdate(ActiveSessionRecord? active) {
+    if (!mounted || active == null) return;
+    if (active.accountId != _accountId || active.wellId != _activeWellId) {
+      return;
+    }
+
+    setState(() {
+      _activeSession = active;
+      _isSessionActive = active.businessState != SessionBusinessState.completed;
+      _isPaused = active.businessState == SessionBusinessState.paused;
+      _secondsElapsed = active.totals.billableSeconds;
+      _activeSessionId = active.localId;
+      _energySourceCode = active.currentEnergySource ?? _energySourceCode;
+    });
   }
 
   void _startLocalTicker() {
@@ -256,38 +356,54 @@ class _OperationsScreenState extends State<OperationsScreen> {
         _activeWell = incoming;
         _selectedFarmer = null;
         _selectedFarm = null;
+        _selectedPump = null;
+        _pumps = [];
+        _energySourceCode = null;
+        _activeSession = null;
+        _isSessionActive = false;
+        _activeSessionId = null;
       });
       _loadPumps();
       _loadPriceSchedule();
+      _recoverActiveSession();
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _activeSessionSubscription?.cancel();
     super.dispose();
   }
 
   Future<void> _loadPumps() async {
+    final requestedWellId = _activeWellId;
+    final requestGeneration = ++_pumpLoadGeneration;
     setState(() {
       _isLoadingPumps = true;
       _pumpsError = null;
     });
 
     try {
-      final pumps = await _repo.fetchPumps(_activeWellId);
-      if (mounted) {
+      final pumps = await _repo.fetchPumps(requestedWellId);
+      if (mounted &&
+          requestGeneration == _pumpLoadGeneration &&
+          requestedWellId == _activeWellId) {
         setState(() {
           _pumps = pumps;
-          if (pumps.isNotEmpty && _selectedPump == null) {
-            _selectedPump = pumps.first;
+          // ق-129 / A4: مضخة وحيدة مؤهلة = اختيار تلقائي. أكثر من واحدة = لا خيار صامت.
+          if (pumps.length == 1) {
+            _selectedPump = pumps.single;
+          } else {
+            _selectedPump = null;
           }
           _isLoadingPumps = false;
         });
       }
     } catch (_) {
-      // م-41C1: لا مضخة وهمية — الفشل يمنع بدء الجلسة ويظهر صريحًا.
-      if (mounted) {
+      if (mounted &&
+          requestGeneration == _pumpLoadGeneration &&
+          requestedWellId == _activeWellId) {
         setState(() {
           _pumps = [];
           _selectedPump = null;
@@ -392,8 +508,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
                 );
                 if (ctx.mounted) Navigator.of(ctx).pop(farmer);
               } catch (e) {
-                // لا مزارع مُلفَّق (F-NEW) عند الفشل: النافذة تبقى مفتوحة
-                // والخطأ يظهر، فلا يدخل الجلسة معرّف لا وجود له في القاعدة.
                 _showActionFailure('تعذر إنشاء المزارع: $e');
               }
             },
@@ -465,8 +579,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
                 );
                 if (ctx.mounted) Navigator.of(ctx).pop(farm);
               } catch (e) {
-                // لا أرض مُلفَّقة على بئر افتراضي عند الفشل: النافذة تبقى
-                // مفتوحة، فلا تدخل الجلسة أرضٌ لا وجود لها في القاعدة.
                 _showActionFailure('تعذر إنشاء الأرض: $e');
               }
             },
@@ -478,24 +590,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<void> _startSession() async {
-    if (_selectedFarmer == null ||
-        _selectedFarm == null ||
-        _selectedPump == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يرجى تحديد المزارع والأرض والمضخة قبل بدء السقي'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+    if (!_isFormComplete) {
+      _showActionFailure(_missingFieldGuidance ?? 'يرجى إكمال الحقول المطلوبة');
       return;
     }
 
     final wellId = _activeWellId;
-
-    // مصدر الطاقة رمز قاعدة صالح، لا نصّ عربي ترفضه هجرة 066 (م-41D6).
-    // ولا يُشترط سعر معلوم لبدء الجلسة: `ops.start_irrigation_session` لا
-    // تأخذ سعرًا وتفوّض على الدور لا على `price.manage`، فمنع البدء لغياب
-    // التسعيرة منعٌ لعمل يقبله الخادم.
     final energySourceCode = _energySourceCode;
     if (energySourceCode == null) {
       _showActionFailure('يرجى تحديد مصدر الطاقة قبل بدء السقي');
@@ -513,10 +613,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
         farmId: _selectedFarm!.id,
         farmerAccountId: _selectedFarmer!.id,
         energySource: energySourceCode,
+        startedAt: _now(),
       );
       sessionLocalId = envelope.localId;
     } catch (e) {
-      // جلسة لم تدخل الطابور لا تُعرض كجارية: العداد لا يبدأ (ق-113).
       if (!mounted) return;
       setState(() => _isSubmitting = false);
       _showActionFailure('تعذر بدء الجلسة — لم يُسجَّل شيء: $e');
@@ -536,40 +636,192 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<void> _togglePause() async {
-    if (!_isSessionActive) return;
+    if (!_isSessionActive || !_beginSessionAction()) return;
 
-    final sessionId = _activeSessionId;
-    if (sessionId == null) {
-      _showActionFailure('لا معرّف جلسة — تعذر تغيير حالة السقي');
-      return;
-    }
-
-    final wasPaused = _isPaused;
     try {
+      final sessionId = _activeSessionId;
+      if (sessionId == null) {
+        _showActionFailure('لا معرّف جلسة — تعذر تغيير حالة السقي');
+        return;
+      }
+
+      final wasPaused = _isPaused;
       if (!wasPaused) {
-        await _coordinator.pauseSession(
-          accountId: _accountId,
-          sessionLocalId: sessionId,
-          reason: 'إيقاف مؤقت من المشغل',
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => const PauseConfirmationDialog(),
         );
+        if (confirmed != true) return;
+
+        try {
+          await _coordinator.pauseSession(
+            accountId: _accountId,
+            sessionLocalId: sessionId,
+            reason: 'operator_pause',
+            pausedAt: _now(),
+          );
+        } catch (e) {
+          _showActionFailure('تعذر الإيقاف المؤقت — الجلسة ما زالت جارية: $e');
+          return;
+        }
       } else {
         await _coordinator.resumeSession(
           accountId: _accountId,
           sessionLocalId: sessionId,
+          resumedAt: _now(),
         );
       }
-    } catch (e) {
-      // الحالة المعروضة تتبع ما سُجِّل، لا ما نُقر عليه.
-      _showActionFailure(
-        wasPaused
-            ? 'تعذر الاستئناف — الجلسة ما زالت موقوفة: $e'
-            : 'تعذر الإيقاف المؤقت — الجلسة ما زالت جارية: $e',
-      );
-      return;
-    }
 
-    if (!mounted) return;
-    setState(() => _isPaused = !wasPaused);
+      if (!mounted) return;
+      setState(() => _isPaused = !wasPaused);
+    } catch (e) {
+      _showActionFailure('تعذر الاستئناف — الجلسة ما زالت موقوفة: $e');
+    } finally {
+      _finishSessionAction();
+    }
+  }
+
+  bool _beginSessionAction() {
+    if (_isSessionActionInProgress || !mounted) return false;
+    setState(() => _isSessionActionInProgress = true);
+    return true;
+  }
+
+  void _finishSessionAction() {
+    if (mounted) setState(() => _isSessionActionInProgress = false);
+  }
+
+  Future<void> _openActiveEnergySourcePicker() async {
+    if (!_isSessionActive) return;
+    if (!_beginSessionAction()) return;
+
+    try {
+      final selected = await showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => Material(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'تحويل مصدر الطاقة',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepBlue,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ...kSessionEnergySources.map((code) {
+                    final isSelected = _energySourceCode == code;
+                    final rate = _ruleFor(code)?.hourlyRateMinor;
+                    final glyph = energySourceGlyph(code);
+                    final label = energySourceLabel(code);
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: isSelected
+                            ? AppColors.waterBlue.withValues(alpha: 0.08)
+                            : AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => Navigator.of(sheetContext).pop(code),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.waterBlue
+                                    : AppColors.border,
+                                width: isSelected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: ListTile(
+                              leading: Text(
+                                glyph,
+                                style: const TextStyle(fontSize: 22),
+                              ),
+                              title: Text(
+                                label,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: AppColors.deepBlue,
+                                ),
+                              ),
+                              subtitle: rate == null
+                                  ? const Text(
+                                      'التسعيرة غير متوفرة',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.warning,
+                                      ),
+                                    )
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${CurrencyUtils.formatAmount(rate)} ريال / ساعة',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                        Text(
+                                          Tafqeet.format(rate),
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                              trailing: isSelected
+                                  ? const Icon(
+                                      Icons.check_circle,
+                                      color: AppColors.waterBlue,
+                                      size: 20,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      if (selected != null) await _changeEnergySource(selected);
+    } finally {
+      _finishSessionAction();
+    }
   }
 
   Future<void> _changeEnergySource(String newSource) async {
@@ -577,14 +829,28 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     final sessionId = _activeSessionId;
     if (_isSessionActive && sessionId != null) {
+      // ق-129 / C3 / C4: طلب التأكيد قبل التحويل الفعلي
+      final rate = _ruleFor(newSource)?.hourlyRateMinor;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => EnergyChangeConfirmationDialog(
+          currentSource: _energySourceCode ?? 'solar',
+          newSource: newSource,
+          newRateMinor: rate,
+          isPaused: _isPaused,
+        ),
+      );
+
+      if (confirmed != true) return;
+
       try {
         await _coordinator.changeEnergySource(
           accountId: _accountId,
           sessionLocalId: sessionId,
           newEnergySource: newSource,
+          changedAt: _now(),
         );
       } catch (e) {
-        // تغيير لم يُسجَّل لا يُعرض كمُطبَّق: المصدر والتسعيرة يبقيان.
         _showActionFailure('تعذر تغيير مصدر الطاقة — لم يتغيّر شيء: $e');
         return;
       }
@@ -597,142 +863,174 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   Future<void> _endSession() async {
-    _timer?.cancel();
-    _timer = null;
-
-    final completedAt = _now();
-    final activeSession = _coordinator.currentActiveSession;
-    final activeSessionId = _activeSessionId;
-
-    if (activeSessionId == null || activeSession == null) {
-      // جلسة معروضة بلا معرّف: لا سند قبض لمجهول (ق-113).
-      _showActionFailure('تعذر قراءة الجلسة — لم يُحسب مبلغ ولم يصدر سند');
-      _startLocalTicker();
-      return;
-    }
-
-    final totals = summarize(activeSession.segments, completedAt);
-    final totalSeconds = totals.billableSeconds;
-    final totalAmount = totals.accruedMinor;
-    final billableSegments = activeSession.segments
-        .where((segment) => segment.kind == SegmentKind.running)
-        .toList(growable: false);
-    final sources = billableSegments
-        .map((segment) => segment.energySource)
-        .toSet();
-    final rates = billableSegments
-        .map((segment) => segment.hourlyRateMinor)
-        .toSet();
-    final usesCompositePricing = sources.length > 1 || rates.length > 1;
-    final singleHourlyRate = usesCompositePricing
-        ? null
-        : billableSegments.firstOrNull?.hourlyRateMinor;
-    final singleEnergySource = sources.length == 1 ? sources.single : null;
-
+    if (!_beginSessionAction()) return;
     try {
-      await _coordinator.completeSession(
-        accountId: _accountId,
-        sessionLocalId: activeSessionId,
-        completedAt: completedAt,
-      );
-    } catch (e) {
-      // إنهاء لم يُسجَّل: الجلسة ما زالت جارية، فيعود العداد ولا يُصدر سند.
-      _showActionFailure('تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند: $e');
-      _startLocalTicker();
-      return;
-    }
+      final activeSession = _activeSession;
+      final activeSessionId = _activeSessionId;
 
-    setState(() {
-      _isSessionActive = false;
-      _isPaused = false;
-      _secondsElapsed = 0;
-      _activeSessionId = null;
-    });
-
-    if (mounted) {
-      // سند قبض بلا سعر معلوم = مبلغ مُخترع. الجلسة انتهت وسُجِّلت، والمستحق
-      // يحسمه الخادم بسعر وقت الحدث، فيُقال ذلك صريحًا بلا رقم (القرار 341).
-      if (totalAmount == null) {
-        _showNotice(
-          'انتهت الجلسة وسُجِّلت. لا تسعيرة سارية لهذا المصدر، '
-          'فلا سند قبض من هنا — ${SessionStateText.pricingPending}',
-        );
+      if (activeSessionId == null || activeSession == null) {
+        _showActionFailure('تعذر قراءة الجلسة — لم يُحسب مبلغ ولم يصدر سند');
         return;
       }
 
-      await showDialog<bool>(
+      final endedWellId = activeSession.wellId;
+      final endedAccountId = activeSession.accountId;
+      final paymentFarmerId = activeSession.farmerReference;
+      final operatorDisplayName = widget.identity.displayName;
+      final endedWell = widget.identity.wells
+          .where((well) => well.id == endedWellId)
+          .firstOrNull;
+      final endedWellName = endedWell?.name ?? 'بئر غير محدد';
+
+      // ق-129 / E3: لقطة زمنية موحدة لحساب المقاطع وأمر الإغلاق
+      final completedAt = _now();
+      final totals = summarize(activeSession.segments, completedAt);
+      final totalSeconds = totals.billableSeconds;
+      final totalAmount = totals.accruedMinor;
+      final sourceSummaries = calculateSourceSummaries(
+        activeSession.segments,
+        completedAt,
+      );
+
+      final hours = (totalSeconds ~/ 3600).toString().padLeft(2, '0');
+      final minutes = ((totalSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+      final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+      final durationText = '$hours:$minutes:$seconds';
+
+      final farmerDisplayName = _selectedFarmer?.fullName ?? 'مزارع غير محدد';
+      final farmDisplayName = _selectedFarm?.name ?? 'أرض غير محددة';
+
+      // ق-129 / E2: تأكيد صريح قبل استدعاء completeSession
+      final confirmed = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => PaymentReceiptDialog(
-          wellName: _activeWellName,
-          operatorName: widget.identity.displayName,
-          farmerName: _selectedFarmer?.fullName ?? 'مزارع غير محدد',
-          farmName: _selectedFarm?.name ?? 'أرض غير محددة',
-          energySource: usesCompositePricing
-              ? 'مصادر متعددة'
-              : energySourceLabel(singleEnergySource ?? _energySourceCode),
-          hourlyRateYER: singleHourlyRate,
-          billableSeconds: totalSeconds,
-          totalAmountYER: totalAmount,
-          onConfirmPayment:
-              ({
-                required int paidAmountYER,
-                required String paymentMethod,
-                required bool isFullySettled,
-              }) async {
-                if (paidAmountYER <= 0) return;
-
-                final paymentWellId = _activeWellId;
-                final farmer = _selectedFarmer;
-                if (farmer == null) {
-                  // كان السداد يُتجاهل صامتًا فتُغلق النافذة كأنه سُجِّل.
-                  throw StateError('لا مزارع محدد — لم يُسجَّل السداد');
-                }
-
-                await _coordinator.recordPayment(
-                  accountId: _accountId,
-                  wellId: paymentWellId,
-                  farmerAccountId: farmer.id,
-                  amountMinor: paidAmountYER,
-                  paymentMethod: paymentMethod,
-                  sessionLocalId: activeSessionId,
-                  reference: 'سداد جلسة سقي',
-                );
-              },
+        builder: (ctx) => EndSessionConfirmationDialog(
+          farmerName: farmerDisplayName,
+          farmName: farmDisplayName,
+          totalDurationText: durationText,
+          sourceSummaries: sourceSummaries,
+          totalAmountMinor: totalAmount,
         ),
       );
+
+      if (confirmed != true) {
+        return;
+      }
+
+      _timer?.cancel();
+      _timer = null;
+
+      late final CommandEnvelope completionEnvelope;
+      try {
+        completionEnvelope = await _coordinator.completeSession(
+          accountId: _accountId,
+          sessionLocalId: activeSessionId,
+          completedAt: completedAt,
+        );
+      } catch (e) {
+        _showActionFailure('تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند: $e');
+        _startLocalTicker();
+        return;
+      }
+
+      // ق-129 / E6: إعادة ضبط النموذج للعملية التالية
+      final solePump = _pumps.length == 1 ? _pumps.single : null;
+
+      setState(() {
+        _isSessionActive = false;
+        _isPaused = false;
+        _secondsElapsed = 0;
+        _activeSessionId = null;
+        _activeSession = null;
+        _selectedFarmer = null;
+        _selectedFarm = null;
+        _energySourceCode = null;
+        _selectedPump = solePump;
+      });
+
+      if (!mounted) return;
+
+      // ق-129 / E4: ملخص ما بعد الإنهاء منفصل عن السداد
+      final wantsPayment = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => PostEndSessionSummaryDialog(
+          farmerName: farmerDisplayName,
+          farmName: farmDisplayName,
+          totalDurationText: durationText,
+          sourceSummaries: sourceSummaries,
+          totalAmountMinor: totalAmount,
+          canRecordPayment: endedWellId != null && paymentFarmerId != null,
+        ),
+      );
+
+      // ق-129 / E5: تسجيل الدفعة اختياري وبطلب صريح
+      if (wantsPayment == true &&
+          mounted &&
+          totalAmount != null &&
+          totalAmount > 0) {
+        final billableSegments = activeSession.segments
+            .where((segment) => segment.kind == SegmentKind.running)
+            .toList(growable: false);
+        final sources = billableSegments
+            .map((segment) => segment.energySource)
+            .toSet();
+        final rates = billableSegments
+            .map((segment) => segment.hourlyRateMinor)
+            .toSet();
+        final usesCompositePricing = sources.length > 1 || rates.length > 1;
+        final singleHourlyRate = usesCompositePricing
+            ? null
+            : billableSegments.firstOrNull?.hourlyRateMinor;
+        final singleEnergySource = sources.length == 1 ? sources.single : null;
+
+        await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => PaymentReceiptDialog(
+            wellName: endedWellName,
+            operatorName: operatorDisplayName,
+            farmerName: farmerDisplayName,
+            farmName: farmDisplayName,
+            energySource: usesCompositePricing
+                ? 'مصادر متعددة'
+                : energySourceLabel(singleEnergySource ?? _energySourceCode),
+            hourlyRateYER: singleHourlyRate,
+            billableSeconds: totalSeconds,
+            totalAmountYER: totalAmount,
+            onConfirmPayment:
+                ({
+                  required int paidAmountYER,
+                  required String paymentMethod,
+                  required bool isFullySettled,
+                }) async {
+                  if (paidAmountYER <= 0) return;
+
+                  if (endedWellId == null || paymentFarmerId == null) {
+                    throw StateError(
+                      'هوية الجلسة غير مكتملة — لم يُسجَّل السداد',
+                    );
+                  }
+
+                  await _coordinator.recordPayment(
+                    accountId: endedAccountId,
+                    wellId: endedWellId,
+                    farmerAccountId: paymentFarmerId,
+                    amountMinor: paidAmountYER,
+                    paymentMethod: paymentMethod,
+                    sessionLocalId: activeSessionId,
+                    sessionCompletionLocalId: completionEnvelope.localId,
+                    note: 'سداد جلسة سقي',
+                  );
+                },
+          ),
+        );
+      }
+    } finally {
+      _finishSessionAction();
     }
   }
 
-  /// خيارات مصدر الطاقة وسعرها.
-  ///
-  /// الخيارات هي مصادر القاعدة الثلاثة (`kSessionEnergySources`) لأن اختيار
-  /// المصدر قرار تشغيلي يملكه المشغل، والسعر وحده من `api.get_active_price_schedule`:
-  /// لا زرّين ثابتين ولا سعرين مكتوبين في العميل، وغياب السعر يُعرض كغياب
-  /// لا كصفر (م-41D6 / ق-99 / القرار 341).
-  Widget _buildEnergySourceSelector() {
-    final options = Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: kSessionEnergySources
-          .map(_buildEnergySourceOption)
-          .toList(growable: false),
-    );
-
-    final notice = _buildPricingStateNotice();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (notice != null) ...[notice, const SizedBox(height: 10)],
-        options,
-      ],
-    );
-  }
-
-  /// حالة قراءة التسعيرة: تُعلن ما جرى فوق الأزرار ولا تحجبها.
-  ///
-  /// `null` يعني «الجدول الساري مقروء»، فلا لافتة.
   Widget? _buildPricingStateNotice() {
     if (_isLoadingSchedule) {
       return const Row(
@@ -743,16 +1041,17 @@ class _OperationsScreenState extends State<OperationsScreen> {
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           SizedBox(width: 10),
-          Text(
-            'جاري قراءة التسعيرة السارية...',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          Expanded(
+            child: Text(
+              'جاري قراءة التسعيرة السارية...',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
           ),
         ],
       );
     }
 
     if (_pricingForbidden) {
-      // ليست فشلًا فلا زرّ إعادة محاولة: صلاحية الأسعار للمالك.
       return _buildPricingNotice(
         icon: Icons.lock_outline,
         color: AppColors.textSecondary,
@@ -786,7 +1085,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
     return null;
   }
 
-  /// صندوق حالة التسعيرة: يقول ما جرى، ويعرض «إعادة المحاولة» للفشل وحده.
   Widget _buildPricingNotice({
     required IconData icon,
     required Color color,
@@ -827,63 +1125,80 @@ class _OperationsScreenState extends State<OperationsScreen> {
     );
   }
 
-  /// خيار واحد = مصدر طاقة تقبله القاعدة. الاسم من الخريطة المعتمدة
-  /// `kEnergySourceLabels` (لا Blind Remap: الرمز المجهول يُعرض كما هو)،
-  /// والسعر من قاعدة الجدول الساري أو «غير متوفرة» إن لم تُعرف.
-  Widget _buildEnergySourceOption(String code) {
-    final isSelected = _energySourceCode == code;
-    final rate = _ruleFor(code)?.hourlyRateMinor;
-    final glyph = code == 'solar' ? '☀️' : '⛽';
+  bool _isPendingChangeWhilePaused(ActiveSessionRecord? activeSession) {
+    if (!_isPaused || activeSession == null) return false;
+    final segments = activeSession.segments;
+    final openIndex = segments.lastIndexWhere((s) => s.isOpen);
+    if (openIndex < 0) return false;
+    final open = segments[openIndex];
+    for (var i = openIndex - 1; i >= 0; i--) {
+      if (segments[i].kind == SegmentKind.running) {
+        return segments[i].energySource != open.energySource;
+      }
+    }
+    return false;
+  }
 
-    return SizedBox(
-      width: 160,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          backgroundColor: isSelected
-              ? AppColors.waterBlue.withValues(alpha: 0.1)
-              : Colors.white,
-          side: BorderSide(
-            color: isSelected ? AppColors.waterBlue : AppColors.border,
-            width: isSelected ? 2 : 1,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+  String _energySourceContextText(ActiveSessionRecord? activeSession) {
+    final code = _energySourceCode;
+    final label = energySourceLabel(code);
+    final glyph = energySourceGlyph(code);
+
+    if (!_isSessionActive) return '$glyph $label';
+
+    if (!_isPaused) {
+      return '$glyph $label — الآن';
+    }
+
+    if (_isPendingChangeWhilePaused(activeSession)) {
+      return 'عند الاستئناف: $label';
+    }
+
+    return 'آخر مصدر: $label';
+  }
+
+  String _pumpStatusText(String status) => switch (status) {
+    'active' => 'نشطة',
+    'inactive' => 'غير نشطة',
+    'maintenance' => 'تحت الصيانة',
+    'retired' => 'مسحوبة من الخدمة',
+    _ => 'حالة غير معروفة',
+  };
+
+  Widget _buildReadOnlyDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.waterBlue),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
-        onPressed: () => _changeEnergySource(code),
-        child: Column(
-          children: [
-            Text(
-              '${energySourceLabel(code)} $glyph',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: AppColors.deepBlue,
-              ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepBlue,
             ),
-            const SizedBox(height: 2),
-            Text(
-              rate == null
-                  ? 'التسعيرة غير متوفرة'
-                  : '${CurrencyUtils.formatAmount(rate)} ريال / ساعة',
-              style: TextStyle(
-                fontSize: 11,
-                color: rate == null
-                    ? AppColors.warning
-                    : AppColors.textSecondary,
-              ),
-            ),
-          ],
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-      ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeSession = _coordinator.currentActiveSession;
+    final activeSession = _activeSession;
     final liveTotals = activeSession == null
         ? null
         : summarize(activeSession.segments, _now());
@@ -893,6 +1208,17 @@ class _OperationsScreenState extends State<OperationsScreen> {
     final hours = (displaySeconds ~/ 3600).toString().padLeft(2, '0');
     final minutes = ((displaySeconds % 3600) ~/ 60).toString().padLeft(2, '0');
     final seconds = (displaySeconds % 60).toString().padLeft(2, '0');
+
+    // ق-129 / B5: حالة المزامنة الحقيقية
+    final syncState = activeSession?.syncState ?? SessionSyncState.localOnly;
+    final isSynced = syncState == SessionSyncState.synced;
+
+    // ق-129 / C2: ملخص المصادر التراكمي للمقاطع المحتسبة
+    final sourceSummaries = activeSession != null
+        ? calculateSourceSummaries(activeSession.segments, _now())
+        : const <SourceUsageSummary>[];
+
+    final currentRate = _ruleFor(_energySourceCode)?.hourlyRateMinor;
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
@@ -908,9 +1234,16 @@ class _OperationsScreenState extends State<OperationsScreen> {
               _activeWell = newWell;
               _selectedFarmer = null;
               _selectedFarm = null;
+              _selectedPump = null;
+              _pumps = [];
+              _energySourceCode = null;
+              _activeSession = null;
+              _isSessionActive = false;
+              _activeSessionId = null;
             });
             _loadPumps();
             _loadPriceSchedule();
+            _recoverActiveSession();
             if (widget.onWellChanged != null) {
               widget.onWellChanged!(newWell);
             }
@@ -931,7 +1264,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. كرت حالة الجلسة والعداد المباشر
+              // 1. كرت حالة الجلسة والعداد المباشر (استجابة مرنة بدون تجاوز ق-129 / B6)
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -955,14 +1288,20 @@ class _OperationsScreenState extends State<OperationsScreen> {
                 ),
                 child: Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    // رأس الكرت (Wrap مرن يمنع الـ Overflow)
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Row(
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
                           children: [
                             Container(
-                              width: 12,
-                              height: 12,
+                              width: 10,
+                              height: 10,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: _isSessionActive
@@ -972,12 +1311,11 @@ class _OperationsScreenState extends State<OperationsScreen> {
                                     : AppColors.textMuted,
                               ),
                             ),
-                            const SizedBox(width: 8),
                             Text(
                               _isSessionActive
                                   ? (_isPaused
-                                        ? 'جلسة سقي متوقفة مؤقتاً'
-                                        : 'جلسة سقي جارية الآن')
+                                        ? SessionStateText.paused
+                                        : SessionStateText.running)
                                   : 'لا توجد جلسة سقي نشطة',
                               style: TextStyle(
                                 fontSize: 14,
@@ -991,42 +1329,59 @@ class _OperationsScreenState extends State<OperationsScreen> {
                             ),
                           ],
                         ),
-                        Row(
-                          children: [
-                            if (_isSessionActive) ...[
+                        if (_isSessionActive)
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              // شارة المزامنة الحقيقية (ق-129 / B5)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.agriculturalGreen.withValues(
-                                    alpha: 0.08,
-                                  ),
+                                  color: isSynced
+                                      ? AppColors.agriculturalGreen.withValues(
+                                          alpha: 0.08,
+                                        )
+                                      : AppColors.surface,
                                   borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: isSynced
+                                        ? AppColors.agriculturalGreen
+                                              .withValues(alpha: 0.3)
+                                        : AppColors.border,
+                                  ),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      Icons.cloud_done_outlined,
+                                      isSynced
+                                          ? Icons.cloud_done_outlined
+                                          : Icons.cloud_queue_outlined,
                                       size: 13,
-                                      color: AppColors.agriculturalGreen,
+                                      color: isSynced
+                                          ? AppColors.agriculturalGreen
+                                          : AppColors.textSecondary,
                                     ),
-                                    SizedBox(width: 4),
+                                    const SizedBox(width: 4),
                                     Text(
-                                      'مزامن',
+                                      syncState.text,
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w600,
-                                        color: AppColors.agriculturalGreen,
+                                        color: isSynced
+                                            ? AppColors.agriculturalGreen
+                                            : AppColors.textSecondary,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
 
-                              const SizedBox(width: 6),
+                              // شارة مصدر الطاقة الحالي (ق-129 / C1)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 10,
@@ -1035,9 +1390,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
                                 decoration: BoxDecoration(
                                   color: AppColors.surface,
                                   borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: AppColors.border),
                                 ),
                                 child: Text(
-                                  energySourceLabel(_energySourceCode),
+                                  _energySourceContextText(activeSession),
                                   style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
@@ -1046,8 +1402,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                                 ),
                               ),
                             ],
-                          ],
-                        ),
+                          ),
                       ],
                     ),
 
@@ -1069,216 +1424,406 @@ class _OperationsScreenState extends State<OperationsScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // المستحق المالي اللحظي
+                    // المبلغ المالي اللحظي والتفقيط (ق-129 / B4 / A7)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 8,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Column(
                         children: [
-                          const Text(
-                            'المستحق اللحظي: ',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              const Text(
+                                'المبلغ: ',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (accruedAmount == null)
+                                const Text(
+                                  SessionStateText.pricingPending,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.warning,
+                                  ),
+                                )
+                              else ...[
+                                Text(
+                                  CurrencyUtils.formatAmount(accruedAmount),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.agriculturalGreen,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  'ريال',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.agriculturalGreen,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          // لا «0 ريال» ولا رقم مخمَّن حين يغيب السعر:
-                          // النصّ المعتمد وحده (القرار 341 / م-41D6).
-                          if (accruedAmount == null)
-                            const Text(
-                              SessionStateText.pricingPending,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.warning,
-                              ),
-                            )
-                          else
-                            CurrencyDisplay(
-                              amount: accruedAmount,
-                              amountStyle: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.agriculturalGreen,
+                          if (accruedAmount != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              Tafqeet.format(accruedAmount),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
                               ),
                             ),
+                          ],
                         ],
                       ),
                     ),
+
+                    // تفصيل أوقات المصادر التراكمية للجلسة الجارية (ق-129 / C2)
+                    if (_isSessionActive && sourceSummaries.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 12,
+                          runSpacing: 4,
+                          children: sourceSummaries
+                              .map(
+                                (s) => Text(
+                                  '${s.shortLabel} ${s.formattedDuration}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    fontFamily: 'monospace',
+                                    color: AppColors.deepBlue,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ],
+
+                    // زر تحويل الطاقة في الجلسة الجارية (ق-129 / C3 / C4)
+                    if (_isSessionActive) ...[
+                      const SizedBox(height: 6),
+                      TextButton.icon(
+                        onPressed: _isSessionActionInProgress
+                            ? null
+                            : _openActiveEnergySourcePicker,
+                        icon: const Icon(
+                          Icons.swap_horiz,
+                          size: 16,
+                          color: AppColors.waterBlue,
+                        ),
+                        label: const Text(
+                          'تحويل مصدر الطاقة',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.waterBlue,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 20),
 
-              // 2. محددات الجلسة (المزارع والأرض والمضخة ومصدر الطاقة)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'بيانات ومحددات السقي',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepBlue,
+              // 2. نموذج الإدخال قبل الجلسة (A) أو التفاصيل للقراءة فقط أثناء الجلسة (B1)
+              if (!_isSessionActive)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'بيانات ومحددات السقي',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepBlue,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                    // أ) مكوّن البحث الذكي عن المزارع (SmartLookupField)
-                    SmartLookupField<FarmerAccount>(
-                      label: 'المزارع المستفيد *',
-                      hintText: 'ابحث باسم المزارع أو رقم هاتفه...',
-                      prefixIcon: Icons.person_outline,
-                      enabled: !_isSessionActive,
-                      selectedItem: _selectedFarmer,
-                      itemLabel: (f) => f.fullName,
-                      itemSecondaryLabel: (f) =>
-                          'كود: ${f.publicCode}${f.phone != null ? " • هاتف: ${f.phone}" : ""}',
-                      searchFunction: _searchFarmers,
-                      onChanged: (farmer) {
-                        setState(() {
-                          _selectedFarmer = farmer;
-                          _selectedFarm =
-                              null; // إعادة تعيين الأرض لتوافقها مع المزارع
-                        });
-                      },
-                      onAddNew: _showAddFarmerDialog,
-                      addNewLabel: 'إضافة مزارع جديد',
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ب) مكوّن البحث الذكي عن الأرض الزراعية (SmartLookupField)
-                    SmartLookupField<Farm>(
-                      label: 'الأرض الزراعية *',
-                      hintText: _selectedFarmer != null
-                          ? 'اختر أرض المزارع...'
-                          : 'يرجى اختيار المزارع أولاً',
-                      prefixIcon: Icons.landscape_outlined,
-                      enabled: !_isSessionActive && _selectedFarmer != null,
-                      selectedItem: _selectedFarm,
-                      itemLabel: (f) => f.name,
-                      searchFunction: _searchFarms,
-                      onChanged: (farm) => setState(() => _selectedFarm = farm),
-                      onAddNew: _showAddFarmDialog,
-                      addNewLabel: 'إضافة أرض جديدة',
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ج) اختيار المضخة
-                    const Text(
-                      'المضخة العاملة *',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepBlue,
+                      // أ) مكوّن البحث الذكي عن المزارع (A1, A2)
+                      SmartLookupField<FarmerAccount>(
+                        label: 'المزارع المستفيد *',
+                        hintText: 'ابحث باسم المزارع أو رقم هاتفه...',
+                        prefixIcon: Icons.person_outline,
+                        enabled: true,
+                        autofocusSearch: false,
+                        selectedItem: _selectedFarmer,
+                        itemLabel: (f) => f.fullName,
+                        itemSecondaryLabel: (f) =>
+                            (f.phone != null && f.phone!.isNotEmpty)
+                            ? 'هاتف: ${f.phone}'
+                            : null,
+                        searchFunction: _searchFarmers,
+                        onChanged: (farmer) {
+                          setState(() {
+                            _selectedFarmer = farmer;
+                            _selectedFarm = null;
+                          });
+                        },
+                        onAddNew: _showAddFarmerDialog,
+                        addNewLabel: 'إضافة مزارع جديد',
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    _isLoadingPumps
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(8),
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
-                        : _pumpsError != null
-                        ? Row(
-                            children: [
-                              const Icon(
-                                Icons.error_outline_rounded,
-                                color: AppColors.error,
-                                size: 20,
+                      const SizedBox(height: 14),
+
+                      // ب) مكوّن البحث الذكي عن الأرض الزراعية (A3)
+                      SmartLookupField<Farm>(
+                        label: 'الأرض الزراعية *',
+                        hintText: _selectedFarmer != null
+                            ? 'ابحث باسم الأرض...'
+                            : 'يرجى اختيار المزارع أولاً',
+                        prefixIcon: Icons.landscape_outlined,
+                        enabled: _selectedFarmer != null,
+                        autofocusSearch: false,
+                        selectedItem: _selectedFarm,
+                        itemLabel: (f) => f.name,
+                        searchFunction: _searchFarms,
+                        onChanged: (farm) =>
+                            setState(() => _selectedFarm = farm),
+                        onAddNew: _showAddFarmDialog,
+                        addNewLabel: 'إضافة أرض جديدة',
+                      ),
+                      const SizedBox(height: 14),
+
+                      // ج) اختيار المضخة العاملة (A4)
+                      const Text(
+                        'المضخة العاملة *',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepBlue,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _isLoadingPumps
+                          ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(8),
+                                child: CircularProgressIndicator(),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _pumpsError!,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.error,
-                                  ),
+                            )
+                          : _pumpsError != null
+                          ? Row(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline_rounded,
+                                  color: AppColors.error,
+                                  size: 20,
                                 ),
-                              ),
-                              TextButton(
-                                onPressed: _loadPumps,
-                                child: const Text('إعادة'),
-                              ),
-                            ],
-                          )
-                        : DropdownButtonFormField<Pump>(
-                            initialValue: _selectedPump,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: AppColors.border,
-                                ),
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.water,
-                                color: AppColors.waterBlue,
-                              ),
-                            ),
-                            items: _pumps
-                                .map(
-                                  (p) => DropdownMenuItem(
-                                    value: p,
-                                    child: Text(
-                                      '${p.name} (${p.publicCode})',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.deepBlue,
-                                      ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _pumpsError!,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.error,
                                     ),
                                   ),
-                                )
-                                .toList(),
-                            onChanged: _isSessionActive
-                                ? null
-                                : (val) => setState(() => _selectedPump = val),
-                          ),
-                    const SizedBox(height: 14),
+                                ),
+                                TextButton(
+                                  onPressed: _loadPumps,
+                                  child: const Text('إعادة'),
+                                ),
+                              ],
+                            )
+                          : DropdownButtonFormField<Pump>(
+                              initialValue: _selectedPump,
+                              isExpanded: true,
+                              hint: const Text(
+                                'اختر المضخة...',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.border,
+                                  ),
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.water,
+                                  color: AppColors.waterBlue,
+                                ),
+                              ),
+                              items: _pumps
+                                  .map(
+                                    (p) => DropdownMenuItem(
+                                      value: p,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              p.name,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.deepBlue,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '— ${_pumpStatusText(p.status)}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (val) =>
+                                  setState(() => _selectedPump = val),
+                            ),
+                      const SizedBox(height: 14),
 
-                    // د) مصدر الطاقة والتسعير اللحظي
-                    const Text(
-                      'مصدر الطاقة والتسعيرة',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepBlue,
+                      // د) محدد الطاقة والتسعير المدمج (A5, A6)
+                      const Text(
+                        'مصدر الطاقة والتسعيرة *',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepBlue,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildEnergySourceSelector(),
-                  ],
+                      const SizedBox(height: 8),
+                      if (_buildPricingStateNotice() != null) ...[
+                        _buildPricingStateNotice()!,
+                        const SizedBox(height: 8),
+                      ],
+                      CompactEnergySelector(
+                        selectedSource: _energySourceCode,
+                        priceRules: _priceRules,
+                        onSourceSelected: (src) =>
+                            setState(() => _energySourceCode = src),
+                        enabled: true,
+                      ),
+                    ],
+                  ),
+                )
+              else
+                // تفاصيل الجلسة الحالية للقراءة فقط (B1)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'تفاصيل الجلسة الحالية',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepBlue,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildReadOnlyDetailRow(
+                        icon: Icons.person_outline,
+                        label: 'المزارع المستفيد:',
+                        value: _selectedFarmer?.fullName ?? 'مزارع غير محدد',
+                      ),
+                      const Divider(height: 16),
+                      _buildReadOnlyDetailRow(
+                        icon: Icons.landscape_outlined,
+                        label: 'الأرض الزراعية:',
+                        value: _selectedFarm?.name ?? 'أرض غير محددة',
+                      ),
+                      const Divider(height: 16),
+                      _buildReadOnlyDetailRow(
+                        icon: Icons.water,
+                        label: 'المضخة العاملة:',
+                        value: _selectedPump?.name ?? 'مضخة غير محددة',
+                      ),
+                      const Divider(height: 16),
+                      _buildReadOnlyDetailRow(
+                        icon: Icons.bolt,
+                        label: 'مصدر الطاقة الحالي:',
+                        value:
+                            '${energySourceLabel(_energySourceCode)} ${energySourceGlyph(_energySourceCode)}',
+                      ),
+                      if (currentRate != null) ...[
+                        const Divider(height: 16),
+                        _buildReadOnlyDetailRow(
+                          icon: Icons.payments_outlined,
+                          label: 'التعرفة السارية:',
+                          value:
+                              '${CurrencyUtils.formatAmount(currentRate)} ريال / ساعة\n${Tafqeet.format(currentRate)}',
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
               const SizedBox(height: 24),
 
               // 3. أزرار التحكم الرئيسية بالجلسة
-              if (!_isSessionActive)
+              if (!_isSessionActive) ...[
+                // إرشاد الحقل الناقص (A8)
+                if (!_isFormComplete && _missingFieldGuidance != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _missingFieldGuidance!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                  ),
                 ElevatedButton.icon(
                   icon: _isSubmitting
                       ? const SizedBox(
@@ -1306,16 +1851,18 @@ class _OperationsScreenState extends State<OperationsScreen> {
                     ),
                     elevation: 2,
                   ),
-                  onPressed: _isSubmitting ? null : _startSession,
-                )
-              else
+                  onPressed: (!_isFormComplete || _isSubmitting)
+                      ? null
+                      : _startSession,
+                ),
+              ] else
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
                         icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
                         label: Text(
-                          _isPaused ? 'استئناف السقي' : 'إيقاف مؤقت',
+                          _isPaused ? 'استئناف' : 'إيقاف مؤقت',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
@@ -1328,7 +1875,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: _togglePause,
+                        onPressed: _isSessionActionInProgress
+                            ? null
+                            : _togglePause,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1336,7 +1885,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.stop),
                         label: const Text(
-                          'إنهاء واحتساب',
+                          'إنهاء الجلسة',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
@@ -1347,7 +1896,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: _endSession,
+                        onPressed: _isSessionActionInProgress
+                            ? null
+                            : _endSession,
                       ),
                     ),
                   ],

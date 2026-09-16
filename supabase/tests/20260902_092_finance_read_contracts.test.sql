@@ -52,7 +52,14 @@ declare
   v_payload jsonb;
   v_item jsonb;
   v_code text;
-  v_started timestamptz := date_trunc('day', now()) + interval '9 hours';
+  -- هجرة 098 جعلت «اليوم» يتبع منطقة الجهة (Asia/Aden)؛ نثبّت بيانات الاختبار
+  -- على اليوم المحلي لعدن لمنع فشل الفحص خلال فجوة منتصف الليل بين UTC وعدن.
+  v_started timestamptz := (
+    date_trunc(
+      'day',
+      now() at time zone 'Asia/Aden'
+    ) + interval '9 hours'
+  ) at time zone 'Asia/Aden';
 begin
   v_all := array[v_exp, v_partners, v_cycles, v_farmer, v_reports];
 

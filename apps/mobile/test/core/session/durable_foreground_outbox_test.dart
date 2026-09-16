@@ -55,7 +55,7 @@ void main() {
       final pause = await foreground.pauseSession(
         accountId: 'account-a',
         sessionLocalId: start.localId,
-        reason: 'توقف',
+        reason: 'operator_pause',
       );
 
       final worker = SqliteOutboxStore(

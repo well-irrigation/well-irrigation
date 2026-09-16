@@ -25,6 +25,7 @@ class SmartLookupField<T> extends StatelessWidget {
     this.emptyMessage = 'لا توجد نتائج مطابقة',
     this.prefixIcon = Icons.search,
     this.enabled = true,
+    this.autofocusSearch = false,
     super.key,
   });
 
@@ -40,6 +41,7 @@ class SmartLookupField<T> extends StatelessWidget {
   final String emptyMessage;
   final IconData prefixIcon;
   final bool enabled;
+  final bool autofocusSearch;
 
   void _openSearchSheet(BuildContext context) {
     if (!enabled) return;
@@ -54,6 +56,7 @@ class SmartLookupField<T> extends StatelessWidget {
         itemLabel: itemLabel,
         itemSecondaryLabel: itemSecondaryLabel,
         searchFunction: searchFunction,
+        autofocusSearch: autofocusSearch,
         onSelected: (item) {
           onChanged(item);
           Navigator.of(sheetContext).pop();
@@ -179,6 +182,7 @@ class _SmartLookupBottomSheet<T> extends StatefulWidget {
     required this.itemLabel,
     required this.searchFunction,
     required this.onSelected,
+    this.autofocusSearch = false,
     this.itemSecondaryLabel,
     this.onAddNew,
     this.addNewLabel,
@@ -194,6 +198,7 @@ class _SmartLookupBottomSheet<T> extends StatefulWidget {
   final Future<void> Function()? onAddNew;
   final String? addNewLabel;
   final String emptyMessage;
+  final bool autofocusSearch;
 
   @override
   State<_SmartLookupBottomSheet<T>> createState() =>
@@ -320,7 +325,7 @@ class _SmartLookupBottomSheetState<T>
                 // 2. حقل البحث اللحظي مع توحيد الأرقام
                 TextField(
                   controller: _searchController,
-                  autofocus: true,
+                  autofocus: widget.autofocusSearch,
                   inputFormatters: const [ArabicToEnglishDigitsFormatter()],
                   decoration: InputDecoration(
                     hintText: widget.hintText,

@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
+import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 import 'package:well_irrigation_mobile/core/api/well_management_repository.dart';
 import 'package:well_irrigation_mobile/core/session/active_session_projector.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/core/session/session_business_state.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
+import 'package:well_irrigation_mobile/features/operations/widgets/compact_energy_selector.dart';
 
 import '../../support/identity_fixture.dart';
 
@@ -44,6 +48,24 @@ class _RecordingCoordinator extends OfflineSessionCoordinator {
     pricingUpdates.add(snapshots);
     super.updatePricing(snapshots);
   }
+}
+
+class _DeferredPriceRepository extends WellManagementRepository {
+  final requests = <String, Completer<PriceScheduleModel?>>{};
+
+  @override
+  Future<PriceScheduleModel?> fetchActivePriceSchedule(
+    String wellId, {
+    DateTime? at,
+  }) => requests.putIfAbsent(wellId, Completer.new).future;
+}
+
+class _DeferredOperationsRepository extends OperationsRepository {
+  final requests = <String, Completer<List<Pump>>>{};
+
+  @override
+  Future<List<Pump>> fetchPumps(String wellId) =>
+      requests.putIfAbsent(wellId, Completer.new).future;
 }
 
 PriceScheduleModel _schedule(List<PriceRuleModel> rules) => PriceScheduleModel(
@@ -145,8 +167,13 @@ void main() {
     );
     await pumpScreen(tester, repo: repo, coordinator: coordinator);
 
-    expect(find.text('طاقة شمسية ☀️'), findsOneWidget);
-    expect(find.text('ديزل البئر ⛽'), findsOneWidget);
+    final selector = find.byType(CompactEnergySelector);
+    await tester.ensureVisible(selector);
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+
+    expect(find.text('طاقة شمسية'), findsWidgets);
+    expect(find.text('ديزل البئر'), findsWidgets);
     expect(find.text('4,200 ريال / ساعة'), findsOneWidget);
     expect(find.text('6,100 ريال / ساعة'), findsOneWidget);
 
@@ -157,7 +184,7 @@ void main() {
 
     // خيارات المصدر مصادر القاعدة الثلاثة: المصدر قرار تشغيلي، فمصدر لا
     // يُسعّره الجدول يبقى قابلًا للاختيار وسعره يُعلن غيابه.
-    expect(find.text('ديزل المزارع ⛽'), findsOneWidget);
+    expect(find.text('ديزل المزارع'), findsWidgets);
     expect(find.text('التسعيرة غير متوفرة'), findsOneWidget);
     expect(repo.calls, 1);
   });
@@ -170,7 +197,12 @@ void main() {
     );
     await pumpScreen(tester, repo: repo, coordinator: coordinator);
 
-    expect(find.text('ديزل المزارع ⛽'), findsOneWidget);
+    final selector = find.byType(CompactEnergySelector);
+    await tester.ensureVisible(selector);
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+
+    expect(find.text('ديزل المزارع'), findsWidgets);
     // اثنان بلا سعر: قاعدة ديزل المزارع بتسعير الوقود، وديزل البئر بلا قاعدة.
     expect(find.text('التسعيرة غير متوفرة'), findsNWidgets(2));
 
@@ -197,12 +229,121 @@ void main() {
     expect(find.textContaining('ريال / ساعة'), findsNothing);
     expect(coordinator.pricingUpdates.single, isEmpty);
 
+    final selector = find.byType(CompactEnergySelector);
+    await tester.ensureVisible(selector);
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+
     // غياب السعر لا يسحب أزرار المصدر: الخادم لا يطلب سعرًا من العميل
     // لبدء الجلسة، فمنع البدء هنا منعٌ لعمل مصرَّح به.
-    expect(find.text('طاقة شمسية ☀️'), findsOneWidget);
-    expect(find.text('ديزل البئر ⛽'), findsOneWidget);
-    expect(find.text('ديزل المزارع ⛽'), findsOneWidget);
+    expect(find.text('طاقة شمسية'), findsWidgets);
+    expect(find.text('ديزل البئر'), findsWidgets);
+    expect(find.text('ديزل المزارع'), findsWidgets);
     expect(find.text('التسعيرة غير متوفرة'), findsNWidgets(3));
+  });
+
+  testWidgets('استجابات البئر القديمة لا تستبدل مضخات وتسعير البئر الحالي', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const well2 = WellSummary(
+      id: 'well-2',
+      tenantId: 'tenant-1',
+      name: 'البئر الثانية',
+      status: 'active',
+      roles: ['owner'],
+    );
+    final prices = _DeferredPriceRepository();
+    final operations = _DeferredOperationsRepository();
+
+    var activeWell = well;
+    late StateSetter rebuildHost;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            rebuildHost = setState;
+            return OperationsScreen(
+              identity: testIdentity(
+                accountId: accountId,
+                wells: const [well, well2],
+                activeWell: activeWell,
+              ),
+              coordinator: coordinator,
+              repository: operations,
+              priceRepository: prices,
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+
+    rebuildHost(() => activeWell = well2);
+    await tester.pump();
+
+    operations.requests['well-2']!.complete(const [
+      Pump(
+        id: 'pump-2',
+        wellId: 'well-2',
+        name: 'مضخة البئر الثانية',
+        publicCode: 'INTERNAL-2',
+        status: 'maintenance',
+      ),
+    ]);
+    prices.requests['well-2']!.complete(
+      PriceScheduleModel(
+        id: 'schedule-2',
+        wellId: 'well-2',
+        name: 'تسعير 2',
+        status: 'active',
+        effectiveFrom: DateTime(2026),
+        rules: const [
+          PriceRuleModel(
+            id: 'rule-2',
+            energySource: 'solar',
+            hourlyRateMinor: 2222,
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    operations.requests['well-1']!.complete(const [
+      Pump(
+        id: 'pump-1',
+        wellId: 'well-1',
+        name: 'مضخة البئر الأولى',
+        publicCode: 'INTERNAL-1',
+      ),
+    ]);
+    prices.requests['well-1']!.complete(
+      PriceScheduleModel(
+        id: 'schedule-1',
+        wellId: 'well-1',
+        name: 'تسعير 1',
+        status: 'active',
+        effectiveFrom: DateTime(2026),
+        rules: const [
+          PriceRuleModel(
+            id: 'rule-1',
+            energySource: 'solar',
+            hourlyRateMinor: 1111,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('مضخة البئر الثانية'), findsOneWidget);
+    expect(find.textContaining('تحت الصيانة'), findsOneWidget);
+    expect(find.text('مضخة البئر الأولى'), findsNothing);
+    expect(find.textContaining('INTERNAL-'), findsNothing);
+    expect(coordinator.pricingUpdates, hasLength(1));
+    expect(coordinator.pricingUpdates.single.single.hourlyRateMinor, 2222);
   });
 
   testWidgets('4. فشل قراءة التسعيرة يُعلن، و«إعادة المحاولة» قراءة جديدة', (
@@ -231,12 +372,12 @@ void main() {
 
     await pumpScreen(tester, repo: repo, coordinator: coordinator);
 
-    expect(find.text('جلسة سقي جارية الآن'), findsOneWidget);
+    expect(find.text(SessionStateText.running), findsOneWidget);
     expect(find.text(SessionStateText.pricingPending), findsOneWidget);
     expect(find.textContaining('0 ريال'), findsNothing);
 
     // رمز المصدر يُعرض بالاسم المعتمد لا بالرمز الخام ولا بنصّ مُخترع.
-    expect(find.text('طاقة شمسية'), findsOneWidget);
+    expect(find.textContaining('طاقة شمسية'), findsWidgets);
   });
 
   testWidgets('6. رفض 42501 حالة صلاحية معلنة لا فشل ولا منع تشغيل', (
@@ -262,11 +403,17 @@ void main() {
     expect(find.textContaining('تعذر قراءة التسعيرة السارية'), findsNothing);
     expect(find.text('إعادة المحاولة'), findsNothing);
 
-    // ولا سعر مُخمَّن، والأزرار الثلاثة قائمة مع مصدر مختار.
+    // ولا سعر مُخمَّن، ومنتقي الطاقة يتيح الخيارات الثلاثة.
     expect(find.textContaining('ريال / ساعة'), findsNothing);
-    expect(find.text('طاقة شمسية ☀️'), findsOneWidget);
-    expect(find.text('ديزل البئر ⛽'), findsOneWidget);
-    expect(find.text('ديزل المزارع ⛽'), findsOneWidget);
+
+    final selector = find.byType(CompactEnergySelector);
+    await tester.ensureVisible(selector);
+    await tester.tap(selector);
+    await tester.pumpAndSettle();
+
+    expect(find.text('طاقة شمسية'), findsWidgets);
+    expect(find.text('ديزل البئر'), findsWidgets);
+    expect(find.text('ديزل المزارع'), findsWidgets);
     expect(coordinator.pricingUpdates.single, isEmpty);
   });
 
@@ -328,13 +475,19 @@ void main() {
     expect(find.text('3,493'), findsOneWidget);
     expect(find.text('6,808'), findsNothing);
 
-    final end = find.text('إنهاء واحتساب');
+    final end = find.text('إنهاء الجلسة');
     await tester.ensureVisible(end);
     await tester.tap(end);
     await tester.pumpAndSettle();
 
     expect(find.text('3,493'), findsWidgets);
-    expect(find.text('حسب مقاطع الجلسة'), findsOneWidget);
+    expect(find.text('تأكيد الإنهاء'), findsOneWidget);
+
+    await tester.tap(find.text('تأكيد الإنهاء'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('3,493'), findsWidgets);
+    expect(find.text('منتهي'), findsOneWidget);
     expect(find.textContaining('سعر الساعة ('), findsNothing);
   });
 }
