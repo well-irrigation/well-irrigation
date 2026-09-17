@@ -19,6 +19,17 @@ void main() {
   });
 
   group('الكبح الزمني', () {
+    test('نبضات عودة الشبكة المتقاربة لا تنشئ حلقة جدولة', () async {
+      expect(
+        await trigger.request(accountA, SyncTriggerReason.connectivityRestored),
+        isTrue,
+      );
+      expect(
+        await trigger.request(accountA, SyncTriggerReason.connectivityRestored),
+        isFalse,
+      );
+      expect(scheduler.count, 1);
+    });
     test('فتح التطبيق يجدول دائمًا', () async {
       expect(
         await trigger.request(accountA, SyncTriggerReason.appStarted),
@@ -27,7 +38,7 @@ void main() {
       expect(scheduler.count, 1);
     });
 
-    test('ثلاثة أسباب في ثانيتين تصير طلبًا واحدًا', () async {
+    test('نبضات الواجهة تُكبح لكن الأمر الجديد لا يضيع بعد عمل فارغ', () async {
       await trigger.request(accountA, SyncTriggerReason.appStarted);
 
       advanceClock(const Duration(seconds: 1));
@@ -43,8 +54,9 @@ void main() {
       );
 
       expect(resumed, isFalse);
-      expect(queued, isFalse);
-      expect(scheduler.count, 1, reason: 'طلب واحد على نفس الطابور');
+      expect(queued, isTrue);
+      expect(scheduler.count, 2);
+      expect(scheduler.last.replaceExisting, isFalse);
     });
 
     test('بعد انقضاء الفاصل يُقبل السبب التالي', () async {

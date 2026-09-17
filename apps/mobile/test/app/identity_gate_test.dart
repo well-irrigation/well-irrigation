@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/app/identity_gate.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/core/identity/app_identity.dart';
+
 import '../support/identity_fixture.dart';
 
 /// بوابة الهوية: الحالات الثلاث تُقاس سلوكًا لا نصًّا (ق-113 / جولة الهوية).
@@ -96,8 +97,9 @@ void main() {
   });
 
   group('IdentityGate — لا محتوى إلا من هوية حقيقية', () {
-    testWidgets('1. فشل العقد يُعلن مع إعادة محاولة ولا يُبنى محتوى',
-        (tester) async {
+    testWidgets('1. فشل العقد يُعلن مع إعادة محاولة ولا يُبنى محتوى', (
+      tester,
+    ) async {
       var calls = 0;
       await tester.pumpWidget(
         wrap(() async {
@@ -110,14 +112,15 @@ void main() {
       expect(calls, 1);
       expect(find.text('تعذر تحميل بيانات حسابك'), findsOneWidget);
       expect(find.text('إعادة المحاولة'), findsOneWidget);
-      expect(find.textContaining('bootstrap unavailable'), findsOneWidget);
+      expect(find.textContaining('bootstrap unavailable'), findsNothing);
       // لا اسم ولا بئر ولا دور جاهز يظهر بدل البيانات الحقيقية.
       expect(find.text(contentMarker), findsNothing);
       expect(find.text('بئر الخير الرئيسي'), findsNothing);
     });
 
-    testWidgets('2. إعادة المحاولة تقرأ العقد من جديد وتبني بالهوية الحقيقية',
-        (tester) async {
+    testWidgets('2. إعادة المحاولة تقرأ العقد من جديد وتبني بالهوية الحقيقية', (
+      tester,
+    ) async {
       var calls = 0;
       await tester.pumpWidget(
         wrap(() async {
@@ -141,13 +144,13 @@ void main() {
       expect(find.text('تعذر تحميل بيانات حسابك'), findsNothing);
     });
 
-    testWidgets('3. حساب بلا بئر يُعلن حالته ولا يدخل شاشات ببئر مُلفَّق',
-        (tester) async {
+    testWidgets('3. حساب بلا بئر يُعلن حالته ولا يدخل شاشات ببئر مُلفَّق', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        wrap(() async => BootstrapData(
-              profile: testProfile(),
-              wells: const [],
-            )),
+        wrap(
+          () async => BootstrapData(profile: testProfile(), wells: const []),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -156,8 +159,9 @@ void main() {
       expect(find.text('إعادة المحاولة'), findsOneWidget);
     });
 
-    testWidgets('4. تبديل البئر يُمرَّر بمعرّف حقيقي من آبار الحساب',
-        (tester) async {
+    testWidgets('4. تبديل البئر يُمرَّر بمعرّف حقيقي من آبار الحساب', (
+      tester,
+    ) async {
       final builtWells = <String>[];
       ValueChanged<WellSummary>? switchWell;
 
@@ -205,21 +209,18 @@ void main() {
       // يقابل iam.is_partner_only في هجرة 095: السلطة الأوسع تغلب، وإلا
       // مُنع من عملٍ يقبله الخادم — وذلك فشل كاذب لا حماية.
       expect(
-        testIdentity(
-          activeWell: testWell(roles: const ['partner', 'operator']),
-        ).isPartnerOnly,
+        testIdentity(activeWell: testWell(roles: const ['partner', 'operator']))
+            .isPartnerOnly,
         isFalse,
       );
       expect(
-        testIdentity(
-          activeWell: testWell(roles: const ['owner', 'partner']),
-        ).isPartnerOnly,
+        testIdentity(activeWell: testWell(roles: const ['owner', 'partner']))
+            .isPartnerOnly,
         isFalse,
       );
       expect(
-        testIdentity(
-          activeWell: testWell(roles: const ['partner', 'manager']),
-        ).isPartnerOnly,
+        testIdentity(activeWell: testWell(roles: const ['partner', 'manager']))
+            .isPartnerOnly,
         isFalse,
       );
     });

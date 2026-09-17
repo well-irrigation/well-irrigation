@@ -128,6 +128,35 @@ class ActiveSessionProjector {
         .toList();
   }
 
+  /// جلسات الحساب التي ما زالت جارية محليًا، أو اكتملت محليًا وبقي لها
+  /// أمر غير مؤكَّد. تُعاد جميعها دون اختيار جلسة ضمنيًا.
+  Future<List<ActiveSessionRecord>> unresolvedSessions(
+    String accountId, {
+    required DateTime now,
+  }) async {
+    final sessions = await projectAll(accountId, now: now);
+    return sessions
+        .where(
+          (session) =>
+              session.businessState.isActive ||
+              session.pendingCommandCount > 0,
+        )
+        .toList(growable: false);
+  }
+
+  /// يبحث بمعرّف أمر البدء وحده؛ لا يسقط إلى جلسة أخرى عند الغياب.
+  Future<ActiveSessionRecord?> unresolvedSession(
+    String accountId,
+    String startCommandLocalId, {
+    required DateTime now,
+  }) async {
+    final sessions = await unresolvedSessions(accountId, now: now);
+    for (final session in sessions) {
+      if (session.localId == startCommandLocalId) return session;
+    }
+    return null;
+  }
+
   /// جلسة واحدة بمعرّف أمر بدئها.
   Future<ActiveSessionRecord?> projectSession(
     String accountId,
@@ -366,7 +395,7 @@ class ActiveSessionProjector {
         segments,
         completed: completedAt != null,
       ),
-      syncState: _syncStateOf(ordered),
+      syncState: _syncStateOf(ordered, serverIdByLocalId[start.localId]?.serverId),
       segments: List.unmodifiable(segments),
       totals: summarize(segments, effectiveNow),
       payments: List.unmodifiable(payments),
@@ -389,7 +418,13 @@ class ActiveSessionProjector {
   ///
   /// الترتيب مقصود: التعارض أولًا، ثم الإرسال الجاري، ثم الانتظار. محاولة
   /// فاشلة واحدة لا ترفع الحالة إلى حرجة — تبقى «بانتظار المزامنة».
-  static SessionSyncState _syncStateOf(List<CommandEnvelope> commands) {
+  ///
+  /// `synced` يشترط وجود mapping خادمي لأمر البدء (ق-129): أمر مؤكَّد
+  /// بلا هوية خادمية محسومة لا يُعدّ مزامَنًا.
+  static SessionSyncState _syncStateOf(
+    List<CommandEnvelope> commands,
+    String? serverSessionId,
+  ) {
     if (commands.any((c) => c.status == CommandStatus.review)) {
       return SessionSyncState.conflict;
     }
@@ -403,7 +438,10 @@ class ActiveSessionProjector {
         .toList();
 
     if (unconfirmed.isEmpty) {
-      return SessionSyncState.synced;
+      // كل الأوامر مؤكَّدة، لكن بلا mapping خادمي لا نقول «تمت المزامنة».
+      return serverSessionId != null
+          ? SessionSyncState.synced
+          : SessionSyncState.pending;
     }
 
     // لم تُحاول أي عملية بعد ⟹ «محفوظ على الجهاز»، وهو نصّ أدقّ من

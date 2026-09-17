@@ -13,6 +13,7 @@ import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 import 'package:well_irrigation_mobile/core/sync/command_reference.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
+import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
 import 'package:well_irrigation_mobile/features/operations/widgets/compact_energy_selector.dart';
@@ -1092,6 +1093,15 @@ void main() {
           attemptedAt: t0.add(const Duration(minutes: 2)),
         );
       }
+      await store.putMapping(
+        accountId,
+        IdMapping(
+          localId: session.localId,
+          kind: EntityKind.session,
+          serverId: 'srv-session-1',
+          resolvedAt: t0.add(const Duration(minutes: 2)),
+        ),
+      );
       await coordinator.projectActiveSession(
         accountId: accountId,
         wellId: 'well-1',

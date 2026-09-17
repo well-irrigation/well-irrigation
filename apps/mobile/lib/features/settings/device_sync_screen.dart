@@ -6,12 +6,31 @@ import '../../core/theme/app_colors.dart';
 
 /// شاشة تشخيص الجهاز والمزامنة وقاعدة البيانات المحلية (UX-16A / القرارات 556–570 / ق-89 / ق-90 / ق-114)
 class DeviceSyncScreen extends StatefulWidget {
-  const DeviceSyncScreen({required this.accountId, this.repository, super.key});
+  const DeviceSyncScreen({
+    required this.accountId,
+    this.repository,
+    this.localTimeConverter,
+    super.key,
+  });
 
   /// هوية صاحب الطابور من العقد. الطابور يُقرأ بمفتاح صاحبه وحده، وإلا ظهر
   /// «لا عمليات معلَّقة» لحساب عليه عمليات لم تُرسل (ق-113).
   final String accountId;
   final AccountRepository? repository;
+  final DateTime Function(DateTime)? localTimeConverter;
+
+  /// تحويل التوقيت إلى التوقيت المحلي للهاتف عند العرض فقط (ق-129 / F5)
+  static String formatSyncTime(
+    DateTime time, {
+    DateTime Function(DateTime)? localTimeConverter,
+  }) {
+    final local = localTimeConverter != null
+        ? localTimeConverter(time)
+        : time.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        '${two(local.hour)}:${two(local.minute)}';
+  }
 
   @override
   State<DeviceSyncScreen> createState() => _DeviceSyncScreenState();
@@ -82,9 +101,10 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
   }
 
   String _formatSyncTime(DateTime time) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${two(time.day)}/${two(time.month)}/${time.year} '
-        '${two(time.hour)}:${two(time.minute)}';
+    return DeviceSyncScreen.formatSyncTime(
+      time,
+      localTimeConverter: widget.localTimeConverter,
+    );
   }
 
   /// لا يُترجم «غير مقيس» إلى «متصل»: `null` تبقى `null` في النص المعروض.

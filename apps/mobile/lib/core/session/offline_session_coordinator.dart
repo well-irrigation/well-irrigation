@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_initializing_formals
+
 import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -25,7 +27,9 @@ class OfflineSessionCoordinator {
     SupabaseClient? supabaseClient,
     CommandTransport? commandTransport,
     PricingResolver? pricingResolver,
+    Future<bool> Function(String accountId)? commandQueuedScheduler,
   }) : _store = store ?? SqliteOutboxStore(),
+       _commandQueuedScheduler = commandQueuedScheduler,
        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
        // `api.get_active_price_schedule` عبر `updatePricing`. حتى تُغذّى،
        // كل مقطع محتسب «بانتظار المزامنة» ولا يُسعَّر بصفر (القرار 341).
@@ -64,6 +68,14 @@ class OfflineSessionCoordinator {
   late ActiveSessionProjector _projector;
   SyncEngine? _syncEngine;
   PricingResolver _pricingResolver;
+  Future<bool> Function(String accountId)? _commandQueuedScheduler;
+
+  /// يربط جدولة الخلفية بعمر التطبيق؛ لا يغير ملكية أو حالة أي أمر.
+  void setCommandQueuedScheduler(
+    Future<bool> Function(String accountId)? scheduler,
+  ) {
+    _commandQueuedScheduler = scheduler;
+  }
 
   /// إحلال لقطات التسعير المقروءة من العقد محلّ ما قبلها.
   ///
@@ -86,7 +98,10 @@ class OfflineSessionCoordinator {
       _sessionController.stream;
 
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized) {
+      await _outbox.initialize();
+      return;
+    }
     await _outbox.initialize();
     _initialized = true;
 
@@ -101,7 +116,25 @@ class OfflineSessionCoordinator {
 
   ActiveSessionRecord? _currentProjectedSession;
   int _syncProjectionGeneration = 0;
+  int _freshProjectionGeneration = 0;
   ActiveSessionRecord? get currentActiveSession => _currentProjectedSession;
+
+  Future<List<ActiveSessionRecord>> unresolvedSessions(String accountId) async {
+    await initialize();
+    return _projector.unresolvedSessions(accountId, now: DateTime.now());
+  }
+
+  Future<ActiveSessionRecord?> unresolvedSession(
+    String accountId,
+    String startCommandLocalId,
+  ) async {
+    await initialize();
+    return _projector.unresolvedSession(
+      accountId,
+      startCommandLocalId,
+      now: DateTime.now(),
+    );
+  }
 
   /// استرجاع وإسقاط الجلسة النشطة الحالية لبئر معين
   Future<ActiveSessionRecord?> projectActiveSession({
@@ -120,11 +153,54 @@ class OfflineSessionCoordinator {
     }
 
     // طلب بئر محدد لا يجوز أن يسقط إلى جلسة بئر آخر.
-    final match = wellId == null
-        ? activeSessions.first
-        : activeSessions
-              .where((session) => session.wellId == wellId)
-              .firstOrNull;
+    final candidates = wellId == null
+        ? activeSessions
+        : activeSessions.where((session) => session.wellId == wellId).toList();
+    final match = candidates.length == 1 ? candidates.single : null;
+
+    _currentProjectedSession = match;
+    _sessionController.add(_currentProjectedSession);
+    return _currentProjectedSession;
+  }
+
+  /// إسقاط جديد من المخزن المتين — لا نتيجة مخبَّأة.
+  ///
+  /// يقرأ `allCommands` و`mappings` من SQLite مباشرة ويحمي النتيجة بجيل
+  /// تصاعدي: إسقاط أقدم لا يكتب على أحدث.
+  ///
+  /// يُستخدم عند دخول شاشة التشغيل أو العودة إليها لالتقاط تأكيدات
+  /// أجراها WorkManager عبر اتصال SQLite مستقل.
+  Future<ActiveSessionRecord?> freshProjectActiveSession({
+    required String accountId,
+    String? wellId,
+  }) async {
+    final generation = ++_freshProjectionGeneration;
+    await initialize();
+
+    final now = DateTime.now();
+    final activeSessions = await _projector.activeSessions(
+      accountId,
+      now: now,
+    );
+
+    if (generation != _freshProjectionGeneration) {
+      return _currentProjectedSession;
+    }
+
+    if (activeSessions.isEmpty) {
+      _currentProjectedSession = null;
+      _sessionController.add(null);
+      return null;
+    }
+
+    final candidates = wellId == null
+        ? activeSessions
+        : activeSessions.where((s) => s.wellId == wellId).toList();
+    final match = candidates.length == 1 ? candidates.single : null;
+
+    if (generation != _freshProjectionGeneration) {
+      return _currentProjectedSession;
+    }
 
     _currentProjectedSession = match;
     _sessionController.add(_currentProjectedSession);
@@ -159,7 +235,11 @@ class OfflineSessionCoordinator {
     );
 
     await projectActiveSession(accountId: accountId, wellId: wellId);
-    _triggerSync(accountId, sessionLocalId: envelope.localId, wellId: wellId);
+    await _triggerSync(
+      accountId,
+      sessionLocalId: envelope.localId,
+      wellId: wellId,
+    );
     return envelope;
   }
 
@@ -190,7 +270,7 @@ class OfflineSessionCoordinator {
     );
 
     await _projectExactSession(accountId, sessionLocalId);
-    _triggerSync(accountId, sessionLocalId: sessionLocalId);
+    await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
   }
 
@@ -214,7 +294,7 @@ class OfflineSessionCoordinator {
     );
 
     await _projectExactSession(accountId, sessionLocalId);
-    _triggerSync(accountId, sessionLocalId: sessionLocalId);
+    await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
   }
 
@@ -242,7 +322,7 @@ class OfflineSessionCoordinator {
     );
 
     await _projectExactSession(accountId, sessionLocalId);
-    _triggerSync(accountId, sessionLocalId: sessionLocalId);
+    await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
   }
 
@@ -266,7 +346,7 @@ class OfflineSessionCoordinator {
     );
 
     await _projectExactSession(accountId, sessionLocalId);
-    _triggerSync(accountId, sessionLocalId: sessionLocalId);
+    await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
   }
 
@@ -328,7 +408,11 @@ class OfflineSessionCoordinator {
     } else {
       await projectActiveSession(accountId: accountId, wellId: wellId);
     }
-    _triggerSync(accountId, sessionLocalId: sessionLocalId, wellId: wellId);
+    await _triggerSync(
+      accountId,
+      sessionLocalId: sessionLocalId,
+      wellId: wellId,
+    );
     return envelope;
   }
 
@@ -359,11 +443,16 @@ class OfflineSessionCoordinator {
     return record;
   }
 
-  void _triggerSync(
+  Future<void> _triggerSync(
     String accountId, {
     String? sessionLocalId,
     String? wellId,
-  }) {
+  }) async {
+    try {
+      await _commandQueuedScheduler?.call(accountId);
+    } catch (_) {
+      // الأمر محفوظ؛ تعطل جدولة النظام لا يحوّله إلى فشل حفظ.
+    }
     if (_syncEngine == null) return;
     final projectionGeneration = ++_syncProjectionGeneration;
     _syncEngine!
