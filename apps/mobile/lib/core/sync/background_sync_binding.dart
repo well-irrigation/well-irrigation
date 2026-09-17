@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_initializing_formals
+
 /// أسلاك الإرسال الخلفي داخل التطبيق المفتوح.
 ///
 /// يجمع ثلاثة مصادر إيقاظ في مكان واحد:
@@ -22,10 +24,11 @@ import 'connectivity_watcher.dart';
 
 class BackgroundSyncBinding {
   BackgroundSyncBinding({
-    required this._trigger,
+    required BackgroundSyncTrigger trigger,
     ConnectivityWatcher? connectivity,
     this.observeLifecycle = true,
-  }) : _connectivity = connectivity ?? ConnectivityPlusWatcher();
+  }) : _trigger = trigger,
+       _connectivity = connectivity ?? ConnectivityPlusWatcher();
 
   final BackgroundSyncTrigger _trigger;
   final ConnectivityWatcher _connectivity;
@@ -77,7 +80,12 @@ class BackgroundSyncBinding {
       return false;
     }
 
-    return _trigger.request(accountId, reason);
+    try {
+      return await _trigger.request(accountId, reason);
+    } catch (_) {
+      // الجدولة فقط فشلت؛ لا يُلمس الأمر المتين ولا تُرمى من مستمعات النظام.
+      return false;
+    }
   }
 
   /// تسجيل خروج أو إغلاق: يوقف المراقبة ويُنسي الكبح.
@@ -93,5 +101,80 @@ class BackgroundSyncBinding {
     await _connectivity.dispose();
     _trigger.reset();
     _accountId = null;
+  }
+}
+
+/// يربط مراقبة الخلفية بالحساب الذي تُمثّله جلسة المصادقة المحلية الآن.
+/// يُنشئ مراقبًا جديدًا بعد الخروج لأن المراقب القديم أُغلق عند فصله.
+class AuthenticatedBackgroundSync {
+  AuthenticatedBackgroundSync({
+    required Stream<void> authChanges,
+    required String? Function() currentAccountId,
+    required BackgroundSyncBinding Function() bindingFactory,
+  }) : _authChanges = authChanges,
+       _currentAccountId = currentAccountId,
+       _bindingFactory = bindingFactory;
+
+  final Stream<void> _authChanges;
+  final String? Function() _currentAccountId;
+  final BackgroundSyncBinding Function() _bindingFactory;
+  StreamSubscription<void>? _authSubscription;
+  BackgroundSyncBinding? _binding;
+  String? _boundAccountId;
+  Future<void> _transition = Future<void>.value();
+  bool _disposed = false;
+
+  Future<void> start() async {
+    if (_disposed || _authSubscription != null) return;
+    _authSubscription = _authChanges.listen((_) {
+      unawaited(refresh());
+    });
+    await refresh();
+  }
+
+  /// يُستدعى أيضًا بعد نجاح إعادة التحقق حتى لو لم تصدر نبضة مصادقة.
+  Future<void> refresh() {
+    if (_disposed) return Future<void>.value();
+    _transition = _transition.then((_) async {
+      if (_disposed) return;
+      final accountId = _currentAccountId();
+      if (accountId == _boundAccountId) return;
+      final previous = _binding;
+      _binding = null;
+      _boundAccountId = null;
+      await previous?.detach();
+      if (_disposed || accountId == null || _currentAccountId() != accountId) {
+        return;
+      }
+      final binding = _bindingFactory();
+      _binding = binding;
+      _boundAccountId = accountId;
+      try {
+        await binding.attach(accountId);
+      } catch (_) {
+        // فشل الجدولة لا يُسقط المراقبة؛ عودة الاتصال تعيد الطلب.
+      }
+    });
+    return _transition;
+  }
+
+  /// لا يطلب عملًا باسم مالك الأمر إلا إذا بقي هو الحساب المصادَق الحالي.
+  Future<bool> commandQueued(String accountId) async {
+    await _transition;
+    if (_disposed ||
+        _boundAccountId != accountId ||
+        _currentAccountId() != accountId) {
+      return false;
+    }
+    return _binding!.handleCommandQueued();
+  }
+
+  Future<void> dispose() async {
+    _disposed = true;
+    await _authSubscription?.cancel();
+    await _transition;
+    await _binding?.detach();
+    _binding = null;
+    _boundAccountId = null;
   }
 }

@@ -14,10 +14,14 @@ import 'retry_classification.dart';
 /// طلب إرسال واحد: كل ما يحتاجه الخادم، محسوم المراجع.
 class DispatchRequest {
   const DispatchRequest({
+    required this.accountId,
     required this.type,
     required this.commandId,
     required this.arguments,
   });
+
+  /// مالك الأمر المحلي؛ يُستخدم لحراسة الهوية عند الإرسال ولا يُرسل للخادم.
+  final String accountId;
 
   final CommandType type;
 

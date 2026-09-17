@@ -51,7 +51,8 @@ class OperationsScreen extends StatefulWidget {
   State<OperationsScreen> createState() => _OperationsScreenState();
 }
 
-class _OperationsScreenState extends State<OperationsScreen> {
+class _OperationsScreenState extends State<OperationsScreen>
+    with WidgetsBindingObserver {
   late OperationsRepository _repo;
   late OfflineSessionCoordinator _coordinator;
   late WellManagementRepository _priceRepo;
@@ -137,12 +138,20 @@ class _OperationsScreenState extends State<OperationsScreen> {
       }
     }
 
+    WidgetsBinding.instance.addObserver(this);
     _activeSessionSubscription = _coordinator.activeSessionStream.listen(
       _handleActiveSessionUpdate,
     );
     _recoverActiveSession();
     _loadPumps();
     _loadPriceSchedule();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _activeWellId.isNotEmpty) {
+      _recoverActiveSession();
+    }
   }
 
   void _showActionFailure(String message) {
@@ -217,7 +226,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   Future<void> _recoverActiveSession() async {
     final requestedWellId = _activeWellId;
     final generation = ++_projectionGeneration;
-    final active = await _coordinator.projectActiveSession(
+    final active = await _coordinator.freshProjectActiveSession(
       accountId: _accountId,
       wellId: requestedWellId,
     );
@@ -251,72 +260,118 @@ class _OperationsScreenState extends State<OperationsScreen> {
         _energySourceCode = active.currentEnergySource ?? _energySourceCode;
       });
 
-      if (_selectedFarmer == null && active.farmerReference != null) {
-        try {
-          final farmers = await _repo.fetchFarmers(requestedWellId);
-          final matched = farmers
-              .where((f) => f.id == active.farmerReference)
-              .firstOrNull;
-          if (matched != null &&
-              mounted &&
-              generation == _projectionGeneration &&
-              requestedWellId == _activeWellId) {
-            setState(() {
-              _selectedFarmer = matched;
-            });
-            if (_selectedFarm == null && active.farmReference != null) {
-              final farms = await _repo.fetchFarms(
-                requestedWellId,
-                farmerAccountId: matched.id,
-              );
-              final matchedFarm = farms
-                  .where((f) => f.id == active.farmReference)
-                  .firstOrNull;
-              if (matchedFarm != null &&
-                  mounted &&
-                  generation == _projectionGeneration &&
-                  requestedWellId == _activeWellId) {
-                setState(() {
-                  _selectedFarm = matchedFarm;
-                });
-              }
-            }
-          }
-        } catch (e) {
-          if (mounted &&
-              generation == _projectionGeneration &&
-              requestedWellId == _activeWellId) {
-            _showActionFailure(
-              'تعذر تحميل بيانات المزارع أو الأرض للجلسة النشطة',
-            );
-          }
-        }
-      }
-
-      if (_selectedPump == null && active.pumpId != null) {
-        try {
-          final pumps = await _repo.fetchPumps(requestedWellId);
-          final matchedPump = pumps
-              .where((p) => p.id == active.pumpId)
-              .firstOrNull;
-          if (matchedPump != null &&
-              mounted &&
-              generation == _projectionGeneration &&
-              requestedWellId == _activeWellId) {
-            setState(() {
-              _selectedPump = matchedPump;
-            });
-          }
-        } catch (e) {
-          if (mounted &&
-              generation == _projectionGeneration &&
-              requestedWellId == _activeWellId) {
-            _showActionFailure('تعذر تحميل بيانات المضخة للجلسة النشطة');
-          }
-        }
-      }
+      // استرجاع المزارع والأرض والمضخة بشكل مستقل ومتوازٍ.
+      await Future.wait([
+        _recoverFarmer(active, generation),
+        _recoverFarm(active, generation),
+        _recoverPump(active, generation),
+      ]);
 
       _startLocalTicker();
+    }
+  }
+
+  /// استرجاع بيانات المزارع من المعرّف في أمر البدء.
+  ///
+  /// يحميه جيل الإسقاط + الحساب + البئر + هوية الجلسة.
+  Future<void> _recoverFarmer(
+    ActiveSessionRecord active,
+    int generation,
+  ) async {
+    if (_selectedFarmer != null || active.farmerReference == null) return;
+    final wellId = _activeWellId;
+    final accountId = _accountId;
+    final farmerRef = active.farmerReference!;
+    final sessionId = active.localId;
+    try {
+      final farmers = await _repo.fetchFarmers(wellId);
+      final matched = farmers
+          .where((f) => f.id == farmerRef)
+          .firstOrNull;
+      if (matched != null &&
+          mounted &&
+          generation == _projectionGeneration &&
+          wellId == _activeWellId &&
+          accountId == _accountId &&
+          _activeSessionId == sessionId) {
+        setState(() => _selectedFarmer = matched);
+      }
+    } catch (e) {
+      if (mounted &&
+          generation == _projectionGeneration &&
+          wellId == _activeWellId &&
+          accountId == _accountId) {
+        _showActionFailure(
+          'تعذر تحميل بيانات المزارع للجلسة النشطة',
+        );
+      }
+    }
+  }
+
+  /// استرجاع بيانات الأرض من المعرّف في أمر البدء.
+  ///
+  /// مستقل عن نجاح أو فشل استرجاع المزارع — يُبحث بالمعرّف المباشر.
+  Future<void> _recoverFarm(
+    ActiveSessionRecord active,
+    int generation,
+  ) async {
+    if (_selectedFarm != null || active.farmReference == null) return;
+    final wellId = _activeWellId;
+    final accountId = _accountId;
+    final farmRef = active.farmReference!;
+    final farmerRef = active.farmerReference;
+    final sessionId = active.localId;
+    try {
+      final farms = await _repo.fetchFarms(
+        wellId,
+        farmerAccountId: farmerRef,
+      );
+      final matched = farms
+          .where((f) => f.id == farmRef)
+          .firstOrNull;
+      if (matched != null &&
+          mounted &&
+          generation == _projectionGeneration &&
+          wellId == _activeWellId &&
+          accountId == _accountId &&
+          _activeSessionId == sessionId) {
+        setState(() => _selectedFarm = matched);
+      }
+    } catch (e) {
+      // فشل البحث لا يمنع عرض الجلسة — الأرض تبقى غير محددة.
+    }
+  }
+
+  /// استرجاع بيانات المضخة من المعرّف في أمر البدء.
+  Future<void> _recoverPump(
+    ActiveSessionRecord active,
+    int generation,
+  ) async {
+    if (_selectedPump != null || active.pumpId == null) return;
+    final wellId = _activeWellId;
+    final accountId = _accountId;
+    final pumpId = active.pumpId!;
+    final sessionId = active.localId;
+    try {
+      final pumps = await _repo.fetchPumps(wellId);
+      final matched = pumps
+          .where((p) => p.id == pumpId)
+          .firstOrNull;
+      if (matched != null &&
+          mounted &&
+          generation == _projectionGeneration &&
+          wellId == _activeWellId &&
+          accountId == _accountId &&
+          _activeSessionId == sessionId) {
+        setState(() => _selectedPump = matched);
+      }
+    } catch (e) {
+      if (mounted &&
+          generation == _projectionGeneration &&
+          wellId == _activeWellId &&
+          accountId == _accountId) {
+        _showActionFailure('تعذر تحميل بيانات المضخة للجلسة النشطة');
+      }
     }
   }
 
@@ -373,6 +428,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   void dispose() {
     _timer?.cancel();
     _activeSessionSubscription?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -1157,6 +1213,16 @@ class _OperationsScreenState extends State<OperationsScreen> {
     return 'آخر مصدر: $label';
   }
 
+  String _energySourceDetailLabel(ActiveSessionRecord? activeSession) {
+    if (!_isPaused) {
+      return 'مصدر الطاقة الحالي:';
+    }
+    if (_isPendingChangeWhilePaused(activeSession)) {
+      return 'مصدر الطاقة عند الاستئناف:';
+    }
+    return 'آخر مصدر طاقة مستخدم:';
+  }
+
   String _pumpStatusText(String status) => switch (status) {
     'active' => 'نشطة',
     'inactive' => 'غير نشطة',
@@ -1174,9 +1240,11 @@ class _OperationsScreenState extends State<OperationsScreen> {
       children: [
         Icon(icon, size: 18, color: AppColors.waterBlue),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        Flexible(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -1448,7 +1516,16 @@ class _OperationsScreenState extends State<OperationsScreen> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              if (accruedAmount == null)
+                              if (activeSession == null)
+                                const Text(
+                                  'لا مبلغ لجلسة نشطة',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                )
+                              else if (accruedAmount == null)
                                 const Text(
                                   SessionStateText.pricingPending,
                                   style: TextStyle(
@@ -1790,7 +1867,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                       const Divider(height: 16),
                       _buildReadOnlyDetailRow(
                         icon: Icons.bolt,
-                        label: 'مصدر الطاقة الحالي:',
+                        label: _energySourceDetailLabel(activeSession),
                         value:
                             '${energySourceLabel(_energySourceCode)} ${energySourceGlyph(_energySourceCode)}',
                       ),

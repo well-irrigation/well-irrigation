@@ -5,13 +5,124 @@ import 'package:well_irrigation_mobile/core/session/active_session_projector.dar
 import 'package:well_irrigation_mobile/core/session/active_session_record.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/core/session/session_business_state.dart';
+import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 import 'package:well_irrigation_mobile/core/sync/command_reference.dart';
 import 'package:well_irrigation_mobile/core/sync/command_transport.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
+import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 
 import '../sync/fake_command_transport.dart';
+
+class _ControlledDelayOutboxStore implements OutboxStore {
+  _ControlledDelayOutboxStore(this._inner);
+
+  final InMemoryOutboxStore _inner;
+  Completer<void>? delayNextAllCommands;
+  var allCommandsCalls = 0;
+
+  @override
+  Future<void> initialize() => _inner.initialize();
+
+  @override
+  Future<CommandEnvelope> insert(CommandEnvelope envelope) =>
+      _inner.insert(envelope);
+
+  @override
+  Future<int> nextSequence(String accountId) => _inner.nextSequence(accountId);
+
+  @override
+  Future<List<CommandEnvelope>> pendingCommands(String accountId) =>
+      _inner.pendingCommands(accountId);
+
+  @override
+  Future<CommandEnvelope?> commandByLocalId(String accountId, String localId) =>
+      _inner.commandByLocalId(accountId, localId);
+
+  @override
+  Future<List<CommandEnvelope>> allCommands(String accountId) async {
+    allCommandsCalls++;
+    if (delayNextAllCommands != null) {
+      final completer = delayNextAllCommands;
+      delayNextAllCommands = null;
+      await completer!.future;
+    }
+    return _inner.allCommands(accountId);
+  }
+
+  @override
+  Future<bool> claim(
+    String accountId,
+    String localId, {
+    required DateTime attemptedAt,
+  }) => _inner.claim(accountId, localId, attemptedAt: attemptedAt);
+
+  @override
+  Future<void> releaseForRetry(
+    String accountId,
+    String localId, {
+    required String error,
+    required DateTime attemptedAt,
+  }) => _inner.releaseForRetry(
+    accountId,
+    localId,
+    error: error,
+    attemptedAt: attemptedAt,
+  );
+
+  @override
+  Future<void> markConfirmed(
+    String accountId,
+    String localId, {
+    required Map<String, Object?> serverResponse,
+    required DateTime attemptedAt,
+  }) => _inner.markConfirmed(
+    accountId,
+    localId,
+    serverResponse: serverResponse,
+    attemptedAt: attemptedAt,
+  );
+
+  @override
+  Future<void> markNeedsReview(
+    String accountId,
+    String localId, {
+    required String error,
+    required DateTime attemptedAt,
+  }) => _inner.markNeedsReview(
+    accountId,
+    localId,
+    error: error,
+    attemptedAt: attemptedAt,
+  );
+
+  @override
+  Future<void> putMapping(String accountId, IdMapping mapping) =>
+      _inner.putMapping(accountId, mapping);
+
+  @override
+  Future<IdMapping?> mapping(
+    String accountId,
+    String localId,
+    EntityKind kind,
+  ) => _inner.mapping(accountId, localId, kind);
+
+  @override
+  Future<List<IdMapping>> mappings(String accountId) =>
+      _inner.mappings(accountId);
+
+  @override
+  Future<DateTime?> lastSuccessfulSyncAt(String accountId) =>
+      _inner.lastSuccessfulSyncAt(accountId);
+
+  @override
+  Future<void> setLastSuccessfulSyncAt(String accountId, DateTime at) =>
+      _inner.setLastSuccessfulSyncAt(accountId, at);
+
+  @override
+  Future<void> close() => _inner.close();
+}
 
 class _FirstDispatchGateTransport implements CommandTransport {
   final inner = FakeCommandTransport();
@@ -47,6 +158,44 @@ void main() {
 
     tearDown(() {
       coordinator.dispose();
+    });
+
+    test('الجدولة ترى الأمر بعد حفظه وتستخدم حساب مالكه', () async {
+      final seen = <String>[];
+      coordinator.setCommandQueuedScheduler((accountId) async {
+        final commands = await store.allCommands(accountId);
+        expect(commands, hasLength(1));
+        expect(commands.single.accountId, accountId);
+        seen.add(accountId);
+        return true;
+      });
+
+      await coordinator.startSession(
+        accountId: 'A',
+        wellId: 'well-01',
+        pumpId: 'pump-01',
+        farmId: 'farm-01',
+        farmerAccountId: 'farmer-01',
+        energySource: 'solar',
+      );
+      expect(seen, ['A']);
+    });
+
+    test('فشل المجدول بعد الحفظ لا يحذف الأمر ولا يفشل العملية', () async {
+      coordinator.setCommandQueuedScheduler((_) async {
+        throw StateError('scheduler unavailable');
+      });
+
+      final command = await coordinator.startSession(
+        accountId: 'A',
+        wellId: 'well-01',
+        pumpId: 'pump-01',
+        farmId: 'farm-01',
+        farmerAccountId: 'farmer-01',
+        energySource: 'solar',
+      );
+      final saved = await store.allCommands('A');
+      expect(saved.single.commandId, command.commandId);
     });
 
     test('1. بدء جلسة سقي جديدة وحفظها محلياً وإسقاطها فوراً', () async {
@@ -608,6 +757,178 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(wired.currentActiveSession?.wellId, 'well-02');
+    });
+
+    test(
+      'إسقاط جديد قديم بدأ أولاً لا يكتب على إسقاط أحدث بدأ لاحقاً واكتمل قبله (Goal 3 — Stale Projection Ordering)',
+      () async {
+        final innerStore = InMemoryOutboxStore();
+        final controlledStore = _ControlledDelayOutboxStore(innerStore);
+        final coord = OfflineSessionCoordinator(store: controlledStore);
+        await coord.initialize();
+        addTearDown(coord.dispose);
+
+        // نبدأ جلسة على البئر الأول
+        final s1 = await coord.startSession(
+          accountId: 'acc-01',
+          wellId: 'well-01',
+          pumpId: 'pump-01',
+          farmId: 'farm-01',
+          farmerAccountId: 'farmer-01',
+          energySource: 'solar',
+        );
+        expect(coord.currentActiveSession?.localId, s1.localId);
+
+        // نراقب ما يُبث عبر activeSessionStream
+        final emitted = <ActiveSessionRecord?>[];
+        final sub = coord.activeSessionStream.listen(emitted.add);
+        addTearDown(sub.cancel);
+
+        // نجهز تأخير الاستدعاء التالي لـ allCommands
+        final delayFirst = Completer<void>();
+        controlledStore.delayNextAllCommands = delayFirst;
+
+        // 1. نبدأ الإسقاط القديم (جيل 1)
+        final futureOld = coord.freshProjectActiveSession(
+          accountId: 'acc-01',
+          wellId: 'well-01',
+        );
+
+        // 2. نبدأ جلسة على البئر الثاني
+        final s2 = await coord.startSession(
+          accountId: 'acc-01',
+          wellId: 'well-02',
+          pumpId: 'pump-02',
+          farmId: 'farm-02',
+          farmerAccountId: 'farmer-02',
+          energySource: 'diesel',
+        );
+
+        // 3. نشغل إسقاطاً جديداً للبئر الثاني (جيل 2)
+        // لن يتأخر لأن allCommandsCalls صار 2
+        final recent = await coord.freshProjectActiveSession(
+          accountId: 'acc-01',
+          wellId: 'well-02',
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(recent?.localId, s2.localId);
+        expect(coord.currentActiveSession?.localId, s2.localId);
+        final emittedCountAfterNew = emitted.length;
+        expect(emitted.last?.localId, s2.localId);
+
+        // 4. الآن نسمح للإسقاط القديم (جيل 1) بالاكتمال
+        delayFirst.complete();
+        final oldResult = await futureOld;
+        await Future<void>.delayed(Duration.zero);
+
+        // النتيجة المعادة من الدالة القديمة هي الحالة الأحدث،
+        // ولم تكتب s1 على s2، ولم تبث s1 في الـ stream!
+        expect(oldResult?.localId, s2.localId);
+        expect(coord.currentActiveSession?.localId, s2.localId);
+        expect(emitted.length, emittedCountAfterNew);
+        expect(emitted.last?.localId, s2.localId);
+      },
+    );
+
+    group('حل تعارض وترشيح الجلسات النشطة (Goal 7 — ق-129)', () {
+      test('صفر مرشحين (zero candidates) ⟹ null', () async {
+        final res = await coordinator.projectActiveSession(
+          accountId: 'acc-01',
+          wellId: 'well-non-existent',
+        );
+        expect(res, isNull);
+        expect(coordinator.currentActiveSession, isNull);
+      });
+
+      test('مرشح واحد مطابق (one candidate) ⟹ يُعاد بنجاح', () async {
+        final s1 = await coordinator.startSession(
+          accountId: 'acc-01',
+          wellId: 'well-01',
+          pumpId: 'pump-01',
+          farmId: 'farm-01',
+          farmerAccountId: 'farmer-01',
+          energySource: 'solar',
+        );
+
+        final res = await coordinator.projectActiveSession(
+          accountId: 'acc-01',
+          wellId: 'well-01',
+        );
+        expect(res, isNotNull);
+        expect(res!.localId, s1.localId);
+        expect(coordinator.currentActiveSession?.localId, s1.localId);
+      });
+
+      test(
+        'مرشحان اثنان لنفس البئر (two candidates) ⟹ null ولا يُختار أي منهما ضمنياً',
+        () async {
+          await coordinator.startSession(
+            accountId: 'acc-01',
+            wellId: 'well-01',
+            pumpId: 'pump-01',
+            farmId: 'farm-01',
+            farmerAccountId: 'farmer-01',
+            energySource: 'solar',
+          );
+          // ندخل أمراً ثانياً على نفس البئر
+          await store.insert(
+            CommandEnvelope(
+              commandId: 'cmd-dup-start',
+              accountId: 'acc-01',
+              type: CommandType.startIrrigationSession,
+              wellId: 'well-01',
+              localId: 'local-dup-start',
+              occurredAt: DateTime.now().add(const Duration(seconds: 1)),
+              createdLocalAt: DateTime.now().add(const Duration(seconds: 1)),
+              sequence: 99,
+              payload: {
+                'p_well_id': 'well-01',
+                'p_pump_id': 'pump-01',
+                'p_farm_id': 'farm-01',
+                'p_farmer_well_account_id': 'farmer-01',
+                'p_energy_source': 'solar',
+              },
+            ),
+          );
+
+          final res = await coordinator.projectActiveSession(
+            accountId: 'acc-01',
+            wellId: 'well-01',
+          );
+          // لا اختيار عشوائي أو ضمني لأحدهما عند الغموض
+          expect(res, isNull);
+          expect(coordinator.currentActiveSession, isNull);
+        },
+      );
+
+      test(
+        'مرشحان لبئرين مختلفين وبحث عام بلا wellId ⟹ null لغموض الطلب',
+        () async {
+          await coordinator.startSession(
+            accountId: 'acc-01',
+            wellId: 'well-01',
+            pumpId: 'pump-01',
+            farmId: 'farm-01',
+            farmerAccountId: 'farmer-01',
+            energySource: 'solar',
+          );
+          await coordinator.startSession(
+            accountId: 'acc-01',
+            wellId: 'well-02',
+            pumpId: 'pump-02',
+            farmId: 'farm-02',
+            farmerAccountId: 'farmer-02',
+            energySource: 'diesel',
+          );
+
+          final res = await coordinator.projectActiveSession(
+            accountId: 'acc-01',
+            wellId: null,
+          );
+          expect(res, isNull);
+        },
+      );
     });
   });
 }

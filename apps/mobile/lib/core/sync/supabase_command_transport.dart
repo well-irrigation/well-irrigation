@@ -23,10 +23,18 @@ class SupabaseCommandTransport implements CommandTransport {
     // الخادم يقرأ المنفِّذ من `auth.uid()`، فبلا جلسة دخول لا يمكن
     // إرسال شيء. الأمر يبقى محفوظًا ويُرسل بعد الدخول — لا يُفقد ولا
     // يُعرض كخطأ يحتاج مراجعة.
-    if (_client.auth.currentSession == null) {
+    final session = _client.auth.currentSession;
+    if (session == null || session.isExpired) {
       return const DispatchFailed(
         disposition: FailureDisposition.retry,
         message: 'لا توجد جلسة دخول؛ يُعاد الإرسال بعد الدخول',
+      );
+    }
+
+    if (request.accountId.isEmpty || session.user.id != request.accountId) {
+      return const DispatchFailed(
+        disposition: FailureDisposition.retry,
+        message: 'هوية جلسة الدخول لا تطابق مالك الأمر المحلي',
       );
     }
 

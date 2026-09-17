@@ -211,6 +211,7 @@ class SyncEngine {
 
       final result = await _transport.dispatch(
         DispatchRequest(
+          accountId: command.accountId,
           type: command.type,
           commandId: command.commandId,
           arguments: buildRpcArguments(

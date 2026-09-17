@@ -414,6 +414,198 @@ void main() {
       expect(record.pendingCommandCount, 0);
       expect(record.lastSuccessfulSyncAt, isNotNull);
     });
+
+    group('حقيقة المزامنة وحالة synced (ق-129)', () {
+      test('1. أمر بدء معلق (pending START) لا يُعد مزامَنًا', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        final record = (await projectorFor(store).projectSession(
+          sessionAccount,
+          session.localId,
+          now: at(60),
+        ))!;
+
+        expect(record.syncState, isNot(SessionSyncState.synced));
+        expect(record.syncState, SessionSyncState.localOnly);
+      });
+
+      test(
+        '2. أمر بدء مؤكَّد بلا mapping خادمي لا يُعد مزامَنًا (يبقى pending)',
+        () async {
+          final store = await openStore();
+          final repository = repositoryFor(store);
+
+          final session = await startSession(repository, at: t0);
+          await store.markConfirmed(
+            sessionAccount,
+            session.localId,
+            serverResponse: {'session_id': 'srv-123'},
+            attemptedAt: at(10),
+          );
+
+          final record = (await projectorFor(store).projectSession(
+            sessionAccount,
+            session.localId,
+            now: at(60),
+          ))!;
+
+          expect(record.syncState, isNot(SessionSyncState.synced));
+          expect(record.syncState, SessionSyncState.pending);
+        },
+      );
+
+      test(
+        '3. أمر بدء مؤكَّد + mapping حقيقي + بلا توابع معلقة ⟹ synced',
+        () async {
+          final store = await openStore();
+          final repository = repositoryFor(store);
+
+          final session = await startSession(repository, at: t0);
+          await store.markConfirmed(
+            sessionAccount,
+            session.localId,
+            serverResponse: {'session_id': 'srv-123'},
+            attemptedAt: at(10),
+          );
+          await store.putMapping(
+            sessionAccount,
+            IdMapping(
+              localId: session.localId,
+              kind: EntityKind.session,
+              serverId: 'srv-123',
+              resolvedAt: at(10),
+            ),
+          );
+
+          final record = (await projectorFor(store).projectSession(
+            sessionAccount,
+            session.localId,
+            now: at(60),
+          ))!;
+
+          expect(record.syncState, SessionSyncState.synced);
+          expect(record.serverSessionId, 'srv-123');
+        },
+      );
+
+      test(
+        '4. أمر بدء مؤكَّد + mapping + أمر إيقاف معلق (pending child) ⟹ ليس synced',
+        () async {
+          final store = await openStore();
+          final repository = repositoryFor(store);
+
+          final session = await startSession(repository, at: t0);
+          await store.markConfirmed(
+            sessionAccount,
+            session.localId,
+            serverResponse: {'session_id': 'srv-123'},
+            attemptedAt: at(10),
+          );
+          await store.putMapping(
+            sessionAccount,
+            IdMapping(
+              localId: session.localId,
+              kind: EntityKind.session,
+              serverId: 'srv-123',
+              resolvedAt: at(10),
+            ),
+          );
+          await pause(repository, session: session, at: at(30));
+
+          final record = (await projectorFor(store).projectSession(
+            sessionAccount,
+            session.localId,
+            now: at(60),
+          ))!;
+
+          expect(record.syncState, isNot(SessionSyncState.synced));
+          expect(record.syncState, SessionSyncState.localOnly);
+        },
+      );
+
+      test('5. كل أوامر السلسلة مؤكَّدة + mapping ⟹ synced', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        final pauseCmd = await pause(repository, session: session, at: at(30));
+
+        await store.markConfirmed(
+          sessionAccount,
+          session.localId,
+          serverResponse: {'session_id': 'srv-123'},
+          attemptedAt: at(10),
+        );
+        await store.putMapping(
+          sessionAccount,
+          IdMapping(
+            localId: session.localId,
+            kind: EntityKind.session,
+            serverId: 'srv-123',
+            resolvedAt: at(10),
+          ),
+        );
+        await store.markConfirmed(
+          sessionAccount,
+          pauseCmd.localId,
+          serverResponse: {'success': true},
+          attemptedAt: at(35),
+        );
+
+        final record = (await projectorFor(store).projectSession(
+          sessionAccount,
+          session.localId,
+          now: at(60),
+        ))!;
+
+        expect(record.syncState, SessionSyncState.synced);
+        expect(record.pendingCommandCount, 0);
+      });
+
+      test('6. أمر في حالة مراجعة (review) ⟹ conflict يبقى conflict', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        await store.markNeedsReview(
+          sessionAccount,
+          session.localId,
+          error: 'نزاع خادمي',
+          attemptedAt: at(10),
+        );
+
+        final record = (await projectorFor(store).projectSession(
+          sessionAccount,
+          session.localId,
+          now: at(60),
+        ))!;
+
+        expect(record.syncState, SessionSyncState.conflict);
+      });
+
+      test('7. أمر قيد الإرسال (dispatching) ⟹ syncing يبقى syncing', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        final claimed = await store.claim(
+          sessionAccount,
+          session.localId,
+          attemptedAt: at(10),
+        );
+        expect(claimed, isTrue);
+
+        final record = (await projectorFor(store).projectSession(
+          sessionAccount,
+          session.localId,
+          now: at(60),
+        ))!;
+
+        expect(record.syncState, SessionSyncState.syncing);
+      });
+    });
   });
 
   group('التسعير', () {

@@ -25,12 +25,16 @@ import 'outbox_store.dart';
 import 'sync_status.dart';
 
 class SqliteOutboxStore implements OutboxStore {
-  SqliteOutboxStore({this.databasePath, DatabaseFactory? sqfliteFactory})
-    : _factory = sqfliteFactory;
+  SqliteOutboxStore({
+    this.databasePath,
+    this.singleInstance = true,
+    DatabaseFactory? sqfliteFactory,
+  }) : _factory = sqfliteFactory;
 
   /// عند غيابه يُستخدم مسار الطابور الموحد للمقدمة والعامل الخلفي.
   /// `inMemoryDatabasePath` مسموح في الاختبار.
   final String? databasePath;
+  final bool singleInstance;
 
   final DatabaseFactory? _factory;
 
@@ -42,11 +46,14 @@ class SqliteOutboxStore implements OutboxStore {
   static const String _lastSyncKey = 'last_successful_sync_at';
 
   Database? _database;
+  Future<void>? _initFuture;
+
+  bool get isOpen => _database != null && _database!.isOpen;
 
   Database get _db {
     final database = _database;
 
-    if (database == null) {
+    if (database == null || !database.isOpen) {
       throw StateError('نادِ initialize() قبل استخدام المخزن');
     }
 
@@ -55,10 +62,39 @@ class SqliteOutboxStore implements OutboxStore {
 
   @override
   Future<void> initialize() async {
-    _database ??= await (_factory ?? databaseFactory).openDatabase(
-      databasePath ?? await resolveOutboxDatabasePath(),
+    final db = _database;
+    if (db != null && db.isOpen) {
+      return;
+    }
+
+    final activeInit = _initFuture;
+    if (activeInit != null) {
+      return activeInit;
+    }
+
+    final initFuture = _doInitialize();
+    _initFuture = initFuture;
+    try {
+      await initFuture;
+    } finally {
+      if (identical(_initFuture, initFuture)) {
+        _initFuture = null;
+      }
+    }
+  }
+
+  Future<void> _doInitialize() async {
+    final db = _database;
+    if (db != null && db.isOpen) {
+      return;
+    }
+
+    final path = databasePath ?? await resolveOutboxDatabasePath();
+    _database = await (_factory ?? databaseFactory).openDatabase(
+      path,
       options: OpenDatabaseOptions(
         version: schemaVersion,
+        singleInstance: singleInstance,
         onConfigure: (db) => db.execute('pragma foreign_keys = on'),
         onCreate: (db, version) async {
           await db.execute('''
@@ -336,8 +372,12 @@ class SqliteOutboxStore implements OutboxStore {
 
   @override
   Future<void> close() async {
-    await _database?.close();
+    _initFuture = null;
+    final db = _database;
     _database = null;
+    if (db != null && db.isOpen) {
+      await db.close();
+    }
   }
 
   Map<String, Object?> _toRow(CommandEnvelope envelope) => {

@@ -51,6 +51,7 @@ Future<void> _pumpScreen(
   WidgetTester tester,
   AccountRepository repository, {
   String accountId = 'owner-42',
+  DateTime Function(DateTime)? localTimeConverter,
 }) async {
   tester.view.physicalSize = const Size(800, 1600);
   tester.view.devicePixelRatio = 1.0;
@@ -60,7 +61,11 @@ Future<void> _pumpScreen(
   await tester.pumpWidget(
     MaterialApp(
       locale: const Locale('ar'),
-      home: DeviceSyncScreen(accountId: accountId, repository: repository),
+      home: DeviceSyncScreen(
+        accountId: accountId,
+        repository: repository,
+        localTimeConverter: localTimeConverter,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -204,5 +209,78 @@ void main() {
         );
       },
     );
+
+    group('F5 — عرض توقيت آخر مزامنة بالتوقيت المحلي للهاتف (ق-129)', () {
+      test(
+        '10. توقيت UTC قرب منتصف الليل يتحول للتوقيت المحلي ويعبر إلى اليوم التالي',
+        () {
+          final utcMidnightNear = DateTime.utc(2026, 9, 16, 23, 49);
+          final formatted = DeviceSyncScreen.formatSyncTime(
+            utcMidnightNear,
+            localTimeConverter: (t) => t.add(const Duration(hours: 3)),
+          );
+          expect(formatted, '17/09/2026 02:49');
+        },
+      );
+
+      testWidgets(
+        '11. الشاشة تعرض التاريخ والوقت بعد التحويل المحلي',
+        (tester) async {
+          final utcSync = DateTime.utc(2026, 9, 16, 23, 49);
+          final repository = _FakeSyncRepository(
+            status: DeviceSyncStatusModel(
+              localStorageReady: true,
+              pendingOperationsCount: 0,
+              lastSyncTime: utcSync,
+            ),
+          );
+
+          await _pumpScreen(
+            tester,
+            repository,
+            localTimeConverter: (t) => t.add(const Duration(hours: 3)),
+          );
+
+          expect(find.text('17/09/2026 02:49'), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        '12. قيمة lastSuccessfulSyncAt الخالية (null) تبقى تعرض النص المعتمد',
+        (tester) async {
+          final repository = _FakeSyncRepository(
+            status: const DeviceSyncStatusModel(
+              localStorageReady: true,
+              pendingOperationsCount: 0,
+              lastSyncTime: null,
+            ),
+          );
+
+          await _pumpScreen(tester, repository);
+
+          expect(find.text('لم تنجح مزامنة بعد'), findsOneWidget);
+        },
+      );
+
+      test('13. كائن DateTime المخزن في UTC لا يُعدَّل ولا يُعاد كتابته', () {
+        final storedUtc = DateTime.utc(2026, 9, 16, 23, 49);
+        expect(storedUtc.isUtc, isTrue);
+
+        final formatted = DeviceSyncScreen.formatSyncTime(storedUtc);
+        expect(storedUtc.isUtc, isTrue);
+        expect(storedUtc.year, 2026);
+        expect(storedUtc.month, 9);
+        expect(storedUtc.day, 16);
+        expect(storedUtc.hour, 23);
+        expect(storedUtc.minute, 49);
+
+        final expectedLocal = storedUtc.toLocal();
+        String two(int v) => v.toString().padLeft(2, '0');
+        final expectedFormatted =
+            '${two(expectedLocal.day)}/${two(expectedLocal.month)}/${expectedLocal.year} '
+            '${two(expectedLocal.hour)}:${two(expectedLocal.minute)}';
+        expect(formatted, expectedFormatted);
+      });
+    });
   });
 }
