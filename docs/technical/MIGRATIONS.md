@@ -1,6 +1,6 @@
 # الهجرات
 
-**آخر تحديث:** 2026-09-17
+**آخر تحديث:** 2026-09-19
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
@@ -1708,3 +1708,61 @@ columns 833 وconstraints 501 وtriggers 44 **بلا تغيير** — قراءة
 **التحقق المحلي والإنتاجي (2026-09-17):**
 - محليًا: `db:reset` ناجح، و`db:test` ناجح (`FILES=39 PASS=622 FAIL=0 ERROR=0`)، و`db:index` ناجح ومحدث.
 - سحابيًا: طُبقت في الإنتاج عبر GitLab CI (MR `!3`, Commit `c5a493eb`, Job `16548801073`)، وأثبت `cloud:verify` التطابق الكامل: 99/99 هجرة، و195/195 دالة، و43/79 صلاحيات، ووجود الإصدار في `schema_migrations` ومنطق `source_change_pause` في دالة `ops.change_session_energy_source` السحابية.
+
+## 101 — 20260919010001_101_farm_dedup_and_distinguishing_label.sql
+
+**الملف:** `supabase/migrations/20260919010001_101_farm_dedup_and_distinguishing_label.sql`
+**الحالة:** **Implemented + Local Verified** — منفَّذة ومُثبتة محليًا.
+**NOT DEPLOYED / NOT CLOUD VERIFIED** — لم تُنشر على Supabase Cloud ولم تدخل `main` بعد.
+**القرار الحاكم:** ق-88 (جزء منع تكرار الأرض)
+
+**الغرض:**
+منع تكرار إنشاء الأرض لنفس المزارع في نفس البئر مع السماح بأراضٍ حقيقية
+مختلفة تحمل الاسم نفسه عبر صفة مميزة، وتوحيد مسار الإنشاء عبر الطابور
+الدائم.
+
+**ما فيها:**
+1. **`distinguishing_label`:** إضافة عمود `ops.farms.distinguishing_label
+   text null` مع قيد تحقق يرفض الفراغ/المسافات وحدها (تُعامل كـ null).
+   discriminator اختياري لا يُدمج في الاسم الأساسي.
+2. **الهوية القانونية (canonical farm identity):** منع التكرار يقوم على
+   `well_id + farmer_well_account_id + core.normalize_arabic(name) +
+   coalesce(core.normalize_arabic(distinguishing_label), '')` — **لا
+   الاسم منفردًا**.
+3. **Advisory transaction lock:** `ops.lock_farm_base_identity` يأخذ
+   `pg_advisory_xact_lock` على الهوية الأساسية المطبّعة (بلا الصفة
+   المميزة) لتسلسل الإنشاءات المتزامنة. القفل داخلي بحت (بلا EXECUTE
+   للعميل).
+4. **محفّز حماية الفرادة المستقبلية:** `ops.trg_enforce_farm_uniqueness()`
+   على مستوى الجدول عبر مفتاح أساسي في جدول علامات داخلي
+   `ops.farm_identity_markers` (داخلي بحت: بلا Direct DML لأي دور عميل).
+   يحمي حتى ضد INSERT مباشر متزامن.
+5. **العنقود التاريخي محفوظ، بلا Auto-Merge:** الصفوف التاريخية المكررة لا
+   تُدمج ولا تُحذف ولا تُحسم تلقائيًا؛ إدراج العلامات يستثني العناقيد
+   (`having count(*)=1`) فلا تفشل الهجرة ولا تُمَسّ الأدلة.
+6. **لا Unique Expression Index بعد:** الفهرس الفريد الفيزيائي على التعبير
+   **مؤجَّل** لما بعد حسم الصفوف التاريخية المكررة، وغير موجود في 101.
+7. **عقد create_farm:** `ops.create_farm` (4 وسائط) و`api.create_farm`
+   (5 وسائط، `p_command_id` آخر معامل اختياري) بأربع حالات: `created`،
+   `matched_existing`، `requires_resolution` (بلا حسم تلقائي)،
+   `requires_disambiguation`. `api.*` يبقى INVOKER، `anon` denied.
+8. **`api.list_well_farms`:** يعيد `distinguishing_label`.
+9. **ثوابت الأمان محفوظة:** لا توسيع صلاحيات؛ `anon`/`authenticated` بلا
+   Direct DML على `ops.farms`؛ الكتابة عبر عقد `api` وحده. اختبار 072 بقي
+   PASS 9/9، ولا GRANT جديد على `ops.farms`.
+
+**الاختبار الدائم:**
+`supabase/tests/20260919_101_farm_dedup.test.sql`
+- يغطي توقيعات العقد ومنع تضخم السطح، والعنقود التاريخي، والحالات الأربع،
+  وإعادة التشغيل المتطابقة (accepted/conflict)، ونفس الاسم لمزارع مختلف،
+  والصفات المميزة، و`active->inactive` وحماية `inactive->active` (23505)،
+  والتطبيع العربي، وإعادة `distinguishing_label` في list_well_farms،
+  ورفض INSERT المباشر المكرر (23505).
+- النتيجة: **PASS=19 FAIL=0 ERROR=0** (تشغيل المالك).
+
+**التحقق المحلي (2026-09-19):**
+- حزمة القاعدة الكاملة: `FILES=40 PASS=641 FAIL=0 ERROR=0`.
+- `db:index` مولَّد: columns=839، constraints=503، triggers=45،
+  functions=199.
+- `git diff --check` نظيف.
+- **السحابة لم تتغيّر:** Migration 101 غير منشورة سحابيًا ولم تدخل `main`.

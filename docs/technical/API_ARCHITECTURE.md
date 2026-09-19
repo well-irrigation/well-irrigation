@@ -233,16 +233,30 @@ Surface الحالي يبقى:
 
 العقد موجود ويجب إعادة استخدامه.
 
-### Create Farm
+### Create Farm — Implemented + Local Verified (Migration 101، 2026-09-19)
 
-العقد موجود، لكن Business Procedure الحالية owner-only.
+`api.create_farm` هو عقد الـData API العام لإنشاء الأرض، ومنع التكرار
+منفَّذ محليًا ومُثبت. Migration 101 **لم تُنشر سحابيًا بعد** — الحالة محلية.
 
-UX-08 يسمح للمشغل بإضافة أرض.
+- **توقيع واحد فقط بخمس وسائط**:
+  `api.create_farm(p_well_id, p_name, p_farmer_well_account_id,
+  p_distinguishing_label, p_command_id)`، و`p_command_id` آخر معامل
+  اختياري. `ops.create_farm` توقيع واحد فقط بأربع وسائط (بلا
+  `p_command_id`). لا overload زائد (مثبت في اختبار 101).
+- `api.*` يبقى **SECURITY INVOKER**. محصور في `authenticated` و
+  `service_role`، و`anon` **denied**. لا Direct DML على `ops.farms`.
+- `distinguishing_label` جزء من العقد (discriminator اختياري).
+- **حالات النتيجة الأربع**: `created`, `matched_existing`,
+  `requires_resolution`, `requires_disambiguation`.
+- **Idempotency** عبر `p_command_id` في طبقة الـAPI محفوظة (نفس نمط
+  083+084): نفس المعرّف يعيد الرد المخزن حرفيًا لكل من accepted وconflict.
+- العنقود التاريخي الملتبس (`requires_resolution`) **لا يحسمه الـAPI
+  تلقائيًا** — يعيد المرشحين للحسم البشري.
+- `api.list_well_farms` يعيد `distinguishing_label`.
 
-لا يغير Flutter هذا القيد مباشرة.
-
-يلزم Migration 085+ لتوسيع التفويض واختباره إذا بقي
-UX المعتمد كما هو.
+توسيع تفويض المشغّل (operator) لإنشاء الأرض لا يزال بند UX-08 خارج هذه
+الحزمة. التفاصيل في `MIGRATIONS.md` / 101 و`SEARCH_DEDUP_ARCHITECTURE.md`
+§8.
 
 ### Start Session + Advance Payment
 

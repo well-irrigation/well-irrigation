@@ -155,6 +155,7 @@ class InMemoryOutboxStore implements OutboxStore {
     String localId, {
     required String error,
     required DateTime attemptedAt,
+    Map<String, Object?>? serverResponse,
   }) async {
     _update(
       accountId,
@@ -163,6 +164,7 @@ class InMemoryOutboxStore implements OutboxStore {
         status: CommandStatus.review,
         lastError: error,
         lastAttemptAt: attemptedAt,
+        serverResponse: serverResponse,
       ),
     );
   }

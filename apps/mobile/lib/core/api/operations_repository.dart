@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../sync/command_reference.dart';
+import '../sync/entity_reference.dart';
 import '../utils/digit_utils.dart';
 
 /// نماذج وبيانات التشغيل الميداني وسجل الجلسات (UX-07 / UX-08 / UX-13 / ق-80 / ق-84 / ق-98 / ق-114)
@@ -11,15 +13,33 @@ class FarmerAccount {
     required this.publicCode,
     this.phone,
     this.status = 'active',
+    this.reference,
   });
 
   factory FarmerAccount.fromJson(Map<String, dynamic> json) {
+    final id = json['id'] as String? ?? '';
     return FarmerAccount(
-      id: json['id'] as String? ?? '',
+      id: id,
       fullName: json['full_name'] as String? ?? '',
       publicCode: json['public_code'] as String? ?? '',
       phone: json['phone'] as String?,
       status: json['status'] as String? ?? 'active',
+      reference: id.isNotEmpty ? ServerEntityReference(id) : null,
+    );
+  }
+
+  factory FarmerAccount.pending({
+    required CommandReference reference,
+    required String fullName,
+    String? phone,
+  }) {
+    return FarmerAccount(
+      id: '',
+      fullName: fullName,
+      publicCode: 'قيد الحفظ',
+      phone: phone,
+      status: 'pending',
+      reference: PendingLocalEntityReference(reference),
     );
   }
 
@@ -28,6 +48,16 @@ class FarmerAccount {
   final String publicCode;
   final String? phone;
   final String status;
+  final EntityReference? reference;
+
+  bool get isPending =>
+      reference?.isPending ?? (status == 'pending' || id.isEmpty);
+
+  EntityReference get entityReference =>
+      reference ??
+      (id.isNotEmpty
+          ? ServerEntityReference(id)
+          : throw StateError('حساب المزارع ليس له مرجع صالح'));
 }
 
 /// سطر في دليل المزارعين كما يعيده عقد 099: الهوية والأراضي والمال وآخر سقي.
@@ -169,25 +199,73 @@ class Farm {
     required this.id,
     required this.wellId,
     required this.name,
+    this.distinguishingLabel,
     this.farmerAccountId,
+    this.farmerReference,
     this.status = 'active',
+    this.reference,
   });
 
   factory Farm.fromJson(Map<String, dynamic> json) {
+    final id = json['id'] as String? ?? '';
+    final fId = json['farmer_well_account_id'] as String?;
     return Farm(
-      id: json['id'] as String? ?? '',
+      id: id,
       wellId: json['well_id'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      farmerAccountId: json['farmer_well_account_id'] as String?,
+      distinguishingLabel: json['distinguishing_label'] as String?,
+      farmerAccountId: fId,
+      farmerReference: fId != null && fId.isNotEmpty
+          ? ServerEntityReference(fId)
+          : null,
       status: json['status'] as String? ?? 'active',
+      reference: id.isNotEmpty ? ServerEntityReference(id) : null,
+    );
+  }
+
+  factory Farm.pending({
+    required CommandReference reference,
+    required String wellId,
+    required String name,
+    String? distinguishingLabel,
+    required EntityReference farmerReference,
+  }) {
+    return Farm(
+      id: '',
+      wellId: wellId,
+      name: name,
+      distinguishingLabel: distinguishingLabel,
+      farmerAccountId: farmerReference.serverId,
+      farmerReference: farmerReference,
+      status: 'pending',
+      reference: PendingLocalEntityReference(reference),
     );
   }
 
   final String id; // farm_id
   final String wellId;
   final String name;
+  final String? distinguishingLabel;
   final String? farmerAccountId;
+  final EntityReference? farmerReference;
   final String status;
+  final EntityReference? reference;
+
+  bool get isPending =>
+      reference?.isPending ?? (status == 'pending' || id.isEmpty);
+
+  EntityReference get entityReference =>
+      reference ??
+      (id.isNotEmpty
+          ? ServerEntityReference(id)
+          : throw StateError('الأرض ليس لها مرجع صالح'));
+
+  /// الاسم المعروض للأرض: إذا وُجدت صفة مميزة يُعرض "الاسم — الصفة"،
+  /// مع بقاء [name] و[distinguishingLabel] مستقلين في الكيان وقاعدة البيانات.
+  String get displayName =>
+      (distinguishingLabel != null && distinguishingLabel!.trim().isNotEmpty)
+      ? '$name — ${distinguishingLabel!.trim()}'
+      : name;
 }
 
 class Pump {
@@ -633,6 +711,7 @@ class OperationsRepository {
     required String wellId,
     required String name,
     required String farmerAccountId,
+    String? distinguishingLabel,
   }) async {
     final client = _effectiveClient;
     if (client == null) {
@@ -647,6 +726,9 @@ class OperationsRepository {
             'p_well_id': wellId,
             'p_name': name.trim(),
             'p_farmer_well_account_id': farmerAccountId,
+            if (distinguishingLabel != null &&
+                distinguishingLabel.trim().isNotEmpty)
+              'p_distinguishing_label': distinguishingLabel.trim(),
           },
         );
 
@@ -662,6 +744,7 @@ class OperationsRepository {
       id: farmId,
       wellId: wellId,
       name: name.trim(),
+      distinguishingLabel: distinguishingLabel?.trim(),
       farmerAccountId: farmerAccountId,
     );
   }

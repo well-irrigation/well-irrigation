@@ -94,6 +94,7 @@ abstract interface class OutboxStore {
     String localId, {
     required String error,
     required DateTime attemptedAt,
+    Map<String, Object?>? serverResponse,
   });
 
   /// يسجّل ربط معرّف محلي بمعرّف خادمي.

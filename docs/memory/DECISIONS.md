@@ -1660,7 +1660,7 @@
 ## ق-88 — البحث والاختيار الذكي ومنع التكرار
 
 - **التاريخ:** 2026-08-18.
-- **الحالة:** معتمد؛ التنفيذ الكامل مطلوب في Stage 7 وMigration 078+ حسب الحاجة.
+- **الحالة:** معتمد؛ **Partial** — التنفيذ الكامل مطلوب في Stage 7. جزء منع تكرار الأرض منفَّذ محليًا عبر Migration 101 (انظر تحديث التنفيذ أدناه)؛ بقية البنود Pending.
 - **مصدر UX:** `docs/design/UX_UI_SPEC.md` / UX-08.
 - **المصدر التقني:** `docs/technical/SEARCH_DEDUP_ARCHITECTURE.md`.
 
@@ -1813,6 +1813,30 @@
 - لا يوجد Direct DML من Flutter.
 - لا توجد علاقة بيانات موازية لما هو موجود أصلًا.
 - يثبت عداد المستحق أنه عرض متوافق مع الحساب النهائي.
+
+### تحديث التنفيذ — Farm Dedup / Migration 101 — 2026-09-19
+
+**الحالة: Implemented + Local Verified. ق-88 ككل يبقى Partial — لا يُغلق.**
+Migration 101 **لم تُنشر سحابيًا ولم تدخل `main` بعد** (ليست Cloud Verified
+ولا Deployed).
+
+- **الـdiscriminator المختار:** `distinguishing_label` (nullable، لا يُدمج
+  في الاسم الأساسي، الفراغ مرفوض بقيد تحقق).
+- **الهوية القانونية:** `well_id + farmer_well_account_id +
+  core.normalize_arabic(name) + coalesce(core.normalize_arabic(
+  distinguishing_label), '')`. الاسم منفردًا لا يكفي.
+- **سبب عدم فرض Unique Expression Index الآن:** وجود عناقيد تكرار تاريخية
+  (مثل حادثة الكوثة) يحتاج حوكمة/معالجة (remediation) منفصلة قبل فرض فهرس
+  فيزيائي؛ فرضه الآن كان سيفشل على البيانات القائمة. الحماية المرحلية
+  الصحيحة: **advisory transaction lock + table trigger** (رفض بـ23505)،
+  مع الإبقاء على الأدلة التاريخية بلا auto-merge.
+- **لا auto-merge** للصفوف التاريخية؛ العنقود الملتبس يعاد
+  `requires_resolution` للحسم البشري.
+- **الأمان:** لا توسيع صلاحيات، لا Direct DML للعميل على `ops.farms`،
+  اختبار 072 بقي PASS 9/9.
+- **الأدلة:** اختبار 101 = PASS 19/0/0؛ حزمة القاعدة =
+  `FILES=40 PASS=641 FAIL=0 ERROR=0`؛ الفهرس 839/503/45/199.
+- **Cloud:** يبقى Pending.
 
 ---
 

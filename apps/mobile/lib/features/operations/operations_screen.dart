@@ -285,9 +285,11 @@ class _OperationsScreenState extends State<OperationsScreen>
     final sessionId = active.localId;
     try {
       final farmers = await _repo.fetchFarmers(wellId);
-      final matched = farmers
-          .where((f) => f.id == farmerRef)
-          .firstOrNull;
+      final matched = await _coordinator.resolveFarmer(
+        accountId,
+        farmerRef,
+        cachedList: farmers,
+      );
       if (matched != null &&
           mounted &&
           generation == _projectionGeneration &&
@@ -301,9 +303,7 @@ class _OperationsScreenState extends State<OperationsScreen>
           generation == _projectionGeneration &&
           wellId == _activeWellId &&
           accountId == _accountId) {
-        _showActionFailure(
-          'تعذر تحميل بيانات المزارع للجلسة النشطة',
-        );
+        _showActionFailure('تعذر تحميل بيانات المزارع للجلسة النشطة');
       }
     }
   }
@@ -311,10 +311,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   /// استرجاع بيانات الأرض من المعرّف في أمر البدء.
   ///
   /// مستقل عن نجاح أو فشل استرجاع المزارع — يُبحث بالمعرّف المباشر.
-  Future<void> _recoverFarm(
-    ActiveSessionRecord active,
-    int generation,
-  ) async {
+  Future<void> _recoverFarm(ActiveSessionRecord active, int generation) async {
     if (_selectedFarm != null || active.farmReference == null) return;
     final wellId = _activeWellId;
     final accountId = _accountId;
@@ -322,13 +319,12 @@ class _OperationsScreenState extends State<OperationsScreen>
     final farmerRef = active.farmerReference;
     final sessionId = active.localId;
     try {
-      final farms = await _repo.fetchFarms(
-        wellId,
-        farmerAccountId: farmerRef,
+      final farms = await _repo.fetchFarms(wellId, farmerAccountId: farmerRef);
+      final matched = await _coordinator.resolveFarm(
+        accountId,
+        farmRef,
+        cachedList: farms,
       );
-      final matched = farms
-          .where((f) => f.id == farmRef)
-          .firstOrNull;
       if (matched != null &&
           mounted &&
           generation == _projectionGeneration &&
@@ -343,10 +339,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   /// استرجاع بيانات المضخة من المعرّف في أمر البدء.
-  Future<void> _recoverPump(
-    ActiveSessionRecord active,
-    int generation,
-  ) async {
+  Future<void> _recoverPump(ActiveSessionRecord active, int generation) async {
     if (_selectedPump != null || active.pumpId == null) return;
     final wellId = _activeWellId;
     final accountId = _accountId;
@@ -354,9 +347,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     final sessionId = active.localId;
     try {
       final pumps = await _repo.fetchPumps(wellId);
-      final matched = pumps
-          .where((p) => p.id == pumpId)
-          .firstOrNull;
+      final matched = pumps.where((p) => p.id == pumpId).firstOrNull;
       if (matched != null &&
           mounted &&
           generation == _projectionGeneration &&
@@ -471,105 +462,173 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<List<FarmerAccount>> _searchFarmers(String query) async {
-    return _repo.fetchFarmers(_activeWellId, query: query);
+    List<FarmerAccount> list = [];
+    try {
+      list = await _repo.fetchFarmers(_activeWellId, query: query);
+    } catch (e) {
+      list = [];
+    }
+
+    final durablePending = await _coordinator.pendingFarmers(
+      accountId: _accountId,
+      wellId: _activeWellId,
+    );
+
+    final q = query.trim();
+    final matchingPending = durablePending.where((f) {
+      if (list.any((existing) => existing.id == f.entityReference.serverId)) {
+        return false;
+      }
+      if (q.isEmpty) return true;
+      return f.fullName.contains(q) ||
+          (f.phone != null && f.phone!.contains(q));
+    });
+
+    return [...matchingPending, ...list];
   }
 
   Future<List<Farm>> _searchFarms(String query) async {
-    final farms = await _repo.fetchFarms(
-      _activeWellId,
-      farmerAccountId: _selectedFarmer?.id,
+    final selectedFarmer = _selectedFarmer;
+    if (selectedFarmer == null) return [];
+
+    final wellId = _activeWellId;
+    final accountId = _accountId;
+    final q = query.trim();
+
+    List<Farm> serverFarms = [];
+    if (!selectedFarmer.isPending &&
+        selectedFarmer.entityReference.serverId != null &&
+        selectedFarmer.entityReference.serverId!.isNotEmpty) {
+      try {
+        serverFarms = await _repo.fetchFarms(
+          wellId,
+          farmerAccountId: selectedFarmer.entityReference.serverId,
+        );
+      } catch (e) {
+        serverFarms = [];
+      }
+    }
+
+    final durablePending = await _coordinator.pendingFarms(
+      accountId: accountId,
+      wellId: wellId,
+      farmerReference: selectedFarmer.entityReference,
     );
-    if (query.isEmpty) return farms;
-    return farms.where((f) => f.name.contains(query)).toList();
+
+    final filteredServer = q.isEmpty
+        ? serverFarms
+        : serverFarms.where((f) => f.displayName.contains(q)).toList();
+
+    final filteredPending = durablePending.where((f) {
+      if (serverFarms.any(
+        (existing) => existing.id == f.entityReference.serverId,
+      )) {
+        return false;
+      }
+      if (q.isEmpty) return true;
+      return f.displayName.contains(q);
+    }).toList();
+
+    return [...filteredPending, ...filteredServer];
   }
 
   Future<FarmerAccount?> _showAddFarmerDialog() async {
     final wellId = _activeWellId;
+    final accountId = _accountId;
 
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
-    final notesController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
 
     return showDialog<FarmerAccount>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text(
-          'إضافة مزارع جديد',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: AppColors.deepBlue,
-          ),
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'اسم المزارع الكامل *',
-                  hintText: 'مثال: محمد صالح القاسمي',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (val) =>
-                    (val == null || val.trim().isEmpty) ? 'الاسم مطلوب' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: const [ArabicToEnglishDigitsFormatter()],
-                decoration: const InputDecoration(
-                  labelText: 'رقم الهاتف (اختياري)',
-                  hintText: '77XXXXXXX',
-                  prefixIcon: Icon(Icons.phone),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: notesController,
-                decoration: const InputDecoration(
-                  labelText: 'ملاحظات (اختياري)',
-                  prefixIcon: Icon(Icons.notes),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.waterBlue,
-              foregroundColor: Colors.white,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text(
+            'إضافة مزارع جديد',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepBlue,
             ),
-            onPressed: () async {
-              if (!(formKey.currentState?.validate() ?? false)) return;
-
-              try {
-                final farmer = await _repo.createFarmer(
-                  wellId: wellId,
-                  fullName: nameController.text.trim(),
-                  phone: phoneController.text.trim().isNotEmpty
-                      ? phoneController.text.trim()
-                      : null,
-                  notes: notesController.text.trim().isNotEmpty
-                      ? notesController.text.trim()
-                      : null,
-                );
-                if (ctx.mounted) Navigator.of(ctx).pop(farmer);
-              } catch (e) {
-                _showActionFailure('تعذر إنشاء المزارع: $e');
-              }
-            },
-            child: const Text('حفظ وإضافة'),
           ),
-        ],
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  enabled: !isSubmitting,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم المزارع الكامل *',
+                    hintText: 'مثال: محمد صالح القاسمي',
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  validator: (val) => (val == null || val.trim().isEmpty)
+                      ? 'الاسم مطلوب'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneController,
+                  enabled: !isSubmitting,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: const [ArabicToEnglishDigitsFormatter()],
+                  decoration: const InputDecoration(
+                    labelText: 'رقم الهاتف (اختياري)',
+                    hintText: '77XXXXXXX',
+                    prefixIcon: Icon(Icons.phone),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.waterBlue,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (!(formKey.currentState?.validate() ?? false)) return;
+
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        final farmer = await _coordinator.enqueueFarmer(
+                          accountId: accountId,
+                          wellId: wellId,
+                          fullName: nameController.text.trim(),
+                          phone: phoneController.text.trim().isNotEmpty
+                              ? phoneController.text.trim()
+                              : null,
+                        );
+                        if (ctx.mounted) Navigator.of(ctx).pop(farmer);
+                      } catch (e) {
+                        setDialogState(() => isSubmitting = false);
+                        _showActionFailure('تعذر إنشاء المزارع: $e');
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('حفظ وإضافة'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -586,61 +645,103 @@ class _OperationsScreenState extends State<OperationsScreen>
     }
 
     final wellId = _activeWellId;
+    final accountId = _accountId;
+    final selectedFarmer = _selectedFarmer!;
 
     final nameController = TextEditingController();
+    final labelController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
 
     return showDialog<Farm>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          'إضافة أرض للمزارع: ${_selectedFarmer!.fullName}',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: AppColors.deepBlue,
-          ),
-        ),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: nameController,
-            decoration: const InputDecoration(
-              labelText: 'اسم الأرض الزراعية *',
-              hintText: 'مثال: مزرعة الوادي الشرقي',
-              prefixIcon: Icon(Icons.landscape),
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(
+            'إضافة أرض للمزارع: ${selectedFarmer.fullName}',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepBlue,
             ),
-            validator: (val) =>
-                (val == null || val.trim().isEmpty) ? 'اسم الأرض مطلوب' : null,
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.waterBlue,
-              foregroundColor: Colors.white,
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  enabled: !isSubmitting,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم الأرض الزراعية *',
+                    hintText: 'مثال: الكوثة',
+                    prefixIcon: Icon(Icons.landscape),
+                  ),
+                  validator: (val) => (val == null || val.trim().isEmpty)
+                      ? 'اسم الأرض مطلوب'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: labelController,
+                  enabled: !isSubmitting,
+                  decoration: const InputDecoration(
+                    labelText: 'صفة مميزة (اختياري)',
+                    hintText: 'مثال: الشرقية أو الغربية',
+                    prefixIcon: Icon(Icons.label_outline),
+                  ),
+                ),
+              ],
             ),
-            onPressed: () async {
-              if (!(formKey.currentState?.validate() ?? false)) return;
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.waterBlue,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (!(formKey.currentState?.validate() ?? false)) return;
 
-              try {
-                final farm = await _repo.createFarm(
-                  wellId: wellId,
-                  name: nameController.text.trim(),
-                  farmerAccountId: _selectedFarmer!.id,
-                );
-                if (ctx.mounted) Navigator.of(ctx).pop(farm);
-              } catch (e) {
-                _showActionFailure('تعذر إنشاء الأرض: $e');
-              }
-            },
-            child: const Text('حفظ وإضافة'),
-          ),
-        ],
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        final farm = await _coordinator.enqueueFarm(
+                          accountId: accountId,
+                          wellId: wellId,
+                          name: nameController.text.trim(),
+                          distinguishingLabel:
+                              labelController.text.trim().isNotEmpty
+                              ? labelController.text.trim()
+                              : null,
+                          farmerReference: selectedFarmer.entityReference,
+                        );
+                        if (ctx.mounted) Navigator.of(ctx).pop(farm);
+                      } catch (e) {
+                        setDialogState(() => isSubmitting = false);
+                        _showActionFailure('تعذر إنشاء الأرض: $e');
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('حفظ وإضافة'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -668,6 +769,8 @@ class _OperationsScreenState extends State<OperationsScreen>
         pumpId: _selectedPump!.id,
         farmId: _selectedFarm!.id,
         farmerAccountId: _selectedFarmer!.id,
+        farmReference: _selectedFarm!.entityReference,
+        farmerReference: _selectedFarmer!.entityReference,
         energySource: energySourceCode,
         startedAt: _now(),
       );
@@ -1243,7 +1346,10 @@ class _OperationsScreenState extends State<OperationsScreen>
         Flexible(
           child: Text(
             label,
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -1663,10 +1769,13 @@ class _OperationsScreenState extends State<OperationsScreen>
                         autofocusSearch: false,
                         selectedItem: _selectedFarmer,
                         itemLabel: (f) => f.fullName,
-                        itemSecondaryLabel: (f) =>
-                            (f.phone != null && f.phone!.isNotEmpty)
-                            ? 'هاتف: ${f.phone}'
-                            : null,
+                        itemSecondaryLabel: (f) {
+                          if (f.isPending) return 'محفوظ على الجهاز';
+                          if (f.phone != null && f.phone!.isNotEmpty) {
+                            return 'هاتف: ${f.phone}';
+                          }
+                          return null;
+                        },
                         searchFunction: _searchFarmers,
                         onChanged: (farmer) {
                           setState(() {
@@ -1689,7 +1798,9 @@ class _OperationsScreenState extends State<OperationsScreen>
                         enabled: _selectedFarmer != null,
                         autofocusSearch: false,
                         selectedItem: _selectedFarm,
-                        itemLabel: (f) => f.name,
+                        itemLabel: (f) => f.displayName,
+                        itemSecondaryLabel: (f) =>
+                            f.isPending ? 'محفوظ على الجهاز' : null,
                         searchFunction: _searchFarms,
                         onChanged: (farm) =>
                             setState(() => _selectedFarm = farm),

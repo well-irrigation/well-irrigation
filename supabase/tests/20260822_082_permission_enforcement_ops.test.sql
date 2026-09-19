@@ -231,7 +231,7 @@ begin
   where n.nspname = 'ops'
     and p.proname = 'create_farm'
     and pg_get_function_identity_arguments(p.oid)
-        = 'p_well_id uuid, p_name text, p_farmer_well_account_id uuid';
+        = 'p_well_id uuid, p_name text, p_farmer_well_account_id uuid, p_distinguishing_label text';
 
   select count(*)
   into v_count_2
@@ -242,9 +242,9 @@ begin
     and p.proname = 'create_farm';
 
   if v_count = 1 and v_count_2 = 1 then
-    raise notice 'PASS 8: ops.create_farm بقيت على توقيع 075 وحده';
+    raise notice 'PASS 8: ops.create_farm بقيت على توقيع 101 وحده';
   else
-    raise notice 'FAIL 8: create_farm 075_sig=% total=%', v_count, v_count_2;
+    raise notice 'FAIL 8: create_farm 101_sig=% total=%', v_count, v_count_2;
   end if;
 
 

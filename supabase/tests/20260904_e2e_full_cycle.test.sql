@@ -138,7 +138,11 @@ begin
   -- 5. مزرعة مربوطة بحساب المزارع
   -- ===============================================================
   begin
-    v_farm_res := api.create_farm(v_well, 'مزرعة المسار الكامل', v_account, null);
+    v_farm_res := api.create_farm(
+      p_well_id => v_well,
+      p_name => 'مزرعة المسار الكامل',
+      p_farmer_well_account_id => v_account
+    );
     v_farm := (v_farm_res ->> 'farm_id')::uuid;
     if v_farm is not null then
       raise notice 'PASS 5: المزرعة أُنشئت ومربوطة بحساب المزارع';

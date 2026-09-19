@@ -4,14 +4,18 @@ import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../api/operations_repository.dart';
 import '../sync/command_envelope.dart';
+import '../sync/command_reference.dart';
 import '../sync/command_transport.dart';
 import '../sync/command_type.dart';
+import '../sync/entity_reference.dart';
 import '../sync/outbox_repository.dart';
 import '../sync/outbox_store.dart';
 import '../sync/sqlite_outbox_store.dart';
 import '../sync/supabase_command_transport.dart';
 import '../sync/sync_engine.dart';
+import '../sync/sync_status.dart';
 import 'active_session_projector.dart';
 import 'active_session_record.dart';
 
@@ -178,10 +182,7 @@ class OfflineSessionCoordinator {
     await initialize();
 
     final now = DateTime.now();
-    final activeSessions = await _projector.activeSessions(
-      accountId,
-      now: now,
-    );
+    final activeSessions = await _projector.activeSessions(accountId, now: now);
 
     if (generation != _freshProjectionGeneration) {
       return _currentProjectedSession;
@@ -207,6 +208,384 @@ class OfflineSessionCoordinator {
     return _currentProjectedSession;
   }
 
+  final Map<String, Future<FarmerAccount>> _inFlightFarmerEnqueues = {};
+  final Map<String, Future<Farm>> _inFlightFarmEnqueues = {};
+
+  /// استرجاع المزارعين المعلقين في الطابور المتين لبئر وحساب محددين (UX-Honesty / م-21).
+  Future<List<FarmerAccount>> pendingFarmers({
+    required String accountId,
+    required String wellId,
+  }) async {
+    await initialize();
+    final commands = await _store.pendingCommands(accountId);
+    final list = <FarmerAccount>[];
+    for (final cmd in commands) {
+      if (cmd.type == CommandType.createFarmer &&
+          cmd.wellId == wellId &&
+          cmd.status != CommandStatus.confirmed &&
+          cmd.status != CommandStatus.review) {
+        final mapping = await _store.mapping(
+          accountId,
+          cmd.localId,
+          EntityKind.farmerWellAccount,
+        );
+        if (mapping != null) continue;
+
+        final name = cmd.payload['p_full_name'] as String? ?? '';
+        final phone = cmd.payload['p_phone'] as String?;
+        if (name.isNotEmpty) {
+          list.add(
+            FarmerAccount.pending(
+              reference: CommandReference(
+                localId: cmd.localId,
+                kind: EntityKind.farmerWellAccount,
+              ),
+              fullName: name,
+              phone: phone,
+            ),
+          );
+        }
+      }
+    }
+    return list;
+  }
+
+  /// استرجاع الأراضي المعلقة في الطابور المتين لبئر ومزارع محددين (UX-Honesty / م-21).
+  Future<List<Farm>> pendingFarms({
+    required String accountId,
+    required String wellId,
+    EntityReference? farmerReference,
+  }) async {
+    await initialize();
+    final commands = await _store.pendingCommands(accountId);
+    final list = <Farm>[];
+    for (final cmd in commands) {
+      if (cmd.type == CommandType.createFarm &&
+          cmd.wellId == wellId &&
+          cmd.status != CommandStatus.confirmed &&
+          cmd.status != CommandStatus.review) {
+        final mapping = await _store.mapping(
+          accountId,
+          cmd.localId,
+          EntityKind.farm,
+        );
+        if (mapping != null) continue;
+
+        final name = cmd.payload['p_name'] as String? ?? '';
+        final label = cmd.payload['p_distinguishing_label'] as String?;
+        final rawFarmerRef = cmd.payload['p_farmer_well_account_id'];
+
+        final EntityReference farmFarmerRef;
+        if (rawFarmerRef is Map && CommandReference.isReference(rawFarmerRef)) {
+          farmFarmerRef = PendingLocalEntityReference(
+            CommandReference.fromJson(rawFarmerRef as Map<Object?, Object?>),
+          );
+        } else if (rawFarmerRef is String) {
+          farmFarmerRef = ServerEntityReference(rawFarmerRef);
+        } else {
+          farmFarmerRef = const ServerEntityReference('');
+        }
+
+        if (farmerReference != null) {
+          var matches = (farmFarmerRef == farmerReference);
+          if (!matches && farmFarmerRef.isPending && farmerReference.isServer) {
+            final fMapping = await _store.mapping(
+              accountId,
+              farmFarmerRef.localReference!.localId,
+              EntityKind.farmerWellAccount,
+            );
+            if (fMapping?.serverId == farmerReference.serverId) {
+              matches = true;
+            }
+          }
+          if (!matches) continue;
+        }
+
+        if (name.isNotEmpty) {
+          list.add(
+            Farm.pending(
+              reference: CommandReference(
+                localId: cmd.localId,
+                kind: EntityKind.farm,
+              ),
+              wellId: wellId,
+              name: name,
+              distinguishingLabel: label,
+              farmerReference: farmFarmerRef,
+            ),
+          );
+        }
+      }
+    }
+    return list;
+  }
+
+  /// إنشاء مزارع جديد وحفظه متينًا في الطابور المحلي أولًا (ق-89 / ق-114 / م-21).
+  Future<FarmerAccount> enqueueFarmer({
+    required String accountId,
+    required String wellId,
+    required String fullName,
+    String? phone,
+    String? notes,
+    String? actionToken,
+  }) async {
+    final cleanName = fullName.trim();
+    if (cleanName.isEmpty) {
+      throw ArgumentError('اسم المزارع مطلوب');
+    }
+
+    if (actionToken != null && actionToken.isNotEmpty) {
+      final key = '$accountId:$wellId:$actionToken';
+      final inFlight = _inFlightFarmerEnqueues[key];
+      if (inFlight != null) {
+        return inFlight;
+      }
+
+      final future = _doEnqueueFarmer(
+        accountId: accountId,
+        wellId: wellId,
+        fullName: cleanName,
+        phone: phone,
+        notes: notes,
+      );
+      _inFlightFarmerEnqueues[key] = future;
+      try {
+        return await future;
+      } finally {
+        _inFlightFarmerEnqueues.remove(key);
+      }
+    }
+
+    return _doEnqueueFarmer(
+      accountId: accountId,
+      wellId: wellId,
+      fullName: cleanName,
+      phone: phone,
+      notes: notes,
+    );
+  }
+
+  Future<FarmerAccount> _doEnqueueFarmer({
+    required String accountId,
+    required String wellId,
+    required String fullName,
+    String? phone,
+    String? notes,
+  }) async {
+    await initialize();
+
+    final envelope = await _outbox.enqueue(
+      accountId: accountId,
+      wellId: wellId,
+      type: CommandType.createFarmer,
+      occurredAt: DateTime.now(),
+      payload: {
+        'p_well_id': wellId,
+        'p_full_name': fullName,
+        if (phone != null && phone.trim().isNotEmpty) 'p_phone': phone.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'p_notes': notes.trim(),
+      },
+    );
+
+    await _triggerSync(accountId, wellId: wellId);
+
+    return FarmerAccount.pending(
+      reference: CommandReference(
+        localId: envelope.localId,
+        kind: EntityKind.farmerWellAccount,
+      ),
+      fullName: fullName,
+      phone: phone?.trim(),
+    );
+  }
+
+  /// إنشاء أرض جديدة وحفظها متينًا في الطابور المحلي أولًا (ق-89 / ق-114 / م-21).
+  Future<Farm> enqueueFarm({
+    required String accountId,
+    required String wellId,
+    required String name,
+    String? distinguishingLabel,
+    required EntityReference farmerReference,
+  }) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) {
+      throw ArgumentError('اسم الأرض مطلوب');
+    }
+
+    final cleanLabel = distinguishingLabel?.trim();
+    final key =
+        '$accountId:$wellId:${farmerReference.toPayload()}:$cleanName:$cleanLabel';
+    final inFlight = _inFlightFarmEnqueues[key];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _doEnqueueFarm(
+      accountId: accountId,
+      wellId: wellId,
+      name: cleanName,
+      distinguishingLabel: cleanLabel,
+      farmerReference: farmerReference,
+    );
+    _inFlightFarmEnqueues[key] = future;
+    try {
+      return await future;
+    } finally {
+      _inFlightFarmEnqueues.remove(key);
+    }
+  }
+
+  Future<Farm> _doEnqueueFarm({
+    required String accountId,
+    required String wellId,
+    required String name,
+    String? distinguishingLabel,
+    required EntityReference farmerReference,
+  }) async {
+    await initialize();
+
+    final envelope = await _outbox.enqueue(
+      accountId: accountId,
+      wellId: wellId,
+      type: CommandType.createFarm,
+      occurredAt: DateTime.now(),
+      payload: {
+        'p_well_id': wellId,
+        'p_name': name,
+        'p_farmer_well_account_id': farmerReference.toPayload(),
+        if (distinguishingLabel != null && distinguishingLabel.isNotEmpty)
+          'p_distinguishing_label': distinguishingLabel,
+      },
+    );
+
+    await _triggerSync(accountId, wellId: wellId);
+
+    return Farm.pending(
+      reference: CommandReference(
+        localId: envelope.localId,
+        kind: EntityKind.farm,
+      ),
+      wellId: wellId,
+      name: name,
+      distinguishingLabel: distinguishingLabel,
+      farmerReference: farmerReference,
+    );
+  }
+
+  /// استرجاع مزارع إما بالمعرّف الخادمي أو عبر إعادة البناء من الطابور المحلي (UX-Honesty / م-21).
+  Future<FarmerAccount?> resolveFarmer(
+    String accountId,
+    String identifier, {
+    List<FarmerAccount>? cachedList,
+  }) async {
+    await initialize();
+
+    if (cachedList != null) {
+      for (final f in cachedList) {
+        if (f.id == identifier || f.entityReference.serverId == identifier) {
+          return f;
+        }
+      }
+    }
+
+    final command = await _outbox.byLocalId(accountId, identifier);
+    if (command != null && command.type == CommandType.createFarmer) {
+      final mapping = await _store.mapping(
+        accountId,
+        identifier,
+        EntityKind.farmerWellAccount,
+      );
+      if (mapping != null && cachedList != null) {
+        for (final f in cachedList) {
+          if (f.id == mapping.serverId) return f;
+        }
+      }
+
+      final name = command.payload['p_full_name'] as String? ?? 'مزارع محلي';
+      final phone = command.payload['p_phone'] as String?;
+      return FarmerAccount.pending(
+        reference: CommandReference(
+          localId: command.localId,
+          kind: EntityKind.farmerWellAccount,
+        ),
+        fullName: name,
+        phone: phone,
+      );
+    }
+
+    final mappings = await _store.mappings(accountId);
+    for (final m in mappings) {
+      if (m.kind == EntityKind.farmerWellAccount &&
+          (m.localId == identifier || m.serverId == identifier)) {
+        if (cachedList != null) {
+          for (final f in cachedList) {
+            if (f.id == m.serverId) return f;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// استرجاع أرض إما بالمعرّف الخادمي أو عبر إعادة البناء من الطابور المحلي (UX-Honesty / م-21).
+  Future<Farm?> resolveFarm(
+    String accountId,
+    String identifier, {
+    List<Farm>? cachedList,
+  }) async {
+    await initialize();
+
+    if (cachedList != null) {
+      for (final f in cachedList) {
+        if (f.id == identifier || f.entityReference.serverId == identifier) {
+          return f;
+        }
+      }
+    }
+
+    final command = await _outbox.byLocalId(accountId, identifier);
+    if (command != null && command.type == CommandType.createFarm) {
+      final mapping = await _store.mapping(
+        accountId,
+        identifier,
+        EntityKind.farm,
+      );
+      if (mapping != null && cachedList != null) {
+        for (final f in cachedList) {
+          if (f.id == mapping.serverId) return f;
+        }
+      }
+
+      final name = command.payload['p_name'] as String? ?? 'أرض محلية';
+      final label = command.payload['p_distinguishing_label'] as String?;
+      final rawFarmerRef = command.payload['p_farmer_well_account_id'];
+      final EntityReference farmerRef;
+      if (rawFarmerRef is Map && CommandReference.isReference(rawFarmerRef)) {
+        farmerRef = PendingLocalEntityReference(
+          CommandReference.fromJson(rawFarmerRef as Map<Object?, Object?>),
+        );
+      } else if (rawFarmerRef is String) {
+        farmerRef = ServerEntityReference(rawFarmerRef);
+      } else {
+        farmerRef = const ServerEntityReference('');
+      }
+
+      return Farm.pending(
+        reference: CommandReference(
+          localId: command.localId,
+          kind: EntityKind.farm,
+        ),
+        wellId: command.wellId ?? '',
+        name: name,
+        distinguishingLabel: label,
+        farmerReference: farmerRef,
+      );
+    }
+
+    return null;
+  }
+
   /// 1. بدء جلسة سقي جديدة وحفظها فوراً في الطابور المتين (ق-89 / ق-114)
   Future<CommandEnvelope> startSession({
     required String accountId,
@@ -215,11 +594,24 @@ class OfflineSessionCoordinator {
     required String farmId,
     required String farmerAccountId,
     required String energySource,
+    EntityReference? farmReference,
+    EntityReference? farmerReference,
     DateTime? startedAt,
   }) async {
     await initialize();
 
     final eventTime = startedAt ?? DateTime.now();
+    final effectiveFarm = farmReference != null
+        ? farmReference.toPayload()
+        : (farmId.isNotEmpty
+              ? farmId
+              : throw ArgumentError('معرف الأرض مطلوب'));
+    final effectiveFarmer = farmerReference != null
+        ? farmerReference.toPayload()
+        : (farmerAccountId.isNotEmpty
+              ? farmerAccountId
+              : throw ArgumentError('معرف حساب المزارع مطلوب'));
+
     final envelope = await _outbox.enqueue(
       accountId: accountId,
       wellId: wellId,
@@ -228,8 +620,8 @@ class OfflineSessionCoordinator {
       payload: {
         'p_well_id': wellId,
         'p_pump_id': pumpId,
-        'p_farm_id': farmId,
-        'p_farmer_well_account_id': farmerAccountId,
+        'p_farm_id': effectiveFarm,
+        'p_farmer_well_account_id': effectiveFarmer,
         'p_energy_source': energySource,
       },
     );

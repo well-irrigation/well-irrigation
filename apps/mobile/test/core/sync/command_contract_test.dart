@@ -9,6 +9,7 @@ import 'package:well_irrigation_mobile/core/sync/command_id_generator.dart';
 import 'package:well_irrigation_mobile/core/sync/command_reference.dart';
 import 'package:well_irrigation_mobile/core/sync/command_transport.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
+import 'package:well_irrigation_mobile/core/sync/retry_classification.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
 void main() {
@@ -91,7 +92,7 @@ void main() {
       final result = normalizeAcceptedResponse(
         CommandType.startIrrigationSession,
         'session-uuid',
-      );
+      ) as DispatchAccepted;
 
       expect(result.entityId, 'session-uuid');
       expect(result.response['id'], 'session-uuid');
@@ -100,24 +101,24 @@ void main() {
 
     test('ردّ jsonb يُستخرج منه المفتاح الصحيح لكل دالة', () {
       expect(
-        normalizeAcceptedResponse(CommandType.completeIrrigationSession, {
+        (normalizeAcceptedResponse(CommandType.completeIrrigationSession, {
           'session_id': 'session-uuid',
           'session_charge_id': 'charge-uuid',
           'total_minor': 125000,
-        }).entityId,
+        }) as DispatchAccepted).entityId,
         'charge-uuid',
       );
       expect(
-        normalizeAcceptedResponse(CommandType.recordPayment, {
+        (normalizeAcceptedResponse(CommandType.recordPayment, {
           'payment_id': 'payment-uuid',
           'receipt': {'number': 12},
-        }).entityId,
+        }) as DispatchAccepted).entityId,
         'payment-uuid',
       );
       expect(
-        normalizeAcceptedResponse(CommandType.createFarm, {
+        (normalizeAcceptedResponse(CommandType.createFarm, {
           'farm_id': 'farm-uuid',
-        }).entityId,
+        }) as DispatchAccepted).entityId,
         'farm-uuid',
       );
     });
@@ -126,7 +127,7 @@ void main() {
       final result = normalizeAcceptedResponse(CommandType.createFarmer, {
         'farmer_well_account_id': 'fwa-uuid',
         'already_exists': true,
-      });
+      }) as DispatchAccepted;
 
       expect(result.entityId, 'fwa-uuid');
       expect(result.matchedExisting, isTrue);
@@ -137,6 +138,62 @@ void main() {
         () => normalizeAcceptedResponse(CommandType.recordPayment, 'uuid'),
         throwsFormatException,
       );
+    });
+
+    test('ردّ conflict لـ requires_resolution يتحول إلى DispatchFailed(review) ولا يقبل بـ entityId=null', () {
+      final conflictJson = {
+        'status': 'requires_resolution',
+        'conflict_type': 'duplicate_candidate',
+        'message': 'توجد أرض أخرى بنفس الاسم والمزارع وتتطلب تحديد الصفة المميزة',
+        'candidate_farm_id': '00000000-0000-0000-0000-000000000001',
+        'name': 'الكوثة',
+        'distinguishing_label': null,
+      };
+
+      final result = normalizeAcceptedResponse(CommandType.createFarm, conflictJson);
+
+      expect(result, isA<DispatchFailed>());
+      final failed = result as DispatchFailed;
+      expect(failed.disposition, FailureDisposition.review);
+      expect(failed.serverResponse, equals(conflictJson));
+      expect(failed.code, 'duplicate_candidate');
+      expect(failed.message, contains('تتطلب تحديد الصفة المميزة'));
+      expect(result is DispatchAccepted, isFalse);
+    });
+
+    test('ردّ conflict لـ requires_disambiguation يتحول إلى DispatchFailed(review) بهيكل الخادم الأصلي', () {
+      final disambiguateJson = {
+        'status': 'requires_disambiguation',
+        'conflict_type': 'missing_distinguishing_label',
+        'message': 'توجد أرض بنفس الاسم الأساسي ويجب توفير صفة مميزة لإنشاء أرض جديدة',
+        'existing_farm_id': '00000000-0000-0000-0000-000000000001',
+        'name': 'الكوثة',
+      };
+
+      final result = normalizeAcceptedResponse(CommandType.createFarm, disambiguateJson);
+
+      expect(result, isA<DispatchFailed>());
+      final failed = result as DispatchFailed;
+      expect(failed.disposition, FailureDisposition.review);
+      expect(failed.serverResponse, equals(disambiguateJson));
+      expect(failed.code, 'missing_distinguishing_label');
+      expect(failed.message, contains('توجد أرض بنفس الاسم الأساسي'));
+      expect(result is DispatchAccepted, isFalse);
+    });
+
+    test('ردّ خالٍ من المفتاح الإلزامي يتحول إلى DispatchFailed(review) ولا يقبل بـ entityId=null', () {
+      final incompleteJson = {
+        'status': 'something_unexpected',
+        'other': 123,
+      };
+
+      final result = normalizeAcceptedResponse(CommandType.createFarm, incompleteJson);
+
+      expect(result, isA<DispatchFailed>());
+      final failed = result as DispatchFailed;
+      expect(failed.disposition, FailureDisposition.review);
+      expect(failed.serverResponse, equals(incompleteJson));
+      expect(result is DispatchAccepted, isFalse);
     });
   });
 
