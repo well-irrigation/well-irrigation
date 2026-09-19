@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-09-17
+**آخر تحديث:** 2026-09-20
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -120,7 +120,7 @@
 | ق-85 | Super Admin عبر حدود خادم موثوقة | Auth Admin/service role trusted boundary مطلوب | اختبارات صلاحيات وتدقيق مطلوبة | معتمد؛ تنفيذ UI/backend التفصيلي Pending |
 | ق-86 | حق تفعيل بئر دائم لكل شراء واستهلاك ذري | Model/API غير منفذ بعد | اختبارات entitlement/double-spend مطلوبة | معتمد؛ Migration 085+ Pending |
 | ق-87 | التوجيه بعد الدخول حسب الدور | `api.app_bootstrap` أساس جزئي؛ UI routing Pending | UX-05 موثق | معتمد؛ Flutter Pending |
-| ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ **Farm dedup منفَّذ محليًا (backend + API + تكامل الهاتف) عبر Migration 101 = Implemented + Local Verified**؛ عقود البحث/الترتيب/operator farm/payment orchestration وباقي ق-88 لا تزال Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md`؛ اختبار دائم 101 = PASS 19/0/0 | معتمد؛ **Partial** — Farm dedup محلي منفَّذ، بقية ق-88 وCloud deployment للهجرة 101 Pending |
+| ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ **Farm dedup منفَّذ ومُثبت محليًا وسحابيًا (backend + API + تكامل الهاتف) عبر Migration 101 = Implemented + Local Verified + Cloud Verified**؛ عقود البحث/الترتيب/operator farm/payment orchestration وباقي ق-88 لا تزال Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md`؛ اختبار دائم 101 = PASS 19/0/0؛ Cloud: MR !6 + Pipeline 2863219601 + production job 16601058583 + Supabase verification | معتمد؛ **Partial** — Farm dedup مكتمل محليًا وسحابيًا، وبقية ق-88 Pending |
 | ق-89 | Offline field operations + Android persistent background sync | Server sync foundation موجود؛ Mobile DB/outbox/worker/idempotent offline contracts غير منفذة | `ANDROID_OFFLINE_BACKGROUND_SYNC.md` + permanent/backend/Android field tests مطلوبة | معتمد؛ Stage 7 implementation Pending |
 | ق-90 | Device Readiness + sync transparency + non-blocking field UX | UX-10 موثق؛ local evaluator/status UI/reminders غير منفذة | Android integration + readiness/sync acceptance tests مطلوبة | معتمد؛ Flutter/Android Pending |
 | ق-91 | Active session UX + live amount + fuel-billing consistency | Session/segments backend foundation موجود؛ Fuel billing conflict تم حله في 085؛ active read/pause detail/resume-new-energy Pending | `ACTIVE_SESSION_ARCHITECTURE.md` + م-26 + backend/Android tests | معتمد؛ Backend Fuel conflict مغلق في 085؛ Flutter Pending |
@@ -153,7 +153,7 @@
 | Farmer dedup | ق-76 + create_farmer موجود | منع suspect duplicate الصامت + concurrency test |
 | Farm ownership | ق-80/075 منفذ | لا تغيير |
 | Farm search | جدول العلاقة موجود | normalized search/index/read contract |
-| Farm dedup | منفَّذ محليًا (Migration 101) | scope=implemented؛ discriminator=`distinguishing_label`؛ DB/API enforcement=implemented (advisory lock + trigger + 23505)؛ permanent test 101 PASS 19؛ **Cloud deployment = Pending** |
+| Farm dedup | منفَّذ ومُثبت محليًا وسحابيًا (Migration 101) | scope=implemented؛ discriminator=`distinguishing_label`؛ DB/API enforcement=implemented (advisory lock + trigger + 23505)؛ permanent test 101 PASS 19؛ **Cloud Verified** عبر MR !6 / Pipeline 2863219601 / production job 16601058583 |
 | Operator add farmer | موجود | ربط UX واختباره |
 | Operator add farm | Backend owner-only حاليًا | Migration 085+ لتفويض operator |
 | Inline return/select | غير منفذ | API/Flutter flow يحفظ السياق |

@@ -1816,9 +1816,8 @@
 
 ### تحديث التنفيذ — Farm Dedup / Migration 101 — 2026-09-19
 
-**الحالة: Implemented + Local Verified. ق-88 ككل يبقى Partial — لا يُغلق.**
-Migration 101 **لم تُنشر سحابيًا ولم تدخل `main` بعد** (ليست Cloud Verified
-ولا Deployed).
+**الحالة: Implemented + Local Verified + Cloud Verified. ق-88 ككل يبقى Partial — لا يُغلق.**
+Migration 101 دُمجت إلى `main` عبر MR `!6` (merge commit `2267f73c`) ثم نُشرت على Supabase Cloud عبر Pipeline `2863219601` / production job `16601058583` بنجاح. التحقق المستقل أثبت وجود الإصدار `20260919010001`، والعمود/جدول العلامات/المحفّز والتوقيعات والصلاحيات المتوقعة.
 
 - **الـdiscriminator المختار:** `distinguishing_label` (nullable، لا يُدمج
   في الاسم الأساسي، الفراغ مرفوض بقيد تحقق).

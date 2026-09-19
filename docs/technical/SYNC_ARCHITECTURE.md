@@ -1,6 +1,6 @@
 # Offline and Synchronization Architecture
 
-**آخر تحديث:** 2026-08-23
+**آخر تحديث:** 2026-09-20
 **القرارات الحاكمة:** ق-75، ق-89، ق-90، ق-91، ق-92، ق-114، ق-115
 **الحالة:** الخادم منفذ جزئيًا — idempotency الدورة الميدانية
 الأولى موصول ومُثبت بق-114؛ وطابور الهاتف الدائم منفَّذ ومُثبت
@@ -209,12 +209,12 @@ Smart Lookup يمكن أن يستخدم Local Cache لسرعة عرض
 حتى ذلك الحين، لا يدعي التطبيق أن سجلًا جديدًا أصبح
 معتمدًا إذا لم يصل إلى الخادم.
 
-### 10.1 إنشاء الأرض دون اتصال — Implemented + Local Verified (Migration 101)
+### 10.1 إنشاء الأرض دون اتصال — Implemented + Local Verified؛ Backend Cloud Verified (Migration 101)
 
 هذا الجزء (إنشاء الأرض مع مرجع كيان قابل للحل ومنع التكرار عند القبول)
 منفَّذ محليًا ومُثبت للحزمة الحالية فقط. **لا يُغلق ق-89 كله ولا كامل
 معمارية العمل دون اتصال** — بقية العمليات والتعارضات وباقي بنود ق-89 على
-حالها. Migration 101 لم تُنشر سحابيًا بعد.
+حالها. Backend Migration 101 دُمجت إلى `main` ونُشرت وتحققت سحابيًا؛ هذا لا يحوّل بقية ق-89 أو طبقة الهاتف كلها إلى Cloud Verified.
 
 الواقع من الكود الحالي في الفرع (`entity_reference.dart`،
 `offline_session_coordinator.dart`، `sync_engine.dart`):
@@ -234,8 +234,7 @@ Smart Lookup يمكن أن يستخدم Local Cache لسرعة عرض
   `requires_disambiguation`، أو أمر بحالة review) **لا تتحول إلى نجاح
   محلي كاذب**؛ المحرك يتركها معلّقة/للمراجعة ولا يدّعي الحسم.
 
-الحالة: **Local Implemented/Verified** للحزمة الحالية فقط، ليست Cloud
-Verified ولا Deployed.
+الحالة: **Mobile integration = Local Implemented/Verified**، و**Backend Migration 101 = Cloud Verified**. هذا الوصف لا يغلق ق-89 كله ولا يدّعي تحققًا سحابيًا لسلوك الهاتف نفسه.
 
 ## 11. الدفعة مع بدء الجلسة
 

@@ -1,6 +1,6 @@
 # الهجرات
 
-**آخر تحديث:** 2026-09-19
+**آخر تحديث:** 2026-09-20
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
@@ -1712,8 +1712,8 @@ columns 833 وconstraints 501 وtriggers 44 **بلا تغيير** — قراءة
 ## 101 — 20260919010001_101_farm_dedup_and_distinguishing_label.sql
 
 **الملف:** `supabase/migrations/20260919010001_101_farm_dedup_and_distinguishing_label.sql`
-**الحالة:** **Implemented + Local Verified** — منفَّذة ومُثبتة محليًا.
-**NOT DEPLOYED / NOT CLOUD VERIFIED** — لم تُنشر على Supabase Cloud ولم تدخل `main` بعد.
+**الحالة:** **Implemented + Local Verified + Cloud Verified** — منفَّذة ومُثبتة محليًا وسحابيًا.
+**النشر:** دُمجت عبر MR `!6` إلى `main` (merge commit `2267f73c`)؛ Pipeline `2863219601` نجح، وproduction job `16601058583` طبّق 101 بنجاح.
 **القرار الحاكم:** ق-88 (جزء منع تكرار الأرض)
 
 **الغرض:**
@@ -1765,4 +1765,4 @@ columns 833 وconstraints 501 وtriggers 44 **بلا تغيير** — قراءة
 - `db:index` مولَّد: columns=839، constraints=503، triggers=45،
   functions=199.
 - `git diff --check` نظيف.
-- **السحابة لم تتغيّر:** Migration 101 غير منشورة سحابيًا ولم تدخل `main`.
+- **السحابة Cloud Verified:** Job الإنتاج سجّل `applied=1` و`skipped=99` و`MIGRATIONS_LOCAL=100` / `MIGRATIONS_CLOUD=100` / `MISSING_IN_CLOUD=0` و`FUNCTIONS_INDEX=197` / `FUNCTIONS_CLOUD=197`. تحقق Supabase المستقل أثبت الإصدار `20260919010001`، وعمود `distinguishing_label`، وجدول `ops.farm_identity_markers`، والمحفّز `trg_enforce_farm_uniqueness`، والتوقيعات الجديدة، وغياب الـoverloads القديمة، وبقاء Direct DML للعميل على `ops.farms` = false.

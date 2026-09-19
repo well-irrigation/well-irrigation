@@ -1,10 +1,20 @@
 # سجل تغييرات الوثائق
 
-**آخر تحديث:** 2026-09-19
+**آخر تحديث:** 2026-09-20
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 
 ---
+
+## 2026-09-20 — إغلاق توثيق Cloud Verification لـFarm Dedup / Migration 101
+
+- MR `!6` دُمج إلى `main`؛ merge commit = `2267f73ce1a4bc13e0c684a2467bfdb22fe0b91d`.
+- GitLab Pipeline `2863219601` نجح بالكامل؛ مرحلتا `app` و`database` PASS، ثم production job `16601058583` PASS.
+- مسار النشر طبّق Migration `20260919010001_101_farm_dedup_and_distinguishing_label.sql` (`applied=1`, `skipped=99`) وأعطى `MISSING_IN_CLOUD=0`.
+- التحقق المستقل من Supabase أثبت وجود الإصدار `20260919010001`، و`ops.farms.distinguishing_label`، و`ops.farm_identity_markers`، و`trg_enforce_farm_uniqueness`، والتوقيعات الجديدة فقط، مع بقاء Direct DML للـ`anon`/`authenticated` على `ops.farms` = false.
+- الحالة الحالية لجزء Farm Dedup من ق-88: **Implemented + Local Verified + Cloud Verified**. ق-88 ككل يبقى **Partial**، وم-21 لا تُغلق ولا تُعاد تعريفها.
+- هذه الدفعة توثيقية فقط؛ لا كود ولا SQL جديد.
+
 
 ## 2026-09-19 — توثيق تنفيذ Farm Dedup / Migration 101 محليًا
 
