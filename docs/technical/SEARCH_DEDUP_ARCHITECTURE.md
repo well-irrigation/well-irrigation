@@ -1,6 +1,6 @@
 # Smart Lookup, Deduplication, and Live Session Amount Architecture
 
-**آخر تحديث:** 2026-09-19
+**آخر تحديث:** 2026-09-20
 **القرار الحاكم:** ق-88
 **الحالة:** تصميم تقني ملزم؛ ق-88 ككل ما زال Partial. **Farm Dedup منفَّذ
 ومُثبت محليًا وسحابيًا (Implemented + Local Verified + Cloud Verified) عبر Migration 101** — انظر §8؛
