@@ -57,6 +57,54 @@ class _ScopedTestOperationsRepository extends OperationsRepository {
   }
 }
 
+class _SearchStateOperationsRepository extends OperationsRepository {
+  _SearchStateOperationsRepository({
+    this.farmers = const [],
+    this.farms = const [],
+    this.farmerFailuresRemaining = 0,
+    this.farmFailuresRemaining = 0,
+  });
+
+  final List<FarmerAccount> farmers;
+  final List<Farm> farms;
+  int farmerFailuresRemaining;
+  int farmFailuresRemaining;
+
+  @override
+  Future<List<Pump>> fetchPumps(String wellId) async => [
+    Pump(
+      id: 'pump-1',
+      wellId: wellId,
+      name: 'المضخة الرئيسية',
+      publicCode: 'PUMP-1',
+    ),
+  ];
+
+  @override
+  Future<List<FarmerAccount>> fetchFarmers(
+    String wellId, {
+    String? query,
+  }) async {
+    if (farmerFailuresRemaining > 0) {
+      farmerFailuresRemaining -= 1;
+      throw StateError('farmer lookup failed');
+    }
+    return farmers;
+  }
+
+  @override
+  Future<List<Farm>> fetchFarms(
+    String wellId, {
+    String? farmerAccountId,
+  }) async {
+    if (farmFailuresRemaining > 0) {
+      farmFailuresRemaining -= 1;
+      throw StateError('farm lookup failed');
+    }
+    return farms;
+  }
+}
+
 void main() {
   group('Operations M21 Farm Scope & Search Tests (Finding 11 E, F, I)', () {
     const accountId = 'owner-1';
@@ -98,6 +146,202 @@ void main() {
         ),
       );
     }
+
+    Finder lookupText(String text) => find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text(text),
+    );
+
+    testWidgets(
+      'failed farmer lookup shows error, hides empty/create, and retry restores durable pending',
+      (tester) async {
+        await coordinator.enqueueFarmer(
+          accountId: accountId,
+          wellId: well1.id,
+          fullName: 'مزارع محلي محفوظ',
+        );
+        final repository = _SearchStateOperationsRepository(
+          farmers: const [
+            FarmerAccount(
+              id: 'farmer-server-1',
+              fullName: 'مزارع خادمي',
+              publicCode: 'F-1',
+            ),
+          ],
+          farmerFailuresRemaining: 1,
+        );
+
+        await tester.pumpWidget(wrapApp(repository: repository));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('ابحث باسم المزارع أو رقم هاتفه...'));
+        await tester.pumpAndSettle();
+
+        expect(
+          lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+          findsOneWidget,
+        );
+        expect(lookupText('لا توجد نتائج مطابقة'), findsNothing);
+        expect(lookupText('إضافة مزارع جديد'), findsNothing);
+        expect(lookupText('مزارع محلي محفوظ'), findsOneWidget);
+
+        await tester.tap(lookupText('إعادة المحاولة'));
+        await tester.pumpAndSettle();
+
+        expect(
+          lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+          findsNothing,
+        );
+        expect(lookupText('مزارع محلي محفوظ'), findsOneWidget);
+        expect(lookupText('مزارع خادمي'), findsOneWidget);
+      },
+    );
+
+    testWidgets('pending farmer remains selectable while server error is shown', (
+      tester,
+    ) async {
+      await coordinator.enqueueFarmer(
+        accountId: accountId,
+        wellId: well1.id,
+        fullName: 'مزارع محلي قابل للاختيار',
+      );
+      final repository = _SearchStateOperationsRepository(
+        farmerFailuresRemaining: 1,
+      );
+
+      await tester.pumpWidget(wrapApp(repository: repository));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ابحث باسم المزارع أو رقم هاتفه...'));
+      await tester.pumpAndSettle();
+
+      expect(
+        lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+        findsOneWidget,
+      );
+      expect(lookupText('مزارع محلي قابل للاختيار'), findsOneWidget);
+
+      await tester.tap(lookupText('مزارع محلي قابل للاختيار'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('مزارع محلي قابل للاختيار'), findsOneWidget);
+      expect(find.text('محفوظ على الجهاز'), findsOneWidget);
+    });
+
+    testWidgets(
+      'failed farm lookup shows error, not empty, and retry restores durable pending farm',
+      (tester) async {
+        const farmer = FarmerAccount(
+          id: 'farmer-1',
+          fullName: 'محمد علي',
+          publicCode: 'F-1',
+        );
+        await coordinator.enqueueFarm(
+          accountId: accountId,
+          wellId: well1.id,
+          name: 'الكوثة',
+          distinguishingLabel: 'الغربية',
+          farmerReference: const ServerEntityReference('farmer-1'),
+        );
+        final repository = _SearchStateOperationsRepository(
+          farmers: const [farmer],
+          farms: const [
+            Farm(
+              id: 'farm-server-1',
+              wellId: 'well-1',
+              name: 'الكوثة',
+              distinguishingLabel: 'الشرقية',
+              farmerAccountId: 'farmer-1',
+            ),
+          ],
+          farmFailuresRemaining: 1,
+        );
+
+        await tester.pumpWidget(wrapApp(repository: repository));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('ابحث باسم المزارع أو رقم هاتفه...'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('محمد علي'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('ابحث باسم الأرض...'));
+        await tester.pumpAndSettle();
+
+        expect(
+          lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+          findsOneWidget,
+        );
+        expect(lookupText('لا توجد نتائج مطابقة'), findsNothing);
+        expect(lookupText('إضافة أرض جديدة'), findsNothing);
+        expect(lookupText('الكوثة — الغربية'), findsOneWidget);
+
+        await tester.tap(lookupText('إعادة المحاولة'));
+        await tester.pumpAndSettle();
+
+        expect(
+          lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+          findsNothing,
+        );
+        expect(lookupText('الكوثة — الغربية'), findsOneWidget);
+        expect(lookupText('الكوثة — الشرقية'), findsOneWidget);
+      },
+    );
+
+    testWidgets('pending farm remains selectable while server error is shown', (
+      tester,
+    ) async {
+      const farmer = FarmerAccount(
+        id: 'farmer-1',
+        fullName: 'محمد علي',
+        publicCode: 'F-1',
+      );
+      await coordinator.enqueueFarm(
+        accountId: accountId,
+        wellId: well1.id,
+        name: 'الجربة',
+        distinguishingLabel: 'القبلية',
+        farmerReference: const ServerEntityReference('farmer-1'),
+      );
+      final repository = _SearchStateOperationsRepository(
+        farmers: const [farmer],
+        farmFailuresRemaining: 1,
+      );
+
+      await tester.pumpWidget(wrapApp(repository: repository));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ابحث باسم المزارع أو رقم هاتفه...'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('محمد علي'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ابحث باسم الأرض...'));
+      await tester.pumpAndSettle();
+
+      expect(
+        lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+        findsOneWidget,
+      );
+      expect(lookupText('الجربة — القبلية'), findsOneWidget);
+
+      await tester.tap(lookupText('الجربة — القبلية'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('الجربة — القبلية'), findsOneWidget);
+      expect(find.text('محفوظ على الجهاز'), findsOneWidget);
+    });
+
+    testWidgets('successful empty farmer lookup keeps normal empty/create state', (
+      tester,
+    ) async {
+      final repository = _SearchStateOperationsRepository();
+
+      await tester.pumpWidget(wrapApp(repository: repository));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ابحث باسم المزارع أو رقم هاتفه...'));
+      await tester.pumpAndSettle();
+
+      expect(lookupText('لا توجد نتائج مطابقة'), findsOneWidget);
+      expect(lookupText('إضافة مزارع جديد'), findsWidgets);
+      expect(lookupText('إعادة المحاولة'), findsNothing);
+    });
 
     testWidgets(
       'E. pending farmer does NOT show server farms from unrelated farmers',

@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../utils/digit_utils.dart';
 
+class SmartLookupSearchFailure<T> implements Exception {
+  const SmartLookupSearchFailure({required this.availableLocalItems});
+
+  final List<T> availableLocalItems;
+}
+
 /// مكوّن البحث الذكي الموحد (Smart Lookup Component - ق-88 / ق-119)
 ///
 /// يدعم:
@@ -238,6 +244,15 @@ class _SmartLookupBottomSheetState<T>
           _isLoading = false;
         });
       }
+    } on SmartLookupSearchFailure<T> catch (failure) {
+      if (mounted) {
+        setState(() {
+          _results = failure.availableLocalItems;
+          _searchError =
+              'تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.';
+          _isLoading = false;
+        });
+      }
     } catch (_) {
       // م-41C1: فشل عقد القراءة يظهر صريحًا بدل قائمة فارغة مضلِّلة.
       if (mounted) {
@@ -301,7 +316,7 @@ class _SmartLookupBottomSheetState<T>
                         ),
                       ),
                     ),
-                    if (widget.onAddNew != null)
+                    if (widget.onAddNew != null && _searchError == null)
                       TextButton.icon(
                         onPressed: () => widget.onAddNew!(),
                         icon: const Icon(
@@ -379,37 +394,51 @@ class _SmartLookupBottomSheetState<T>
                           ),
                         )
                       : _searchError != null
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.cloud_off_rounded,
-                                size: 48,
-                                color: AppColors.error,
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                _searchError!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.error,
+                      ? ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _results.length + 1,
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 24,
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              OutlinedButton.icon(
-                                onPressed: () => _performSearch(_currentQuery),
-                                icon: const Icon(
-                                  Icons.refresh_rounded,
-                                  size: 18,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.cloud_off_rounded,
+                                      size: 48,
+                                      color: AppColors.error,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      _searchError!,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.error,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton.icon(
+                                      onPressed: () =>
+                                          _performSearch(_currentQuery),
+                                      icon: const Icon(
+                                        Icons.refresh_rounded,
+                                        size: 18,
+                                      ),
+                                      label: const Text('إعادة المحاولة'),
+                                    ),
+                                  ],
                                 ),
-                                label: const Text('إعادة المحاولة'),
-                              ),
-                            ],
-                          ),
+                              );
+                            }
+                            return _buildResultTile(_results[index - 1]);
+                          },
                         )
                       : _results.isEmpty
                       ? Padding(
@@ -456,56 +485,7 @@ class _SmartLookupBottomSheetState<T>
                           separatorBuilder: (context, index) =>
                               const Divider(height: 1),
                           itemBuilder: (context, index) {
-                            final item = _results[index];
-                            final primary = widget.itemLabel(item);
-                            final secondary = widget.itemSecondaryLabel != null
-                                ? widget.itemSecondaryLabel!(item)
-                                : null;
-
-                            return ListTile(
-                              dense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              leading: CircleAvatar(
-                                radius: 18,
-                                backgroundColor: AppColors.waterBlue.withValues(
-                                  alpha: 0.1,
-                                ),
-                                child: Text(
-                                  primary.isNotEmpty ? primary[0] : '؟',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.waterBlue,
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                primary,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.deepBlue,
-                                ),
-                              ),
-                              subtitle: secondary != null
-                                  ? Text(
-                                      secondary,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    )
-                                  : null,
-                              trailing: const Icon(
-                                Icons.chevron_left,
-                                size: 20,
-                                color: AppColors.textMuted,
-                              ),
-                              onTap: () => widget.onSelected(item),
-                            );
+                            return _buildResultTile(_results[index]);
                           },
                         ),
                 ),
@@ -514,6 +494,53 @@ class _SmartLookupBottomSheetState<T>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildResultTile(T item) {
+    final primary = widget.itemLabel(item);
+    final secondary = widget.itemSecondaryLabel != null
+        ? widget.itemSecondaryLabel!(item)
+        : null;
+
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      leading: CircleAvatar(
+        radius: 18,
+        backgroundColor: AppColors.waterBlue.withValues(alpha: 0.1),
+        child: Text(
+          primary.isNotEmpty ? primary[0] : '؟',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: AppColors.waterBlue,
+          ),
+        ),
+      ),
+      title: Text(
+        primary,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: AppColors.deepBlue,
+        ),
+      ),
+      subtitle: secondary != null
+          ? Text(
+              secondary,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            )
+          : null,
+      trailing: const Icon(
+        Icons.chevron_left,
+        size: 20,
+        color: AppColors.textMuted,
+      ),
+      onTap: () => widget.onSelected(item),
     );
   }
 }
