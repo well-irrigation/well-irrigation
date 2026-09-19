@@ -233,10 +233,10 @@ Surface الحالي يبقى:
 
 العقد موجود ويجب إعادة استخدامه.
 
-### Create Farm — Implemented + Local Verified (Migration 101، 2026-09-19)
+### Create Farm — Implemented + Local Verified + Cloud Verified (Migration 101، 2026-09-19)
 
 `api.create_farm` هو عقد الـData API العام لإنشاء الأرض، ومنع التكرار
-منفَّذ محليًا ومُثبت. Migration 101 **لم تُنشر سحابيًا بعد** — الحالة محلية.
+منفَّذ ومُثبت محليًا وسحابيًا. Migration 101 دُمجت إلى `main` عبر MR `!6` ونُشرت بنجاح؛ التحقق المستقل من Supabase أثبت التوقيع الخماسي وصلاحيات التنفيذ وحدود Direct DML.
 
 - **توقيع واحد فقط بخمس وسائط**:
   `api.create_farm(p_well_id, p_name, p_farmer_well_account_id,
