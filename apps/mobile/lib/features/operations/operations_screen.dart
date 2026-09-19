@@ -462,13 +462,6 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<List<FarmerAccount>> _searchFarmers(String query) async {
-    List<FarmerAccount> list = [];
-    try {
-      list = await _repo.fetchFarmers(_activeWellId, query: query);
-    } catch (e) {
-      list = [];
-    }
-
     final durablePending = await _coordinator.pendingFarmers(
       accountId: _accountId,
       wellId: _activeWellId,
@@ -476,12 +469,25 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     final q = query.trim();
     final matchingPending = durablePending.where((f) {
-      if (list.any((existing) => existing.id == f.entityReference.serverId)) {
-        return false;
-      }
       if (q.isEmpty) return true;
       return f.fullName.contains(q) ||
           (f.phone != null && f.phone!.contains(q));
+    }).toList();
+
+    late final List<FarmerAccount> list;
+    try {
+      list = await _repo.fetchFarmers(_activeWellId, query: query);
+    } catch (_) {
+      throw SmartLookupSearchFailure<FarmerAccount>(
+        availableLocalItems: matchingPending,
+      );
+    }
+
+    matchingPending.removeWhere((f) {
+      if (list.any((existing) => existing.id == f.entityReference.serverId)) {
+        return true;
+      }
+      return false;
     });
 
     return [...matchingPending, ...list];
@@ -495,6 +501,17 @@ class _OperationsScreenState extends State<OperationsScreen>
     final accountId = _accountId;
     final q = query.trim();
 
+    final durablePending = await _coordinator.pendingFarms(
+      accountId: accountId,
+      wellId: wellId,
+      farmerReference: selectedFarmer.entityReference,
+    );
+
+    final filteredPending = durablePending.where((f) {
+      if (q.isEmpty) return true;
+      return f.displayName.contains(q);
+    }).toList();
+
     List<Farm> serverFarms = [];
     if (!selectedFarmer.isPending &&
         selectedFarmer.entityReference.serverId != null &&
@@ -504,30 +521,22 @@ class _OperationsScreenState extends State<OperationsScreen>
           wellId,
           farmerAccountId: selectedFarmer.entityReference.serverId,
         );
-      } catch (e) {
-        serverFarms = [];
+      } catch (_) {
+        throw SmartLookupSearchFailure<Farm>(
+          availableLocalItems: filteredPending,
+        );
       }
     }
-
-    final durablePending = await _coordinator.pendingFarms(
-      accountId: accountId,
-      wellId: wellId,
-      farmerReference: selectedFarmer.entityReference,
-    );
 
     final filteredServer = q.isEmpty
         ? serverFarms
         : serverFarms.where((f) => f.displayName.contains(q)).toList();
 
-    final filteredPending = durablePending.where((f) {
-      if (serverFarms.any(
+    filteredPending.removeWhere(
+      (f) => serverFarms.any(
         (existing) => existing.id == f.entityReference.serverId,
-      )) {
-        return false;
-      }
-      if (q.isEmpty) return true;
-      return f.displayName.contains(q);
-    }).toList();
+      ),
+    );
 
     return [...filteredPending, ...filteredServer];
   }
