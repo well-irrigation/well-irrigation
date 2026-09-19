@@ -22,10 +22,13 @@ class FakeCommandTransport implements CommandTransport {
   final List<DispatchRequest> requests = [];
 
   /// النتائج المخزونة بمعرّف العملية. حجمها = عدد التنفيذات الفعلية.
-  final Map<String, DispatchAccepted> executed = {};
+  final Map<String, DispatchResult> executed = {};
 
   /// فشل مجدول لكل دالة، يُستهلك واحدًا لكل محاولة.
   final Map<String, List<DispatchResult>> failures = {};
+
+  /// رد خام مجدول لكل دالة يمر عبر مسار التوحيد الحقيقي (normalizeAcceptedResponse).
+  final Map<String, List<Object>> rawResponses = {};
 
   /// دوال ينفّذها الخادم ثم يضيع ردّها مرة واحدة.
   ///
@@ -40,6 +43,14 @@ class FakeCommandTransport implements CommandTransport {
   @override
   Future<DispatchResult> dispatch(DispatchRequest request) async {
     requests.add(request);
+
+    final scheduledRaw = rawResponses[request.type.rpcName];
+
+    if (scheduledRaw != null && scheduledRaw.isNotEmpty) {
+      final raw = scheduledRaw.removeAt(0);
+      return executed[request.commandId] =
+          normalizeAcceptedResponse(request.type, raw);
+    }
 
     final scheduled = failures[request.type.rpcName];
 
@@ -81,6 +92,10 @@ class FakeCommandTransport implements CommandTransport {
     failures.putIfAbsent(type.rpcName, () => []).add(result);
   }
 
+  void scheduleRawResponse(CommandType type, Object rawResponse) {
+    rawResponses.putIfAbsent(type.rpcName, () => []).add(rawResponse);
+  }
+
   void scheduleNetworkFailure(CommandType type, {int times = 1}) {
     for (var index = 0; index < times; index += 1) {
       scheduleFailure(
@@ -106,7 +121,7 @@ class FakeCommandTransport implements CommandTransport {
 
   /// يبني ردًّا خامًا بشكل الخادم الحقيقي، ثم يمرّه على التوحيد نفسه
   /// الذي يستخدمه الإنتاج — فيُختبر التوحيد بلا كود اختبار موازٍ.
-  DispatchAccepted _execute(DispatchRequest request) {
+  DispatchResult _execute(DispatchRequest request) {
     final type = request.type;
     final id = '$idPrefix-${type.rpcName}-${++_seed}';
 

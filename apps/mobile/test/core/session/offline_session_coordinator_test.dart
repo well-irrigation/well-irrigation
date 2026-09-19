@@ -90,11 +90,13 @@ class _ControlledDelayOutboxStore implements OutboxStore {
     String localId, {
     required String error,
     required DateTime attemptedAt,
+    Map<String, Object?>? serverResponse,
   }) => _inner.markNeedsReview(
     accountId,
     localId,
     error: error,
     attemptedAt: attemptedAt,
+    serverResponse: serverResponse,
   );
 
   @override

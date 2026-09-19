@@ -1,10 +1,38 @@
 # سجل تغييرات الوثائق
 
-**آخر تحديث:** 2026-09-18
+**آخر تحديث:** 2026-09-19
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 
 ---
+
+## 2026-09-19 — توثيق تنفيذ Farm Dedup / Migration 101 محليًا
+
+- **الملفات:**
+  - `docs/technical/SEARCH_DEDUP_ARCHITECTURE.md` (ترويسة الحالة إلى Partial مع Farm Dedup منفَّذ محليًا؛ إعادة كتابة §8 Farm Dedup Profile بالهوية القانونية الرباعية و`distinguishing_label` والحالات الأربع والعنقود التاريخي والقفل الاستشاري والمحفّز و23505 وتأجيل الفهرس الفريد ودليل 101 = 19/0/0).
+  - `docs/technical/DECISION_IMPLEMENTATION_MATRIX.md` (سطر ق-88 إلى Partial مع Farm dedup محلي منفَّذ؛ خلية Stage 7 «Farm dedup» من «غير مكتمل» إلى منفَّذ محليًا مع Cloud Pending).
+  - `docs/technical/API_ARCHITECTURE.md` (قسم Create Farm: عقد `api.create_farm` بخمس وسائط وتوقيع واحد، INVOKER، anon denied، الحالات الأربع، `distinguishing_label`، idempotency، لا حسم تلقائي للعنقود).
+  - `docs/technical/SYNC_ARCHITECTURE.md` (قسم 10.1 جديد: إنشاء الأرض دون اتصال عبر `EntityReference` وحل canonical `farm_id` عند القبول/`matched_existing` بلا duplicate، وعدم تحول التعارض إلى نجاح كاذب — Local Verified فقط).
+  - `docs/technical/MIGRATIONS.md` (تاريخ آخر تحديث؛ قسم 101 جديد بعد 100: الغرض والمكونات والاختبار الدائم والأساس المحلي وحالة NOT DEPLOYED/NOT CLOUD VERIFIED).
+  - `docs/technical/INVARIANTS.md` (ثوابت 723–727 تحت ق-88: هوية الأرض ليست الاسم منفردًا، لا auto-merge/حسم تلقائي للعناقيد، رفض/إعادة canonical بـ23505 ولا فهرس فريد، لا Direct DML، لا تحويل `ض->د`).
+  - `docs/memory/DECISIONS.md` (حالة ق-88 إلى Partial؛ subsection «تحديث التنفيذ — Farm Dedup / Migration 101 — 2026-09-19»).
+  - `docs/memory/PROGRESS.md` (تاريخ آخر تحديث؛ سجل 2026-09-19 بالنتائج المحلية).
+  - `docs/memory/DOC_CHANGELOG.md` (هذا السجل).
+  - `docs/memory/RESUME_POINT.md` (تحديث رأس الاستئناف إلى 2026-09-19 وخط الأساس المحلي الحالي).
+- **ماذا تغيّر:**
+  - **التنفيذ كان موجودًا قبل هذه التمريرة** (Migration 101 والاختبار والتكامل مكتوبة ومُثبتة محليًا بتشغيل المالك). **هذه التمريرة = مزامنة توثيق فقط** لتعكس الواقع المثبت.
+  - **خط الأساس المحلي تغيّر** من `FILES=39 PASS=622` إلى `FILES=40 PASS=641`، والفهرس من 833/501/44/197 إلى 839/503/45/199.
+  - Test 101 = PASS 19/0/0؛ App Gate = 522/522؛ `git diff --check` نظيف.
+  - تصحيح الصياغات المتقادمة: «Farm dedup غير مكتمل / Pending» إلى «منفَّذ محليًا».
+- **ما لم يتغيّر (وما لا يجوز ادعاؤه):**
+  - **خط الأساس السحابي لم يتغيّر** — Migration 101 غير منشورة سحابيًا ولم تدخل `main`؛ لم يحدث أي deployment.
+  - ق-88 ككل **لم يُغلق** (Partial). م-21 (الاختبارات الميدانية) **لم يُغلق ولم يُعد تعريفه** — `m21` في اسم الفرع اسم فرع لا رقم مسألة.
+  - `core.normalize_arabic` **لم يُعدَّل** ولا يُوصف بتحويل `ض -> د`.
+  - العناقيد التاريخية **لم تُوصف auto-merged**، ولا يوجد Unique Expression Index في 101.
+  - ثابت أمان Direct DML باقٍ (072 = PASS 9/9)، ولا GRANT جديد على `ops.farms`.
+  - لم يُعدَّل أي كود Flutter/SQL/Tests في هذه التمريرة، ولا أي ملف خارج الوثائق العشر المصرَّح بها.
+- **نوع التغيير:** مزامنة توثيقية لحزمة منفَّذة محليًا (Documentation Synchronization) — استثناء توثيقي لمرة واحدة مصرَّح به من المالك ضمن ق-128.
+- **المرجع الحاكم:** ق-88، ق-128، ق-113، ق-99.
 
 ## 2026-09-18 — إغلاق ق-129 و م-43 وتوثيق اجتياز القبول الميداني الشامل
 

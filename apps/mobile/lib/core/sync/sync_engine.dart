@@ -244,6 +244,7 @@ class SyncEngine {
             command.localId,
             error: failure.message,
             attemptedAt: attemptedAt,
+            serverResponse: failure.serverResponse,
           );
           block(aggregate, _BlockReason.awaitingReview);
           needsReview += 1;

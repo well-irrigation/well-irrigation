@@ -1,6 +1,19 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-09-17
+**آخر تحديث:** 2026-09-19
+
+## 2026-09-19 — Farm Dedup / Migration 101 منفَّذ ومُثبت محليًا
+
+- **Migration 101 منفَّذة محليًا** (`20260919010001_101_farm_dedup_and_distinguishing_label.sql`): عمود `distinguishing_label`، وهوية أرض قانونية رباعية الحقول، وقفل استشاري `ops.lock_farm_base_identity`، ومحفّز فرادة `ops.trg_enforce_farm_uniqueness` مع جدول علامات داخلي، وعقد `create_farm` بأربع حالات، و`list_well_farms` يعيد `distinguishing_label`.
+- **تكامل التطبيق منفَّذ محليًا:** `EntityReference` (مرجع محلي معلّق/خادمي محسوم) في مسار إنشاء الأرض والعمليات التابعة، وحل المرجع إلى canonical `farm_id` عند القبول أو `matched_existing` بلا duplicate.
+- **App Gate = 522/522 PASS.**
+- **Test 101 = PASS=19 FAIL=0 ERROR=0** (تشغيل المالك).
+- **حزمة القاعدة = FILES=40 PASS=641 FAIL=0 ERROR=0.**
+- **`db:index` مولَّد:** columns=839، constraints=503، triggers=45، functions=199.
+- **`git diff --check`** نجح (تشغيل المالك).
+- **السحابة:** النشر والتحقق السحابي **لا يزالان Pending** — 101 لم تدخل `main` ولم تُنشر.
+- **بوابة التوثيق:** يجري إغلاقها الآن بهذه التمريرة؛ **لا تُسجَّل PASS قبل مراجعة المالك**.
+- **حدود:** ق-88 ككل يبقى Partial، وم-21 (الاختبارات الميدانية) لم يُغلق ولم يُعد تعريفه — `m21` في اسم الفرع اسم فرع لا رقم مسألة.
 
 ## 2026-08-30 — Audit 1: Flutter Data API Boundary
 

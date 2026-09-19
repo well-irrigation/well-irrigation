@@ -297,6 +297,7 @@ class SqliteOutboxStore implements OutboxStore {
     String localId, {
     required String error,
     required DateTime attemptedAt,
+    Map<String, Object?>? serverResponse,
   }) async {
     await _db.update(
       commandsTable,
@@ -304,6 +305,8 @@ class SqliteOutboxStore implements OutboxStore {
         'status': CommandStatus.review.storageValue,
         'last_error': error,
         'last_attempt_at': _encodeTime(attemptedAt),
+        if (serverResponse != null)
+          'server_response': jsonEncode(serverResponse),
       },
       where: 'account_id = ? and local_id = ?',
       whereArgs: [accountId, localId],

@@ -592,6 +592,11 @@ ops.booking_status_history|new_status|text|NOT NULL|-
 ops.booking_status_history|reason|text|null|-
 ops.booking_status_history|changed_at|timestamp with time zone|NOT NULL|now()
 ops.booking_status_history|changed_by|uuid|null|-
+ops.farm_identity_markers|well_id|uuid|NOT NULL|-
+ops.farm_identity_markers|farmer_well_account_id|uuid|NOT NULL|-
+ops.farm_identity_markers|normalized_name|text|NOT NULL|-
+ops.farm_identity_markers|normalized_label|text|NOT NULL|''::text
+ops.farm_identity_markers|created_at|timestamp with time zone|NOT NULL|clock_timestamp()
 ops.farmer_profiles|id|uuid|NOT NULL|gen_random_uuid()
 ops.farmer_profiles|tenant_id|uuid|NOT NULL|-
 ops.farmer_profiles|person_id|uuid|NOT NULL|-
@@ -614,6 +619,7 @@ ops.farms|status|text|NOT NULL|'active'::text
 ops.farms|created_at|timestamp with time zone|NOT NULL|now()
 ops.farms|updated_at|timestamp with time zone|NOT NULL|now()
 ops.farms|farmer_well_account_id|uuid|null|-
+ops.farms|distinguishing_label|text|null|-
 ops.irrigation_bookings|id|uuid|NOT NULL|gen_random_uuid()
 ops.irrigation_bookings|tenant_id|uuid|NOT NULL|-
 ops.irrigation_bookings|public_code|text|NOT NULL|-

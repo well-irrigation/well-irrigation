@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/identity/app_identity.dart';
 import '../../core/api/operations_repository.dart';
+import '../../core/session/offline_session_coordinator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_utils.dart';
 import '../../core/utils/digit_utils.dart';
@@ -16,6 +17,7 @@ class FarmersDirectoryScreen extends StatefulWidget {
   const FarmersDirectoryScreen({
     required this.identity,
     this.repository,
+    this.coordinator,
     this.onWellChanged,
     this.onLogout,
     super.key,
@@ -23,6 +25,7 @@ class FarmersDirectoryScreen extends StatefulWidget {
 
   final AppIdentity identity;
   final OperationsRepository? repository;
+  final OfflineSessionCoordinator? coordinator;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
 
@@ -64,12 +67,46 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
     super.dispose();
   }
 
+  Future<List<FarmerDirectoryEntry>> _getDurablePendingEntries(String wellId) async {
+    final coordinator = widget.coordinator ?? OfflineSessionCoordinator.instance;
+    try {
+      final pendingList = await coordinator.pendingFarmers(
+        accountId: widget.identity.accountId,
+        wellId: wellId,
+      );
+      return pendingList.map((f) => FarmerDirectoryEntry(
+        id: '',
+        fullName: f.fullName,
+        publicCode: '',
+        status: 'pending',
+        farmsCount: 0,
+        debtYER: 0,
+        advanceYER: 0,
+        sessionsCount: 0,
+        hasOpenSession: false,
+        phone: f.phone,
+      )).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  List<FarmerDirectoryEntry> _mergeWithDurablePending(
+    List<FarmerDirectoryEntry> serverEntries,
+    List<FarmerDirectoryEntry> pendingEntries,
+  ) {
+    if (pendingEntries.isEmpty) return serverEntries;
+    return [...pendingEntries, ...serverEntries];
+  }
+
   Future<void> _loadData() async {
     final requestedWellId = _activeWellId;
     setState(() {
       _isLoading = true;
       _loadError = null;
     });
+
+    final pending = await _getDurablePendingEntries(requestedWellId);
 
     try {
       // قراءة واحدة تحمل الهوية والأراضي والمال وآخر سقي، **مرتَّبة من
@@ -80,7 +117,7 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
 
       if (mounted && requestedWellId == _activeWellId) {
         setState(() {
-          _entries = data.entries;
+          _entries = _mergeWithDurablePending(data.entries, pending);
           _currentWellDay = data.currentDay;
           _isLoading = false;
         });
@@ -88,12 +125,37 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
     } catch (_) {
       // ق-99 / م-41C1: لا بيانات بديلة — الفشل يظهر للمستخدم صريحًا.
       if (mounted && requestedWellId == _activeWellId) {
+        if (pending.isNotEmpty) {
+          setState(() {
+            _entries = pending;
+            _currentWellDay = DateTime.now();
+            _isLoading = false;
+            _loadError = null;
+          });
+        } else {
+          setState(() {
+            _entries = [];
+            _isLoading = false;
+            _loadError = 'تعذّر تحميل المزارعين والأراضي. تحقق من الاتصال ثم أعد المحاولة.';
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _refreshDataQuietly() async {
+    final requestedWellId = _activeWellId;
+    final pending = await _getDurablePendingEntries(requestedWellId);
+    try {
+      final data = await _repo.fetchFarmerDirectory(requestedWellId);
+      if (mounted && requestedWellId == _activeWellId) {
         setState(() {
-          _entries = [];
-          _isLoading = false;
-          _loadError = 'تعذّر تحميل المزارعين والأراضي. تحقق من الاتصال ثم أعد المحاولة.';
+          _entries = _mergeWithDurablePending(data.entries, pending);
+          _currentWellDay = data.currentDay;
         });
       }
+    } catch (_) {
+      // وضع غير متصل: الحفاظ على البيانات المعروضة دون قلب الشاشة إلى خطأ
     }
   }
 
@@ -251,7 +313,11 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
 
                       setDialogState(() => isSubmitting = true);
                       try {
-                        await _repo.createFarmer(
+                        final coordinator =
+                            widget.coordinator ??
+                            OfflineSessionCoordinator.instance;
+                        await coordinator.enqueueFarmer(
+                          accountId: widget.identity.accountId,
                           wellId: _activeWellId,
                           fullName: name,
                           phone: phoneController.text.trim().isNotEmpty
@@ -265,13 +331,16 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
                         if (dialogCtx.mounted) {
                           Navigator.of(dialogCtx).pop();
                         }
-                        _loadData();
+
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('تمت إضافة المزارع بنجاح ✅'),
+                              content: Text(
+                                'تم حفظ المزارع محلياً وقيد المزامنة ⏳',
+                              ),
                             ),
                           );
+                          _refreshDataQuietly();
                         }
                       } catch (e) {
                         setDialogState(() => isSubmitting = false);
@@ -554,6 +623,14 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () async {
+          if (entry.status == 'pending' || entry.id.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('المزارع محفوظ محلياً وبانتظار اكتمال المزامنة'),
+              ),
+            );
+            return;
+          }
           // انتظار الرجوع ثم إعادة القراءة: أضاف المالك أرضًا من شاشة
           // التفاصيل في 2026-09-04 فبقي العدّاد يقول «0 أرض زراعية» — الرقم
           // كان صحيحًا لحظة قراءته، والخطأ أنه لم يُقرأ ثانيةً. غياب كاذب:
@@ -564,12 +641,14 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
                 wellId: _activeWellId,
                 farmerAccountId: entry.id,
                 wellName: _activeWellName,
+                accountId: widget.identity.accountId,
                 repository: _repo,
+                coordinator: widget.coordinator,
               ),
             ),
           );
           if (mounted) {
-            await _loadData();
+            await _refreshDataQuietly();
           }
         },
         child: Padding(
@@ -623,6 +702,27 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (entry.status == 'pending')
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.waterBlue.withValues(
+                                alpha: 0.10,
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'محفوظ محلياً ⏳',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.waterBlue,
+                              ),
+                            ),
+                          ),
                         if (entry.hasDebt)
                           // الدَين رقمٌ يقرؤه المالك ليقرّر، فيظهر في القائمة
                           // لا داخل الشاشة التالية وحدها.

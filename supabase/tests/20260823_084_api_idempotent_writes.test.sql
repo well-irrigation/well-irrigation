@@ -696,11 +696,17 @@ begin
   v_command := gen_random_uuid();
 
   v_first := api.create_farm(
-    v_well, 'أرض مُعادة الإرسال', v_farmer_account, v_command
+    p_well_id => v_well,
+    p_name => 'أرض مُعادة الإرسال',
+    p_farmer_well_account_id => v_farmer_account,
+    p_command_id => v_command
   );
 
   v_second := api.create_farm(
-    v_well, 'أرض مُعادة الإرسال', v_farmer_account, v_command
+    p_well_id => v_well,
+    p_name => 'أرض مُعادة الإرسال',
+    p_farmer_well_account_id => v_farmer_account,
+    p_command_id => v_command
   );
 
   select count(*)

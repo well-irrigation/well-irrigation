@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/api/operations_repository.dart';
+import '../../core/session/offline_session_coordinator.dart';
+import '../../core/sync/entity_reference.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/tafqeet_utils.dart';
 import '../../core/widgets/currency_display.dart';
@@ -13,26 +16,43 @@ class FarmerDetailScreen extends StatefulWidget {
     required this.wellId,
     required this.farmerAccountId,
     required this.wellName,
+    this.accountId,
     this.repository,
+    this.coordinator,
     super.key,
   });
 
   final String wellId;
   final String farmerAccountId;
   final String wellName;
+  final String? accountId;
   final OperationsRepository? repository;
+  final OfflineSessionCoordinator? coordinator;
 
   @override
   State<FarmerDetailScreen> createState() => _FarmerDetailScreenState();
 }
 
-class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTickerProviderStateMixin {
+class _FarmerDetailScreenState extends State<FarmerDetailScreen>
+    with SingleTickerProviderStateMixin {
   late OperationsRepository _repo;
   late TabController _tabController;
 
   bool _isLoading = true;
   String? _loadError;
   FarmerDetailData? _detailData;
+  List<Farm> _pendingFarms = [];
+
+  String get _effectiveAccountId {
+    if (widget.accountId != null && widget.accountId!.isNotEmpty) {
+      return widget.accountId!;
+    }
+    try {
+      return Supabase.instance.client.auth.currentUser?.id ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
 
   @override
   void initState() {
@@ -47,6 +67,42 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPendingFarms() async {
+    final coordinator =
+        widget.coordinator ?? OfflineSessionCoordinator.instance;
+    final accountId = _effectiveAccountId;
+    if (accountId.isEmpty) return;
+    try {
+      final pending = await coordinator.pendingFarms(
+        accountId: accountId,
+        wellId: widget.wellId,
+        farmerReference: ServerEntityReference(widget.farmerAccountId),
+      );
+      if (mounted) {
+        setState(() {
+          _pendingFarms = pending;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _refreshDetailQuietly() async {
+    try {
+      final data = await _repo.fetchFarmerDetail(
+        wellId: widget.wellId,
+        farmerAccountId: widget.farmerAccountId,
+      );
+      if (mounted) {
+        setState(() {
+          _detailData = data;
+        });
+        await _loadPendingFarms();
+      }
+    } catch (_) {
+      // الحفاظ على واجهة العرض الحالية دون قلب الشاشة إلى خطأ عند انقطاع الاتصال
+    }
   }
 
   Future<void> _loadDetail() async {
@@ -65,13 +121,15 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
           _isLoading = false;
         });
       }
+      await _loadPendingFarms();
     } catch (_) {
       // م-41C1: لا ملف مزارع وهمي — الفشل يظهر مع إعادة المحاولة.
       if (mounted) {
         setState(() {
           _detailData = null;
           _isLoading = false;
-          _loadError = 'تعذّر تحميل ملف المزارع. تحقق من الاتصال ثم أعد المحاولة.';
+          _loadError =
+              'تعذّر تحميل ملف المزارع. تحقق من الاتصال ثم أعد المحاولة.';
         });
       }
     }
@@ -79,6 +137,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
 
   void _showAddFarmDialog() {
     final nameController = TextEditingController();
+    final distinguishingLabelController = TextEditingController();
     bool isSubmitting = false;
 
     showDialog(
@@ -86,12 +145,20 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
       barrierDismissible: false,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: const [
-              Icon(Icons.landscape_outlined, color: AppColors.agriculturalGreen),
+              Icon(
+                Icons.landscape_outlined,
+                color: AppColors.agriculturalGreen,
+              ),
               SizedBox(width: 8),
-              Text('إضافة أرض زراعية جديدة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(
+                'إضافة أرض زراعية جديدة',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           content: Column(
@@ -99,7 +166,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
             children: [
               Text(
                 'سيتم ربط الأرض بالمزارع: ${_detailData?.account.fullName ?? ""}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 14),
               TextField(
@@ -111,18 +181,35 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                   border: OutlineInputBorder(),
                 ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: distinguishingLabelController,
+                decoration: const InputDecoration(
+                  labelText: 'المميز التوضيحي (اختياري)',
+                  hintText: 'مثال: القطعة الغربية / جوار الطريق',
+                  prefixIcon: Icon(Icons.bookmark_outline, size: 20),
+                  border: OutlineInputBorder(),
+                ),
+              ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: isSubmitting ? null : () => Navigator.of(dialogCtx).pop(),
-              child: const Text('إلغاء', style: TextStyle(color: AppColors.textSecondary)),
+              onPressed: isSubmitting
+                  ? null
+                  : () => Navigator.of(dialogCtx).pop(),
+              child: const Text(
+                'إلغاء',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.agriculturalGreen,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               onPressed: isSubmitting
                   ? null
@@ -137,32 +224,65 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
 
                       setDialogState(() => isSubmitting = true);
                       try {
-                        await _repo.createFarm(
+                        final distinguishingLabel =
+                            distinguishingLabelController.text.trim();
+                        final coordinator =
+                            widget.coordinator ??
+                            OfflineSessionCoordinator.instance;
+                        final effectiveAccountId = _effectiveAccountId;
+                        final enqueuedFarm = await coordinator.enqueueFarm(
+                          accountId: effectiveAccountId,
                           wellId: widget.wellId,
                           name: name,
-                          farmerAccountId: widget.farmerAccountId,
+                          distinguishingLabel: distinguishingLabel.isNotEmpty
+                              ? distinguishingLabel
+                              : null,
+                          farmerReference: ServerEntityReference(
+                            widget.farmerAccountId,
+                          ),
                         );
 
                         if (dialogCtx.mounted) {
                           Navigator.of(dialogCtx).pop();
                         }
-                        _loadDetail();
                         if (mounted) {
+                          setState(() {
+                            _pendingFarms = [
+                              ..._pendingFarms.where(
+                                (f) => f.reference != enqueuedFarm.reference,
+                              ),
+                              enqueuedFarm,
+                            ];
+                          });
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('تمت إضافة الأرض بنجاح ✅')),
+                            const SnackBar(
+                              content: Text(
+                                'تم حفظ الأرض محلياً وقيد المزامنة ⏳',
+                              ),
+                            ),
                           );
                         }
+                        _refreshDetailQuietly();
                       } catch (e) {
                         setDialogState(() => isSubmitting = false);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('حدث خطأ أثناء الإضافة: $e')),
+                            SnackBar(
+                              content: Text('حدث خطأ أثناء الإضافة: $e'),
+                            ),
                           );
                         }
                       }
                     },
               child: isSubmitting
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
                   : const Text('حفظ الأرض'),
             ),
           ],
@@ -233,7 +353,11 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
         elevation: 0,
         title: Text(
           account.fullName,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -260,8 +384,14 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                   radius: 26,
                   backgroundColor: AppColors.waterBlue.withValues(alpha: 0.12),
                   child: Text(
-                    account.fullName.isNotEmpty ? account.fullName.substring(0, 1) : 'م',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                    account.fullName.isNotEmpty
+                        ? account.fullName.substring(0, 1)
+                        : 'م',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepBlue,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -274,7 +404,11 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                       // ورقةٌ تُطبع وتُطابَق.
                       Text(
                         account.fullName,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
@@ -285,25 +419,38 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                               textDirection: TextDirection.ltr,
                               child: Text(
                                 '+967${account.phone}',
-                                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
                             )
                           : const Text(
                               'بدون رقم هاتف مسجل',
-                              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
                             ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.agriculturalGreen.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
                     'نشط ✅',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.agriculturalGreen),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.agriculturalGreen,
+                    ),
                   ),
                 ),
               ],
@@ -331,32 +478,48 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
     );
   }
 
-  Widget _buildFarmsTab(List<Farm> farms) {
+  Widget _buildFarmsTab(List<Farm> serverFarms) {
+    final serverFarmIds = serverFarms.map((f) => f.id).toSet();
+    final combinedFarms = [
+      ...serverFarms,
+      ..._pendingFarms.where((f) => !serverFarmIds.contains(f.id)),
+    ];
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.agriculturalGreen,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add_location_alt_outlined),
-        label: const Text('إضافة أرض', style: TextStyle(fontWeight: FontWeight.bold)),
+        label: const Text(
+          'إضافة أرض',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         onPressed: _showAddFarmDialog,
       ),
-      body: farms.isEmpty
+      body: combinedFarms.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
-                  Icon(Icons.landscape_outlined, size: 48, color: AppColors.textMuted),
+                  Icon(
+                    Icons.landscape_outlined,
+                    size: 48,
+                    color: AppColors.textMuted,
+                  ),
                   SizedBox(height: 12),
-                  Text('لا توجد أراضٍ زراعية مسجلة لهذا المزارع بعد', style: TextStyle(color: AppColors.textSecondary)),
+                  Text(
+                    'لا توجد أراضٍ زراعية مسجلة لهذا المزارع بعد',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
                 ],
               ),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: farms.length,
+              itemCount: combinedFarms.length,
               itemBuilder: (context, index) {
-                final farm = farms[index];
+                final farm = combinedFarms[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   elevation: 0,
@@ -368,17 +531,41 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                     leading: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppColors.agriculturalGreen.withValues(alpha: 0.1),
+                        color: AppColors.agriculturalGreen.withValues(
+                          alpha: 0.1,
+                        ),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.landscape, color: AppColors.agriculturalGreen, size: 20),
+                      child: const Icon(
+                        Icons.landscape,
+                        color: AppColors.agriculturalGreen,
+                        size: 20,
+                      ),
                     ),
                     title: Text(
-                      farm.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
+                      farm.displayName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                    subtitle: const Text('أرض زراعية نشطة', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    trailing: const Icon(Icons.check_circle, color: AppColors.agriculturalGreen, size: 18),
+                    subtitle: Text(
+                      farm.isPending
+                          ? 'محفوظ على الجهاز (قيد المزامنة)'
+                          : 'أرض زراعية نشطة',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    trailing: Icon(
+                      farm.isPending ? Icons.hourglass_top : Icons.check_circle,
+                      color: farm.isPending
+                          ? AppColors.waterBlue
+                          : AppColors.agriculturalGreen,
+                      size: 18,
+                    ),
                   ),
                 );
               },
@@ -392,9 +579,16 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(Icons.history_toggle_off, size: 48, color: AppColors.textMuted),
+            Icon(
+              Icons.history_toggle_off,
+              size: 48,
+              color: AppColors.textMuted,
+            ),
             SizedBox(height: 12),
-            Text('لا توجد جلسات سقي سابقة لهذا المزارع', style: TextStyle(color: AppColors.textSecondary)),
+            Text(
+              'لا توجد جلسات سقي سابقة لهذا المزارع',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
           ],
         ),
       );
@@ -430,15 +624,29 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                 color: AppColors.waterBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.water_drop, color: AppColors.waterBlue, size: 20),
+              child: const Icon(
+                Icons.water_drop,
+                color: AppColors.waterBlue,
+                size: 20,
+              ),
             ),
             title: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(s.farmName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(
+                  s.farmName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
                 CurrencyDisplay(
                   amount: s.totalAmountYER,
-                  amountStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                  amountStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepBlue,
+                  ),
                 ),
               ],
             ),
@@ -447,19 +655,30 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
               children: [
                 Text(
                   '${s.startedAt.year}/${s.startedAt.month}/${s.startedAt.day} • ${_formatDuration(s.billableSeconds)}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 Text(
-                  s.isFullySettled ? 'خالص ✅' : 'متبقي ${s.remainingAmountYER} ر',
+                  s.isFullySettled
+                      ? 'خالص ✅'
+                      : 'متبقي ${s.remainingAmountYER} ر',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: s.isFullySettled ? AppColors.agriculturalGreen : AppColors.error,
+                    color: s.isFullySettled
+                        ? AppColors.agriculturalGreen
+                        : AppColors.error,
                   ),
                 ),
               ],
             ),
-            trailing: const Icon(Icons.chevron_left, color: AppColors.textMuted, size: 18),
+            trailing: const Icon(
+              Icons.chevron_left,
+              color: AppColors.textMuted,
+              size: 18,
+            ),
           ),
         );
       },
@@ -489,7 +708,9 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: (isDebt ? Colors.red : AppColors.deepBlue).withValues(alpha: 0.3),
+                  color: (isDebt ? Colors.red : AppColors.deepBlue).withValues(
+                    alpha: 0.3,
+                  ),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -498,7 +719,9 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
             child: Column(
               children: [
                 Text(
-                  isDebt ? 'المستحقات المتبقية على المزارع' : 'الحساب خالص / لا توجد ديون',
+                  isDebt
+                      ? 'المستحقات المتبقية على المزارع'
+                      : 'الحساب خالص / لا توجد ديون',
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 const SizedBox(height: 8),
@@ -509,7 +732,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
-                  unitStyle: const TextStyle(color: Colors.white70, fontSize: 14),
+                  unitStyle: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 // التفقيط للمبالغ الحقيقية وحدها: «فقط صفر ريال لا غير» صيغة
@@ -518,7 +744,11 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                   Text(
                     'فقط ${Tafqeet.format(data.netBalanceYER.abs())} لا غير.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
               ],
             ),
@@ -537,13 +767,26 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  _buildStatementRow('إجمالي فواتير السقي:', data.totalBilledYER, AppColors.deepBlue),
+                  _buildStatementRow(
+                    'إجمالي فواتير السقي:',
+                    data.totalBilledYER,
+                    AppColors.deepBlue,
+                  ),
                   const SizedBox(height: 12),
-                  _buildStatementRow('إجمالي المدفوعات المسددة:', data.totalPaidYER, AppColors.agriculturalGreen),
+                  _buildStatementRow(
+                    'إجمالي المدفوعات المسددة:',
+                    data.totalPaidYER,
+                    AppColors.agriculturalGreen,
+                  ),
                   const SizedBox(height: 12),
                   const Divider(height: 1, color: AppColors.surfaceSubtle),
                   const SizedBox(height: 12),
-                  _buildStatementRow('صافي الرصيد المتبقي:', data.netBalanceYER, balanceColor, isBold: true),
+                  _buildStatementRow(
+                    'صافي الرصيد المتبقي:',
+                    data.netBalanceYER,
+                    balanceColor,
+                    isBold: true,
+                  ),
                 ],
               ),
             ),
@@ -565,7 +808,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                 Expanded(
                   child: Text(
                     'يتم احتساب الرصيد تلقائياً من واقع جلسات السقي المعتمدة وسندات القبض المسجلة.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ],
@@ -582,10 +828,15 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
                 foregroundColor: AppColors.deepBlue,
                 side: const BorderSide(color: AppColors.deepBlue),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-              label: const Text('فتح الحساب المالي وسندات القبض', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text(
+                'فتح الحساب المالي وسندات القبض',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -604,7 +855,12 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen> with SingleTick
     );
   }
 
-  Widget _buildStatementRow(String title, int amount, Color color, {bool isBold = false}) {
+  Widget _buildStatementRow(
+    String title,
+    int amount,
+    Color color, {
+    bool isBold = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [

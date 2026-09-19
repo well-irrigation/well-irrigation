@@ -4,8 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
+import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
+import 'package:well_irrigation_mobile/core/sync/command_type.dart';
+import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/features/farmers/farmers_directory_screen.dart';
 
+import '../../core/sync/fake_command_transport.dart';
 import '../../support/identity_fixture.dart';
 
 /// مستودع اختبار يعيد ما يعيده عقد 099 بالضبط: أربعة مزارعين بحالات مختلفة،
@@ -295,5 +299,70 @@ void main() {
       expect(find.text('مزارع البئر الثاني'), findsOneWidget);
       expect(find.text('مزارع البئر الأول'), findsNothing);
     });
+
+    testWidgets(
+      '9. FarmersDirectory merges durable pending farmers with server results and does not erase on refresh/reopen',
+      (tester) async {
+        final outbox = InMemoryOutboxStore();
+        final transport = FakeCommandTransport();
+        transport.scheduleNetworkFailure(CommandType.createFarmer, times: 10);
+        final coordinator = OfflineSessionCoordinator(
+          store: outbox,
+          commandTransport: transport,
+        );
+
+        // Enqueue a durable pending farmer
+        await coordinator.enqueueFarmer(
+          accountId: 'acc-1',
+          wellId: 'well-1',
+          fullName: 'مزارع محلي قيد المزامنة',
+        );
+
+        Widget wrapWithCoordinator() {
+          return MaterialApp(
+            locale: const Locale('ar'),
+            home: FarmersDirectoryScreen(
+              identity: testIdentity(accountId: 'acc-1', wells: const [well]),
+              repository: const _FakeOperationsRepository(),
+              coordinator: coordinator,
+            ),
+          );
+        }
+
+        // 1. Initial load merges server entries and durable pending
+        await tester.pumpWidget(wrapWithCoordinator());
+        await tester.pumpAndSettle();
+
+        expect(find.text('مزارع محلي قيد المزامنة'), findsOneWidget);
+        expect(find.text('جميل الجاري'), findsOneWidget);
+
+        // 2. Add another pending farmer via coordinator while screen is open
+        await coordinator.enqueueFarmer(
+          accountId: 'acc-1',
+          wellId: 'well-1',
+          fullName: 'مزارع ثان قيد المزامنة',
+        );
+
+        // Pull to refresh
+        await tester.fling(find.byType(ListView), const Offset(0, 300), 1000);
+        await tester.pumpAndSettle();
+
+        expect(find.text('مزارع محلي قيد المزامنة'), findsOneWidget);
+        expect(find.text('مزارع ثان قيد المزامنة'), findsOneWidget);
+
+        // 3. Reopen screen (new widget state) reconstructs durable pending from outbox
+        await tester.pumpWidget(Container());
+        await tester.pumpAndSettle();
+
+        await tester.pumpWidget(wrapWithCoordinator());
+        await tester.pumpAndSettle();
+
+        expect(find.text('مزارع محلي قيد المزامنة'), findsOneWidget);
+        expect(find.text('مزارع ثان قيد المزامنة'), findsOneWidget);
+        expect(find.text('جميل الجاري'), findsOneWidget);
+
+        coordinator.dispose();
+      },
+    );
   });
 }

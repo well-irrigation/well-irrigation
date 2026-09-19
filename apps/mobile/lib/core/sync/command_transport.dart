@@ -68,6 +68,7 @@ final class DispatchFailed extends DispatchResult {
     required this.disposition,
     required this.message,
     this.code,
+    this.serverResponse,
   });
 
   final FailureDisposition disposition;
@@ -79,6 +80,9 @@ final class DispatchFailed extends DispatchResult {
   final String message;
 
   final String? code;
+
+  /// الرد المهيكل من الخادم عند التعارض أو فشل الفحص
+  final Map<String, Object?>? serverResponse;
 
   bool get isRetryable => disposition == FailureDisposition.retry;
 }
@@ -110,11 +114,11 @@ Map<String, Object?> buildRpcArguments({
   };
 }
 
-/// يحوّل ردّ الخادم الخام إلى نتيجة قبول موحَّدة.
+/// يحوّل ردّ الخادم الخام إلى نتيجة موحَّدة (قبول أو مراجعة/تعارض).
 ///
 /// يستوعب الشكلين الفعليين: `uuid` مجرد من أربع دوال، و`jsonb` من
-/// الأربع الأخرى بمفتاح مختلف لكل واحدة.
-DispatchAccepted normalizeAcceptedResponse(
+/// الأربع الأخرى بمفتاح مختلف لكل واحدة، أو رد تعارض/نزاع مهيكل.
+DispatchResult normalizeAcceptedResponse(
   CommandType type,
   Object? rawResponse,
 ) {
@@ -133,8 +137,33 @@ DispatchAccepted normalizeAcceptedResponse(
   final response = rawResponse.map(
     (key, value) => MapEntry(key.toString(), value),
   );
+
+  final status = response['status']?.toString();
+  if (status == 'requires_resolution' || status == 'requires_disambiguation') {
+    final message = response['message']?.toString() ??
+        'العملية تتطلب مراجعة أو فض نزاع ($status)';
+    return DispatchFailed(
+      disposition: FailureDisposition.review,
+      message: message,
+      code: response['conflict_type']?.toString() ?? status,
+      serverResponse: response,
+    );
+  }
+
   final resultKey = type.resultKey;
   final entityId = resultKey == null ? null : response[resultKey]?.toString();
+
+  // أي أمر يتوقع معرّف كيان ولكنه يعود فارغاً يحوّل للمراجعة ولا يقبل بـ entityId=null
+  if (resultKey != null && (entityId == null || entityId.isEmpty)) {
+    final message = response['message']?.toString() ??
+        'ردّ ${type.rpcName} خلا من المعرّف المتوقَّع $resultKey';
+    return DispatchFailed(
+      disposition: FailureDisposition.review,
+      message: message,
+      code: status,
+      serverResponse: response,
+    );
+  }
 
   return DispatchAccepted(
     response: response,

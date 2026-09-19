@@ -13,7 +13,7 @@ api.complete_irrigation_session(p_session_id uuid, p_ended_at timestamp with tim
 api.confirm_handover(p_handover_id uuid, p_confirmed_amount_minor bigint, p_difference_reason text)|text|volatile|invoker|search_path=pg_catalog, pg_temp
 api.consume_password_reset(p_phone text, p_code text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.create_booking(p_well_id uuid, p_farmer_well_account_id uuid, p_farm_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_pump_id uuid, p_water_line_id uuid, p_expected_energy_source text, p_priority integer, p_notes text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
-api.create_farm(p_well_id uuid, p_name text, p_farmer_well_account_id uuid, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.create_farm(p_well_id uuid, p_name text, p_farmer_well_account_id uuid, p_distinguishing_label text, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.create_farmer(p_well_id uuid, p_full_name text, p_phone text, p_preferred_name text, p_notes text, p_credit_limit_minor bigint, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.create_price_schedule(p_well_id uuid, p_name text, p_effective_from timestamp with time zone, p_reason text, p_solar_rate_minor bigint, p_well_diesel_rate_minor bigint, p_farmer_diesel_rate_minor bigint)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.create_tenant_with_well(p_tenant_name text, p_well_name text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -163,7 +163,7 @@ ops.complete_irrigation_session(p_session_id uuid, p_ended_at timestamp with tim
 ops.compute_session_charge()|trigger|volatile|definer|search_path=ops, billing, pg_temp
 ops.confirm_handover(p_handover_id uuid, p_confirmed_amount_minor bigint, p_confirmed_by uuid, p_difference_reason text)|text|volatile|definer|search_path=ops, pg_temp
 ops.create_booking(p_well_id uuid, p_farmer_well_account_id uuid, p_farm_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_pump_id uuid, p_water_line_id uuid, p_expected_energy_source text, p_priority integer, p_notes text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
-ops.create_farm(p_well_id uuid, p_name text, p_farmer_well_account_id uuid)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
+ops.create_farm(p_well_id uuid, p_name text, p_farmer_well_account_id uuid, p_distinguishing_label text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
 ops.create_farmer(p_well_id uuid, p_full_name text, p_phone text, p_preferred_name text, p_notes text, p_credit_limit_minor bigint)|jsonb|volatile|definer|search_path=ops, core, audit, iam, public, extensions, pg_temp
 ops.create_price_schedule(p_well_id uuid, p_name text, p_effective_from timestamp with time zone, p_reason text, p_solar_rate_minor bigint, p_well_diesel_rate_minor bigint, p_farmer_diesel_rate_minor bigint)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.create_priced_session_segment(p_session_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, billing, core, pg_temp
@@ -171,6 +171,7 @@ ops.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uui
 ops.enforce_farm_assignment_consistency()|trigger|volatile|invoker|search_path=ops, pg_temp
 ops.flag_approaching_long_sessions()|SETOF uuid|volatile|definer|search_path=ops, core, iam, pg_temp
 ops.flag_long_running_sessions()|SETOF uuid|volatile|definer|search_path=ops, core, iam, pg_temp
+ops.lock_farm_base_identity(p_well_id uuid, p_farmer_well_account_id uuid, p_name text)|void|volatile|definer|search_path=ops, core, pg_catalog, pg_temp
 ops.notify_profile(p_profile_id uuid, p_well_id uuid, p_type text, p_message text, p_session_id uuid)|uuid|volatile|definer|search_path=ops, pg_temp
 ops.notify_well_owners(p_well_id uuid, p_type text, p_message text, p_session_id uuid)|integer|volatile|definer|search_path=ops, core, pg_temp
 ops.open_shift(p_well_id uuid, p_operator_profile_id uuid)|uuid|volatile|definer|search_path=ops, core, finance, pg_temp
@@ -188,6 +189,7 @@ ops.send_daily_summaries(p_day date)|jsonb|volatile|definer|search_path=ops, rep
 ops.settle_handover(p_handover_id uuid, p_settled_by uuid)|text|volatile|definer|search_path=ops, pg_temp
 ops.shift_report(p_shift_id uuid)|jsonb|stable|definer|search_path=ops, billing, finance, iam, pg_temp
 ops.start_irrigation_session(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_operator_profile_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, core, billing, iam, pg_temp
+ops.trg_enforce_farm_uniqueness()|trigger|volatile|definer|search_path=ops, core, pg_catalog, pg_temp
 ops.validate_session_segment_overlap()|trigger|volatile|invoker|-
 sync.begin_command(p_tenant_id uuid, p_command_id uuid, p_command_type text, p_payload jsonb, p_entity_id uuid)|jsonb|volatile|definer|search_path=sync, pg_temp
 sync.begin_session_command(p_session_id uuid, p_command_id uuid, p_command_type text, p_payload jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
