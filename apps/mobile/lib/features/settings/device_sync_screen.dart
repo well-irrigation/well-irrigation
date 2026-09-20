@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/api/account_repository.dart';
+import '../../core/sync/farmer_identity_review.dart';
 import '../../core/theme/app_colors.dart';
+import '../farmers/farmer_identity_resolution_sheet.dart';
 
 /// شاشة تشخيص الجهاز والمزامنة وقاعدة البيانات المحلية (UX-16A / القرارات 556–570 / ق-89 / ق-90 / ق-114)
 class DeviceSyncScreen extends StatefulWidget {
@@ -41,6 +43,7 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
   bool _isLoading = true;
   bool _isSyncing = false;
   DeviceSyncStatusModel? _status;
+  List<FarmerIdentityReview> _reviews = const [];
 
   @override
   void initState() {
@@ -54,9 +57,11 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
 
     try {
       final data = await _repo.fetchDeviceSyncStatus(widget.accountId);
+      final reviews = await _repo.fetchFarmerIdentityReviews(widget.accountId);
       if (!mounted) return;
       setState(() {
         _status = data;
+        _reviews = reviews;
         _isLoading = false;
       });
     } catch (_) {
@@ -64,6 +69,7 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
       if (!mounted) return;
       setState(() {
         _status = null;
+        _reviews = const [];
         _isLoading = false;
       });
     }
@@ -180,6 +186,11 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                 else
                   _buildStatusCard(_status!),
 
+                if (_reviews.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildReviewsSection(),
+                ],
+
                 const SizedBox(height: 16),
 
                 // 2. شرح مبدأ Offline-First الميداني (القرار 562–567)
@@ -227,6 +238,157 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  /// بطاقة العمليات المحتاجة مراجعة وحسم بشري (ق-88 / ق-114).
+  Widget _buildReviewsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.warning.withValues(alpha: 0.12),
+                child: const Icon(
+                  Icons.assignment_late_outlined,
+                  color: AppColors.warning,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'عمليات تحتاج مراجعة',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: AppColors.deepBlue,
+                      ),
+                    ),
+                    Text(
+                      '${_reviews.length} عملية بانتظار الحسم البشري',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'توجد عمليات إنشاء مزارعين معلقة بسبب تشابه أسماء أو اشتباه تكرار. يلزم حسم الهوية لإكمال مزامنتها مع السحابة:',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._reviews.map((review) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.person_search_outlined,
+                    color: AppColors.deepBlue,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          review.fullName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            if (review.phone != null &&
+                                review.phone!.isNotEmpty)
+                              Text(
+                                review.phone!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              )
+                            else
+                              const Text(
+                                'بدون هاتف',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            if (review.wellId.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '• بئر: ${review.wellId.length > 8 ? review.wellId.substring(0, 8) : review.wellId}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      FarmerIdentityResolutionSheet.show(
+                        context,
+                        review: review,
+                        accountId: widget.accountId,
+                        coordinator: _repo.coordinator,
+                        onResolved: _loadSyncStatus,
+                      );
+                    },
+                    icon: const Icon(Icons.how_to_reg, size: 16),
+                    label: const Text('حسم'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.deepBlue,
+                      foregroundColor: Colors.white,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 

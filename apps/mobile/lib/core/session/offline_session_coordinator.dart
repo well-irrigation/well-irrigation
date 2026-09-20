@@ -10,6 +10,7 @@ import '../sync/command_reference.dart';
 import '../sync/command_transport.dart';
 import '../sync/command_type.dart';
 import '../sync/entity_reference.dart';
+import '../sync/farmer_identity_review.dart';
 import '../sync/outbox_repository.dart';
 import '../sync/outbox_store.dart';
 import '../sync/sqlite_outbox_store.dart';
@@ -891,6 +892,123 @@ class OfflineSessionCoordinator {
     }
     await initialize();
     return engine.run(accountId);
+  }
+
+  final _inFlightResolutions = <String>{};
+
+  /// استعراض عمليات إنشاء المزارعين التي تحتاج مراجعة وحسمًا بشريًا (ق-88 / ق-114).
+  Future<List<FarmerIdentityReview>> getFarmerIdentityReviews(
+    String accountId, {
+    String? wellId,
+  }) async {
+    await initialize();
+    final commands = await _store.pendingCommands(accountId);
+    final reviews = <FarmerIdentityReview>[];
+    for (final cmd in commands) {
+      if (cmd.type == CommandType.createFarmer &&
+          cmd.status == CommandStatus.review) {
+        if (wellId != null &&
+            cmd.wellId != wellId &&
+            cmd.payload['p_well_id'] != wellId) {
+          continue;
+        }
+        final review = FarmerIdentityReview.fromCommand(cmd);
+        if (review != null) {
+          reviews.add(review);
+        }
+      }
+    }
+    return reviews;
+  }
+
+  /// هل هناك قرار حسم قيد الإرسال أو مسجل في الطابور لهذا المزارع؟
+  /// يمنع تكرار النقر وتكرار إدراج أوامر الحسم في الطابور.
+  Future<bool> hasPendingResolutionFor(
+    String accountId,
+    String originalCommandLocalId,
+  ) async {
+    if (_inFlightResolutions.contains(originalCommandLocalId)) return true;
+    await initialize();
+    final commands = await _store.pendingCommands(accountId);
+    return commands.any(
+      (c) =>
+          c.type == CommandType.resolveFarmerIdentity &&
+          c.aggregateLocalId == originalCommandLocalId &&
+          c.status != CommandStatus.confirmed,
+    );
+  }
+
+  /// إدراج أمر حسم هوية المزارع باستخدام شخص قائم (use_existing).
+  Future<CommandEnvelope> resolveFarmerWithExisting({
+    required String accountId,
+    required FarmerIdentityReview review,
+    required String selectedPersonId,
+  }) async {
+    await initialize();
+    if (await hasPendingResolutionFor(accountId, review.commandLocalId)) {
+      throw StateError('يوجد قرار حسم معلّق بالفعل لهذا المزارع');
+    }
+    _inFlightResolutions.add(review.commandLocalId);
+    try {
+      final envelope = await _outbox.enqueue(
+        accountId: accountId,
+        wellId: review.wellId,
+        type: CommandType.resolveFarmerIdentity,
+        occurredAt: DateTime.now(),
+        aggregateLocalId: review.commandLocalId,
+        payload: {
+          'p_well_id': review.wellId,
+          'p_original_command_id': review.commandId,
+          'p_resolution_action': 'use_existing',
+          'p_selected_person_id': selectedPersonId,
+        },
+      );
+      await _triggerSync(accountId, wellId: review.wellId);
+      return envelope;
+    } finally {
+      _inFlightResolutions.remove(review.commandLocalId);
+    }
+  }
+
+  /// إدراج أمر حسم هوية المزارع كشخص مختلف (different_person).
+  Future<CommandEnvelope> resolveFarmerAsDifferentPerson({
+    required String accountId,
+    required FarmerIdentityReview review,
+    required String fullName,
+    String? phone,
+    String? preferredName,
+    String? notes,
+    int? creditLimitMinor,
+  }) async {
+    await initialize();
+    if (await hasPendingResolutionFor(accountId, review.commandLocalId)) {
+      throw StateError('يوجد قرار حسم معلّق بالفعل لهذا المزارع');
+    }
+    _inFlightResolutions.add(review.commandLocalId);
+    try {
+      final envelope = await _outbox.enqueue(
+        accountId: accountId,
+        wellId: review.wellId,
+        type: CommandType.resolveFarmerIdentity,
+        occurredAt: DateTime.now(),
+        aggregateLocalId: review.commandLocalId,
+        payload: {
+          'p_well_id': review.wellId,
+          'p_original_command_id': review.commandId,
+          'p_resolution_action': 'different_person',
+          'p_full_name': fullName.trim(),
+          if (phone != null && phone.trim().isNotEmpty) 'p_phone': phone.trim(),
+          if (preferredName != null && preferredName.trim().isNotEmpty)
+            'p_preferred_name': preferredName.trim(),
+          if (notes != null && notes.trim().isNotEmpty) 'p_notes': notes.trim(),
+          'p_credit_limit_minor': ?creditLimitMinor,
+        },
+      );
+      await _triggerSync(accountId, wellId: review.wellId);
+      return envelope;
+    } finally {
+      _inFlightResolutions.remove(review.commandLocalId);
+    }
   }
 
   void dispose() {

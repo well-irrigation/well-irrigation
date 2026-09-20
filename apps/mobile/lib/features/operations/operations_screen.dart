@@ -13,7 +13,9 @@ import '../../core/session/offline_session_coordinator.dart';
 import '../../core/session/session_business_state.dart';
 import '../../core/session/session_segment.dart';
 import '../../core/sync/command_envelope.dart';
+import '../../core/sync/farmer_identity_review.dart';
 import '../../core/theme/app_colors.dart';
+import '../farmers/farmer_identity_resolution_sheet.dart';
 import '../../core/utils/currency_utils.dart';
 import '../../core/utils/digit_utils.dart';
 import '../../core/utils/tafqeet_utils.dart';
@@ -68,6 +70,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   Farm? _selectedFarm;
   Pump? _selectedPump;
   List<Pump> _pumps = [];
+  List<FarmerIdentityReview> _activeWellReviews = const [];
 
   /// رمز مصدر الطاقة: يبدأ فارغًا (null) قبل كل جلسة جديدة وفق ق-129
   /// (لا اختيار افتراضي تلقائي ذو أثر تشغيلي أو مالي).
@@ -145,6 +148,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     _recoverActiveSession();
     _loadPumps();
     _loadPriceSchedule();
+    _checkActiveWellReviews();
   }
 
   @override
@@ -461,6 +465,91 @@ class _OperationsScreenState extends State<OperationsScreen>
     }
   }
 
+  Future<void> _checkActiveWellReviews() async {
+    try {
+      final reviews = await _coordinator.getFarmerIdentityReviews(
+        _accountId,
+        wellId: _activeWellId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _activeWellReviews = reviews;
+      });
+    } catch (_) {
+      // تعذر استعلام المراجعات دون افتعال حالة أو تعطيل واجهة العمليات
+    }
+  }
+
+  Widget _buildFarmerReviewBanner() {
+    final count = _activeWellReviews.length;
+    final first = _activeWellReviews.first;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: AppColors.warning,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  count == 1
+                      ? 'مراجعة مطلوبة: ${first.fullName}'
+                      : 'توجد $count عمليات تتطلب مراجعة هوية المزارع',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.deepBlue,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'يوجد اشتباه تكرار مع مزارع مسجل. انقر لمراجعة وحسم الهوية.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              FarmerIdentityResolutionSheet.show(
+                context,
+                review: first,
+                accountId: _accountId,
+                coordinator: _coordinator,
+                onResolved: _checkActiveWellReviews,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            ),
+            child: const Text(
+              'مراجعة',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<List<FarmerAccount>> _searchFarmers(String query) async {
     final durablePending = await _coordinator.pendingFarmers(
       accountId: _accountId,
@@ -550,7 +639,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     final formKey = GlobalKey<FormState>();
     bool isSubmitting = false;
 
-    return showDialog<FarmerAccount>(
+    final created = await showDialog<FarmerAccount>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
@@ -640,6 +729,9 @@ class _OperationsScreenState extends State<OperationsScreen>
         ),
       ),
     );
+
+    await _checkActiveWellReviews();
+    return created;
   }
 
   Future<Farm?> _showAddFarmDialog() async {
@@ -1427,6 +1519,7 @@ class _OperationsScreenState extends State<OperationsScreen>
             _loadPumps();
             _loadPriceSchedule();
             _recoverActiveSession();
+            _checkActiveWellReviews();
             if (widget.onWellChanged != null) {
               widget.onWellChanged!(newWell);
             }
@@ -1447,6 +1540,10 @@ class _OperationsScreenState extends State<OperationsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_activeWellReviews.isNotEmpty) ...[
+                _buildFarmerReviewBanner(),
+                const SizedBox(height: 16),
+              ],
               // 1. كرت حالة الجلسة والعداد المباشر (استجابة مرنة بدون تجاوز ق-129 / B6)
               Container(
                 padding: const EdgeInsets.all(20),

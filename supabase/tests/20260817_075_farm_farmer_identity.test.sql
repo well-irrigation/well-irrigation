@@ -414,7 +414,7 @@ begin
 
   v_summary_2 := api.create_farmer(
     v_well,
-    'مزارع ميداني ثان',
+    'خالد صالح',
     '700000802'
   );
 
