@@ -370,6 +370,7 @@ class ActiveSessionProjector {
 
         case CommandType.createFarmer:
         case CommandType.createFarm:
+        case CommandType.resolveFarmerIdentity:
           // كيانات مرجعية، ليست أحداث جلسة. لا تُنشئ مقطعًا.
           break;
       }

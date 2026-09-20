@@ -107,6 +107,14 @@ enum CommandType {
     returnsJson: true,
     resultKey: 'session_charge_id',
     produces: EntityKind.sessionCharge,
+  ),
+
+  resolveFarmerIdentity(
+    rpcName: 'resolve_farmer_identity',
+    scope: CommandScope.well,
+    scopeArgument: 'p_well_id',
+    returnsJson: true,
+    resultKey: 'farmer_well_account_id',
   );
 
   const CommandType({

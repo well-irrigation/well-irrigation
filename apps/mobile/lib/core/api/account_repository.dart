@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app_bootstrap_repository.dart';
 import '../session/offline_session_coordinator.dart';
+import '../sync/farmer_identity_review.dart';
 
 /// نماذج بيانات الحساب والإعدادات والفريق والمزامنة (UX-16A / القرارات 527–600 / ق-101)
 
@@ -179,6 +180,8 @@ class AccountRepository {
   OfflineSessionCoordinator get _coordinator =>
       _coordinatorOverride ?? OfflineSessionCoordinator.instance;
 
+  OfflineSessionCoordinator get coordinator => _coordinator;
+
   SupabaseClient? get _effectiveClient {
     try {
       return _client ?? Supabase.instance.client;
@@ -308,6 +311,13 @@ class AccountRepository {
       pendingOperationsCount: pendingCount,
       lastSyncTime: lastSync,
     );
+  }
+
+  /// 7b. جلب عمليات مراجعة هوية المزارعين المحتاجة حسمًا بشريًا (ق-88 / ق-114).
+  Future<List<FarmerIdentityReview>> fetchFarmerIdentityReviews(
+    String accountId,
+  ) async {
+    return _coordinator.getFarmerIdentityReviews(accountId);
   }
 
   /// 8. إجراء المزامنة اليدوية

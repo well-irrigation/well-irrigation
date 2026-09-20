@@ -156,17 +156,23 @@ begin
     raise notice 'FAIL 2: قاعدة التطابق الكامل لم تعمل: %', v_summary_2;
   end if;
 
-  -- التشابه الجزئي ينشئ عاديًا ويعيد المرشحين للتطبيق.
+  -- ق-88: التشابه الجزئي يحتاج حسمًا ولا ينشئ هوية ثانية بصمت.
+  select count(*) into v_before_count from core.persons where tenant_id = v_tenant;
   v_summary_2 := ops.create_farmer(v_well, 'أحمد علي', '733444555');
-  v_person_2 := (v_summary_2 ->> 'person_id')::uuid;
-  v_account_2 := (v_summary_2 ->> 'farmer_well_account_id')::uuid;
-  if not (v_summary_2 ->> 'already_exists')::boolean
-     and v_person_2 <> v_person
+  if v_summary_2 ->> 'status' = 'requires_resolution'
+     and v_summary_2 ->> 'person_id' is null
+     and v_summary_2 ->> 'farmer_well_account_id' is null
+     and (select count(*) from core.persons where tenant_id = v_tenant) = v_before_count
      and jsonb_array_length(v_summary_2 -> 'duplicate_candidates') >= 1 then
-    raise notice 'PASS 3: الاشتباه الجزئي أنشأ مزارعًا جديدًا وأعاد مرشحي التشابه';
+    raise notice 'PASS 3: الاشتباه الجزئي أعاد requires_resolution دون إنشاء مزارع جديد';
   else
     raise notice 'FAIL 3: سلوك الاشتباه الجزئي غير صحيح: %', v_summary_2;
   end if;
+
+  -- Fixture مستقل لبقية الاختبار؛ اسمه وهاتفه لا يطابقان المرشح السابق.
+  v_summary_2 := ops.create_farmer(v_well, 'خالد صالح', '700123456');
+  v_person_2 := (v_summary_2 ->> 'person_id')::uuid;
+  v_account_2 := (v_summary_2 ->> 'farmer_well_account_id')::uuid;
 
   -- جلسة Fixture لإثبات أن إنشاء الأرض لا يتوقف أثناء التشغيل.
   -- ق-79 يمنع تطبيق العميل من إنشاء الجلسة مباشرة.

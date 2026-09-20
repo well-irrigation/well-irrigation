@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/account_repository.dart';
+import 'package:well_irrigation_mobile/core/sync/farmer_identity_review.dart';
 import 'package:well_irrigation_mobile/features/settings/device_sync_screen.dart';
 
 /// مستودع اختبار يعيد حالة صريحة ولا يمس المنسق العام، فلا يُشغَّل مؤقت
@@ -34,6 +35,13 @@ class _FakeSyncRepository extends AccountRepository {
       throw StateError('device status unavailable');
     }
     return status;
+  }
+
+  @override
+  Future<List<FarmerIdentityReview>> fetchFarmerIdentityReviews(
+    String accountId,
+  ) async {
+    return const [];
   }
 
   @override
