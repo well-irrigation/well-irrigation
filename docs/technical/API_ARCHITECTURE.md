@@ -1,12 +1,12 @@
 # Application API Architecture
 
-**آخر تحديث:** 2026-09-21
+**آخر تحديث:** 2026-09-22
 **القرارات الحاكمة:** ق-78، ق-79، ق-82
 **الحالة:** حدّ الـData API وحدّ الخادم معتمدان ونافذان. مطابقة Flutter
 للهجرات السابقة (حتى م-41D2) تبقى دليلًا تاريخيًا قائمًا. أما شريحة
-Backend الخاصة بق-130 / Migration 103 فهي **Local Verified** فقط،
-و**تكامل Flutter لعقود م-103 (الفريق/الحساب القائم) لم يُنجز بعد =
-Pending**.
+Backend الخاصة بق-130 / Migration 103 فهي **Merged to main + Local Verified
++ CI Verified**، و**Cloud Pending** (سقف السحابة يبقى 102)، و**تكامل
+Flutter لعقود م-103 (الفريق/الحساب القائم) لم يُنجز بعد = Pending**.
 
 > **Audit 2026-08-30 — مغلق 2026-09-02:** المسح الأصلي أثبت
 > 9 وصولات مباشرة إلى internal schemas و20 Bare RPC و5 Dotted
@@ -939,8 +939,12 @@ NEXT في م-41:
 
 ## ق-130 / Migration 103 — الحالة الحالية لدعوات الفريق والحساب القائم
 
+**حالة الشريحة:** **Merged to main (MR !12) + Local Verified + CI Verified**؛
+لا تزال **Flutter Pending** و**Cloud/Production Pending** و**new/no-Auth
+finalization Pending**. سقف التحقق السحابي يبقى 102.
+
 القسم التاريخي M-41B3B يسجل ما كان صحيحًا قبل عقود الفريق. Migration 103
-تنسخ تلك الفجوة في **شريحة Backend للحساب القائم/الفريق فقط**؛ ولا تعني
+تسدّ تلك الفجوة في **شريحة Backend للحساب القائم/الفريق فقط**؛ ولا تعني
 تكامل Flutter أو اكتمال new/no-Auth finalization أو إغلاق م-44.
 
 | العقد | الدور في دورة الحياة |
@@ -967,6 +971,11 @@ NEXT في م-41:
 - لا Direct DML من العميل على `core.well_invitations` أو جداول الأعمال.
 - المنطق ذي الصلاحية في `core.*` = SECURITY DEFINER مع `search_path` ثابت
   وآمن، والهوية مشتقة من `auth.uid()` لا من profile id يرسله العميل.
+
+**الشريحة الخلفية التالية:** M104 — new/no-Auth trusted finalization للعضو
+الجديد بلا Auth. المعمارية المستهدفة موثقة في
+`ACCOUNT_SETTINGS_ARCHITECTURE.md` ق-130 §25.4، ورقم الهجرة التالي = 104؛
+لكن أسماء عقود/دوال `api.*` أو Edge Function الملموسة لم تُختَر في هذه الجولة.
 
 ## م-41C1 — عقود قراءة العمليات (Migration 089)
 

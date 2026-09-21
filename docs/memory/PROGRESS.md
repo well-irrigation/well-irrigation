@@ -1,6 +1,25 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-09-21
+**آخر تحديث:** 2026-09-22
+
+## 2026-09-22 — دمج Migration 103 إلى `main` (MR !12) — مزامنة توثيق بعد الدمج
+
+- **MR !12 دُمج بنجاح إلى `main`** (`Merge branch 'fix/m44-account-lifecycle'
+  into 'main'`)؛ **merge commit لـM103 = `c5e7f7a`** (رأس `main` عند نقطة تحقق
+  دمج M103؛ سيتغيّر لاحقًا بدمج فرع التوثيق)، وcommit التنفيذ المصدر =
+  **`239b8ae`**، وحُذف الفرع المصدر بعد الدمج.
+- **CI طلب الدمج (pipeline `2869239530`):** database = success، app = success.
+- **CI الفرع `main` (pipeline `2869249068`):** database = success، app =
+  success؛ **وظيفة production بقيت يدوية ولم تُشغَّل** — فحوص القاعدة والتطبيق
+  نجحت، ولا يعني ذلك تشغيل الإنتاج.
+- **حالة Migration 103 بعد الدمج:** **Merged + Local Verified + CI Verified**؛
+  الأدلة المحلية السابقة قائمة: `FILES=42 PASS=707 FAIL=0 ERROR=0`، Test 103 =
+  `33/0/0`، Test 094 = `23/0/0`، والفهرس columns=845/constraints=507/
+  functions=210/triggers=45.
+- **السحابة/الإنتاج:** لا نشر ولا تحقق سحابي؛ السحابة تبقى متحقَّقة حتى
+  Migration 102 فقط. م-44 تبقى OPEN / Production Blocker.
+- **هذه دفعة توثيق فقط:** لا تغيير في القاعدة أو التطبيق. **NEXT = M104 —
+  new/no-Auth trusted finalization** بعد Git closure لهذه الدفعة.
 
 ## 2026-09-21 — ق-130 / م-44: Migration 103، أول شريحة Backend للحساب القائم
 

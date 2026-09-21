@@ -57,11 +57,13 @@
 رُفع مانع الإصدار الخاص بتلك الحزمة ورُفع الحظر عن الجاهزية التجريبية آنذاك.
 
 في 2026-09-21 اعتمد ق-130 بعد كشف فجوة مستقلة في دورة Auth/دعوات الفريق.
-نفذت Migration 103 محليًا وتحقق منها أول مسار Backend للحساب القائم/الفريق:
-لا auto-link، وقبول ثم تأكيد مالك قبل الصلاحية. **م-44 تبقى مفتوحة كـProduction
-Blocker** لأن finalization للعضو الجديد، وإعداد البئر، وFlutter، وموافقات
-الشراكة، وقبول الجهاز ما زالت Pending. هذا لا يعيد فتح ق-129 أو م-43؛ إنها
-مسألة أحدث ومستقلة.
+Migration 103 (أول مسار Backend للحساب القائم/الفريق: لا auto-link، وقبول ثم
+تأكيد مالك قبل الصلاحية) الآن **مدموجة في `main` (MR !12) + Local Verified +
+CI Verified**، لكنها Cloud/Production Pending (سقف السحابة يبقى 102). **م-44
+تبقى مفتوحة كـProduction Blocker** لأن finalization للعضو الجديد، وإعداد
+البئر، وFlutter، وموافقات الشراكة، وقبول الجهاز ما زالت Pending؛ والشريحة
+الخلفية التالية = **M104 — new/no-Auth trusted finalization**. هذا لا يعيد
+فتح ق-129 أو م-43؛ إنها مسألة أحدث ومستقلة.
 سجل القبول الميداني الكامل محفوظ في:
 `reports/DEVICE_ACCEPTANCE_TEST_LOG.md` (القسم 8).
 
@@ -638,9 +640,10 @@ Blocker** لأن finalization للعضو الجديد، وإعداد البئر�
 - English date/time display.
 - م-31.
 
-الحالة الحالية: Migration 103 حققت محليًا أول شريحة Backend للحساب القائم
-والفريق (Local Verified فقط)؛ م-44 لا تزال Production Blocker إلى أن يكتمل
-نطاق ق-130 المتبقي وتتحقق السحابة وFlutter والجهاز.
+الحالة الحالية: Migration 103 (أول شريحة Backend للحساب القائم والفريق) الآن
+**مدموجة في `main` (MR !12) + Local Verified + CI Verified / Cloud Pending**
+(سقف السحابة يبقى 102)؛ م-44 لا تزال Production Blocker إلى أن يكتمل نطاق
+ق-130 المتبقي وتتحقق السحابة وFlutter والجهاز.
 
 Platform Administration ليست جزءًا من هذا المصدر.
 

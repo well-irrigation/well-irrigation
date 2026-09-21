@@ -369,22 +369,30 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 - **UX:** UX-02 / UX-03 / UX-16A.
 - **المسألة:** م-44 — **OPEN / Production Blocker**.
 - **التنفيذ الحالي:** Migration 103 هي أول شريحة Backend للحساب القائم/
-  الفريق: دعوة بلا auto-link أو وصول، قبول صريح بلا صلاحية، ثم تأكيد مالك
+  الفريق، **مدموجة في `main` عبر MR !12** (**merge commit لـM103 = `c5e7f7a`**،
+  commit التنفيذ المصدر = `239b8ae`؛ ودمج فرع التوثيق سيغيّر رأس `main`
+  لاحقًا): دعوة بلا auto-link أو وصول، قبول صريح بلا صلاحية، ثم تأكيد مالك
   idempotent كتحول الصلاحية. هجرة 095 لنطاق قراءة الشريك تبقى صحيحة وغير
   منسوخة؛ ووصف 094/Q-123 يبقى تاريخيًا لما كان قبله.
 - **المعتمد المستهدف:** لا Auth جديد بلا Finalization لدور؛ الدعوة بصفر
   وصول؛ قبول صاحب الهوية ثم تأكيد المالك؛ حقوق الشريك المالية مستقلة عن
   App Access؛ حساب واحد لكل الأدوار؛ Farmer العادي بلا Auth.
-- **الدليل المحلي:** Test 103 = `33/0/0`؛ Test 094 = `23/0/0`؛ حزمة DB =
+- **الدليل المحلي وCI:** Test 103 = `33/0/0`؛ Test 094 = `23/0/0`؛ حزمة DB =
   `FILES=42 PASS=707 FAIL=0 ERROR=0`؛ والفهرس = `845/507/210/45`
-  (columns/constraints/functions/triggers).
+  (columns/constraints/functions/triggers). MR pipeline `2869239530`
+  (database/app success) وmain pipeline `2869249068` (database/app success)؛
+  **production بقيت يدوية ولم تُشغَّل**، ولا تحقق سحابي (السحابة حتى 102).
+- **الشريحة التالية:** **M104 — new/no-Auth trusted finalization**؛ معماريتها
+  المستهدفة موثقة تحت ق-130 §25.4 ورقم الهجرة التالي = 104، لكن تفاصيل
+  RPC/الدوال/Edge Function الملموسة لم تُختَر ولم تُنفَّذ في جولة التوثيق هذه.
 - **Pending:** pre-auth/trusted finalization للعضو الجديد ومنع orphan عند
-  إنشاء Auth؛ finalization المالك/البئر الجديد؛ دعوات إعداد البئر؛ تطبيع
-  الهاتف المركزي عبر كل المسارات؛ بقية correction/reissue UX؛ موافقات
+  إنشاء Auth (= M104)؛ finalization المالك/البئر الجديد؛ دعوات إعداد البئر؛
+  تطبيع الهاتف المركزي عبر كل المسارات؛ بقية correction/reissue UX؛ موافقات
   تغيير الشراكة؛ Flutter Login/activation؛ قبول جهاز؛ وتنظيف ما قبل
   الإطلاق عند الحاجة.
 - **الاختبارات المتبقية:** قائمة م-44 المتبقية، Regression Flutter، وقبول
   جهاز حقيقي لمساري العضو الجديد والحساب القائم.
 - **الحالة:** **Adopted + Documented / Partial Implementation / Backend
-  slice Local Verified / Cloud Pending / Flutter Pending / Device Pending**.
-  لا تُوصف Closed قبل الأدلة الكاملة، وم-44 تبقى OPEN / Production Blocker.
+  slice Merged to main + Local Verified + CI Verified / Cloud Pending /
+  Flutter Pending / Device Pending**. لا تُوصف Closed قبل الأدلة الكاملة،
+  وم-44 تبقى OPEN / Production Blocker.
