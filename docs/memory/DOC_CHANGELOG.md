@@ -1,10 +1,28 @@
 # سجل تغييرات الوثائق
 
-**آخر تحديث:** 2026-09-21
+**آخر تحديث:** 2026-09-22
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 
 ---
+
+## 2026-09-22 — مزامنة توثيق بعد دمج Migration 103 إلى `main` (MR !12)
+
+- **النوع:** دفعة توثيقية فقط؛ **لا تغيير DB أو App** في هذه الدفعة، ولا نشر
+  Production. لا قرار منتج جديد ولا رقم قرار ولا ثابت جديد.
+- **الملفات:** `AGENTS.md`، `memory/RESUME_POINT.md`، `memory/OPEN_ISSUES.md`،
+  `memory/PROGRESS.md`، `memory/DOC_CHANGELOG.md`، `PROJECT_MAP.md`،
+  `technical/MIGRATIONS.md`، `technical/API_ARCHITECTURE.md`،
+  `technical/ACCOUNT_SETTINGS_ARCHITECTURE.md`،
+  و`technical/DECISION_IMPLEMENTATION_MATRIX.md`.
+- **مزامنة حالة Migration 103** من «محلية فقط» إلى **Merged to main (MR !12) +
+  Local Verified + CI Verified**: merge commit لـM103 = `c5e7f7a`، commit
+  التنفيذ المصدر = `239b8ae`. MR pipeline database/app = success، وmain
+  pipeline database/app = success، **وproduction بقيت يدوية ولم تُشغَّل**.
+- **الأدلة المحلية السابقة محفوظة:** `42/707/0/0`، Test 103 `33/0/0`، Test 094
+  `23/0/0`، والفهرس 845/507/210/45. لا ادعاء تحقق سحابي؛ السحابة تبقى حتى 102.
+- **م-44 تبقى OPEN / Production Blocker**، وق-130 Partial. **NEXT = M104 —
+  new/no-Auth trusted finalization** بعد وصول هذه الدفعة إلى Git closure.
 
 ## 2026-09-21 — مزامنة تنفيذ أول شريحة Backend لق-130 / م-44 (Migration 103)
 

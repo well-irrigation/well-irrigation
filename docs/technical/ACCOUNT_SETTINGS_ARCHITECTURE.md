@@ -267,15 +267,21 @@ Password policy follows ق-105.
 
 ## 25. دورة حياة الدعوة والحساب — ق-130
 
-### 25.0 حالة التنفيذ — Migration 103 (محلية التحقق)
+### 25.0 حالة التنفيذ — Migration 103 (مدموجة في `main`)
 
 Migration 103 نفذت أول شريحة Backend للحساب القائم/الفريق: لا auto-link
 ولا وصول عند الدعوة، ثم قبول الحساب القائم إلى `accepted_pending_owner`
 بصفر وصول، ثم تأكيد المالك كتحول الصلاحية الوحيد. الرفض يحفظ التدقيق
 ويترك صفر وصول، وتنشيط Partner لا يغير تاريخه المالي.
 
-هذه **Implemented + Local Verified** فقط: لا Cloud verification أو نشر، ولا
-تكامل Flutter أو قبول جهاز. ما تبقى أدناه هو Target Architecture حتى يكتمل
+هذه الشريحة الآن **Merged to main (MR !12) + Local Verified + CI Verified**؛
+لكنها **Cloud/Production Pending** (سقف السحابة يبقى 102، لا نشر) و**Flutter
+Pending** ولا قبول جهاز. تغطية Acceptance **لا تتوسع** بهذا الدمج: بندا
+new/no-Auth trusted finalization (#1 و#2 في §25.14) يبقيان **Pending**،
+وهما الشريحة الخلفية التالية **M104 — new/no-Auth trusted finalization**
+(المعمارية المستهدفة موثقة في §25.4 أدناه؛ ورقم الهجرة التالي = 104 وفق
+`AGENTS.md` §4؛ لكن تفاصيل RPC/الدوال/Edge Function الملموسة لم تُختَر ولم
+تُنفَّذ في جولة التوثيق هذه). ما تبقى أدناه هو Target Architecture حتى يكتمل
 نطاق ق-130 وتغلق م-44.
 
 ### 25.1 الواقع المنفذ قبل ق-130

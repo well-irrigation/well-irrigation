@@ -1,6 +1,6 @@
 # الهجرات
 
-**آخر تحديث:** 2026-09-21
+**آخر تحديث:** 2026-09-22
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
@@ -12,8 +12,9 @@
 وسقف الهجرات ورقم التالية في `AGENTS.md` §4. أما الجداول والأقسام أدناه
 فسجل تاريخي لكل هجرة في وقتها، ولا تُقرأ أرقامها كخط أساس حالي.
 
-- Cloud متحقق منه حتى 102. Migration 103 منفذة ومحلية التحقق فقط؛ لا تُقرأ
-  كمنشورة أو متحققة سحابيًا.
+- Cloud متحقق منه حتى 102. Migration 103 **مدموجة في `main` (MR !12) +
+  Local Verified + CI Verified**، لكنها **غير منشورة وغير متحققة سحابيًا**؛
+  لا تُقرأ كمنشورة أو متحققة سحابيًا.
 - **المستودع وقناة النشر المعتمدة (ق-126):** المستودع الحاكم أصبح GitLab بعد تعليق حساب GitHub.
   الدمج في `main` يشغّل فحوص خط العمل (CI)، والنشر إلى قاعدة الإنتاج السحابية
   يتم عبر وظيفة `production` اليدوية في GitLab CI (عبر القناة المعتمدة: المنفذ 6543
@@ -1771,7 +1772,8 @@ columns 833 وconstraints 501 وtriggers 44 **بلا تغيير** — قراءة
 ## 103 — 20260921010001_103_account_lifecycle_team_confirmation.sql
 
 **الملف:** `supabase/migrations/20260921010001_103_account_lifecycle_team_confirmation.sql`
-**الحالة:** **Implemented + Local Verified**؛ **NOT deployed / NOT Cloud Verified**.
+**الحالة:** **Merged to main (MR !12) + Local Verified + CI Verified**؛
+**NOT deployed / NOT Cloud Verified** — سقف التحقق السحابي يبقى 102.
 **القرار الحاكم:** ق-130، وم-44 تبقى مفتوحة كـProduction Blocker.
 
 **النطاق:**
@@ -1802,3 +1804,10 @@ columns 833 وconstraints 501 وtriggers 44 **بلا تغيير** — قراءة
   **FILES=42 PASS=707 FAIL=0 ERROR=0**.
 - `db:reset` نجح حتى 103، و`db:index` = columns=845، constraints=507،
   functions=210، triggers=45.
+
+**الدمج وCI (2026-09-22):** دُمجت 103 إلى `main` عبر MR !12 (**merge commit
+لـM103 = `c5e7f7a`** عند نقطة تحقق الدمج، commit التنفيذ المصدر `239b8ae`،
+وحُذف الفرع المصدر بعد الدمج؛ ودمج فرع التوثيق سيغيّر رأس `main` لاحقًا). MR
+pipeline `2869239530` = database success + app success، وmain pipeline
+`2869249068` = database success + app success مع بقاء production يدويًا ولم
+يُشغَّل. لم يحدث أي نشر أو تحقق سحابي؛ سقف السحابة يبقى 102.
