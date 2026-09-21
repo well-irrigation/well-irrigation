@@ -2,9 +2,10 @@
 --
 -- يثبّت: صلاحية team.manage ومنحها للمالك وحده، وأن الجدول الجديد بلا
 -- Direct DML، وخصائص أمان الإجراءات وACL، وبقاء أغلفة api على INVOKER،
--- ثم السلوك الفعلي: دعوة بصفر صلاحية، ورمز خاطئ يخصم من العدّاد،
--- ومطالبة مرتين = تعيين واحد، ومن له حساب قائم يُربط بلا رمز، وإلغاء
--- الوصول لا يحذف، والرمز لا يُقرأ من أي عقد.
+-- ثم السلوك الفعلي الذي بقي نافذًا بعد ق-130: دعوة بصفر صلاحية، وإعادة
+-- الإصدار، والانتهاء، والإلغاء بلا حذف، وسرية الرمز. ق-130 يَنسخ صراحةً
+-- auto-link للحساب القائم وAuth-before-claim؛ لذلك claim محفوظ للتوافق
+-- فقط ولا ينشئ Assignment في أحدث مخطط.
 
 \set ON_ERROR_STOP on
 
@@ -27,6 +28,8 @@ declare
   v_tenant uuid;
   v_well uuid;
   v_other_well uuid;
+  v_existing_invitation uuid;
+  v_expired_invitation uuid;
   v_payload jsonb;
   v_payload2 jsonb;
   v_code text;
@@ -154,7 +157,7 @@ begin
     raise notice 'FAIL 8: الغلاف يكرّر قرار الصلاحية';
   end if;
 
-  select pg_get_functiondef(v_claim) into v_src;
+  select pg_get_functiondef(v_invite) into v_src;
 
   select count(*) into v_count
   from information_schema.columns c
@@ -163,9 +166,9 @@ begin
     and c.column_name in ('code', 'code_plain', 'plain_code');
 
   if v_count = 0 and v_src like '%hash_invitation_code%' then
-    raise notice 'PASS 9: لا عمود رمز نصّي، والمطالبة تقارن التلبيدة';
+    raise notice 'PASS 9: لا عمود رمز نصّي، والدعوة تحفظ تلبيدة الرمز';
   else
-    raise notice 'FAIL 9: الرمز مخزَّن نصًّا أو المقارنة غير مُلبَّدة';
+    raise notice 'FAIL 9: الرمز مخزَّن نصًّا أو لا يُلبَّد عند الدعوة';
   end if;
 
   -- ---------------------------------------------------------------
@@ -260,25 +263,26 @@ begin
     raise notice 'FAIL 10: حمولة الدعوة غير مطابقة: %', v_payload;
   end if;
 
-  -- الدعوة صفر صلاحية: لا تعيين نافذ قبل المطالبة
+  -- الدعوة صفر صلاحية: لا تعيين نافذ قبل قبول الحساب وتأكيد المالك.
   select count(*) into v_count
   from core.well_assignments wa
   where wa.well_id = v_well
     and wa.role = 'operator';
 
   if v_count = 0 then
-    raise notice 'PASS 11: الدعوة بصفر صلاحية — لا تعيين قبل المطالبة';
+    raise notice 'PASS 11: الدعوة بصفر صلاحية — لا تعيين قبل تأكيد المالك';
   else
-    raise notice 'FAIL 11: الدعوة أنشأت تعيينًا نافذًا قبل المطالبة';
+    raise notice 'FAIL 11: الدعوة أنشأت تعيينًا نافذًا قبل تأكيد المالك';
   end if;
 
   -- ---------------------------------------------------------------
-  -- 12. من له حساب بنفس الرقم يُربط فورًا بلا رمز
+  -- 12. ق-130: صاحب الحساب القائم يتلقى دعوة فقط، بلا auto-link.
   -- ---------------------------------------------------------------
 
   v_payload := api.invite_well_member(
     v_well, 'operator', 'مشغّل قائم 094', '772000094'
   );
+  v_existing_invitation := (v_payload ->> 'invitation_id')::uuid;
 
   select count(*) into v_count
   from core.well_assignments wa
@@ -287,17 +291,17 @@ begin
     and wa.role = 'operator'
     and wa.status = 'active';
 
-  if v_payload ->> 'outcome' = 'linked'
-     and (v_payload ->> 'code') is null
-     and v_count = 1
+  if v_payload ->> 'outcome' = 'invited'
+     and (v_payload ->> 'code') ~ '^[0-9]{6}$'
+     and v_count = 0
   then
-    raise notice 'PASS 12: صاحب حساب قائم يُربط بلا رمز';
+    raise notice 'PASS 12: صاحب حساب قائم يتلقى دعوة بصفر وصول';
   else
-    raise notice 'FAIL 12: ربط الحساب القائم غير مطابق: %', v_payload;
+    raise notice 'FAIL 12: دعوة الحساب القائم منحت وصولًا أو بلا رمز: %', v_payload;
   end if;
 
   -- ---------------------------------------------------------------
-  -- 13. المشغّل المدعو يُطالِب برقمه: التعيين يصير نافذًا
+  -- 13. ق-130: claim التاريخي لا ينشئ Assignment.
   -- ---------------------------------------------------------------
 
   execute 'reset role';
@@ -314,17 +318,16 @@ begin
     and wa.role = 'operator'
     and wa.status = 'active';
 
-  if v_payload ->> 'outcome' = 'claimed'
-     and (v_payload ->> 'well_id')::uuid = v_well
-     and v_count = 1
+  if v_payload ->> 'outcome' = 'superseded'
+     and v_count = 0
   then
-    raise notice 'PASS 13: المطالبة الصحيحة تُنشئ التعيين النافذ';
+    raise notice 'PASS 13: claim التاريخي fail-closed ولا ينشئ Assignment';
   else
-    raise notice 'FAIL 13: المطالبة لم تُنشئ التعيين: %', v_payload;
+    raise notice 'FAIL 13: claim التاريخي منح وصولًا: %', v_payload;
   end if;
 
   -- ---------------------------------------------------------------
-  -- 14. المطالبة بالرمز نفسه مرتين = تعيين واحد (Idempotency)
+  -- 14. تكرار claim يبقى مغلقًا ولا يخلق أثرًا ثانيًا.
   -- ---------------------------------------------------------------
 
   v_payload2 := api.claim_well_invitation(v_code);
@@ -335,15 +338,15 @@ begin
     and wa.profile_id = v_op_user
     and wa.role = 'operator';
 
-  if v_payload2 ->> 'outcome' = 'already_claimed' and v_count = 1 then
-    raise notice 'PASS 14: مطالبتان بالرمز نفسه تُنتجان تعيينًا واحدًا';
+  if v_payload2 ->> 'outcome' = 'superseded' and v_count = 0 then
+    raise notice 'PASS 14: claim المتكرر يبقى بلا وصول';
   else
-    raise notice 'FAIL 14: التكرار أنتج أثرًا ثانيًا: % / %',
+    raise notice 'FAIL 14: claim المتكرر منح أثرًا: % / %',
       v_payload2 ->> 'outcome', v_count;
   end if;
 
   -- ---------------------------------------------------------------
-  -- 15. رمز خاطئ: يُعاد كحالة، ويخصم من العدّاد فعلًا (يبقى الخصم)
+  -- 15. مسار الرمز الخاطئ القديم نُسخ؛ claim لا يغيّر العدّاد.
   -- ---------------------------------------------------------------
 
   execute 'reset role';
@@ -372,18 +375,17 @@ begin
   where inv.normalized_phone = core.normalize_phone('775000094')
     and inv.status = 'invited';
 
-  if v_payload ->> 'outcome' = 'wrong_code'
-     and (v_payload ->> 'attempts_left')::integer = 4
-     and v_count = 4
+  if v_payload ->> 'outcome' = 'superseded'
+     and v_count = 5
   then
-    raise notice 'PASS 15: الرمز الخاطئ حالة معلنة والخصم يبقى محفوظًا';
+    raise notice 'PASS 15: claim المغلق لا يستهلك رمزًا ولا يغيّر العدّاد';
   else
-    raise notice 'FAIL 15: الخصم لم يبقَ أو الحالة غير مطابقة: % / %',
+    raise notice 'FAIL 15: claim المغلق غيّر الآلية التاريخية: % / %',
       v_payload, v_count;
   end if;
 
   -- ---------------------------------------------------------------
-  -- 16. رقم بلا دعوة: حالة معلنة لا تعيين ولا تسريب لحالة غيره
+  -- 16. ق-130: claim برقم بلا دعوة يبقى superseded بلا تفاصيل أو وصول.
   -- ---------------------------------------------------------------
 
   perform set_config('request.jwt.claim.sub', v_op2_user::text, true);
@@ -391,16 +393,55 @@ begin
 
   v_payload := api.claim_well_invitation('123456');
 
-  if v_payload ->> 'outcome' = 'no_invitation'
+  if v_payload ->> 'outcome' = 'superseded'
      and (v_payload ->> 'well_id') is null
   then
-    raise notice 'PASS 16: رقم بلا دعوة سارية يُعلن الحالة بلا تفاصيل';
+    raise notice 'PASS 16: claim المغلق لا يسرّب دعوة ولا يمنح وصولًا';
   else
-    raise notice 'FAIL 16: حمولة «لا دعوة» غير مطابقة: %', v_payload;
+    raise notice 'FAIL 16: حمولة claim المغلق غير مطابقة: %', v_payload;
   end if;
 
   -- ---------------------------------------------------------------
-  -- 17. من لا يملك team.manage لا يدعو ولا يقرأ الفريق
+  -- 16B. الحساب القائم يقبل دعوته ويؤكده المالك قبل اختبار صلاحيات المشغّل.
+  -- ---------------------------------------------------------------
+
+  execute 'reset role';
+  update iam.profiles set phone = '772000094' where id = v_op2_user;
+  perform set_config('request.jwt.claim.sub', v_op2_user::text, true);
+  execute 'set local role authenticated';
+  v_payload := api.accept_well_invitation(v_existing_invitation);
+
+  execute 'reset role';
+  perform set_config('request.jwt.claim.sub', v_owner_user::text, true);
+  execute 'set local role authenticated';
+  v_payload2 := api.confirm_well_invitation(v_existing_invitation);
+
+  select
+    count(*) filter (where wa.status = 'active'),
+    count(*)
+  into v_count, v_count_2
+  from core.well_assignments wa
+  where wa.well_id = v_well
+    and wa.profile_id = v_op2_user
+    and wa.role = 'operator';
+
+  if v_payload ->> 'outcome' = 'accepted_pending_owner'
+     and v_payload2 ->> 'outcome' = 'confirmed'
+     and v_count = 1
+     and v_count_2 = 1
+  then
+    raise notice 'PASS 16B: الحساب القائم صار مشغّلًا عبر قبول ثم تأكيد المالك';
+  else
+    raise notice 'FAIL 16B: دورة تفعيل المشغّل القائم غير مكتملة: % / % / % / %',
+      v_payload, v_payload2, v_count, v_count_2;
+  end if;
+
+  execute 'reset role';
+  perform set_config('request.jwt.claim.sub', v_op2_user::text, true);
+  execute 'set local role authenticated';
+
+  -- ---------------------------------------------------------------
+  -- 17. المشغّل الفعلي لا يملك team.manage فلا يدعو ولا يقرأ الفريق.
   -- ---------------------------------------------------------------
 
   v_denied := false;
@@ -414,7 +455,7 @@ begin
   end;
 
   if v_denied then
-    raise notice 'PASS 17: المشغّل لا يدعو أعضاء (42501)';
+    raise notice 'PASS 17: المشغّل الفعلي لا يدعو أعضاء (42501)';
   else
     raise notice 'FAIL 17: الدعوة نجحت لمن لا يملك team.manage';
   end if;
@@ -428,7 +469,7 @@ begin
   end;
 
   if v_denied then
-    raise notice 'PASS 18: المشغّل لا يقرأ قائمة الفريق (42501)';
+    raise notice 'PASS 18: المشغّل الفعلي لا يقرأ قائمة الفريق (42501)';
   else
     raise notice 'FAIL 18: قراءة الفريق نجحت لمن لا يملكها';
   end if;
@@ -444,7 +485,7 @@ begin
   v_payload := api.list_well_team(v_well);
 
   if v_payload ->> 'contract' = 'list_well_team'
-     and jsonb_array_length(v_payload -> 'members') >= 3
+     and jsonb_array_length(v_payload -> 'members') = 2
      and jsonb_array_length(v_payload -> 'invitations') >= 2
      and v_payload::text not like '%code_hash%'
      and v_payload::text not like '%code_salt%'
@@ -484,26 +525,26 @@ begin
   end if;
 
   -- ---------------------------------------------------------------
-  -- 21. إلغاء الوصول: التعيين inactive والدعوة revoked بلا حذف
+  -- 21. إلغاء وصول المشغّل الفعلي: التعيين inactive بلا حذف.
   -- ---------------------------------------------------------------
 
+  execute 'reset role';
   perform set_config('request.jwt.claim.sub', v_owner_user::text, true);
   execute 'set local role authenticated';
-
-  v_payload := api.revoke_well_member(v_well, 'operator', '774000094');
+  v_payload := api.revoke_well_member(v_well, 'operator', '772000094');
 
   execute 'reset role';
   select count(*) into v_count
   from core.well_assignments wa
   where wa.well_id = v_well
-    and wa.profile_id = v_op_user
+    and wa.profile_id = v_op2_user
     and wa.role = 'operator'
     and wa.status = 'inactive';
 
   select count(*) into v_count_2
   from core.well_assignments wa
   where wa.well_id = v_well
-    and wa.profile_id = v_op_user;
+    and wa.profile_id = v_op2_user;
 
   if v_count = 1 and v_count_2 = 1
      and (v_payload ->> 'deactivated_assignments')::integer = 1
@@ -515,7 +556,7 @@ begin
   end if;
 
   -- ---------------------------------------------------------------
-  -- 22. الدعوة المنتهية لا تُطالَب بها
+  -- 22. الدعوة المنتهية لا يقبلها الحساب القائم.
   -- ---------------------------------------------------------------
 
   perform set_config('request.jwt.claim.sub', v_owner_user::text, true);
@@ -524,7 +565,7 @@ begin
   v_payload := api.invite_well_member(
     v_well, 'operator', 'دعوة منتهية 094', '777000094'
   );
-  v_code := v_payload ->> 'code';
+  v_expired_invitation := (v_payload ->> 'invitation_id')::uuid;
 
   execute 'reset role';
   update core.well_invitations
@@ -536,7 +577,7 @@ begin
   perform set_config('request.jwt.claim.sub', v_op2_user::text, true);
   execute 'set local role authenticated';
 
-  v_payload := api.claim_well_invitation(v_code);
+  v_payload := api.accept_well_invitation(v_expired_invitation);
 
   execute 'reset role';
   select count(*) into v_count
@@ -544,8 +585,8 @@ begin
   where inv.normalized_phone = core.normalize_phone('777000094')
     and inv.status = 'expired';
 
-  if v_payload ->> 'outcome' = 'no_invitation' and v_count = 1 then
-    raise notice 'PASS 22: الدعوة المنتهية تُوسم منتهية ولا تُطالَب بها';
+  if v_payload ->> 'outcome' = 'expired' and v_count = 1 then
+    raise notice 'PASS 22: الدعوة المنتهية تُوسم منتهية ولا يقبلها الحساب';
   else
     raise notice 'FAIL 22: المنتهية قُبلت أو لم تُوسم: % / %',
       v_payload ->> 'outcome', v_count;

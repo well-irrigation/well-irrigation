@@ -367,16 +367,24 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 - **المصدر الحاكم:** `memory/DECISIONS.md` ق-130.
 - **المعمارية:** `ACCOUNT_SETTINGS_ARCHITECTURE.md` §25.
 - **UX:** UX-02 / UX-03 / UX-16A.
-- **المسألة:** م-44 — Confirmed Gap / Production Blocker.
-- **الوضع الحالي:** هجرة 094 + شاشة التنشيط تنفذان عقد ق-123 التاريخي:
-  Auth-before-claim؛ والحساب القائم يمكن ربطه فورًا عند الدعوة. هجرة 095
-  لنطاق قراءة الشريك تبقى صحيحة وغير منسوخة.
+- **المسألة:** م-44 — **OPEN / Production Blocker**.
+- **التنفيذ الحالي:** Migration 103 هي أول شريحة Backend للحساب القائم/
+  الفريق: دعوة بلا auto-link أو وصول، قبول صريح بلا صلاحية، ثم تأكيد مالك
+  idempotent كتحول الصلاحية. هجرة 095 لنطاق قراءة الشريك تبقى صحيحة وغير
+  منسوخة؛ ووصف 094/Q-123 يبقى تاريخيًا لما كان قبله.
 - **المعتمد المستهدف:** لا Auth جديد بلا Finalization لدور؛ الدعوة بصفر
   وصول؛ قبول صاحب الهوية ثم تأكيد المالك؛ حقوق الشريك المالية مستقلة عن
   App Access؛ حساب واحد لكل الأدوار؛ Farmer العادي بلا Auth.
-- **Pending:** Backend pre-auth/trusted finalization، حالة انتظار تأكيد
-  المالك، دعوات إعداد البئر التلقائية، تطبيع هاتف موحد في المسارات،
-  موافقات تغيير الشراكة، Flutter UX، وتنظيف ما قبل الإطلاق.
-- **الاختبارات المطلوبة:** قائمة م-44 كاملة + Regression دائم + جهاز حقيقي.
-- **الحالة:** **Adopted + Documented / Implementation Pending**. لا يُوصف
-  Verified أو Closed قبل الأدلة.
+- **الدليل المحلي:** Test 103 = `33/0/0`؛ Test 094 = `23/0/0`؛ حزمة DB =
+  `FILES=42 PASS=707 FAIL=0 ERROR=0`؛ والفهرس = `845/507/210/45`
+  (columns/constraints/functions/triggers).
+- **Pending:** pre-auth/trusted finalization للعضو الجديد ومنع orphan عند
+  إنشاء Auth؛ finalization المالك/البئر الجديد؛ دعوات إعداد البئر؛ تطبيع
+  الهاتف المركزي عبر كل المسارات؛ بقية correction/reissue UX؛ موافقات
+  تغيير الشراكة؛ Flutter Login/activation؛ قبول جهاز؛ وتنظيف ما قبل
+  الإطلاق عند الحاجة.
+- **الاختبارات المتبقية:** قائمة م-44 المتبقية، Regression Flutter، وقبول
+  جهاز حقيقي لمساري العضو الجديد والحساب القائم.
+- **الحالة:** **Adopted + Documented / Partial Implementation / Backend
+  slice Local Verified / Cloud Pending / Flutter Pending / Device Pending**.
+  لا تُوصف Closed قبل الأدلة الكاملة، وم-44 تبقى OPEN / Production Blocker.
