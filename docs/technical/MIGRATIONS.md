@@ -1,6 +1,6 @@
 # الهجرات
 
-**آخر تحديث:** 2026-09-20
+**آخر تحديث:** 2026-09-21
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
@@ -12,7 +12,8 @@
 وسقف الهجرات ورقم التالية في `AGENTS.md` §4. أما الجداول والأقسام أدناه
 فسجل تاريخي لكل هجرة في وقتها، ولا تُقرأ أرقامها كخط أساس حالي.
 
-- Cloud متزامن تمامًا حتى 100 وفق آخر تحقق مثبت عبر GitLab CI (99 هجرة محلية وسحابية بفجوة عند 067، و`MISSING_IN_CLOUD=0`).
+- Cloud متحقق منه حتى 102. Migration 103 منفذة ومحلية التحقق فقط؛ لا تُقرأ
+  كمنشورة أو متحققة سحابيًا.
 - **المستودع وقناة النشر المعتمدة (ق-126):** المستودع الحاكم أصبح GitLab بعد تعليق حساب GitHub.
   الدمج في `main` يشغّل فحوص خط العمل (CI)، والنشر إلى قاعدة الإنتاج السحابية
   يتم عبر وظيفة `production` اليدوية في GitLab CI (عبر القناة المعتمدة: المنفذ 6543
@@ -1766,3 +1767,38 @@ columns 833 وconstraints 501 وtriggers 44 **بلا تغيير** — قراءة
   functions=199.
 - `git diff --check` نظيف.
 - **السحابة Cloud Verified:** Job الإنتاج سجّل `applied=1` و`skipped=99` و`MIGRATIONS_LOCAL=100` / `MIGRATIONS_CLOUD=100` / `MISSING_IN_CLOUD=0` و`FUNCTIONS_INDEX=197` / `FUNCTIONS_CLOUD=197`. تحقق Supabase المستقل أثبت الإصدار `20260919010001`، وعمود `distinguishing_label`، وجدول `ops.farm_identity_markers`، والمحفّز `trg_enforce_farm_uniqueness`، والتوقيعات الجديدة، وغياب الـoverloads القديمة، وبقاء Direct DML للعميل على `ops.farms` = false.
+
+## 103 — 20260921010001_103_account_lifecycle_team_confirmation.sql
+
+**الملف:** `supabase/migrations/20260921010001_103_account_lifecycle_team_confirmation.sql`
+**الحالة:** **Implemented + Local Verified**؛ **NOT deployed / NOT Cloud Verified**.
+**القرار الحاكم:** ق-130، وم-44 تبقى مفتوحة كـProduction Blocker.
+
+**النطاق:**
+
+1. تمديد دورة `core.well_invitations` إلى `invited` و
+   `accepted_pending_owner` و`confirmed` و`rejected`، مع بقاء
+   `claimed`/`expired`/`revoked` التاريخية مقروءة ومتوافقة.
+2. ستة حقول lifecycle/audit للقبول والتأكيد والرفض، مع قيد اتساق للحالة
+   وحارس قاعدة بيانات لدعوة مفتوحة واحدة لكل
+   `well_id + role + normalized_phone` في حالتي invited/pending.
+3. عقود الحساب القائم: `api.accept_well_invitation(uuid)` و
+   `api.confirm_well_invitation(uuid)` و`api.reject_well_invitation(uuid)`
+   و`api.list_my_well_invitations()`؛ دعوة الحساب القائم لا تنشئ Assignment
+   ولا auto-link، والمطالبة التاريخية تصبح fail-closed `superseded` بلا وصول.
+4. حدود الأمن باقية: لا Direct DML جديد؛ أغلفة `api` هي SECURITY INVOKER؛
+   والمنطق المميز في `core` هو SECURITY DEFINER مع `search_path` ثابت؛
+   `anon` محجوب.
+5. تأكيد الشريك يربط Partner الحالي النشط ماليًا فقط
+   (`status='active'` و`period_end IS NULL`)، ويفشل التعارض التاريخي للهوية؛
+   لا إنشاء Partner بديل ولا تعديل
+   `ownership_share_versions`.
+
+**الاختبار الدائم والتحقق المحلي:**
+
+- `supabase/tests/20260921_103_account_lifecycle_team_confirmation.test.sql`
+  = **33 PASS / 0 FAIL / 0 ERROR**.
+- Test 094 = **23 PASS / 0 FAIL / 0 ERROR**؛ حزمة القاعدة =
+  **FILES=42 PASS=707 FAIL=0 ERROR=0**.
+- `db:reset` نجح حتى 103، و`db:index` = columns=845، constraints=507،
+  functions=210، triggers=45.

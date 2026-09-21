@@ -265,6 +265,12 @@ core.well_invitations|claimed_profile_id|uuid|null|-
 core.well_invitations|revoked_at|timestamp with time zone|null|-
 core.well_invitations|created_at|timestamp with time zone|NOT NULL|now()
 core.well_invitations|updated_at|timestamp with time zone|NOT NULL|now()
+core.well_invitations|accepted_profile_id|uuid|null|-
+core.well_invitations|accepted_at|timestamp with time zone|null|-
+core.well_invitations|confirmed_by|uuid|null|-
+core.well_invitations|confirmed_at|timestamp with time zone|null|-
+core.well_invitations|rejected_by|uuid|null|-
+core.well_invitations|rejected_at|timestamp with time zone|null|-
 core.well_partners|id|uuid|NOT NULL|gen_random_uuid()
 core.well_partners|tenant_id|uuid|NOT NULL|-
 core.well_partners|well_id|uuid|NOT NULL|-

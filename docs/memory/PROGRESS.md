@@ -1,6 +1,21 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-09-20
+**آخر تحديث:** 2026-09-21
+
+## 2026-09-21 — ق-130 / م-44: Migration 103، أول شريحة Backend للحساب القائم
+
+- **Migration 103 = Implemented + Local Verified:** نفذت دورة الحساب القائم
+  من دعوة بصفر وصول، إلى قبول صريح بلا صلاحية، ثم تأكيد المالك كتحول الوصول
+  الوحيد، مع رفض محافظ على التدقيق وفصل تاريخ الشريك المالي عن App Access.
+- **`db:reset`:** PASS حتى Migration 103.
+- **الاختبارات الدائمة:** Test 103 = **33 PASS / 0 FAIL / 0 ERROR**؛
+  Test 094 = **23 PASS / 0 FAIL / 0 ERROR**؛ وحزمة القاعدة الكاملة =
+  **FILES=42 PASS=707 FAIL=0 ERROR=0**.
+- **`db:index`:** columns=**845**، constraints=**507**، functions=**210**،
+  triggers=**45**.
+- **الحدود:** لا Cloud verification أو نشر Production، ولا عمل Flutter أو
+  إعادة فحوص Flutter في هذه الشريحة. ق-130 Partial وم-44 تبقى مفتوحة
+  كـProduction Blocker.
 
 ## 2026-09-19 — Farm Dedup / Migration 101 منفَّذ ومُثبت محليًا وسحابيًا
 

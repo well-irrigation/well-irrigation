@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-09-21 — مزامنة تنفيذ أول شريحة Backend لق-130 / م-44 (Migration 103)
+
+- **النوع:** مزامنة توثيقية فقط؛ التنفيذ والاختبارات كانا موجودين ومثبتين
+  محليًا قبل هذه التمريرة. لا قرار منتج جديد.
+- **الملفات:** `AGENTS.md`، `memory/RESUME_POINT.md`،
+  `memory/OPEN_ISSUES.md`، `memory/DECISIONS.md`، `memory/PROGRESS.md`،
+  `memory/DOC_CHANGELOG.md`، `PROJECT_MAP.md`، `technical/MIGRATIONS.md`،
+  `technical/API_ARCHITECTURE.md`، `technical/ACCOUNT_SETTINGS_ARCHITECTURE.md`،
+  و`technical/DECISION_IMPLEMENTATION_MATRIX.md`.
+- سُجلت Migration 103 كـ**Implemented + Local Verified** لأول مسار Backend
+  للحساب القائم/الفريق في ق-130، مع دليل `db:reset` وحزمة القاعدة
+  `42/707/0/0` واختباري 103=`33/0/0` و094=`23/0/0`.
+- السحابة تبقى متحققة حتى Migration 102 فقط؛ لا نشر أو Cloud verification
+  لـ103، ولا Flutter أو قبول جهاز لهذه الشريحة.
+- م-44 تبقى **OPEN / Production Blocker**، وق-130 Partial؛ لا إغلاق ولا
+  تغيير للقرار أو للتاريخ المعتمد لق-123 / Migration 094.
+
 ## 2026-09-21 — تصحيح انجراف حوكمة الهجرات والنشر
 
 - **النوع:** تصحيح توثيقي فقط؛ لا قرار منتج جديد ولا كود ولا Migration.

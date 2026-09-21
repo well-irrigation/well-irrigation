@@ -1,9 +1,12 @@
 # Application API Architecture
 
-**آخر تحديث:** 2026-09-20
+**آخر تحديث:** 2026-09-21
 **القرارات الحاكمة:** ق-78، ق-79، ق-82
-**الحالة:** العقد معتمد وحد الخادم مثبت؛ ومطابقة Flutter =
-**مغلقة على العميل** بعد م-41D2، بانتظار تحقق DB لـ092
+**الحالة:** حدّ الـData API وحدّ الخادم معتمدان ونافذان. مطابقة Flutter
+للهجرات السابقة (حتى م-41D2) تبقى دليلًا تاريخيًا قائمًا. أما شريحة
+Backend الخاصة بق-130 / Migration 103 فهي **Local Verified** فقط،
+و**تكامل Flutter لعقود م-103 (الفريق/الحساب القائم) لم يُنجز بعد =
+Pending**.
 
 > **Audit 2026-08-30 — مغلق 2026-09-02:** المسح الأصلي أثبت
 > 9 وصولات مباشرة إلى internal schemas و20 Bare RPC و5 Dotted
@@ -933,6 +936,37 @@ Trusted Contract صريح؛ لا يفتح Direct DML للعميل.
 NEXT في م-41:
 `OperationsRepository`، لأنه يحمل كل الوصولات الداخلية
 السبعة المتبقية.
+
+## ق-130 / Migration 103 — الحالة الحالية لدعوات الفريق والحساب القائم
+
+القسم التاريخي M-41B3B يسجل ما كان صحيحًا قبل عقود الفريق. Migration 103
+تنسخ تلك الفجوة في **شريحة Backend للحساب القائم/الفريق فقط**؛ ولا تعني
+تكامل Flutter أو اكتمال new/no-Auth finalization أو إغلاق م-44.
+
+| العقد | الدور في دورة الحياة |
+| --- | --- |
+| `api.accept_well_invitation(uuid)` | قبول الحساب القائم لدعوته بعد مطابقة هويته الموثقة؛ ينقلها إلى `accepted_pending_owner` بلا Assignment أو وصول. |
+| `api.confirm_well_invitation(uuid)` | تأكيد المالك صاحب `team.manage`؛ هو التحول الوحيد الذي ينشئ/يفعّل Assignment واحدًا بصورة idempotent. |
+| `api.reject_well_invitation(uuid)` | رفض المالك للهوية المقبولة؛ يحفظ التدقيق ويترك صفر وصول. |
+| `api.list_my_well_invitations()` | قراءة دعوات الحساب الحالي المطابقة لهاتفه المطبّع فقط، بلا أسرار الدعوة. |
+
+**الدلالات التي تغيرت محليًا في 103:**
+
+- `api.invite_well_member(...)` ينشئ دعوة بصفر وصول للحساب القائم؛ لا
+  auto-link ولا `well_assignment` ولا ربط `well_partners.profile_id` لمجرد
+  تطابق الهاتف.
+- `api.claim_well_invitation(text)` تاريخية للتوافق فقط وتفشل بإرجاع
+  `superseded`؛ لا تمنح Assignment أو وصولًا.
+- الدعوة ليست صلاحية، وقبول الحساب القائم ليس صلاحية؛ تأكيد المالك هو
+  انتقال الصلاحية. لا تكشف عقود القراءة `code_hash` أو `code_salt`.
+
+**الأمن:**
+
+- أغلفة `api.*` = SECURITY INVOKER، ومنح التنفيذ الصريح للحسابات
+  `authenticated` و`service_role` كما نفذته Migration 103؛ `anon` محجوب.
+- لا Direct DML من العميل على `core.well_invitations` أو جداول الأعمال.
+- المنطق ذي الصلاحية في `core.*` = SECURITY DEFINER مع `search_path` ثابت
+  وآمن، والهوية مشتقة من `auth.uid()` لا من profile id يرسله العميل.
 
 ## م-41C1 — عقود قراءة العمليات (Migration 089)
 
