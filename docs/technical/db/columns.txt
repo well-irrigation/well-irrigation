@@ -271,6 +271,10 @@ core.well_invitations|confirmed_by|uuid|null|-
 core.well_invitations|confirmed_at|timestamp with time zone|null|-
 core.well_invitations|rejected_by|uuid|null|-
 core.well_invitations|rejected_at|timestamp with time zone|null|-
+core.well_invitations|acceptance_kind|text|null|-
+core.well_invitations|continuation_token_salt|text|null|-
+core.well_invitations|continuation_token_hash|text|null|-
+core.well_invitations|continuation_expires_at|timestamp with time zone|null|-
 core.well_partners|id|uuid|NOT NULL|gen_random_uuid()
 core.well_partners|tenant_id|uuid|NOT NULL|-
 core.well_partners|well_id|uuid|NOT NULL|-
