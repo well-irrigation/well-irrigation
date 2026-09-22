@@ -73,19 +73,14 @@ class AuthRepository {
     return _client.auth.signUp(
       email: internalEmail,
       password: cleanPassword,
-      data: {
-        'phone': formattedPhone,
-        'full_name': fullName.trim(),
-      },
+      data: {'phone': formattedPhone, 'full_name': fullName.trim()},
     );
   }
 
-  /// تسجيل حساب عضو فريق مدعو (ق-123 / م-41E المرحلة 3).
+  /// عقد تاريخي متروك لتوافق الاستدعاءات القديمة فقط.
   ///
-  /// نفس هوية الدخول في [signUpOwner] — بريد صُوري مُشتق من الرقم — والفرق
-  /// أن هذا الحساب **لا يُنشئ بئرًا**: صلاحيته تأتي من المطالبة بدعوة
-  /// (`api.claim_well_invitation`) وحدها. والاسم يكتبه صاحبه لأنه ما
-  /// يُطبع على سند القبض (الثابت 705)، ولا يُقرأ قبل المصادقة.
+  /// مسار ق-130 الحالي لا يستعمله؛ إنشاء العضو الجديد يتم حصريًا عبر
+  /// [finalizeMember] بعد قبول الدعوة وتأكيد المالك.
   Future<AuthResponse> signUpMember({
     required String phone,
     required String password,
@@ -100,11 +95,54 @@ class AuthRepository {
     return _client.auth.signUp(
       email: phoneToInternalEmail(cleanPhone),
       password: cleanPassword,
-      data: {
-        'phone': formattedPhone,
-        'full_name': fullName.trim(),
-      },
+      data: {'phone': formattedPhone, 'full_name': fullName.trim()},
     );
+  }
+
+  /// يتحقق من دعوة العضو قبل المصادقة عبر طرف M104 الموثوق.
+  Future<MemberValidationOutcome> validateMemberFinalization({
+    required String phone,
+    required String code,
+  }) async {
+    final data = await _invokeMemberFinalization({
+      'operation': 'validate',
+      'phone': normalizeArabicDigits(phone.trim()),
+      'code': normalizeArabicDigits(code.trim()),
+    });
+    return MemberValidationOutcome.fromJson(data);
+  }
+
+  /// ينشئ الحساب ويربطه بالدعوة بعد تأكيد المالك فقط.
+  Future<MemberFinalizationOutcome> finalizeMember({
+    required String continuationToken,
+    required String password,
+  }) async {
+    final data = await _invokeMemberFinalization({
+      'operation': 'finalize',
+      'continuation_token': continuationToken,
+      'password': normalizeArabicDigits(password),
+    });
+    return MemberFinalizationOutcome.fromJson(data);
+  }
+
+  Future<Map<String, dynamic>> _invokeMemberFinalization(
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _client.functions.invoke(
+        'member-finalization',
+        body: body,
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) return data;
+      throw const FormatException('استجابة غير متوقعة من طرف تنشيط العضو');
+    } on FunctionException catch (error) {
+      final details = error.details;
+      if (details is Map<String, dynamic> && details['outcome'] is String) {
+        return details;
+      }
+      rethrow;
+    }
   }
 
   /// تسجيل الخروج الآمن
@@ -139,9 +177,7 @@ class AuthRepository {
       if (data is Map<String, dynamic>) {
         return PasswordResetOutcome.fromJson(data);
       }
-      throw const FormatException(
-        'استجابة غير متوقعة من طرف إعادة التعيين',
-      );
+      throw const FormatException('استجابة غير متوقعة من طرف إعادة التعيين');
     } on FunctionException catch (error) {
       // الطرف الخادمي يعيد حالته في جسم الرد مع رمز حالة غير 2xx،
       // فالحالة المعلنة تُقرأ ولا تُبدَّل بخطأ عام.
@@ -152,6 +188,42 @@ class AuthRepository {
       rethrow;
     }
   }
+}
+
+class MemberValidationOutcome {
+  const MemberValidationOutcome({
+    required this.outcome,
+    this.continuationToken,
+    this.continuationExpiresAt,
+    this.attemptsLeft,
+  });
+
+  factory MemberValidationOutcome.fromJson(Map<String, dynamic> json) {
+    final rawExpiry = json['continuation_expires_at'] as String?;
+    return MemberValidationOutcome(
+      outcome: json['outcome'] as String? ?? '',
+      continuationToken: json['continuation_token'] as String?,
+      continuationExpiresAt: rawExpiry == null
+          ? null
+          : DateTime.tryParse(rawExpiry),
+      attemptsLeft: (json['attempts_left'] as num?)?.toInt(),
+    );
+  }
+
+  final String outcome;
+  final String? continuationToken;
+  final DateTime? continuationExpiresAt;
+  final int? attemptsLeft;
+}
+
+class MemberFinalizationOutcome {
+  const MemberFinalizationOutcome({required this.outcome});
+
+  factory MemberFinalizationOutcome.fromJson(Map<String, dynamic> json) {
+    return MemberFinalizationOutcome(outcome: json['outcome'] as String? ?? '');
+  }
+
+  final String outcome;
 }
 
 /// نتيجة إعادة التعيين كما أعلنها الطرف الخادمي حرفيًّا.

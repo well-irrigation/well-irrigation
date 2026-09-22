@@ -6,7 +6,7 @@ import '../../core/api/team_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/digit_utils.dart';
 
-/// شاشة الفريق والصلاحيات (ق-123 / هجرة 094 / م-41E المرحلة 3).
+/// شاشة الفريق والصلاحيات ودورة تأكيد الدعوات وفق ق-130.
 ///
 /// كانت تقول «إدارة الفريق غير متاحة في هذه النسخة» لأن العقد لم يكن
 /// موجودًا. صار موجودًا في هجرة 094، فصارت الشاشة تعرض ما يعيده العقد
@@ -15,11 +15,7 @@ import '../../core/utils/digit_utils.dart';
 /// [well] بئر حقيقي من `AppIdentity` — لا معرّف واسم مفردين يُخمَّنان
 /// (الثابت 700).
 class TeamPermissionsScreen extends StatefulWidget {
-  const TeamPermissionsScreen({
-    required this.well,
-    this.repository,
-    super.key,
-  });
+  const TeamPermissionsScreen({required this.well, this.repository, super.key});
 
   final WellSummary well;
   final TeamRepository? repository;
@@ -109,10 +105,8 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => _InviteConfirmDialog(
-        draft: draft,
-        wellName: widget.well.name,
-      ),
+      builder: (_) =>
+          _InviteConfirmDialog(draft: draft, wellName: widget.well.name),
     );
     if (confirmed != true || !mounted) return;
 
@@ -144,13 +138,21 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
     await _load();
     if (!mounted) return;
 
-    if (result.isLinked) {
+    if (result.isAwaitingOwner) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('للرقم حساب قائم — رُبط بالبئر الآن بلا رمز ✅'),
-          backgroundColor: AppColors.agriculturalGreen,
-        ),
+        const SnackBar(content: Text('الدعوة مقبولة — بانتظار تأكيدك أو رفضك')),
       );
+      return;
+    }
+
+    if (result.isAlreadyConfirmed) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('العضو نشط بالفعل')));
+      return;
+    }
+
+    if (!result.isInvited) {
+      _showFailure('لم يصدر الخادم دعوة جديدة — لم يتغيّر أي وصول');
       return;
     }
 
@@ -235,6 +237,46 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
         backgroundColor: AppColors.agriculturalGreen,
       ),
     );
+  }
+
+  Future<void> _confirmInvitation(TeamInvitation invitation) async {
+    InvitationActionResult result;
+    try {
+      result = await _repo.confirmInvitation(invitation.invitationId);
+    } catch (_) {
+      _showFailure('تعذر تأكيد العضو — لم يتغيّر أي وصول.');
+      return;
+    }
+
+    await _load();
+    if (!mounted) return;
+
+    final message = switch (result.outcome) {
+      'owner_confirmed_pending_account' =>
+        'تم تأكيد العضو — بانتظار أن يختار كلمة المرور',
+      'confirmed' || 'already_confirmed' => 'تم تأكيد العضو — أصبح نشطًا',
+      _ => 'لم يكتمل تأكيد العضو — راجع حالته في القائمة',
+    };
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _rejectInvitation(TeamInvitation invitation) async {
+    InvitationActionResult result;
+    try {
+      result = await _repo.rejectInvitation(invitation.invitationId);
+    } catch (_) {
+      _showFailure('تعذر رفض الدعوة — لم يتغيّر أي وصول.');
+      return;
+    }
+
+    await _load();
+    if (!mounted) return;
+    final message = result.outcome == 'rejected'
+        ? 'رُفضت الدعوة — لم يُمنح وصول'
+        : 'لم يكتمل رفض الدعوة — راجع حالتها في القائمة';
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -394,7 +436,10 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
     ),
     child: Padding(
       padding: const EdgeInsets.all(14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
     ),
   );
 
@@ -488,7 +533,8 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
 
   Widget _memberCard(TeamMember member) {
     final canRevoke =
-        member.isActive && (member.role == 'operator' || member.role == 'partner');
+        member.isActive &&
+        (member.role == 'operator' || member.role == 'partner');
 
     return _card(
       children: [
@@ -506,8 +552,10 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
             _badge(_roleLabel(member.role), AppColors.waterBlue),
             const SizedBox(width: 6),
             _badge(
-              member.isActive ? 'نافذ' : 'مُلغى',
-              member.isActive ? AppColors.agriculturalGreen : AppColors.textMuted,
+              member.isActive ? 'نشط' : 'ملغى',
+              member.isActive
+                  ? AppColors.agriculturalGreen
+                  : AppColors.textMuted,
             ),
           ],
         ),
@@ -548,6 +596,57 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
   }
 
   Widget _pendingCard(TeamInvitation invitation) {
+    if (invitation.isAwaitingOwner) {
+      return _card(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  invitation.fullName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              _badge(_roleLabel(invitation.role), AppColors.waterBlue),
+              const SizedBox(width: 6),
+              _badge('بانتظار تأكيد المالك', AppColors.warning),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            invitation.phone,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () => _confirmInvitation(invitation),
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('تأكيد'),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                ),
+                onPressed: () => _rejectInvitation(invitation),
+                icon: const Icon(Icons.close, size: 18),
+                label: const Text('رفض'),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return _card(
       children: [
         Row(
@@ -563,7 +662,7 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
             ),
             _badge(_roleLabel(invitation.role), AppColors.waterBlue),
             const SizedBox(width: 6),
-            _badge('بانتظار التنشيط', AppColors.warning),
+            _badge('بانتظار القبول', AppColors.warning),
           ],
         ),
         const SizedBox(height: 6),
@@ -607,9 +706,11 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
 
   Widget _closedCard(TeamInvitation invitation) {
     final label = switch (invitation.status) {
-      'claimed' => 'نُشِّطت ${_formatDate(invitation.claimedAt)}',
-      'expired' => 'انتهت ${_formatDate(invitation.expiresAt)}',
-      'revoked' => 'أُلغيت',
+      'claimed' || 'confirmed' => 'نشط',
+      'owner_confirmed_pending_account' => 'بانتظار اختيار كلمة المرور',
+      'rejected' => 'مرفوض',
+      'expired' => 'منتهي',
+      'revoked' => 'ملغى',
       _ => invitation.status,
     };
 
@@ -673,22 +774,20 @@ class _InviteFormDialogState extends State<_InviteFormDialog> {
     final phone = normalizeArabicDigits(_phoneController.text).trim();
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل اسم العضو')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('أدخل اسم العضو')));
       return;
     }
 
     if (phone.length < 9) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل رقم هاتف من 9 أرقام')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('أدخل رقم هاتف من 9 أرقام')));
       return;
     }
 
-    Navigator.of(context).pop(
-      _InviteDraft(fullName: name, phone: phone, role: _role),
-    );
+    Navigator.of(context)
+        .pop(_InviteDraft(fullName: name, phone: phone, role: _role));
   }
 
   @override
@@ -895,10 +994,13 @@ class _InvitationCodeDialog extends StatelessWidget {
           Text(
             expiryText == null
                 ? 'الرمز يُعرض مرة واحدة — لن يظهر مرة أخرى بعد إغلاق هذه '
-                    'النافذة. وإن فُقد فأعد إصداره من القائمة.'
+                      'النافذة. وإن فُقد فأعد إصداره من القائمة.'
                 : 'صالح حتى $expiryText، وخمس محاولات إدخال. والرمز يُعرض '
-                    'مرة واحدة — إن فُقد فأعد إصداره من القائمة.',
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      'مرة واحدة — إن فُقد فأعد إصداره من القائمة.',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 10),
           const Text(
