@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// عقود فريق البئر: الدعوة والتنشيط والإلغاء والقراءة (ق-123 / هجرة 094).
+/// عقود فريق البئر ودورة قبول/تأكيد الدعوات وفق ق-130.
 ///
 /// كل نداء يمر عبر مخطط `api` وحده (ق-78)، ولا حساب ولا اشتقاق هنا: ما
 /// يعرضه العميل هو ما أعاده العقد حرفيًّا (ق-99 / ق-113).
@@ -80,7 +80,9 @@ class TeamInvitation {
   final DateTime? invitedAt;
   final DateTime? claimedAt;
 
-  bool get isPending => status == 'invited';
+  bool get isPending =>
+      status == 'invited' || status == 'accepted_pending_owner';
+  bool get isAwaitingOwner => status == 'accepted_pending_owner';
 }
 
 class WellTeam {
@@ -93,15 +95,15 @@ class WellTeam {
     return WellTeam(
       members: rawMembers is List
           ? rawMembers
-              .whereType<Map<String, dynamic>>()
-              .map(TeamMember.fromJson)
-              .toList(growable: false)
+                .whereType<Map<String, dynamic>>()
+                .map(TeamMember.fromJson)
+                .toList(growable: false)
           : const [],
       invitations: rawInvitations is List
           ? rawInvitations
-              .whereType<Map<String, dynamic>>()
-              .map(TeamInvitation.fromJson)
-              .toList(growable: false)
+                .whereType<Map<String, dynamic>>()
+                .map(TeamInvitation.fromJson)
+                .toList(growable: false)
           : const [],
     );
   }
@@ -110,14 +112,9 @@ class WellTeam {
   final List<TeamInvitation> invitations;
 }
 
-/// نتيجة الدعوة. `linked` تعني أن للرقم حسابًا قائمًا فرُبط الآن بلا رمز،
-/// و`invited` تعني أن رمزًا صدر ويُعرض **مرة واحدة** (ق-123 §4).
+/// نتيجة دعوة ق-130: الدعوة لا تربط حسابًا ولا تمنح وصولًا تلقائيًا.
 class InviteResult {
-  const InviteResult({
-    required this.outcome,
-    this.code,
-    this.expiresAt,
-  });
+  const InviteResult({required this.outcome, this.code, this.expiresAt});
 
   factory InviteResult.fromJson(Map<String, dynamic> json) {
     final rawExpires = json['expires_at'] as String?;
@@ -132,8 +129,78 @@ class InviteResult {
   final String? code;
   final DateTime? expiresAt;
 
-  bool get isLinked => outcome == 'linked';
   bool get isInvited => outcome == 'invited';
+  bool get isAwaitingOwner => outcome == 'accepted_pending_owner';
+  bool get isAlreadyConfirmed => outcome == 'already_confirmed';
+}
+
+class MyWellInvitation {
+  const MyWellInvitation({
+    required this.invitationId,
+    required this.wellId,
+    required this.wellName,
+    required this.role,
+    required this.status,
+    this.fullName = '',
+    this.phone = '',
+    this.expiresAt,
+    this.invitedAt,
+    this.acceptedAt,
+  });
+
+  factory MyWellInvitation.fromJson(Map<String, dynamic> json) {
+    DateTime? parse(String key) {
+      final raw = json[key] as String?;
+      return raw == null ? null : DateTime.tryParse(raw);
+    }
+
+    return MyWellInvitation(
+      invitationId: json['invitation_id'] as String? ?? '',
+      wellId: json['well_id'] as String? ?? '',
+      wellName: json['well_name'] as String? ?? '',
+      fullName: json['full_name'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      role: json['role'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      expiresAt: parse('expires_at'),
+      invitedAt: parse('invited_at'),
+      acceptedAt: parse('accepted_at'),
+    );
+  }
+
+  final String invitationId;
+  final String wellId;
+  final String wellName;
+  final String fullName;
+  final String phone;
+  final String role;
+  final String status;
+  final DateTime? expiresAt;
+  final DateTime? invitedAt;
+  final DateTime? acceptedAt;
+}
+
+class InvitationActionResult {
+  const InvitationActionResult({
+    required this.outcome,
+    this.invitationId,
+    this.wellId,
+    this.role,
+  });
+
+  factory InvitationActionResult.fromJson(Map<String, dynamic> json) {
+    return InvitationActionResult(
+      outcome: json['outcome'] as String? ?? '',
+      invitationId: json['invitation_id'] as String?,
+      wellId: json['well_id'] as String?,
+      role: json['role'] as String?,
+    );
+  }
+
+  final String outcome;
+  final String? invitationId;
+  final String? wellId;
+  final String? role;
 }
 
 /// نتيجة المطالبة بالدعوة. أربع حالات لا خامسة، والرمز الخاطئ يعيد عدد
@@ -186,10 +253,9 @@ class TeamRepository {
   }
 
   Future<WellTeam> fetchWellTeam(String wellId) async {
-    final raw = await _client.schema('api').rpc(
-      'list_well_team',
-      params: {'p_well_id': wellId},
-    );
+    final raw = await _client
+        .schema('api')
+        .rpc('list_well_team', params: {'p_well_id': wellId});
 
     if (raw is Map<String, dynamic>) {
       return WellTeam.fromJson(raw);
@@ -203,22 +269,22 @@ class TeamRepository {
     required String fullName,
     required String phone,
   }) async {
-    final raw = await _client.schema('api').rpc(
-      'invite_well_member',
-      params: {
-        'p_well_id': wellId,
-        'p_role': role,
-        'p_full_name': fullName,
-        'p_phone': phone,
-      },
-    );
+    final raw = await _client
+        .schema('api')
+        .rpc(
+          'invite_well_member',
+          params: {
+            'p_well_id': wellId,
+            'p_role': role,
+            'p_full_name': fullName,
+            'p_phone': phone,
+          },
+        );
 
     if (raw is Map<String, dynamic>) {
       return InviteResult.fromJson(raw);
     }
-    throw const FormatException(
-      'استجابة غير متوقعة من عقد invite_well_member',
-    );
+    throw const FormatException('استجابة غير متوقعة من عقد invite_well_member');
   }
 
   Future<void> revokeMember({
@@ -226,21 +292,59 @@ class TeamRepository {
     required String role,
     required String phone,
   }) async {
-    await _client.schema('api').rpc(
-      'revoke_well_member',
-      params: {
-        'p_well_id': wellId,
-        'p_role': role,
-        'p_phone': phone,
-      },
+    await _client
+        .schema('api')
+        .rpc(
+          'revoke_well_member',
+          params: {'p_well_id': wellId, 'p_role': role, 'p_phone': phone},
+        );
+  }
+
+  Future<List<MyWellInvitation>> listMyInvitations() async {
+    final raw = await _client.schema('api').rpc('list_my_well_invitations');
+    if (raw is Map<String, dynamic>) {
+      final invitations = raw['invitations'];
+      if (invitations is List) {
+        return invitations
+            .whereType<Map<String, dynamic>>()
+            .map(MyWellInvitation.fromJson)
+            .toList(growable: false);
+      }
+    }
+    throw const FormatException(
+      'استجابة غير متوقعة من عقد list_my_well_invitations',
     );
   }
 
+  Future<InvitationActionResult> acceptInvitation(String invitationId) {
+    return _invitationAction('accept_well_invitation', invitationId);
+  }
+
+  Future<InvitationActionResult> confirmInvitation(String invitationId) {
+    return _invitationAction('confirm_well_invitation', invitationId);
+  }
+
+  Future<InvitationActionResult> rejectInvitation(String invitationId) {
+    return _invitationAction('reject_well_invitation', invitationId);
+  }
+
+  Future<InvitationActionResult> _invitationAction(
+    String contract,
+    String invitationId,
+  ) async {
+    final raw = await _client
+        .schema('api')
+        .rpc(contract, params: {'p_invitation_id': invitationId});
+    if (raw is Map<String, dynamic>) {
+      return InvitationActionResult.fromJson(raw);
+    }
+    throw FormatException('استجابة غير متوقعة من عقد $contract');
+  }
+
   Future<ClaimResult> claimInvitation(String code) async {
-    final raw = await _client.schema('api').rpc(
-      'claim_well_invitation',
-      params: {'p_code': code},
-    );
+    final raw = await _client
+        .schema('api')
+        .rpc('claim_well_invitation', params: {'p_code': code});
 
     if (raw is Map<String, dynamic>) {
       return ClaimResult.fromJson(raw);
@@ -256,10 +360,12 @@ class TeamRepository {
     required String wellId,
     required String phone,
   }) async {
-    final raw = await _client.schema('api').rpc(
-      'request_member_password_reset',
-      params: {'p_well_id': wellId, 'p_phone': phone},
-    );
+    final raw = await _client
+        .schema('api')
+        .rpc(
+          'request_member_password_reset',
+          params: {'p_well_id': wellId, 'p_phone': phone},
+        );
 
     if (raw is Map<String, dynamic>) {
       return ResetIssueResult.fromJson(raw);
@@ -270,10 +376,9 @@ class TeamRepository {
   }
 
   Future<List<ResetTicket>> fetchResetRequests(String wellId) async {
-    final raw = await _client.schema('api').rpc(
-      'list_member_reset_requests',
-      params: {'p_well_id': wellId},
-    );
+    final raw = await _client
+        .schema('api')
+        .rpc('list_member_reset_requests', params: {'p_well_id': wellId});
 
     if (raw is Map<String, dynamic>) {
       final items = raw['requests'];

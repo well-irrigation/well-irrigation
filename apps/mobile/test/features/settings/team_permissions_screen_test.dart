@@ -2,32 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/team_repository.dart';
 import 'package:well_irrigation_mobile/features/settings/team_permissions_screen.dart';
+
 import '../../support/identity_fixture.dart';
 
 /// مستودع فريق مُتحكَّم به: يفصل «ما أعاده العقد» عن «ما عُرض على الشاشة».
 class _FakeTeamRepository extends TeamRepository {
   _FakeTeamRepository({
     this.team,
+    this.teamResponses = const [],
     this.failRead = false,
     this.inviteResult,
     this.failInvite = false,
     this.resetTickets = const [],
     this.resetIssue,
     this.failReset = false,
+    this.confirmResult = const InvitationActionResult(outcome: 'confirmed'),
   });
 
   final WellTeam? team;
+  final List<WellTeam> teamResponses;
   final bool failRead;
   final InviteResult? inviteResult;
   final bool failInvite;
   final List<ResetTicket> resetTickets;
   final ResetIssueResult? resetIssue;
   final bool failReset;
+  final InvitationActionResult confirmResult;
 
   int reads = 0;
   final List<Map<String, String>> invites = [];
   final List<Map<String, String>> revokes = [];
   final List<Map<String, String>> resetRequests = [];
+  final List<String> confirmations = [];
+  final List<String> rejections = [];
 
   @override
   Future<List<ResetTicket>> fetchResetRequests(String wellId) async {
@@ -55,6 +62,12 @@ class _FakeTeamRepository extends TeamRepository {
     reads++;
     if (failRead) {
       throw StateError('team contract unavailable');
+    }
+    if (teamResponses.isNotEmpty) {
+      final index = reads - 1;
+      return teamResponses[index < teamResponses.length
+          ? index
+          : teamResponses.length - 1];
     }
     return team ?? const WellTeam(members: [], invitations: []);
   }
@@ -87,12 +100,21 @@ class _FakeTeamRepository extends TeamRepository {
   }) async {
     revokes.add({'wellId': wellId, 'role': role, 'phone': phone});
   }
+
+  @override
+  Future<InvitationActionResult> confirmInvitation(String invitationId) async {
+    confirmations.add(invitationId);
+    return confirmResult;
+  }
+
+  @override
+  Future<InvitationActionResult> rejectInvitation(String invitationId) async {
+    rejections.add(invitationId);
+    return const InvitationActionResult(outcome: 'rejected');
+  }
 }
 
-Future<void> _pump(
-  WidgetTester tester,
-  TeamRepository repository,
-) async {
+Future<void> _pump(WidgetTester tester, TeamRepository repository) async {
   tester.view.physicalSize = const Size(900, 1800);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
@@ -111,7 +133,7 @@ Future<void> _pump(
 }
 
 void main() {
-  group('TeamPermissionsScreen (ق-123 / هجرة 094 / م-41E المرحلة 3)', () {
+  group('TeamPermissionsScreen Q-130', () {
     testWidgets('1. يعرض ما أعاده العقد: أعضاء ودعوات معلَّقة', (tester) async {
       final repository = _FakeTeamRepository(
         team: WellTeam(
@@ -177,159 +199,266 @@ void main() {
       expect(repository.reads, 2);
     });
 
-    testWidgets(
-      '3. الدعوة تمرّ بخطوة تأكيد الرقم ثم تعرض الرمز مرة واحدة',
-      (tester) async {
-        final repository = _FakeTeamRepository(
-          inviteResult: InviteResult(
-            outcome: 'invited',
-            code: '482915',
-            expiresAt: DateTime(2026, 9, 17),
+    testWidgets('3. الدعوة تمرّ بخطوة تأكيد الرقم ثم تعرض الرمز مرة واحدة', (
+      tester,
+    ) async {
+      final repository = _FakeTeamRepository(
+        inviteResult: InviteResult(
+          outcome: 'invited',
+          code: '482915',
+          expiresAt: DateTime(2026, 9, 17),
+        ),
+      );
+
+      await _pump(tester, repository);
+
+      await tester.tap(find.text('إضافة عضو'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'اسم العضو *'),
+        'صالح أحمد',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'رقم الهاتف (7xxxxxxxx) *'),
+        '771234567',
+      );
+      await tester.tap(find.text('متابعة'));
+      await tester.pumpAndSettle();
+
+      // خطوة التأكيد تعرض الرقم ليقرأه المالك بعينه قبل منح الوصول.
+      expect(find.text('تأكيد بيانات العضو'), findsOneWidget);
+      expect(find.text('771234567'), findsOneWidget);
+      expect(repository.invites, isEmpty);
+
+      await tester.tap(find.text('تأكيد الدعوة'));
+      await tester.pumpAndSettle();
+
+      expect(repository.invites.single, {
+        'wellId': 'well-9',
+        'role': 'operator',
+        'fullName': 'صالح أحمد',
+        'phone': '771234567',
+      });
+
+      expect(find.text('رمز تنشيط العضو'), findsOneWidget);
+      expect(find.text('482915'), findsOneWidget);
+      expect(
+        find.textContaining('إرسال الرمز برسالة نصية غير متاح'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('4. الدعوة المقبولة مسبقًا لا تُعرض كعضو نشط', (tester) async {
+      final repository = _FakeTeamRepository(
+        inviteResult: const InviteResult(outcome: 'accepted_pending_owner'),
+      );
+
+      await _pump(tester, repository);
+
+      await tester.tap(find.text('إضافة عضو'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'اسم العضو *'),
+        'مشغّل قائم',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'رقم الهاتف (7xxxxxxxx) *'),
+        '772222222',
+      );
+      await tester.tap(find.text('متابعة'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تأكيد الدعوة'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('رمز تنشيط العضو'), findsNothing);
+      expect(
+        find.text('الدعوة مقبولة — بانتظار تأكيدك أو رفضك'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('5. فشل الدعوة يُعلن ولا يُعرض رمز ولا نجاح', (tester) async {
+      final repository = _FakeTeamRepository(failInvite: true);
+
+      await _pump(tester, repository);
+
+      await tester.tap(find.text('إضافة عضو'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'اسم العضو *'),
+        'دعوة فاشلة',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'رقم الهاتف (7xxxxxxxx) *'),
+        '773333333',
+      );
+      await tester.tap(find.text('متابعة'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('تأكيد الدعوة'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('تعذر إصدار الدعوة — لم يُضف أحد. تحقق من الاتصال.'),
+        findsOneWidget,
+      );
+      expect(find.text('رمز تنشيط العضو'), findsNothing);
+    });
+
+    testWidgets('6. إلغاء وصول عضو يُرسل مفتاحه الحقيقي ولا يُحذف شيء', (
+      tester,
+    ) async {
+      final repository = _FakeTeamRepository(
+        team: const WellTeam(
+          members: [
+            TeamMember(
+              profileId: 'p-2',
+              fullName: 'صالح المشغّل',
+              phone: '770000002',
+              role: 'operator',
+              status: 'active',
+            ),
+          ],
+          invitations: [],
+        ),
+      );
+
+      await _pump(tester, repository);
+
+      await tester.tap(find.text('إلغاء الوصول'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('تأكيد الإلغاء'), findsOneWidget);
+      expect(repository.revokes, isEmpty);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'إلغاء الوصول'));
+      await tester.pumpAndSettle();
+
+      expect(repository.revokes.single, {
+        'wellId': 'well-9',
+        'role': 'operator',
+        'phone': '770000002',
+      });
+      expect(find.textContaining('ولم يُحذف أي سجل'), findsOneWidget);
+    });
+
+    testWidgets('7. تأكيد new_no_auth يبقى بانتظار كلمة المرور', (
+      tester,
+    ) async {
+      final repository = _FakeTeamRepository(
+        team: const WellTeam(
+          members: [],
+          invitations: [
+            TeamInvitation(
+              invitationId: 'i-new',
+              fullName: 'عضو جديد',
+              phone: '771111111',
+              role: 'operator',
+              status: 'accepted_pending_owner',
+              attemptsLeft: 4,
+            ),
+          ],
+        ),
+        confirmResult: const InvitationActionResult(
+          outcome: 'owner_confirmed_pending_account',
+        ),
+      );
+
+      await _pump(tester, repository);
+      await tester.tap(find.text('تأكيد'));
+      await tester.pumpAndSettle();
+
+      expect(repository.confirmations, ['i-new']);
+      expect(repository.reads, 2);
+      expect(
+        find.text('تم تأكيد العضو — بانتظار أن يختار كلمة المرور'),
+        findsOneWidget,
+      );
+      expect(find.text('نشط'), findsNothing);
+    });
+
+    testWidgets('8. تأكيد existing_auth ينعش العضو النشط', (tester) async {
+      final repository = _FakeTeamRepository(
+        teamResponses: const [
+          WellTeam(
+            members: [],
+            invitations: [
+              TeamInvitation(
+                invitationId: 'i-existing',
+                fullName: 'مشغّل قائم',
+                phone: '772222222',
+                role: 'operator',
+                status: 'accepted_pending_owner',
+                attemptsLeft: 5,
+              ),
+            ],
           ),
-        );
-
-        await _pump(tester, repository);
-
-        await tester.tap(find.text('إضافة عضو'));
-        await tester.pumpAndSettle();
-
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'اسم العضو *'),
-          'صالح أحمد',
-        );
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'رقم الهاتف (7xxxxxxxx) *'),
-          '771234567',
-        );
-        await tester.tap(find.text('متابعة'));
-        await tester.pumpAndSettle();
-
-        // خطوة التأكيد تعرض الرقم ليقرأه المالك بعينه قبل منح الوصول.
-        expect(find.text('تأكيد بيانات العضو'), findsOneWidget);
-        expect(find.text('771234567'), findsOneWidget);
-        expect(repository.invites, isEmpty);
-
-        await tester.tap(find.text('تأكيد الدعوة'));
-        await tester.pumpAndSettle();
-
-        expect(repository.invites.single, {
-          'wellId': 'well-9',
-          'role': 'operator',
-          'fullName': 'صالح أحمد',
-          'phone': '771234567',
-        });
-
-        expect(find.text('رمز تنشيط العضو'), findsOneWidget);
-        expect(find.text('482915'), findsOneWidget);
-        expect(
-          find.textContaining('إرسال الرمز برسالة نصية غير متاح'),
-          findsOneWidget,
-        );
-      },
-    );
-
-    testWidgets(
-      '4. رقم له حساب قائم يُربط بلا رمز ولا تُعرض نافذة رمز',
-      (tester) async {
-        final repository = _FakeTeamRepository(
-          inviteResult: const InviteResult(outcome: 'linked'),
-        );
-
-        await _pump(tester, repository);
-
-        await tester.tap(find.text('إضافة عضو'));
-        await tester.pumpAndSettle();
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'اسم العضو *'),
-          'مشغّل قائم',
-        );
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'رقم الهاتف (7xxxxxxxx) *'),
-          '772222222',
-        );
-        await tester.tap(find.text('متابعة'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('تأكيد الدعوة'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('رمز تنشيط العضو'), findsNothing);
-        expect(
-          find.text('للرقم حساب قائم — رُبط بالبئر الآن بلا رمز ✅'),
-          findsOneWidget,
-        );
-      },
-    );
-
-    testWidgets(
-      '5. فشل الدعوة يُعلن ولا يُعرض رمز ولا نجاح',
-      (tester) async {
-        final repository = _FakeTeamRepository(failInvite: true);
-
-        await _pump(tester, repository);
-
-        await tester.tap(find.text('إضافة عضو'));
-        await tester.pumpAndSettle();
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'اسم العضو *'),
-          'دعوة فاشلة',
-        );
-        await tester.enterText(
-          find.widgetWithText(TextFormField, 'رقم الهاتف (7xxxxxxxx) *'),
-          '773333333',
-        );
-        await tester.tap(find.text('متابعة'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('تأكيد الدعوة'));
-        await tester.pumpAndSettle();
-
-        expect(
-          find.text('تعذر إصدار الدعوة — لم يُضف أحد. تحقق من الاتصال.'),
-          findsOneWidget,
-        );
-        expect(find.text('رمز تنشيط العضو'), findsNothing);
-      },
-    );
-
-    testWidgets(
-      '6. إلغاء وصول عضو يُرسل مفتاحه الحقيقي ولا يُحذف شيء',
-      (tester) async {
-        final repository = _FakeTeamRepository(
-          team: const WellTeam(
+          WellTeam(
             members: [
               TeamMember(
-                profileId: 'p-2',
-                fullName: 'صالح المشغّل',
-                phone: '770000002',
+                profileId: 'p-existing',
+                fullName: 'مشغّل قائم',
+                phone: '772222222',
                 role: 'operator',
                 status: 'active',
               ),
             ],
             invitations: [],
           ),
-        );
+        ],
+      );
 
-        await _pump(tester, repository);
+      await _pump(tester, repository);
+      await tester.tap(find.text('تأكيد'));
+      await tester.pumpAndSettle();
 
-        await tester.tap(find.text('إلغاء الوصول'));
-        await tester.pumpAndSettle();
+      expect(repository.confirmations, ['i-existing']);
+      expect(repository.reads, 2);
+      expect(find.text('مشغّل قائم'), findsOneWidget);
+      expect(find.text('نشط'), findsOneWidget);
+    });
 
-        expect(find.text('تأكيد الإلغاء'), findsOneWidget);
-        expect(repository.revokes, isEmpty);
+    testWidgets('9. الرفض ينعش الدعوة المرفوضة بلا نجاح ملفق', (tester) async {
+      final repository = _FakeTeamRepository(
+        teamResponses: const [
+          WellTeam(
+            members: [],
+            invitations: [
+              TeamInvitation(
+                invitationId: 'i-reject',
+                fullName: 'عضو مرفوض',
+                phone: '773333333',
+                role: 'partner',
+                status: 'accepted_pending_owner',
+                attemptsLeft: 5,
+              ),
+            ],
+          ),
+          WellTeam(
+            members: [],
+            invitations: [
+              TeamInvitation(
+                invitationId: 'i-reject',
+                fullName: 'عضو مرفوض',
+                phone: '773333333',
+                role: 'partner',
+                status: 'rejected',
+                attemptsLeft: 5,
+              ),
+            ],
+          ),
+        ],
+      );
 
-        await tester.tap(find.widgetWithText(ElevatedButton, 'إلغاء الوصول'));
-        await tester.pumpAndSettle();
+      await _pump(tester, repository);
+      await tester.tap(find.text('رفض'));
+      await tester.pumpAndSettle();
 
-        expect(repository.revokes.single, {
-          'wellId': 'well-9',
-          'role': 'operator',
-          'phone': '770000002',
-        });
-        expect(
-          find.textContaining('ولم يُحذف أي سجل'),
-          findsOneWidget,
-        );
-      },
-    );
+      expect(repository.rejections, ['i-reject']);
+      expect(repository.reads, 2);
+      expect(find.textContaining('مرفوض'), findsWidgets);
+      expect(find.text('نشط'), findsNothing);
+    });
   });
 
   group('إعادة تعيين كلمة المرور بإثبات بشري (م-41F / هجرة 096)', () {
@@ -364,24 +493,15 @@ void main() {
 
       // الرقم يُقرأ بالعين قبل الإصدار: رمزٌ لغير صاحبه يفتح حسابه لغيره.
       expect(find.text('771000096'), findsWidgets);
-      expect(
-        find.textContaining('اقرأ الرقم حرفًا حرفًا'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('اقرأ الرقم حرفًا حرفًا'), findsOneWidget);
 
       await tester.tap(find.text('أصدر الرمز'));
       await tester.pumpAndSettle();
 
       expect(repository.resetRequests.single['phone'], '771000096');
       expect(find.text('135790'), findsOneWidget);
-      expect(
-        find.textContaining('يُعرض مرة واحدة فقط'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('لم تُرسل أي رسالة الآن'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('يُعرض مرة واحدة فقط'), findsOneWidget);
+      expect(find.textContaining('لم تُرسل أي رسالة الآن'), findsOneWidget);
     });
 
     testWidgets('«لا عضو بهذا الرقم» يُقال ولا يُعرض رمز', (tester) async {
@@ -415,10 +535,7 @@ void main() {
       await tester.tap(find.text('أصدر الرمز'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('لم يُصدر أي رمز'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('لم يُصدر أي رمز'), findsOneWidget);
     });
 
     testWidgets('الرموز السارية تُعرض بحالتها ومحاولاتها', (tester) async {
