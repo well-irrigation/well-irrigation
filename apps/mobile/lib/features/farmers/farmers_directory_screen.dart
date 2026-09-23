@@ -67,25 +67,32 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
     super.dispose();
   }
 
-  Future<List<FarmerDirectoryEntry>> _getDurablePendingEntries(String wellId) async {
-    final coordinator = widget.coordinator ?? OfflineSessionCoordinator.instance;
+  Future<List<FarmerDirectoryEntry>> _getDurablePendingEntries(
+    String wellId,
+  ) async {
+    final coordinator =
+        widget.coordinator ?? OfflineSessionCoordinator.instance;
     try {
       final pendingList = await coordinator.pendingFarmers(
         accountId: widget.identity.accountId,
         wellId: wellId,
       );
-      return pendingList.map((f) => FarmerDirectoryEntry(
-        id: '',
-        fullName: f.fullName,
-        publicCode: '',
-        status: 'pending',
-        farmsCount: 0,
-        debtYER: 0,
-        advanceYER: 0,
-        sessionsCount: 0,
-        hasOpenSession: false,
-        phone: f.phone,
-      )).toList();
+      return pendingList
+          .map(
+            (f) => FarmerDirectoryEntry(
+              id: '',
+              fullName: f.fullName,
+              publicCode: '',
+              status: 'pending',
+              farmsCount: 0,
+              debtYER: 0,
+              advanceYER: 0,
+              sessionsCount: 0,
+              hasOpenSession: false,
+              phone: f.phone,
+            ),
+          )
+          .toList();
     } catch (_) {
       return [];
     }
@@ -642,6 +649,7 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
                 farmerAccountId: entry.id,
                 wellName: _activeWellName,
                 accountId: widget.identity.accountId,
+                canCreateFarm: _activeWell.isOwner,
                 repository: _repo,
                 coordinator: widget.coordinator,
               ),

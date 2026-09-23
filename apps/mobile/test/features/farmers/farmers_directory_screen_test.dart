@@ -84,6 +84,26 @@ class _FakeOperationsRepository extends OperationsRepository {
       ],
     );
   }
+
+  @override
+  Future<FarmerDetailData> fetchFarmerDetail({
+    required String wellId,
+    required String farmerAccountId,
+  }) async {
+    return FarmerDetailData(
+      account: FarmerAccount(
+        id: farmerAccountId,
+        fullName: 'جميل الجاري',
+        publicCode: 'FWA-OPEN',
+      ),
+      farms: const [],
+      totalSessionsCount: 0,
+      totalBilledYER: 0,
+      totalPaidYER: 0,
+      netBalanceYER: 0,
+      recentSessions: const [],
+    );
+  }
 }
 
 class _SwitchingRepository extends OperationsRepository {
@@ -145,6 +165,40 @@ void main() {
       // تلميح عام لا اسم شخص: اسمٌ كامل في الحقل يظنّه المستعجل قيمة مكتوبة.
       expect(find.text('الاسم الثلاثي'), findsOneWidget);
       expect(find.textContaining('محمد عبدالله الشامي'), findsNothing);
+    });
+
+    testWidgets('دليل المشغّل يمرر منع إنشاء الأرض إلى ملف المزارع', (
+      tester,
+    ) async {
+      final coordinator = OfflineSessionCoordinator(
+        store: InMemoryOutboxStore(),
+        commandTransport: FakeCommandTransport(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ar'),
+          home: FarmersDirectoryScreen(
+            identity: testIdentity(
+              wells: [
+                testWell(roles: const ['operator']),
+              ],
+            ),
+            repository: const _FakeOperationsRepository(),
+            coordinator: coordinator,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('جميل الجاري'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('إضافة أرض'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      coordinator.dispose();
+      await tester.pump();
     });
   });
   group('ترتيب الدليل وفلترته — هجرة 099', () {

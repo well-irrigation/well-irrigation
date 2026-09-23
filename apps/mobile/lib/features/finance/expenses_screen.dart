@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/identity/app_identity.dart';
 import '../../core/api/finance_repository.dart';
@@ -24,7 +25,8 @@ class ExpensesScreen extends StatefulWidget {
   State<ExpensesScreen> createState() => _ExpensesScreenState();
 }
 
-class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProviderStateMixin {
+class _ExpensesScreenState extends State<ExpensesScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late FinanceRepository _repo;
 
@@ -64,9 +66,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
         _expenses = const [];
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر تحميل المصروفات: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('تعذر تحميل المصروفات: $e')));
     }
   }
 
@@ -112,18 +113,27 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
 
     // تصنيف المصروفات للتبويبات
     final todayExpenses = _expenses.where((e) {
-      return e.spentAt.year == now.year && e.spentAt.month == now.month && e.spentAt.day == now.day;
+      return e.spentAt.year == now.year &&
+          e.spentAt.month == now.month &&
+          e.spentAt.day == now.day;
     }).toList();
 
-    final pendingExpenses = _expenses.where((e) => e.status == 'pending_approval').toList();
-    final historyExpenses = _expenses.where((e) => e.status != 'pending_approval').toList();
+    final pendingExpenses = _expenses
+        .where((e) => e.status == 'pending_approval')
+        .toList();
+    final historyExpenses = _expenses
+        .where((e) => e.status != 'pending_approval')
+        .toList();
 
     final totalSpentThisMonth = _expenses
         .where((e) => e.status == 'posted')
         .fold<int>(0, (sum, e) => sum + e.amountYER);
 
     final pendingCount = pendingExpenses.length;
-    final pendingSum = pendingExpenses.fold<int>(0, (sum, e) => sum + e.amountYER);
+    final pendingSum = pendingExpenses.fold<int>(
+      0,
+      (sum, e) => sum + e.amountYER,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
@@ -171,7 +181,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                 // كرت ملخص المصروفات
                 Container(
                   color: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -180,17 +193,29 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                           decoration: BoxDecoration(
                             color: AppColors.deepBlue.withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.deepBlue.withValues(alpha: 0.15)),
+                            border: Border.all(
+                              color: AppColors.deepBlue.withValues(alpha: 0.15),
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('إجمالي المصروفات المعتمدة', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                              const Text(
+                                'إجمالي المصروفات المعتمدة',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                               const SizedBox(height: 4),
                               CurrencyDisplay(
                                 amount: totalSpentThisMonth,
                                 showTafqeet: false,
-                                amountStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                                amountStyle: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.deepBlue,
+                                ),
                               ),
                             ],
                           ),
@@ -203,17 +228,29 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                           decoration: BoxDecoration(
                             color: Colors.orange.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.2),
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('بانتظار الاعتماد ($pendingCount)', style: const TextStyle(fontSize: 11, color: Colors.deepOrange)),
+                              Text(
+                                'بانتظار الاعتماد ($pendingCount)',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.deepOrange,
+                                ),
+                              ),
                               const SizedBox(height: 4),
                               CurrencyDisplay(
                                 amount: pendingSum,
                                 showTafqeet: false,
-                                amountStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepOrange),
+                                amountStyle: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.deepOrange,
+                                ),
                               ),
                             ],
                           ),
@@ -228,9 +265,19 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildExpensesList(todayExpenses, emptyMessage: 'لا توجد مصروفات مسجلة اليوم'),
-                      _buildExpensesList(pendingExpenses, emptyMessage: 'لا توجد مصروفات بانتظار الاعتماد', isPendingTab: true),
-                      _buildExpensesList(historyExpenses, emptyMessage: 'سجل المصروفات فارغ'),
+                      _buildExpensesList(
+                        todayExpenses,
+                        emptyMessage: 'لا توجد مصروفات مسجلة اليوم',
+                      ),
+                      _buildExpensesList(
+                        pendingExpenses,
+                        emptyMessage: 'لا توجد مصروفات بانتظار الاعتماد',
+                        isPendingTab: true,
+                      ),
+                      _buildExpensesList(
+                        historyExpenses,
+                        emptyMessage: 'سجل المصروفات فارغ',
+                      ),
                     ],
                   ),
                 ),
@@ -239,15 +286,29 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildExpensesList(List<ExpenseItem> items, {required String emptyMessage, bool isPendingTab = false}) {
+  Widget _buildExpensesList(
+    List<ExpenseItem> items, {
+    required String emptyMessage,
+    bool isPendingTab = false,
+  }) {
     if (items.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.receipt_long_outlined, size: 48, color: AppColors.border),
+            const Icon(
+              Icons.receipt_long_outlined,
+              size: 48,
+              color: AppColors.border,
+            ),
             const SizedBox(height: 12),
-            Text(emptyMessage, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+            Text(
+              emptyMessage,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
           ],
         ),
       );
@@ -297,25 +358,39 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.deepBlue.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     expense.categoryName,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepBlue,
+                    ),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     statusText,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
                   ),
                 ),
               ],
@@ -333,12 +408,19 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                     children: [
                       Text(
                         expense.description,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'المسجل: ${expense.recordedByName ?? "المشغل"}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -347,7 +429,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                 CurrencyDisplay(
                   amount: expense.amountYER,
                   showTafqeet: false,
-                  amountStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                  amountStyle: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepBlue,
+                  ),
                 ),
               ],
             ),
@@ -363,17 +449,27 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                 Row(
                   children: [
                     Icon(
-                      isPartnerPaid ? Icons.person_outline : Icons.account_balance_wallet_outlined,
+                      isPartnerPaid
+                          ? Icons.person_outline
+                          : Icons.account_balance_wallet_outlined,
                       size: 15,
-                      color: isPartnerPaid ? Colors.purple : AppColors.textSecondary,
+                      color: isPartnerPaid
+                          ? Colors.purple
+                          : AppColors.textSecondary,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      isPartnerPaid ? 'دفعها الشريك: ${expense.partnerName ?? ""}' : 'مصدر الدفع: صندوق البئر',
+                      isPartnerPaid
+                          ? 'دفعها الشريك: ${expense.partnerName ?? ""}'
+                          : 'مصدر الدفع: صندوق البئر',
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: isPartnerPaid ? FontWeight.bold : FontWeight.normal,
-                        color: isPartnerPaid ? Colors.purple : AppColors.textSecondary,
+                        fontWeight: isPartnerPaid
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isPartnerPaid
+                            ? Colors.purple
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -383,25 +479,43 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                     message: 'سبب التخطي: ${expense.skipReason ?? "غير محدد"}',
                     child: Row(
                       children: const [
-                        Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange),
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 14,
+                          color: Colors.orange,
+                        ),
                         SizedBox(width: 2),
-                        Text('تم تخطي المرفق', style: TextStyle(fontSize: 10, color: Colors.orange)),
+                        Text(
+                          'تم تخطي المرفق',
+                          style: TextStyle(fontSize: 10, color: Colors.orange),
+                        ),
                       ],
                     ),
                   )
                 else
                   Row(
                     children: const [
-                      Icon(Icons.attachment, size: 14, color: AppColors.agriculturalGreen),
+                      Icon(
+                        Icons.attachment,
+                        size: 14,
+                        color: AppColors.agriculturalGreen,
+                      ),
                       SizedBox(width: 2),
-                      Text('مرفق سند', style: TextStyle(fontSize: 10, color: AppColors.agriculturalGreen)),
+                      Text(
+                        'مرفق سند',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.agriculturalGreen,
+                        ),
+                      ),
                     ],
                   ),
               ],
             ),
 
             // زر اعتماد/رفض للمالك إذا كان معلقاً
-            if (isPendingTab || expense.status == 'pending_approval') ...[
+            if (_activeWell.isOwner &&
+                (isPendingTab || expense.status == 'pending_approval')) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -411,7 +525,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> with SingleTickerProvid
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.deepBlue,
                     side: const BorderSide(color: AppColors.deepBlue),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   onPressed: () => _showApproveExpenseDialog(expense),
                 ),
@@ -477,7 +593,10 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
         children: const [
           Icon(Icons.add_shopping_cart, color: AppColors.deepBlue),
           SizedBox(width: 8),
-          Text('تسجيل مصروف جديد', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            'تسجيل مصروف جديد',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
       content: SingleChildScrollView(
@@ -498,7 +617,8 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
                 items: _categories.entries.map((e) {
                   return DropdownMenuItem(value: e.key, child: Text(e.value));
                 }).toList(),
-                onChanged: (val) => setState(() => _categoryCode = val ?? 'other'),
+                onChanged: (val) =>
+                    setState(() => _categoryCode = val ?? 'other'),
               ),
               const SizedBox(height: 14),
 
@@ -508,8 +628,11 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
                 labelText: 'المبلغ (ريال يمني) *',
                 hintText: '0',
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'يرجى إدخال المبلغ';
-                  final numVal = int.tryParse(val.replaceAll(',', '').trim()) ?? 0;
+                  if (val == null || val.trim().isEmpty) {
+                    return 'يرجى إدخال المبلغ';
+                  }
+                  final numVal =
+                      int.tryParse(val.replaceAll(',', '').trim()) ?? 0;
                   if (numVal <= 0) return 'المبلغ يجب أن يكون أكبر من الصفر';
                   return null;
                 },
@@ -522,13 +645,23 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
                 decoration: const InputDecoration(
                   labelText: 'مصدر سداد المصروف *',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.account_balance_wallet_outlined, size: 20),
+                  prefixIcon: Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 20,
+                  ),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'cashbox', child: Text('صندوق البئر النقدي (Cashbox)')),
-                  DropdownMenuItem(value: 'partner_paid', child: Text('دفعها شريك من جيبه الخاص')),
+                  DropdownMenuItem(
+                    value: 'cashbox',
+                    child: Text('صندوق البئر النقدي (Cashbox)'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'partner_paid',
+                    child: Text('دفعها شريك من جيبه الخاص'),
+                  ),
                 ],
-                onChanged: (val) => setState(() => _paymentSource = val ?? 'cashbox'),
+                onChanged: (val) =>
+                    setState(() => _paymentSource = val ?? 'cashbox'),
               ),
               const SizedBox(height: 14),
 
@@ -541,17 +674,29 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.description_outlined, size: 20),
                 ),
-                validator: (val) => (val == null || val.trim().isEmpty) ? 'يرجى كتابة البيان' : null,
+                validator: (val) => (val == null || val.trim().isEmpty)
+                    ? 'يرجى كتابة البيان'
+                    : null,
               ),
               const SizedBox(height: 14),
 
               // خيار تخطي المرفق
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('تخطي إرفاق صورة السند / الفاتورة', style: TextStyle(fontSize: 13)),
-                subtitle: const Text('يلزم تدوين سبب التخطي لحفظ الشفافية', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                title: const Text(
+                  'تخطي إرفاق صورة السند / الفاتورة',
+                  style: TextStyle(fontSize: 13),
+                ),
+                subtitle: const Text(
+                  'يلزم تدوين سبب التخطي لحفظ الشفافية',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 value: _skipAttachment,
-                onChanged: (val) => setState(() => _skipAttachment = val ?? false),
+                onChanged: (val) =>
+                    setState(() => _skipAttachment = val ?? false),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
 
@@ -566,7 +711,8 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
                     prefixIcon: Icon(Icons.edit_note, size: 20),
                   ),
                   validator: (val) {
-                    if (_skipAttachment && (val == null || val.trim().isEmpty)) {
+                    if (_skipAttachment &&
+                        (val == null || val.trim().isEmpty)) {
                       return 'سبب التخطي إلزامي عند عدم إرفاق سند';
                     }
                     return null;
@@ -580,20 +726,27 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('إلغاء', style: TextStyle(color: AppColors.textSecondary)),
+          child: const Text(
+            'إلغاء',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.deepBlue,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           onPressed: _isSubmitting
               ? null
               : () async {
                   if (!_formKey.currentState!.validate()) return;
 
-                  final rawAmount = _amountController.text.replaceAll(',', '').trim();
+                  final rawAmount = _amountController.text
+                      .replaceAll(',', '')
+                      .trim();
                   final amount = int.parse(rawAmount);
 
                   setState(() => _isSubmitting = true);
@@ -608,7 +761,9 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
                       paymentSource: _paymentSource,
                       partnerId: _selectedPartnerId,
                       attachmentSkipped: _skipAttachment,
-                      skipReason: _skipAttachment ? _skipReasonController.text.trim() : null,
+                      skipReason: _skipAttachment
+                          ? _skipReasonController.text.trim()
+                          : null,
                     );
                     if (mounted) {
                       nav.pop();
@@ -624,7 +779,14 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
                   }
                 },
           child: _isSubmitting
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
               : const Text('حفظ المصروف'),
         ),
       ],
@@ -675,9 +837,7 @@ class _ApproveExpenseDialogState extends State<_ApproveExpenseDialog> {
     } catch (e) {
       setState(() => _isSubmitting = false);
       if (mounted) {
-        scaffold.showSnackBar(
-          SnackBar(content: Text('حدث خطأ: $e')),
-        );
+        scaffold.showSnackBar(SnackBar(content: Text('حدث خطأ: $e')));
       }
     }
   }
@@ -691,7 +851,10 @@ class _ApproveExpenseDialogState extends State<_ApproveExpenseDialog> {
         children: const [
           Icon(Icons.approval, color: AppColors.deepBlue),
           SizedBox(width: 8),
-          Text('مراجعة المصروف والاعتماد', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            'مراجعة المصروف والاعتماد',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
       content: SingleChildScrollView(
@@ -713,33 +876,57 @@ class _ApproveExpenseDialogState extends State<_ApproveExpenseDialog> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(exp.categoryName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+                      Text(
+                        exp.categoryName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepBlue,
+                        ),
+                      ),
                       CurrencyDisplay(
                         amount: exp.amountYER,
                         showTafqeet: false,
-                        amountStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        amountStyle: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Text(exp.description, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+                  Text(
+                    exp.description,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'فقط ${Tafqeet.format(exp.amountYER)} لا غير.',
-                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     exp.paymentSource == 'partner_paid'
                         ? 'مصدر الدفع: دفعها الشريك (${exp.partnerName ?? ""}) من جيبه'
                         : 'مصدر الدفع: صندوق البئر النقدي',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   if (exp.attachmentSkipped) ...[
                     const SizedBox(height: 6),
                     Text(
                       'تنبيه: تم تخطي المرفق بسبب: ${exp.skipReason ?? "غير محدد"}',
-                      style: const TextStyle(fontSize: 11, color: Colors.deepOrange),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.deepOrange,
+                      ),
                     ),
                   ],
                 ],
@@ -762,7 +949,10 @@ class _ApproveExpenseDialogState extends State<_ApproveExpenseDialog> {
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('إلغاء', style: TextStyle(color: AppColors.textSecondary)),
+          child: const Text(
+            'إلغاء',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
         ),
         ElevatedButton.icon(
           icon: const Icon(Icons.close, size: 16),
@@ -770,7 +960,9 @@ class _ApproveExpenseDialogState extends State<_ApproveExpenseDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           onPressed: _isSubmitting ? null : () => _makeDecision(false),
         ),
@@ -780,7 +972,9 @@ class _ApproveExpenseDialogState extends State<_ApproveExpenseDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.agriculturalGreen,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           onPressed: _isSubmitting ? null : () => _makeDecision(true),
         ),
