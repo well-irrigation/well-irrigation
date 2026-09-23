@@ -46,13 +46,14 @@ class _FakeOperationsRepository extends OperationsRepository {
   }
 }
 
-Widget _wrap({bool shouldFail = false}) {
+Widget _wrap({bool shouldFail = false, bool canCreateFarm = true}) {
   return MaterialApp(
     locale: const Locale('ar'),
     home: FarmerDetailScreen(
       wellId: 'well-1',
       farmerAccountId: 'acc-1',
       wellName: 'بئر الخير الرئيسي',
+      canCreateFarm: canCreateFarm,
       repository: _FakeOperationsRepository(shouldFail: shouldFail),
     ),
   );
@@ -89,6 +90,13 @@ void main() {
       expect(find.text('حفظ الأرض'), findsOneWidget);
     });
 
+    testWidgets('المشغّل لا يرى إضافة أرض', (tester) async {
+      await tester.pumpWidget(_wrap(canCreateFarm: false));
+      await tester.pumpAndSettle();
+
+      expect(find.text('إضافة أرض'), findsNothing);
+    });
+
     testWidgets('3. التبديل إلى تبويب كشف الحساب والمالية', (tester) async {
       await tester.pumpWidget(_wrap());
       await tester.pumpAndSettle();
@@ -120,6 +128,7 @@ void main() {
               wellId: 'well-1',
               farmerAccountId: 'acc-1',
               wellName: 'بئر الخير الرئيسي',
+              canCreateFarm: true,
               repository: _FakeOperationsRepository(
                 customFarms: [
                   Farm(

@@ -11,16 +11,20 @@ import '../../../core/theme/app_colors.dart';
 class HomeBottomNavBar extends StatelessWidget {
   const HomeBottomNavBar({
     this.selectedIndex = 0,
+    this.isOperatorMode = false,
     this.onNavigateToHome,
     this.onNavigateToOperations,
+    this.onNavigateToHistory,
     this.onNavigateToReports,
     this.onNavigateToMoreSettings,
     super.key,
   });
 
   final int selectedIndex;
+  final bool isOperatorMode;
   final VoidCallback? onNavigateToHome;
   final VoidCallback? onNavigateToOperations;
+  final VoidCallback? onNavigateToHistory;
   final VoidCallback? onNavigateToReports;
   final VoidCallback? onNavigateToMoreSettings;
 
@@ -58,10 +62,12 @@ class HomeBottomNavBar extends StatelessWidget {
           // الجهة اليسرى (في RTL): التقارير والمزيد
           Expanded(
             child: _NavBarItem(
-              icon: Icons.analytics_outlined,
-              label: 'التقارير',
+              icon: isOperatorMode
+                  ? Icons.history_rounded
+                  : Icons.analytics_outlined,
+              label: isOperatorMode ? 'سجل الجلسات' : 'التقارير',
               isSelected: selectedIndex == 2,
-              onTap: onNavigateToReports,
+              onTap: isOperatorMode ? onNavigateToHistory : onNavigateToReports,
             ),
           ),
           Expanded(

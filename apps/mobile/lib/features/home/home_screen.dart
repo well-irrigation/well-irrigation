@@ -23,6 +23,7 @@ class HomeScreen extends StatefulWidget {
     this.onNavigateToHistory,
     this.onNavigateToFarmers,
     this.onNavigateToExpenses,
+    this.onNavigateToFuelInventory,
     this.onNavigateToPartners,
     this.onNavigateToWellManagement,
     this.onNavigateToReports,
@@ -37,6 +38,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onNavigateToHistory;
   final VoidCallback? onNavigateToFarmers;
   final VoidCallback? onNavigateToExpenses;
+  final VoidCallback? onNavigateToFuelInventory;
   final VoidCallback? onNavigateToPartners;
   final VoidCallback? onNavigateToWellManagement;
   final VoidCallback? onNavigateToReports;
@@ -49,12 +51,36 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final PageController _cardPageController;
-  int _activeCardIndex = 0;
+  late int _activeCardIndex;
+
+  int _activeWellIndex(AppIdentity identity) {
+    final index = identity.wells.indexWhere(
+      (well) => well.id == identity.activeWell.id,
+    );
+    return index < 0 ? 0 : index;
+  }
 
   @override
   void initState() {
     super.initState();
-    _cardPageController = PageController(viewportFraction: 0.94);
+    _activeCardIndex = _activeWellIndex(widget.identity);
+    _cardPageController = PageController(
+      initialPage: _activeCardIndex,
+      viewportFraction: 0.94,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextIndex = _activeWellIndex(widget.identity);
+    if (nextIndex == _activeCardIndex) return;
+    _activeCardIndex = nextIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _cardPageController.hasClients) {
+        _cardPageController.jumpToPage(nextIndex);
+      }
+    });
   }
 
   @override
@@ -155,10 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     itemBuilder: (context, index) {
                       final well = wells[index];
-                      return _WellCreditCard(
-                        well: well,
-                        isOwner: widget.identity.isOwner,
-                      );
+                      return _WellCreditCard(well: well);
                     },
                   ),
                 ),
@@ -219,19 +242,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
 
                 // 3. شريط المستجدات والتنبيهات العريض (Banner Slider)
-                AnnouncementBannerSlider(
-                  onStartOperations: widget.onNavigateToOperations,
-                  onViewFarmers: widget.onNavigateToFarmers,
-                  onViewHistory: widget.onNavigateToHistory,
-                  onViewReports: widget.onNavigateToReports,
-                ),
-                const SizedBox(height: 10),
+                if (widget.identity.isOwner) ...[
+                  AnnouncementBannerSlider(
+                    onStartOperations: widget.onNavigateToOperations,
+                    onViewFarmers: widget.onNavigateToFarmers,
+                    onViewHistory: widget.onNavigateToHistory,
+                    onViewReports: widget.onNavigateToReports,
+                  ),
+                  const SizedBox(height: 10),
+                ],
 
                 // 4. شبكة الخدمات المتكاملة 3×3 (9 بلاطات متراصة بأرضيات ناعمة)
                 _ServicesGrid3x3(
+                  isOwner: widget.identity.isOwner,
+                  onNavigateToOperations: widget.onNavigateToOperations,
                   onNavigateToHistory: widget.onNavigateToHistory,
                   onNavigateToFarmers: widget.onNavigateToFarmers,
                   onNavigateToExpenses: widget.onNavigateToExpenses,
+                  onNavigateToFuelInventory: widget.onNavigateToFuelInventory,
                   onNavigateToPartners: widget.onNavigateToPartners,
                   onNavigateToWellManagement: widget.onNavigateToWellManagement,
                   onNavigateToReports: widget.onNavigateToReports,
@@ -246,7 +274,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       bottomNavigationBar: HomeBottomNavBar(
         selectedIndex: 0,
+        isOperatorMode: widget.identity.isOperator && !widget.identity.isOwner,
         onNavigateToOperations: widget.onNavigateToOperations,
+        onNavigateToHistory: widget.onNavigateToHistory,
         onNavigateToReports: widget.onNavigateToReports,
         onNavigateToMoreSettings: widget.onNavigateToMoreSettings,
       ),
@@ -328,13 +358,17 @@ class _SquircleHeaderButton extends StatelessWidget {
 
 /// بطاقة البئر المصرفية الذكية (Smart Well Card)
 class _WellCreditCard extends StatelessWidget {
-  const _WellCreditCard({
-    required this.well,
-    required this.isOwner,
-  });
+  const _WellCreditCard({required this.well});
 
   final WellSummary well;
-  final bool isOwner;
+
+  String get _roleLabel {
+    if (well.isOwner) return 'مالك البئر';
+    if (well.isOperator) return 'مشغّل معتمد';
+    if (well.isManager) return 'مدير البئر';
+    if (well.isPartner) return 'شريك';
+    return 'عضو';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -452,8 +486,9 @@ class _WellCreditCard extends StatelessWidget {
                   child: _StatMini(
                     label: 'الحالة الحالية',
                     value: isActive ? 'نشط ومتاح للعمليات' : 'غير نشط',
-                    valueColor:
-                        isActive ? const Color(0xFF68D391) : Colors.white70,
+                    valueColor: isActive
+                        ? const Color(0xFF68D391)
+                        : Colors.white70,
                   ),
                 ),
                 Container(
@@ -464,7 +499,7 @@ class _WellCreditCard extends StatelessWidget {
                 Expanded(
                   child: _StatMini(
                     label: 'الدور والنطاق',
-                    value: isOwner ? 'مالك البئر' : 'مشغّل معتمد',
+                    value: _roleLabel,
                     valueColor: Colors.white,
                   ),
                 ),
@@ -531,18 +566,24 @@ class _StatMini extends StatelessWidget {
 /// شبكة الخدمات المتكاملة 3×3 (9 بلاطات متراصة بأرضيات ناعمة)
 class _ServicesGrid3x3 extends StatelessWidget {
   const _ServicesGrid3x3({
+    required this.isOwner,
+    this.onNavigateToOperations,
     this.onNavigateToHistory,
     this.onNavigateToFarmers,
     this.onNavigateToExpenses,
+    this.onNavigateToFuelInventory,
     this.onNavigateToPartners,
     this.onNavigateToWellManagement,
     this.onNavigateToReports,
     this.onNavigateToMoreSettings,
   });
 
+  final bool isOwner;
+  final VoidCallback? onNavigateToOperations;
   final VoidCallback? onNavigateToHistory;
   final VoidCallback? onNavigateToFarmers;
   final VoidCallback? onNavigateToExpenses;
+  final VoidCallback? onNavigateToFuelInventory;
   final VoidCallback? onNavigateToPartners;
   final VoidCallback? onNavigateToWellManagement;
   final VoidCallback? onNavigateToReports;
@@ -550,6 +591,76 @@ class _ServicesGrid3x3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!isOwner) {
+      return Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _ServiceCardTile(
+                  icon: Icons.water_drop_outlined,
+                  title: 'العمليات',
+                  color: AppColors.waterBlue,
+                  onTap: onNavigateToOperations,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ServiceCardTile(
+                  icon: Icons.history_rounded,
+                  title: 'سجل الجلسات',
+                  color: AppColors.deepBlueLight,
+                  onTap: onNavigateToHistory,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ServiceCardTile(
+                  icon: Icons.people_alt_rounded,
+                  title: 'المزارعون والأراضي',
+                  color: AppColors.agriculturalGreen,
+                  onTap: onNavigateToFarmers,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _ServiceCardTile(
+                  icon: Icons.receipt_long_rounded,
+                  title: 'المصروفات',
+                  color: AppColors.deepBlue,
+                  onTap: onNavigateToExpenses,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ServiceCardTile(
+                  icon: Icons.local_gas_station_outlined,
+                  title: 'مخزون الوقود',
+                  color: Colors.deepOrange,
+                  onTap: onNavigateToFuelInventory,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ServiceCardTile(
+                  icon: Icons.apps_rounded,
+                  title: 'الإعدادات والمزيد',
+                  color: AppColors.textSecondary,
+                  onTap: onNavigateToMoreSettings,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return Column(
       children: [
         // الصف الأول

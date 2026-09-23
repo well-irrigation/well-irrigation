@@ -16,6 +16,7 @@ class FarmerDetailScreen extends StatefulWidget {
     required this.wellId,
     required this.farmerAccountId,
     required this.wellName,
+    required this.canCreateFarm,
     this.accountId,
     this.repository,
     this.coordinator,
@@ -25,6 +26,7 @@ class FarmerDetailScreen extends StatefulWidget {
   final String wellId;
   final String farmerAccountId;
   final String wellName;
+  final bool canCreateFarm;
   final String? accountId;
   final OperationsRepository? repository;
   final OfflineSessionCoordinator? coordinator;
@@ -487,16 +489,18 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.agriculturalGreen,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_location_alt_outlined),
-        label: const Text(
-          'إضافة أرض',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        onPressed: _showAddFarmDialog,
-      ),
+      floatingActionButton: widget.canCreateFarm
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.agriculturalGreen,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_location_alt_outlined),
+              label: const Text(
+                'إضافة أرض',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onPressed: _showAddFarmDialog,
+            )
+          : null,
       body: combinedFarms.isEmpty
           ? Center(
               child: Column(

@@ -11,13 +11,14 @@ import '../features/home/home_screen.dart';
 import '../features/operations/operations_screen.dart';
 import '../features/settings/more_settings_screen.dart';
 import '../features/well_management/reports_analytics_screen.dart';
+import '../features/well_management/fuel_inventory_screen.dart';
 import '../features/well_management/well_management_hub_screen.dart';
 
 /// واجهة المستخدم المصدَّق: التوجيه بحسب دوره على بئره النشط، والتنقل بينها.
 ///
 /// لا يُبنى إلا بهوية حقيقية جاءت من [IdentityGate]، فلا مكان هنا لبئر
-/// افتراضي ولا لدور افتراضي: الدور من `identity.isOwner` وحده (UX-05 /
-/// UX-13 / ق-87 / ق-98)، ويتبدّل مع البئر النشط.
+/// افتراضي ولا لدور افتراضي: الدور من البئر النشط وحده (UX-05 / UX-13 /
+/// ق-87 / ق-98)، ويتبدّل مع البئر النشط.
 class AuthenticatedShell extends StatelessWidget {
   const AuthenticatedShell({
     required this.identity,
@@ -47,7 +48,7 @@ class AuthenticatedShell extends StatelessWidget {
       );
     }
 
-    if (!identity.isOwner) {
+    if (!identity.isOwner && !identity.isOperator) {
       return OperationsScreen(
         identity: identity,
         onWellChanged: onWellChanged,
@@ -86,6 +87,10 @@ class AuthenticatedShell extends StatelessWidget {
       onNavigateToExpenses: () => _push(
         context,
         ExpensesScreen(identity: identity, onWellChanged: onWellChanged),
+      ),
+      onNavigateToFuelInventory: () => _push(
+        context,
+        FuelInventoryScreen(identity: identity, onWellChanged: onWellChanged),
       ),
       onNavigateToPartners: () => _push(
         context,

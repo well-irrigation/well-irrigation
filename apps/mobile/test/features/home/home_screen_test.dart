@@ -3,12 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/features/home/home_screen.dart';
 import 'package:well_irrigation_mobile/features/home/widgets/announcement_banner_slider.dart';
 import 'package:well_irrigation_mobile/features/home/widgets/home_bottom_nav_bar.dart';
+import 'package:well_irrigation_mobile/core/identity/app_identity.dart';
 
 import '../../support/identity_fixture.dart';
 
 /// حرس تخطيط وتفاعل الشاشة الرئيسية المعيارية 1:1 (UX-15 / ق-127).
 void main() {
   Widget wrap({
+    AppIdentity? identity,
     VoidCallback? onNavigateToOperations,
     VoidCallback? onNavigateToHistory,
     VoidCallback? onNavigateToFarmers,
@@ -17,13 +19,14 @@ void main() {
     VoidCallback? onNavigateToWellManagement,
     VoidCallback? onNavigateToReports,
     VoidCallback? onNavigateToMoreSettings,
+    VoidCallback? onNavigateToFuelInventory,
   }) {
     return MaterialApp(
       locale: const Locale('ar'),
       home: Directionality(
         textDirection: TextDirection.rtl,
         child: HomeScreen(
-          identity: testIdentity(),
+          identity: identity ?? testIdentity(),
           onNavigateToOperations: onNavigateToOperations,
           onNavigateToHistory: onNavigateToHistory,
           onNavigateToFarmers: onNavigateToFarmers,
@@ -32,6 +35,7 @@ void main() {
           onNavigateToWellManagement: onNavigateToWellManagement,
           onNavigateToReports: onNavigateToReports,
           onNavigateToMoreSettings: onNavigateToMoreSettings,
+          onNavigateToFuelInventory: onNavigateToFuelInventory,
         ),
       ),
     );
@@ -57,7 +61,11 @@ void main() {
       'التقارير',
       'المزيد',
     ]) {
-      expect(find.text(navTitle), findsOneWidget, reason: 'وجهة مفقودة: $navTitle');
+      expect(
+        find.text(navTitle),
+        findsOneWidget,
+        reason: 'وجهة مفقودة: $navTitle',
+      );
     }
 
     // شبكة الخدمات المعيارية 3×3 (9 بلاطات)
@@ -78,6 +86,63 @@ void main() {
         reason: 'خدمة مفقودة: $serviceTitle',
       );
     }
+  });
+
+  testWidgets('كل بطاقة تعرض دور البئر الذي تمثله', (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final ownerWell = testWell(name: 'بئر المالك');
+    final operatorWell = testWell(
+      id: 'well-2',
+      name: 'بئر المشغّل',
+      roles: const ['operator'],
+    );
+    await tester.pumpWidget(
+      wrap(identity: testIdentity(wells: [ownerWell, operatorWell])),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('مالك البئر'), findsOneWidget);
+    expect(find.text('مشغّل معتمد'), findsOneWidget);
+  });
+
+  testWidgets('رئيسية المشغّل تعرض خدماته وتحجب خدمات المالك', (tester) async {
+    await tester.pumpWidget(
+      wrap(
+        identity: testIdentity(
+          wells: [
+            testWell(roles: const ['operator']),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final title in const [
+      'العمليات',
+      'سجل الجلسات',
+      'المزارعون والأراضي',
+      'المصروفات',
+      'مخزون الوقود',
+      'الإعدادات والمزيد',
+    ]) {
+      expect(find.text(title), findsWidgets, reason: 'خدمة مفقودة: $title');
+    }
+    for (final title in const [
+      'الشركاء والأرباح',
+      'البئر والمعدات',
+      'التقارير والمؤشرات',
+      'أسعار التعرفة',
+    ]) {
+      expect(find.text(title), findsNothing, reason: 'خدمة مالك ظاهرة: $title');
+    }
+
+    expect(find.text('سجل الجلسات'), findsNWidgets(2));
+    expect(find.text('التقارير'), findsNothing);
+    expect(find.byType(AnnouncementBannerSlider), findsNothing);
+    expect(find.byType(FloatingActionButton), findsOneWidget);
   });
 
   testWidgets('النقر على الزر العائم يفعّل بدء التشغيل الميداني', (

@@ -31,14 +31,14 @@ class AppIdentity {
   /// دور المستخدم على البئر النشط وحده — لا دور افتراضي، ويتغيّر بالتبديل.
   bool get isOwner => activeWell.isOwner;
 
+  /// تشغيل البئر النشط، لا امتلاك بئر آخر في الحساب.
+  bool get isOperator => activeWell.isOperator;
+
   /// شريكٌ بلا دور تشغيلي على البئر النشط. شاشته اطلاع فقط (ق-123 §8).
   bool get isPartnerOnly => activeWell.isPartnerOnly;
 
-  AppIdentity withActiveWell(WellSummary well) => AppIdentity(
-    profile: profile,
-    wells: wells,
-    activeWell: well,
-  );
+  AppIdentity withActiveWell(WellSummary well) =>
+      AppIdentity(profile: profile, wells: wells, activeWell: well);
 }
 
 /// نتيجة قراءة الهوية: ثلاث حالات صريحة لا رابعة، ولا واحدة منها تُعبَّأ
@@ -81,10 +81,6 @@ IdentityResolution resolveIdentity(BootstrapData data) {
   }
 
   return IdentityReady(
-    AppIdentity(
-      profile: data.profile,
-      wells: wells,
-      activeWell: wells.first,
-    ),
+    AppIdentity(profile: data.profile, wells: wells, activeWell: wells.first),
   );
 }
