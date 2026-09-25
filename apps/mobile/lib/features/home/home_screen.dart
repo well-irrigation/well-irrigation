@@ -242,15 +242,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
 
                 // 3. شريط المستجدات والتنبيهات العريض (Banner Slider)
-                if (widget.identity.isOwner) ...[
-                  AnnouncementBannerSlider(
-                    onStartOperations: widget.onNavigateToOperations,
-                    onViewFarmers: widget.onNavigateToFarmers,
-                    onViewHistory: widget.onNavigateToHistory,
-                    onViewReports: widget.onNavigateToReports,
-                  ),
-                  const SizedBox(height: 10),
-                ],
+                AnnouncementBannerSlider(
+                  key: ValueKey<bool>(widget.identity.isOwner),
+                  showReports: widget.identity.isOwner,
+                  onStartOperations: widget.onNavigateToOperations,
+                  onViewFarmers: widget.onNavigateToFarmers,
+                  onViewHistory: widget.onNavigateToHistory,
+                  onViewReports: widget.onNavigateToReports,
+                ),
+                const SizedBox(height: 10),
 
                 // 4. شبكة الخدمات المتكاملة 3×3 (9 بلاطات متراصة بأرضيات ناعمة)
                 _ServicesGrid3x3(

@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -31,6 +32,7 @@ class BannerItemData {
 /// وتتوقف فور لمس المستخدم وتستأنف عند تركه.
 class AnnouncementBannerSlider extends StatefulWidget {
   const AnnouncementBannerSlider({
+    required this.showReports,
     this.onStartOperations,
     this.onViewFarmers,
     this.onViewHistory,
@@ -38,6 +40,7 @@ class AnnouncementBannerSlider extends StatefulWidget {
     super.key,
   });
 
+  final bool showReports;
   final VoidCallback? onStartOperations;
   final VoidCallback? onViewFarmers;
   final VoidCallback? onViewHistory;
@@ -80,18 +83,19 @@ class _AnnouncementBannerSliderState extends State<AnnouncementBannerSlider> {
         ],
         onTap: widget.onViewHistory,
       ),
-      BannerItemData(
-        tag: 'مؤشرات وإنتاجية',
-        title: 'تقارير الاستهلاك وتوزيع الأرباح',
-        subtitle: 'تحليلات ساعات الضخ وكفاءة الوقود وحصص الشركاء',
-        actionLabel: 'عرض التقارير',
-        icon: Icons.insights_rounded,
-        gradientColors: const [
-          Color(0xFF065F46), // Forest Green
-          Color(0xFF059669),
-        ],
-        onTap: widget.onViewReports,
-      ),
+      if (widget.showReports)
+        BannerItemData(
+          tag: 'مؤشرات وإنتاجية',
+          title: 'تقارير الاستهلاك وتوزيع الأرباح',
+          subtitle: 'تحليلات ساعات الضخ وكفاءة الوقود وحصص الشركاء',
+          actionLabel: 'عرض التقارير',
+          icon: Icons.insights_rounded,
+          gradientColors: const [
+            Color(0xFF065F46), // Forest Green
+            Color(0xFF059669),
+          ],
+          onTap: widget.onViewReports,
+        ),
       BannerItemData(
         tag: 'تشغيل ميداني',
         title: 'تسجيل عداد البدء وإطلاق المضخة',
