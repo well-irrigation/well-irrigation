@@ -1,14 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
+import 'package:well_irrigation_mobile/core/identity/app_identity.dart';
 import 'package:well_irrigation_mobile/features/home/home_screen.dart';
 import 'package:well_irrigation_mobile/features/home/widgets/announcement_banner_slider.dart';
 import 'package:well_irrigation_mobile/features/home/widgets/home_bottom_nav_bar.dart';
-import 'package:well_irrigation_mobile/core/identity/app_identity.dart';
 
 import '../../support/identity_fixture.dart';
 
+class _RoleSwitchingHomeHarness extends StatefulWidget {
+  const _RoleSwitchingHomeHarness({
+    required this.ownerWell,
+    required this.operatorWell,
+  });
+
+  final WellSummary ownerWell;
+  final WellSummary operatorWell;
+
+  @override
+  State<_RoleSwitchingHomeHarness> createState() =>
+      _RoleSwitchingHomeHarnessState();
+}
+
+class _RoleSwitchingHomeHarnessState extends State<_RoleSwitchingHomeHarness> {
+  late AppIdentity _identity = testIdentity(
+    wells: [widget.ownerWell, widget.operatorWell],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return HomeScreen(
+      identity: _identity,
+      onWellChanged: (well) {
+        setState(() => _identity = _identity.withActiveWell(well));
+      },
+    );
+  }
+}
+
 /// حرس تخطيط وتفاعل الشاشة الرئيسية المعيارية 1:1 (UX-15 / ق-127).
 void main() {
+  Finder bannerPageView() => find.descendant(
+    of: find.byType(AnnouncementBannerSlider),
+    matching: find.byType(PageView),
+  );
+
+  int configuredBannerCount(WidgetTester tester) {
+    return tester
+        .widget<PageView>(bannerPageView())
+        .childrenDelegate
+        .estimatedChildCount!;
+  }
+
   Widget wrap({
     AppIdentity? identity,
     VoidCallback? onNavigateToOperations,
@@ -53,6 +96,15 @@ void main() {
     expect(find.byType(HomeBottomNavBar), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsOneWidget);
     expect(find.byType(AnnouncementBannerSlider), findsOneWidget);
+    expect(
+      tester
+          .widget<AnnouncementBannerSlider>(
+            find.byType(AnnouncementBannerSlider),
+          )
+          .showReports,
+      isTrue,
+    );
+    expect(configuredBannerCount(tester), 4);
 
     // وجهات شريط التنقل السفلي
     for (final navTitle in const [
@@ -141,8 +193,128 @@ void main() {
 
     expect(find.text('سجل الجلسات'), findsNWidgets(2));
     expect(find.text('التقارير'), findsNothing);
-    expect(find.byType(AnnouncementBannerSlider), findsNothing);
+    expect(find.byType(AnnouncementBannerSlider), findsOneWidget);
+    expect(
+      tester
+          .widget<AnnouncementBannerSlider>(
+            find.byType(AnnouncementBannerSlider),
+          )
+          .showReports,
+      isFalse,
+    );
+    expect(configuredBannerCount(tester), 3);
     expect(find.byType(FloatingActionButton), findsOneWidget);
+  });
+
+  testWidgets('شريط المشغّل يحتفظ بالإجراءات الثلاثة ويحجب التقارير', (
+    tester,
+  ) async {
+    var farmersClicked = false;
+    var historyClicked = false;
+    var operationsClicked = false;
+    await tester.pumpWidget(
+      wrap(
+        identity: testIdentity(
+          wells: [
+            testWell(roles: const ['operator']),
+          ],
+        ),
+        onNavigateToFarmers: () => farmersClicked = true,
+        onNavigateToHistory: () => historyClicked = true,
+        onNavigateToOperations: () => operationsClicked = true,
+        onNavigateToReports: () => fail('تقارير المالك غير متاحة للمشغّل'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final controller = tester.widget<PageView>(bannerPageView()).controller!;
+
+    expect(find.text('كشوفات وحسابات'), findsOneWidget);
+    expect(find.text('متابعة كشوفات وأرصدة المزارعين'), findsOneWidget);
+    await tester.tap(find.text('فتح الدليل'));
+    expect(farmersClicked, isTrue);
+
+    controller.jumpToPage(1);
+    await tester.pump();
+    expect(find.text('فواتير وسندات'), findsOneWidget);
+    expect(find.text('طباعة فورية عبر طابعة البلوتوث'), findsOneWidget);
+    await tester.tap(find.text('سجل العمليات'));
+    expect(historyClicked, isTrue);
+
+    controller.jumpToPage(2);
+    await tester.pump();
+    expect(find.text('تشغيل ميداني'), findsOneWidget);
+    expect(find.text('تسجيل عداد البدء وإطلاق المضخة'), findsOneWidget);
+    await tester.tap(find.text('بدء السقي'));
+    expect(operationsClicked, isTrue);
+
+    expect(find.text('مؤشرات وإنتاجية'), findsNothing);
+    expect(find.text('تقارير الاستهلاك وتوزيع الأرباح'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('تبديل دور البئر يحدّث إعداد الشريط دون حالة صفحة قديمة', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final ownerWell = testWell(name: 'بئر المالك');
+    final operatorWell = testWell(
+      id: 'well-2',
+      name: 'بئر المشغّل',
+      roles: const ['operator'],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('ar'),
+        home: _RoleSwitchingHomeHarness(
+          ownerWell: ownerWell,
+          operatorWell: operatorWell,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var slider = tester.widget<AnnouncementBannerSlider>(
+      find.byType(AnnouncementBannerSlider),
+    );
+    expect(slider.showReports, isTrue);
+    expect(configuredBannerCount(tester), 4);
+    tester.widget<PageView>(bannerPageView()).controller!.jumpToPage(3);
+    await tester.pump();
+
+    await tester.drag(find.text('بئر المالك'), const Offset(-700, 0));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(AnnouncementBannerSlider), findsOneWidget);
+    slider = tester.widget<AnnouncementBannerSlider>(
+      find.byType(AnnouncementBannerSlider),
+    );
+    expect(slider.showReports, isFalse);
+    expect(configuredBannerCount(tester), 3);
+    expect(find.text('مؤشرات وإنتاجية'), findsNothing);
+
+    await tester.drag(find.text('بئر المشغّل'), const Offset(700, 0));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    slider = tester.widget<AnnouncementBannerSlider>(
+      find.byType(AnnouncementBannerSlider),
+    );
+    expect(slider.showReports, isTrue);
+    expect(configuredBannerCount(tester), 4);
+    final ownerController = tester
+        .widget<PageView>(bannerPageView())
+        .controller!;
+    ownerController.jumpToPage(2);
+    await tester.pump();
+    expect(find.text('مؤشرات وإنتاجية'), findsOneWidget);
+    expect(find.text('تقارير الاستهلاك وتوزيع الأرباح'), findsOneWidget);
   });
 
   testWidgets('النقر على الزر العائم يفعّل بدء التشغيل الميداني', (
