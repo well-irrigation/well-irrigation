@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-09-20
+**آخر تحديث:** 2026-09-26
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -374,25 +374,41 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   لاحقًا): دعوة بلا auto-link أو وصول، قبول صريح بلا صلاحية، ثم تأكيد مالك
   idempotent كتحول الصلاحية. هجرة 095 لنطاق قراءة الشريك تبقى صحيحة وغير
   منسوخة؛ ووصف 094/Q-123 يبقى تاريخيًا لما كان قبله.
+- **دمجات لاحقة (MRs !14–!17):** **M104 — member finalization** عبر MR !14
+  (merge `f229256`) = التثبيت الموثوق للعضو الجديد بلا Auth (ملف
+  `20260922010001_104_member_finalization.sql` واختبارها الدائم)؛ وتكامل
+  **واجهة تنشيط الحساب** عبر MR !15 (merge `0e8a898`)؛ و**workspace
+  المشغل في Home** عبر MR !16 (merge `e9b9afa`) — وكشف القبول الميداني أن
+  شريط الإعلانات مفقود للمشغل؛ ثم **استعادة الشريط الحساس للدور** عبر
+  MR !17 — **رأس `main` الحالي = merge commit `b64e43e`**. شريط !17 تغيير
+  Flutter فقط: آبار المالك بأربع بطاقات كاملة، وآبار المشغل بثلاث بطاقات
+  مسموحة (كرت التقارير/الأرباح مخفي عن المشغل)، وتبديل الدور يعيد بناء
+  حالة السلايدر بأمان — بلا Backend ولا Schema ولا Supabase.
 - **المعتمد المستهدف:** لا Auth جديد بلا Finalization لدور؛ الدعوة بصفر
   وصول؛ قبول صاحب الهوية ثم تأكيد المالك؛ حقوق الشريك المالية مستقلة عن
   App Access؛ حساب واحد لكل الأدوار؛ Farmer العادي بلا Auth.
-- **الدليل المحلي وCI:** Test 103 = `33/0/0`؛ Test 094 = `23/0/0`؛ حزمة DB =
+- **الدليل المحلي وCI (حتى M103 — تاريخي):** Test 103 = `33/0/0`؛
+  Test 094 = `23/0/0`؛ حزمة DB =
   `FILES=42 PASS=707 FAIL=0 ERROR=0`؛ والفهرس = `845/507/210/45`
   (columns/constraints/functions/triggers). MR pipeline `2869239530`
-  (database/app success) وmain pipeline `2869249068` (database/app success)؛
-  **production بقيت يدوية ولم تُشغَّل**، ولا تحقق سحابي (السحابة حتى 102).
-- **الشريحة التالية:** **M104 — new/no-Auth trusted finalization**؛ معماريتها
-  المستهدفة موثقة تحت ق-130 §25.4 ورقم الهجرة التالي = 104، لكن تفاصيل
-  RPC/الدوال/Edge Function الملموسة لم تُختَر ولم تُنفَّذ في جولة التوثيق هذه.
-- **Pending:** pre-auth/trusted finalization للعضو الجديد ومنع orphan عند
-  إنشاء Auth (= M104)؛ finalization المالك/البئر الجديد؛ دعوات إعداد البئر؛
+  (database/app success) وmain pipeline `2869249068` (database/app success).
+- **الدليل الحالي على رأس `main` (`b64e43e`):** حالة الهجرات وصلت إلى 104؛
+  اختبارات القاعدة الدائمة = **43 ملفًا / 728 PASS**؛ وCI main pipeline:
+  app = SUCCESS وdatabase = SUCCESS؛ **production بقيت MANUAL ولم تُشغَّل**،
+  ولا تحقق سحابي جديد (السحابة على الحالة الموثقة في `AGENTS.md` §4).
+- **M104 (كانت الشريحة التالية): نُفِّذت ودُمجت عبر MR !14** — لم تعد
+  الخطوة التالية؛ معماريتها كانت موثقة تحت ق-130 §25.4.
+- **Pending:** finalization المالك/البئر الجديد؛ دعوات إعداد البئر؛
   تطبيع الهاتف المركزي عبر كل المسارات؛ بقية correction/reissue UX؛ موافقات
-  تغيير الشراكة؛ Flutter Login/activation؛ قبول جهاز؛ وتنظيف ما قبل
-  الإطلاق عند الحاجة.
+  تغيير الشراكة؛ **قبول الجهاز الحقيقي لمساري العضو الجديد والحساب القائم
+  (NEXT — ق-130 لا يُغلق)**؛ **فجوة UX لمشاركة رمز الدعوة** — استبدال
+  المشاركة الشفهية بفلول Share صريح والتحقق من رحلة الدعوة مالك/مشغل؛
+  وتنظيف ما قبل الإطلاق عند الحاجة. (من Flutter دُمج: واجهة تنشيط الحساب
+  MR !15، وworkspace المشغل MR !16، والشريط الحساس للدور MR !17.)
 - **الاختبارات المتبقية:** قائمة م-44 المتبقية، Regression Flutter، وقبول
   جهاز حقيقي لمساري العضو الجديد والحساب القائم.
 - **الحالة:** **Adopted + Documented / Partial Implementation / Backend
-  slice Merged to main + Local Verified + CI Verified / Cloud Pending /
-  Flutter Pending / Device Pending**. لا تُوصف Closed قبل الأدلة الكاملة،
-  وم-44 تبقى OPEN / Production Blocker.
+  (M103 + M104) Merged to main + CI Verified / Cloud Pending / Flutter:
+  activation UI + operator workspace + role-aware strip Merged (MRs
+  !15–!17) / Device Acceptance Pending**. لا تُوصف Closed قبل الأدلة
+  الكاملة، وم-44 تبقى OPEN / Production Blocker، وق-130 لا يُغلق.
