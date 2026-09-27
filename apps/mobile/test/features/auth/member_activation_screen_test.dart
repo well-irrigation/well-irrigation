@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:well_irrigation_mobile/core/api/auth_repository.dart';
 import 'package:well_irrigation_mobile/core/api/team_repository.dart';
+import 'package:well_irrigation_mobile/core/utils/contact_picker.dart';
 import 'package:well_irrigation_mobile/features/auth/member_activation_screen.dart';
 
 final SupabaseClient _unusedClient = _NoClient();
@@ -104,6 +105,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required _FakeAuthRepository auth,
   _FakeTeamRepository? team,
+  Future<ContactPickResult> Function()? contactPicker,
   VoidCallback? onActivated,
 }) async {
   tester.view.physicalSize = const Size(900, 1900);
@@ -117,6 +119,7 @@ Future<void> _pump(
       home: MemberActivationScreen(
         authRepository: auth,
         teamRepository: team ?? _FakeTeamRepository(),
+        contactPicker: contactPicker,
         onActivated: onActivated,
       ),
     ),
@@ -421,6 +424,56 @@ void main() {
 
       expect(auth.signUpCalls, 0);
       expect(activations, 1);
+    });
+  });
+
+  group('اختيار جهة اتصال لحقل رقم العضو (Q130)', () {
+    testWidgets('اختيار جهة يملأ الحقل والإدخال اليدوي يبقى متاحًا', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        auth: _FakeAuthRepository(),
+        contactPicker: () async => const ContactPickResult(
+          ContactPickStatus.picked,
+          phone: '712345678',
+        ),
+      );
+
+      await tester.tap(find.byTooltip('اختيار رقم من جهات الاتصال'));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextFormField>(
+        find.widgetWithText(TextFormField, 'رقم هاتفك *'),
+      );
+      expect(field.controller!.text, '712345678');
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'رقم هاتفك *'),
+        '779999999',
+      );
+      expect(field.controller!.text, '779999999');
+    });
+
+    testWidgets('رفض الصلاحية يُعلن صراحة ولا يملأ الحقل', (tester) async {
+      await _pump(
+        tester,
+        auth: _FakeAuthRepository(),
+        contactPicker: () async =>
+            const ContactPickResult(ContactPickStatus.permissionDenied),
+      );
+
+      await tester.tap(find.byTooltip('اختيار رقم من جهات الاتصال'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('لم يُمنح الوصول لجهات الاتصال — أكمل الإدخال اليدوي'),
+        findsOneWidget,
+      );
+      final field = tester.widget<TextFormField>(
+        find.widgetWithText(TextFormField, 'رقم هاتفك *'),
+      );
+      expect(field.controller!.text, isEmpty);
     });
   });
 }

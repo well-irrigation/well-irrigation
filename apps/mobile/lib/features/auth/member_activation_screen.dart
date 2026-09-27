@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/api/auth_repository.dart';
 import '../../core/api/team_repository.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/contact_picker.dart';
 import '../../core/utils/digit_utils.dart';
 
 enum _ActivationStage {
@@ -22,12 +23,17 @@ class MemberActivationScreen extends StatefulWidget {
   const MemberActivationScreen({
     this.authRepository,
     this.teamRepository,
+    this.contactPicker,
     this.onActivated,
     super.key,
   });
 
   final AuthRepository? authRepository;
   final TeamRepository? teamRepository;
+
+  /// يُحقَن في الاختبارات؛ الافتراضي منتقي جهات الاتصال النظامي.
+  final Future<ContactPickResult> Function()? contactPicker;
+
   final VoidCallback? onActivated;
 
   @override
@@ -72,6 +78,40 @@ class _MemberActivationScreenState extends State<MemberActivationScreen> {
 
   String get _phone => normalizeArabicDigits(_phoneController.text).trim();
   String get _code => normalizeArabicDigits(_codeController.text).trim();
+
+  /// اختيار رقم من جهات الاتصال يملأ حقل الهاتف؛ وإن رُفضت الصلاحية أو
+  /// فشل القراءة أُعلن ذلك والإدخال اليدوي يبقى كاملًا.
+  Future<void> _pickContact() async {
+    final pick = widget.contactPicker ?? pickContactPhone;
+    final result = await pick();
+    if (!mounted) return;
+    final phone = result.phone;
+    switch (result.status) {
+      case ContactPickStatus.picked:
+        if (phone == null || phone.isEmpty) {
+          _pickNote('لم يُعَد رقمًا صالحًا — أكمل الإدخال اليدوي');
+          return;
+        }
+        setState(() {
+          _phoneController.text = phone;
+          _phoneController.selection = TextSelection.collapsed(
+            offset: phone.length,
+          );
+        });
+      case ContactPickStatus.cancelled:
+        break; // الإلغاء ليس خطأ ولا يُعلَن.
+      case ContactPickStatus.permissionDenied:
+        _pickNote('لم يُمنح الوصول لجهات الاتصال — أكمل الإدخال اليدوي');
+      case ContactPickStatus.failed:
+        _pickNote('تعذر اختيار جهة الاتصال — أكمل الإدخال اليدوي');
+    }
+  }
+
+  void _pickNote(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   void _reportActivation() {
     if (_activationReported) return;
@@ -382,10 +422,15 @@ class _MemberActivationScreenState extends State<MemberActivationScreen> {
             ArabicToEnglishDigitsFormatter(),
             LengthLimitingTextInputFormatter(16),
           ],
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'رقم هاتفك *',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.phone_android),
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.phone_android),
+            suffixIcon: IconButton(
+              tooltip: 'اختيار رقم من جهات الاتصال',
+              onPressed: _pickContact,
+              icon: const Icon(Icons.contacts_outlined),
+            ),
           ),
         ),
         const SizedBox(height: 12),

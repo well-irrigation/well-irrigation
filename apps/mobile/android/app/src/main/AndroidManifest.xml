@@ -15,6 +15,10 @@
          المتجر بقراءة المانيفست المدموج الفعلي. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- READ_CONTACTS: أيقونة اختيار جهة اتصال لحقل رقم العضو في الدعوة
+         والتنشيط (Q130). تُطلب زمن التشغيل لحظة الضغط على الأيقونة وحدها،
+         وإن رُفضت يبقى الإدخال اليدوي كاملًا — فلا يُحجب عمل يقبله الخادم. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <application
         android:label="إدارة تشغيل البئر والسقي"
         android:name="${applicationName}"
