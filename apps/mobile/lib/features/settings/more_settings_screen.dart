@@ -304,8 +304,10 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) =>
-                              TeamPermissionsScreen(well: _activeWell),
+                          builder: (_) => TeamPermissionsScreen(
+                            well: _activeWell,
+                            senderName: widget.identity.displayName,
+                          ),
                         ),
                       );
                     },
