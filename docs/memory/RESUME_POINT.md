@@ -49,7 +49,7 @@ Migration 103 (أول شريحة Backend لمسار الحساب القائم/ا
 على جهاز Android حقيقي بعد MR !19 نجاح مسار مشاركة الدعوة** — وهذه
 الفجوة الفرعية وحدها أُغلقت من قبول ق-130. وفي 2026-09-28 اعتمد
 المالك **ق-131** وفتحت **م-45**؛ ثم نُفذ محليًا البند 1 (محاصيل
-الجلسة) وقُبل UX على المحاكي. Migration 105 والتطبيق Pending GitLab/Cloud.
+الجلسة) وقُبل UX على المحاكي. Migration 105 والتطبيق رُفعا إلى GitLab على `feat/m45-session-crops`؛ Merge/CI/Cloud Pending.
 المتبقي الحاكم: دمج شريحة المحاصيل ثم متابعة م-45/A، مع بقاء م-44
 Production Blocker مستقلًا — والتفصيل في §4 أدناه.
 
@@ -273,7 +273,7 @@ Production Blocker مستقلًا — والتفصيل في §4 أدناه.
 **ق-131 (2026-09-28): العقد Adopted + Documented كاملًا.** 23 بندًا
 موثقة في `DECISIONS.md`، والتنفيذ عبر **م-45** بمراحل A–E مع الإحالة
 الإلزامية إلى م-28/م-29/م-30. **البند 1 — محاصيل الجلسة — Implemented +
-Local Verified + Emulator UX Accepted**؛ GitLab/Cloud Pending.
+Local Verified + Emulator UX Accepted**؛ GitLab branch pushed؛ Merge/CI/Cloud Pending.
 البنود 2–23 ما زالت Pending.
 مسار الحساب القائم في M103 يبقى كما هو، ونطاق م-44 المتبقي يستمر وفق
 ق-130. لا تُعاد حزم M101/M102 أو نشرها بلا سبب، ولا يُعدَّل

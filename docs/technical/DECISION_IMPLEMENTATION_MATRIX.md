@@ -439,7 +439,7 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   105 واختبارها الدائم، لقطة مستقلة لكل جلسة، الاقتراحات من جلسات
   المزرعة نفسها، وظهور اللقطة في الجلسة النشطة وملخص الإنهاء والتفاصيل
   التاريخية. الدليل: قاعدة **44 ملفًا / 743 PASS**، Flutter **600/600
-  PASS** وتحليل نظيف، وقبول المالك على المحاكي. **GitLab/Cloud Pending**.
+  PASS** وتحليل نظيف، وقبول المالك على المحاكي. **GitLab branch pushed؛ Merge/CI/Cloud Pending**.
   البنود 2–23 Pending. الأساسات السابقة لا تُحسب تنفيذًا لبنود ق-131.
 - **المراحل:** A) المحاصيل المتعددة، نافذة الشمس والبديل والانتقال
   التلقائي، الزمن الفعلي، تحذير المزارع، تأكيد تطبيق المقدم، تقدير ديزل
@@ -453,4 +453,4 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   تفرض هجرة قاعدة بيانات بذاتها. الكتابة والقراءة عبر عقود `api` حصرًا،
   واختبارات Flutter عند الانطباق، وقبول جهاز حقيقي للبنود الحرجة.
   **لا رقم هجرة مُنسوخ في هذه الوثيقة.**
-- **الحالة:** **Adopted + Documented / Partial Implementation (م-45): Item 1 Local Verified + Emulator UX Accepted / GitLab + Cloud Pending / Items 2–23 Pending**.
+- **الحالة:** **Adopted + Documented / Partial Implementation (م-45): Item 1 Local Verified + Emulator UX Accepted + GitLab Branch Pushed / Merge + CI + Cloud Pending / Items 2–23 Pending**.

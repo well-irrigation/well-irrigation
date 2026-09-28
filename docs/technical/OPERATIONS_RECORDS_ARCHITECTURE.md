@@ -500,7 +500,7 @@ UX-13 لا تعتبر Production Complete حتى:
 
 **الحالة:** العقد Adopted + Documented. **محاصيل الجلسة (المرحلة A) =
 Implemented + Local Verified + Emulator UX Accepted (2026-09-28)**؛
-GitLab/Cloud Pending. **الحجوزات (المرحلة B) Pending**. التنفيذ عبر
+GitLab branch pushed؛ Merge/CI/Cloud Pending. **الحجوزات (المرحلة B) Pending**. التنفيذ عبر
 م-45 مع الإحالة الإلزامية إلى م-28. المصدر الحاكم: `memory/DECISIONS.md` ق-131.
 
 ### محاصيل الجلسة المتعددة (المرحلة A)
@@ -521,7 +521,7 @@ GitLab/Cloud Pending. **الحجوزات (المرحلة B) Pending**. التن�
   وملخص الإنهاء والتفاصيل التاريخية، ولا تعيد جلسة لاحقة كتابة القديمة.
 - **الدليل المحلي:** Migration `20260928010001_105_session_crops.sql`
   واختبارها الدائم؛ قاعدة **44/743 PASS**، Flutter **600/600 PASS**
-  وتحليل نظيف، وقبول UX من المالك على المحاكي. GitLab/Cloud Pending.
+  وتحليل نظيف، وقبول UX من المالك على المحاكي. GitLab branch pushed؛ Merge/CI/Cloud Pending.
 
 ### الحجوزات (المرحلة B — على أساس ق-98/م-28)
 
