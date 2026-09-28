@@ -186,12 +186,12 @@ begin
   end if;
 
 
-  -- start_irrigation_session صار 8 وسائط بعد ق-114/084
-  -- (p_command_id اختيارية في آخر القائمة). التوقيع المرفوض أدناه
-  -- يبقى مرفوضًا: هو الذي يضع هوية المنفِّذ وسيطًا خامسًا.
+  -- start_irrigation_session صار 9 وسائط بعد ق-114/084 ثم ق-131/105
+  -- (p_command_id ثم p_crops اختياريتان في آخر القائمة). التوقيع المرفوض
+  -- أدناه يبقى مرفوضًا: هو الذي يضع هوية المنفِّذ وسيطًا خامسًا.
   if
     to_regprocedure(
-      'api.start_irrigation_session(uuid,uuid,uuid,uuid,text,timestamptz,uuid,uuid)'
+      'api.start_irrigation_session(uuid,uuid,uuid,uuid,text,timestamptz,uuid,uuid,text[])'
     ) is not null
     and to_regprocedure(
       'api.start_irrigation_session(uuid,uuid,uuid,uuid,uuid,text,timestamptz,uuid)'

@@ -708,6 +708,11 @@ ops.resource_reservations|session_id|uuid|null|-
 ops.resource_reservations|reserved_period|tstzrange|NOT NULL|-
 ops.resource_reservations|status|text|NOT NULL|-
 ops.resource_reservations|created_at|timestamp with time zone|NOT NULL|now()
+ops.session_crops|id|uuid|NOT NULL|gen_random_uuid()
+ops.session_crops|session_id|uuid|NOT NULL|-
+ops.session_crops|crop_name|text|NOT NULL|-
+ops.session_crops|position|integer|NOT NULL|-
+ops.session_crops|created_at|timestamp with time zone|NOT NULL|now()
 ops.session_segments|id|uuid|NOT NULL|gen_random_uuid()
 ops.session_segments|tenant_id|uuid|NOT NULL|-
 ops.session_segments|session_id|uuid|NOT NULL|-

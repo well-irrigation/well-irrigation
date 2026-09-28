@@ -565,6 +565,7 @@ class PostEndSessionSummaryDialog extends StatelessWidget {
     required this.totalDurationText,
     required this.sourceSummaries,
     required this.totalAmountMinor,
+    this.crops = const [],
     this.canRecordPayment = true,
     super.key,
   });
@@ -574,6 +575,7 @@ class PostEndSessionSummaryDialog extends StatelessWidget {
   final String totalDurationText;
   final List<SourceUsageSummary> sourceSummaries;
   final int? totalAmountMinor;
+  final List<String> crops;
   final bool canRecordPayment;
 
   @override
@@ -646,6 +648,16 @@ class PostEndSessionSummaryDialog extends StatelessWidget {
                   color: AppColors.deepBlue,
                 ),
               ),
+              if (crops.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'المحاصيل: ${crops.join('، ')}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.deepBlue,
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
 
               // تفصيل المصادر

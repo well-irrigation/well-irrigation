@@ -290,7 +290,7 @@ $moneyBlock
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 1. كرت الملخص العام
-            _buildSummaryCard(session),
+            _buildSummaryCard(session, crops: data.crops),
 
             const SizedBox(height: 16),
 
@@ -341,7 +341,10 @@ $moneyBlock
     );
   }
 
-  Widget _buildSummaryCard(SessionHistoryItem session) {
+  Widget _buildSummaryCard(
+    SessionHistoryItem session, {
+    List<String> crops = const [],
+  }) {
     // ق-99: أربع حالات كما يحسمها العقد، لا ثنائية «خالص / غير مدفوع».
     final Color statusColor;
     final String statusText;
@@ -433,6 +436,33 @@ $moneyBlock
                 ),
               ],
             ),
+
+            // المحاصيل كما حُفظت مع هذه الجلسة وقت بدئها (ق-131 البند 1):
+            // لقطة مستقلة لا تتبع الأرض، والجلسات الأقدم من الميزة
+            // بلا محاصيل فلا صف يُصطنع لها.
+            if (crops.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.eco_outlined,
+                    size: 16,
+                    color: AppColors.waterBlue,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'المحاصيل: ${crops.join('، ')}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
 
             const SizedBox(height: 12),
             // التفقيط المالي — لا تفقيط لمبلغ غير موجود.

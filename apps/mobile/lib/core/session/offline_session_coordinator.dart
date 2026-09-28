@@ -19,6 +19,7 @@ import '../sync/sync_engine.dart';
 import '../sync/sync_status.dart';
 import 'active_session_projector.dart';
 import 'active_session_record.dart';
+import 'session_crop_snapshot.dart';
 
 /// منسق جلسات السقي والعمل دون اتصال والمزامنة المتينة (ق-89 / ق-90 / ق-114)
 ///
@@ -588,6 +589,10 @@ class OfflineSessionCoordinator {
   }
 
   /// 1. بدء جلسة سقي جديدة وحفظها فوراً في الطابور المتين (ق-89 / ق-114)
+  ///
+  /// [crops] محاصيل هذه الجلسة (ق-131 البند 1): تسافر داخل أمر البدء
+  /// نفسه في الطابور المتين، فتصل إلى الخادم مع المزامنة ولا تختفي
+  /// بعدها، والفراغ مسموح ولا يمنع البدء.
   Future<CommandEnvelope> startSession({
     required String accountId,
     required String wellId,
@@ -595,6 +600,7 @@ class OfflineSessionCoordinator {
     required String farmId,
     required String farmerAccountId,
     required String energySource,
+    List<String> crops = const [],
     EntityReference? farmReference,
     EntityReference? farmerReference,
     DateTime? startedAt,
@@ -624,6 +630,7 @@ class OfflineSessionCoordinator {
         'p_farm_id': effectiveFarm,
         'p_farmer_well_account_id': effectiveFarmer,
         'p_energy_source': energySource,
+        'p_crops': normalizeCropSnapshot(crops),
       },
     );
 
