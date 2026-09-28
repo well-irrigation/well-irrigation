@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-09-28 — م-45/A: توثيق قبول محاصيل الجلسة المتعددة
+
+- **التفويض:** اختار المالك صراحةً أن ينفذ ChatGPT تحديث التوثيق لهذه الجولة عبر GitLab.
+- **الحالة:** البند 1 من ق-131 = **Implemented + Local Verified + Emulator UX Accepted**؛ الكود/Migration 105 ما زالا في شجرة العمل المحلية عند هذا التحديث، لذلك **GitLab integration وCloud verification Pending** ولا ادعاء Production.
+- **الأدلة:** قاعدة البيانات **44 ملفًا / 743 PASS** بعد تطبيق Migration 105 محليًا؛ Flutter **600/600 PASS** وتحليل نظيف؛ والمالك قبل على المحاكي ظهور المحاصيل في الجلسة النشطة وملخص الإنهاء والتفاصيل التاريخية، مع نجاح الجلسة بلا محصول وثبات اللقطة التاريخية.
+- **الملفات المزامنة:** `memory/DECISIONS.md`، `memory/OPEN_ISSUES.md`، `memory/PROGRESS.md`، `memory/RESUME_POINT.md`، `PROJECT_MAP.md`، `technical/DECISION_IMPLEMENTATION_MATRIX.md`، `technical/OPERATIONS_RECORDS_ARCHITECTURE.md`، `design/UX_UI_SPEC.md`، وهذا السجل.
+- **حد مهم:** لم يُحدَّث سقف الهجرات في `AGENTS.md` بعد، لأن Migration 105 لم تُدمج في GitLab عند هذه اللحظة؛ يُحدَّث ضمن نفس الجولة بعد وصول التنفيذ إلى الفرع.
+- **NEXT:** ضم التنفيذ المحلي إلى `feat/m45-session-crops`، ثم MR، ثم متابعة م-45/A بالطاقة الشمسية.
+
 ## 2026-09-28 — ق-131: اعتماد وتوثيق توسعة عقد التشغيل والمال والحجوزات والتقارير + م-45 + مزامنة الحالة بعد MR !19
 
 - **النوع:** دفعة توثيقية حوكمة خالصة — **لا كود ولا هجرة ولا اختبارات
