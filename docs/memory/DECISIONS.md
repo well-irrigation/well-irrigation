@@ -7341,7 +7341,7 @@ UX شاملة. الغرض: تثبيت العقد المعتمد كاملاً ف�
 | البند | الحالة |
 | --- | --- |
 | البنود 1–23 جميعها | Adopted + Documented (2026-09-28) |
-| البند 1 — محاصيل الجلسة | **Implemented + Local Verified + Emulator UX Accepted**؛ GitLab branch pushed؛ Merge/CI/Cloud Pending |
+| البند 1 — محاصيل الجلسة | **Implemented + Local Verified + CI Verified + Emulator UX Accepted**؛ MR !21 merged to `main`؛ Cloud/Production Pending |
 | البنود 2–23 | **Implementation Pending** |
 | الأساسات القائمة المذكورة أعلاه | موجودة قبل ق-131 ولا تُحسب تنفيذًا له |
 | المتتبع | م-45 مفتوحة |

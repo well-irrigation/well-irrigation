@@ -45,8 +45,8 @@
   **المتبقي:** قبول الجهاز الحقيقي لمساري العضو الجديد والحساب القائم
   وبقية بنود القسم أدناه.
 - م-45: **مفتوحة — Tracker (ق-131)** — العقد **Adopted + Documented**؛
-  **البند 1 (محاصيل الجلسة) Implemented + Local Verified + Emulator UX
-  Accepted**؛ GitLab branch pushed؛ Merge/CI/Cloud Pending، وبقية البنود Pending. التنفيذ بمراحل
+  **البند 1 (محاصيل الجلسة) Implemented + Local Verified + CI Verified + Emulator UX
+  Accepted**؛ MR !21 merged to `main`؛ Cloud/Production Pending، وبقية البنود Pending. التنفيذ بمراحل
   A–E مع إحالة إلزامية إلى م-28/م-29/م-30. التفصيل في قسمها أدناه.
 
 ### مغلقة ذات صلة مباشرة بالحالة الحالية
@@ -3451,8 +3451,8 @@ M103 يبقى دون تغيير، وباقي بنود م-44 تبقى مفتوح�
 ## م-45 — Q-131 Operator, Finance, Booking & Reporting Expansion / توسعة عقد التشغيل والمال والحجوزات والتقارير
 
 **الحالة:** مفتوحة — Tracker؛ العقد **Adopted + Documented (2026-09-28)**.
-**البند 1 (محاصيل الجلسة) Implemented + Local Verified + Emulator UX Accepted**؛
-GitLab branch pushed؛ Merge/CI/Cloud Pending، وبقية البنود Pending.
+**البند 1 (محاصيل الجلسة) Implemented + Local Verified + CI Verified + Emulator UX Accepted**؛
+MR !21 merged to `main`؛ Cloud/Production Pending، وبقية البنود Pending.
 **التاريخ:** 2026-09-28
 **القرار الحاكم:** ق-131 (المصدر الكامل في `memory/DECISIONS.md`)
 **مسائل الأساس:** **م-28** (السجلات والحجوزات والتسليم) و**م-29** (المال
@@ -3493,8 +3493,11 @@ Production Blocker بقرارها الخاص لا بعلاقة بها.
   **محاصيل الجلسة مكتملة محليًا ومقبولة UX على المحاكي**: صفر/واحد/عدة
   محاصيل، اقتراحات من جلسات المزرعة نفسها، إضافة محصول جديد، لقطة تاريخية
   مستقلة، وظهورها في الجلسة الجارية وملخص الإنهاء والتفاصيل التاريخية.
-  الدليل: Migration 105 محليًا، قاعدة **44 ملفًا / 743 PASS**، Flutter
-  **600/600 PASS** وتحليل نظيف. **GitLab branch pushed؛ Merge/CI/Cloud Pending**. المتبقي من
+  الدليل: Migration 105، قاعدة **44 ملفًا / 743 PASS**، Flutter
+  **600/600 PASS** وتحليل نظيف، وقبول UX على المحاكي؛ MR !21 دُمج إلى
+  `main` (`275a99f`) بعد MR pipeline `2887897982` = SUCCESS، وفحوص
+  post-merge على `main` في pipeline `2891224749`: app/database = SUCCESS
+  وproduction = MANUAL لم تُشغَّل. **Cloud/Production Pending**. المتبقي من
   المرحلة A: نافذة الشمس واختيار المصدر البديل والعدّاد المتبقي والتذكير
   والانتقال التلقائي المعتمد عند
   انتهاء نافذة الطاقة الشمسية؛ انتشار الزمن الفعلي في نماذج قراءة الجلسة/الفاتورة/التقرير؛

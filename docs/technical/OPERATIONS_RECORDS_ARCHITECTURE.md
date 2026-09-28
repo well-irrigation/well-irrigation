@@ -499,8 +499,8 @@ UX-13 لا تعتبر Production Complete حتى:
 ## 26. ق-131 — محاصيل الجلسة والحجوزات (معتمد توثيقيًا — 2026-09-28)
 
 **الحالة:** العقد Adopted + Documented. **محاصيل الجلسة (المرحلة A) =
-Implemented + Local Verified + Emulator UX Accepted (2026-09-28)**؛
-GitLab branch pushed؛ Merge/CI/Cloud Pending. **الحجوزات (المرحلة B) Pending**. التنفيذ عبر
+Implemented + Local Verified + CI Verified + Emulator UX Accepted (2026-09-29)**؛
+MR !21 merged to `main` (`275a99f`)؛ Cloud/Production Pending. **الحجوزات (المرحلة B) Pending**. التنفيذ عبر
 م-45 مع الإحالة الإلزامية إلى م-28. المصدر الحاكم: `memory/DECISIONS.md` ق-131.
 
 ### محاصيل الجلسة المتعددة (المرحلة A)
@@ -519,9 +519,12 @@ GitLab branch pushed؛ Merge/CI/Cloud Pending. **الحجوزات (المرحل�
   المستخدمة سابقًا في جلسات المزرعة نفسها، والجديد يصبح اقتراحًا لاحقًا.
 - لقطة المحاصيل تمر داخل أمر بدء الجلسة الدائم، وتظهر في الجلسة النشطة
   وملخص الإنهاء والتفاصيل التاريخية، ولا تعيد جلسة لاحقة كتابة القديمة.
-- **الدليل المحلي:** Migration `20260928010001_105_session_crops.sql`
+- **الدليل:** Migration `20260928010001_105_session_crops.sql`
   واختبارها الدائم؛ قاعدة **44/743 PASS**، Flutter **600/600 PASS**
-  وتحليل نظيف، وقبول UX من المالك على المحاكي. GitLab branch pushed؛ Merge/CI/Cloud Pending.
+  وتحليل نظيف، وقبول UX من المالك على المحاكي؛ MR !21 merged to `main`
+  (`275a99f`)؛ MR pipeline `2887897982` = SUCCESS؛ post-merge pipeline
+  `2891224749`: app/database = SUCCESS وproduction = MANUAL لم تُشغَّل.
+  **Cloud/Production Pending**.
 
 ### الحجوزات (المرحلة B — على أساس ق-98/م-28)
 
