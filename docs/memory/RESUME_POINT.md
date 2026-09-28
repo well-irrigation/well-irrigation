@@ -43,14 +43,16 @@ Migration 103 (أول شريحة Backend لمسار الحساب القائم/ا
 للدور (MR !17) ف**مسار مشاركة رمز الدعوة (MR !19)**. **رأس `main` الحالي
 = merge commit `573a657`**، وMR !19 pipeline `2886135900` = SUCCESS،
 وlatest main pipeline `2886143435` = manual لأن production يدوي —
-**ولا نشر إنتاجي لـ!19**. وبعد دمج MR !20 التوثيقي صار رأس `main`
-الحالي = `00b780d` وpipeline `2887593840` = manual؛ لا نشر Production.
-حالة الهجرات المدموجة في `main` ما زالت 104. **المالك أثبت ميدانيًا
-على جهاز Android حقيقي بعد MR !19 نجاح مسار مشاركة الدعوة** — وهذه
-الفجوة الفرعية وحدها أُغلقت من قبول ق-130. وفي 2026-09-28 اعتمد
-المالك **ق-131** وفتحت **م-45**؛ ثم نُفذ محليًا البند 1 (محاصيل
-الجلسة) وقُبل UX على المحاكي. Migration 105 والتطبيق رُفعا إلى GitLab على `feat/m45-session-crops`؛ Merge/CI/Cloud Pending.
-المتبقي الحاكم: دمج شريحة المحاصيل ثم متابعة م-45/A، مع بقاء م-44
+**ولا نشر إنتاجي لـ!19**. وبعد MR !20 ثم MR !21 صار رأس `main` الحالي
+= `275a99f`. MR !21 دمج Migration 105 ومحاصيل الجلسة؛ MR pipeline
+`2887897982` = SUCCESS، وpost-merge pipeline `2891224749` أنهى
+app/database = SUCCESS بينما production بقيت MANUAL ولم تُشغَّل.
+السحابة تبقى متحققة حتى 102 ولا نشر Production لـ105. **المالك أثبت
+ميدانيًا على جهاز Android حقيقي بعد MR !19 نجاح مسار مشاركة الدعوة** —
+وهذه الفجوة الفرعية وحدها أُغلقت من قبول ق-130. وفي 2026-09-28 اعتمد
+المالك **ق-131** وفتحت **م-45**؛ البند 1 (محاصيل الجلسة) أصبح
+**Implemented + Local Verified + CI Verified + Emulator UX Accepted**.
+المتبقي الحاكم: متابعة م-45/A بالطاقة الشمسية والبديل، مع بقاء م-44
 Production Blocker مستقلًا — والتفصيل في §4 أدناه.
 
 ## 3. خط الأساس المثبت — 2026-09-26
@@ -273,8 +275,8 @@ Production Blocker مستقلًا — والتفصيل في §4 أدناه.
 **ق-131 (2026-09-28): العقد Adopted + Documented كاملًا.** 23 بندًا
 موثقة في `DECISIONS.md`، والتنفيذ عبر **م-45** بمراحل A–E مع الإحالة
 الإلزامية إلى م-28/م-29/م-30. **البند 1 — محاصيل الجلسة — Implemented +
-Local Verified + Emulator UX Accepted**؛ GitLab branch pushed؛ Merge/CI/Cloud Pending.
-البنود 2–23 ما زالت Pending.
+Local Verified + CI Verified + Emulator UX Accepted**؛ MR !21 merged to
+`main` (`275a99f`)؛ Cloud/Production Pending. البنود 2–23 ما زالت Pending.
 مسار الحساب القائم في M103 يبقى كما هو، ونطاق م-44 المتبقي يستمر وفق
 ق-130. لا تُعاد حزم M101/M102 أو نشرها بلا سبب، ولا يُعدَّل
 `core.normalize_arabic`، ولا يُغلق م-21 بسبب اسم فرع.**

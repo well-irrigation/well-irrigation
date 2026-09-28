@@ -44,8 +44,8 @@
 `memory/DECISIONS.md`
 
 آخر قرار مرقم حاليًا: ق-131 — العقد **Adopted + Documented**.
-البند 1 «محاصيل الجلسة» = **Implemented + Local Verified + Emulator UX
-Accepted**؛ GitLab branch pushed؛ Merge/CI/Cloud Pending. البنود 2–23 Pending. المتتبع: م-45.
+البند 1 «محاصيل الجلسة» = **Implemented + Local Verified + CI Verified + Emulator UX
+Accepted**؛ MR !21 merged to `main` (`275a99f`)؛ Cloud/Production Pending. البنود 2–23 Pending. المتتبع: م-45.
 
 ### المستودع والنشر
 
@@ -86,8 +86,8 @@ Pending. حالة الهجرات ورقمها التالي يُؤخذان من `
 بمسار مورد واحد، قواعد المال وديزل المزارع وحيازة المشغل والمصروفات
 والمدينين، الأجهزة النشطة، مفهوم المنطقة، ولمسات UX شاملة).
 **الحالة:** العقد Adopted + Documented؛ **البند 1 (محاصيل الجلسة)
-Implemented + Local Verified + Emulator UX Accepted** محليًا،
-وGitLab branch pushed؛ Merge/CI/Cloud Pending. **البنود 2–23 ما زالت Implementation Pending**.
+Implemented + Local Verified + CI Verified + Emulator UX Accepted**؛
+MR !21 merged to `main` (`275a99f`)؛ Cloud/Production Pending. **البنود 2–23 ما زالت Implementation Pending**.
 
 - **المتتبع:** **م-45** في `memory/OPEN_ISSUES.md` — متتبع عابر للنطاقات
   بمراحل A–E، **يعتمد ويتنسق مع م-28 وم-29 وم-30 القائمتين ولا يستبدلهما
