@@ -28,6 +28,7 @@ Future<CommandEnvelope> startSession(
   OutboxRepository repository, {
   required DateTime at,
   String energySource = 'diesel',
+  List<String> crops = const [],
   String well = sessionWell,
   String account = sessionAccount,
 }) => repository.enqueue(
@@ -41,6 +42,7 @@ Future<CommandEnvelope> startSession(
     'p_farm_id': 'farm-0000-0009',
     'p_farmer_well_account_id': 'fwa-0000-0009',
     'p_energy_source': energySource,
+    'p_crops': crops,
   },
 );
 

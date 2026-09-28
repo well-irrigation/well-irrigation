@@ -21,6 +21,7 @@ import '../sync/command_type.dart';
 import '../sync/outbox_store.dart';
 import '../sync/sync_status.dart';
 import 'active_session_record.dart';
+import 'session_crop_snapshot.dart';
 import 'session_segment.dart';
 import 'time_integrity.dart';
 
@@ -123,9 +124,7 @@ class ActiveSessionProjector {
       timeContexts: timeContexts,
     );
 
-    return all
-        .where((session) => session.businessState.isActive)
-        .toList();
+    return all.where((session) => session.businessState.isActive).toList();
   }
 
   /// جلسات الحساب التي ما زالت جارية محليًا، أو اكتملت محليًا وبقي لها
@@ -138,8 +137,7 @@ class ActiveSessionProjector {
     return sessions
         .where(
           (session) =>
-              session.businessState.isActive ||
-              session.pendingCommandCount > 0,
+              session.businessState.isActive || session.pendingCommandCount > 0,
         )
         .toList(growable: false);
   }
@@ -253,9 +251,7 @@ class ActiveSessionProjector {
       ..sort((a, b) => a.sequence.compareTo(b.sequence));
 
     final flags = <TimeIntegrityFlag>{}
-      ..addAll(
-        checkEventOrdering([for (final e in ordered) e.occurredAt]),
-      );
+      ..addAll(checkEventOrdering([for (final e in ordered) e.occurredAt]));
 
     // «الآن» المستخدَم في العدّاد الجاري. بلا سياق زمني نستخدم [now] كما
     // وصل — الاستعادة يجب أن تنجح على جلسة قديمة سُجِّلت قبل أن توجد
@@ -278,11 +274,7 @@ class ActiveSessionProjector {
     DateTime? completedAt;
     var energySource = start.payload['p_energy_source'] as String?;
 
-    void openSegment(
-      SegmentKind kind,
-      DateTime at, {
-      String? pauseReason,
-    }) {
+    void openSegment(SegmentKind kind, DateTime at, {String? pauseReason}) {
       segments.add(
         SessionSegment(
           kind: kind,
@@ -360,7 +352,8 @@ class ActiveSessionProjector {
           payments.add(
             LocalPayment(
               localId: command.localId,
-              amountMinor: (command.payload['p_amount_minor'] as num?)?.toInt() ?? 0,
+              amountMinor:
+                  (command.payload['p_amount_minor'] as num?)?.toInt() ?? 0,
               paidAt: at,
               status: command.status,
               method: command.payload['p_method'] as String?,
@@ -390,13 +383,17 @@ class ActiveSessionProjector {
         start.payload['p_farmer_well_account_id'],
       ),
       pumpId: _referenceOrId(start.payload['p_pump_id']),
+      crops: _cropSnapshot(start.payload['p_crops']),
       startedAt: start.occurredAt.toUtc(),
       completedAt: completedAt,
       businessState: stateFromSegments(
         segments,
         completed: completedAt != null,
       ),
-      syncState: _syncStateOf(ordered, serverIdByLocalId[start.localId]?.serverId),
+      syncState: _syncStateOf(
+        ordered,
+        serverIdByLocalId[start.localId]?.serverId,
+      ),
       segments: List.unmodifiable(segments),
       totals: summarize(segments, effectiveNow),
       payments: List.unmodifiable(payments),
@@ -405,6 +402,11 @@ class ActiveSessionProjector {
       lastSuccessfulSyncAt: lastSync,
       oldestPendingAt: pendingCommands.firstOrNull?.occurredAt,
     );
+  }
+
+  static List<String> _cropSnapshot(Object? rawCrops) {
+    if (rawCrops is! Iterable) return const [];
+    return normalizeCropSnapshot(rawCrops);
   }
 
   /// هل النوع حدثًا على جلسة قائمة، أو دفعةً في سياقها؟

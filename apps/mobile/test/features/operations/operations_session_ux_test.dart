@@ -689,6 +689,7 @@ void main() {
           farmId: 'farm-1',
           farmerAccountId: 'farmer-1',
           energySource: 'solar',
+          crops: ['قات'],
           startedAt: t0,
         );
 
@@ -764,6 +765,7 @@ void main() {
         // 34. ظهور ملخص ما بعد الإنهاء منفصلاً عن السداد
         expect(find.text('ملخص الجلسة'), findsOneWidget);
         expect(find.text('منتهي'), findsOneWidget);
+        expect(find.text('المحاصيل: قات'), findsOneWidget);
         expect(find.text('تسجيل دفعة'), findsOneWidget);
         expect(find.text('إغلاق'), findsOneWidget);
         expect(

@@ -492,6 +492,7 @@ class SessionDetailData {
   const SessionDetailData({
     required this.session,
     required this.segments,
+    this.crops = const [],
     this.paymentMethod,
     this.paymentReference,
     this.paidAt,
@@ -499,6 +500,10 @@ class SessionDetailData {
 
   final SessionHistoryItem session;
   final List<SessionSegmentItem> segments;
+
+  /// محاصيل هذه الجلسة كما حُفظت وقت بدئها (ق-131 البند 1) — لقطة
+  /// مستقلة لا تتبع الأرض، والجلسات الأقدم من الميزة قائمة فارغة.
+  final List<String> crops;
   final String? paymentMethod;
   final String? paymentReference;
   final DateTime? paidAt;
@@ -754,12 +759,16 @@ class OperationsRepository {
   /// كتابات الجلسة الخمس (بدء/إيقاف/استئناف/تغيير طاقة/إنهاء) ترفض العمل
   /// بلا عميل. العودة بنجاح صامت — أو بمعرّف جلسة مُلفَّق — كانت تُظهر
   /// للمشغّل جلسة لا وجود لها في القاعدة (ق-113 / م-41D4).
+  ///
+  /// [crops] محاصيل هذه الجلسة (ق-131 البند 1): لقطة اختيارية تُحفظ مع
+  /// الجلسة نفسها على الخادم، والفراغ مسموح ولا يمنع البدء.
   Future<String> startIrrigationSession({
     required String wellId,
     required String pumpId,
     required String farmId,
     required String farmerAccountId,
     required String energySource,
+    List<String> crops = const [],
     String? commandId,
   }) async {
     final client = _effectiveClient;
@@ -777,11 +786,39 @@ class OperationsRepository {
             'p_farm_id': farmId,
             'p_farmer_well_account_id': farmerAccountId,
             'p_energy_source': energySource,
+            'p_crops': crops,
             if (commandId != null) ...{'p_command_id': commandId},
           },
         );
 
     return result.toString();
+  }
+
+  /// جلب المحاصيل المستخدمة سابقًا في جلسات الأرض عبر عقد
+  /// `api.list_farm_recent_crops` (ق-131 البند 1): الاقتراحات مشتقة من
+  /// التاريخ لا من قائمة ثابتة، والفشل يصل إلى الشاشة صريحًا.
+  Future<List<String>> fetchFarmRecentCrops({required String farmId}) async {
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+
+    final response = await client
+        .schema('api')
+        .rpc('list_farm_recent_crops', params: {'p_farm_id': farmId});
+
+    return cropsFromContract(response);
+  }
+
+  /// قراءة قائمة المحاصيل من ردّ العقد كما هو: مصفوفة نصوص تحت مفتاح
+  /// `crops`، والغائب قائمة فارغة لا اختراع (ق-131 البند 1).
+  static List<String> cropsFromContract(Object? response) {
+    if (response is! Map) {
+      throw StateError('استجابة عقد محاصيل الأرض غير متوقعة');
+    }
+    return (response['crops'] as List<dynamic>? ?? const [])
+        .map((e) => e.toString())
+        .toList();
   }
 
   /// إيقاف الجلسة مؤقتاً (api.pause_irrigation_session)
@@ -969,11 +1006,14 @@ class OperationsRepository {
         ? Map<String, dynamic>.from(paymentJson)
         : const <String, dynamic>{};
 
+    final crops = cropsFromContract(response);
+
     return SessionDetailData(
       session: SessionHistoryItem.fromContract(
         Map<String, dynamic>.from(sessionJson),
       ),
       segments: segments,
+      crops: crops,
       paymentMethod: payment['method'] as String?,
       paymentReference: payment['reference'] as String?,
       paidAt: payment['paid_at'] != null

@@ -72,6 +72,15 @@ class _OperationsScreenState extends State<OperationsScreen>
   List<Pump> _pumps = [];
   List<FarmerIdentityReview> _activeWellReviews = const [];
 
+  // محاصيل الجلسة (ق-131 البند 1): الاقتراحات من جلسات الأرض السابقة
+  // حصرًا، والاختيار حر غير مانع، والبدء بلا محاصيل ممكن.
+  List<String> _farmCropSuggestions = const [];
+  List<String> _selectedCrops = const [];
+  bool _isLoadingCrops = false;
+  String? _cropsError;
+  int _cropLoadGeneration = 0;
+  final TextEditingController _newCropController = TextEditingController();
+
   /// رمز مصدر الطاقة: يبدأ فارغًا (null) قبل كل جلسة جديدة وفق ق-129
   /// (لا اختيار افتراضي تلقائي ذو أثر تشغيلي أو مالي).
   String? _energySourceCode;
@@ -412,6 +421,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         _activeSession = null;
         _isSessionActive = false;
         _activeSessionId = null;
+        _resetCropSelection();
       });
       _loadPumps();
       _loadPriceSchedule();
@@ -423,8 +433,72 @@ class _OperationsScreenState extends State<OperationsScreen>
   void dispose() {
     _timer?.cancel();
     _activeSessionSubscription?.cancel();
+    _newCropController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// تحميل اقتراحات محاصيل الأرض من عقد `api.list_farm_recent_crops`
+  /// (ق-131 البند 1): الفشل صريح مع إعادة محاولة ولا يمنع بدء الجلسة.
+  Future<void> _loadFarmCrops() async {
+    final farmId = _selectedFarm?.id;
+    if (farmId == null || farmId.isEmpty) return;
+    final generation = ++_cropLoadGeneration;
+    setState(() {
+      _isLoadingCrops = true;
+      _cropsError = null;
+    });
+    try {
+      final crops = await _repo.fetchFarmRecentCrops(farmId: farmId);
+      if (!mounted || generation != _cropLoadGeneration) return;
+      setState(() {
+        _farmCropSuggestions = crops;
+        _isLoadingCrops = false;
+      });
+    } catch (e) {
+      if (!mounted || generation != _cropLoadGeneration) return;
+      setState(() {
+        _cropsError = 'تعذر تحميل محاصيل الأرض السابقة: $e';
+        _isLoadingCrops = false;
+      });
+    }
+  }
+
+  /// خيارات القسم: اقتراحات الأرض أولًا ثم ما أضافه المشغل حديثًا.
+  List<String> get _cropChoices {
+    final choices = List<String>.from(_farmCropSuggestions);
+    for (final crop in _selectedCrops) {
+      if (!choices.contains(crop)) choices.add(crop);
+    }
+    return choices;
+  }
+
+  void _toggleCrop(String crop) {
+    setState(() {
+      if (_selectedCrops.contains(crop)) {
+        _selectedCrops = List<String>.from(_selectedCrops)..remove(crop);
+      } else {
+        _selectedCrops = List<String>.from(_selectedCrops)..add(crop);
+      }
+    });
+  }
+
+  void _addNewCrop() {
+    final name = _newCropController.text.trim();
+    _newCropController.clear();
+    if (name.isEmpty || _selectedCrops.contains(name)) return;
+    setState(() {
+      _selectedCrops = List<String>.from(_selectedCrops)..add(name);
+    });
+  }
+
+  void _resetCropSelection() {
+    _cropLoadGeneration++;
+    _farmCropSuggestions = const [];
+    _selectedCrops = const [];
+    _isLoadingCrops = false;
+    _cropsError = null;
+    _newCropController.clear();
   }
 
   Future<void> _loadPumps() async {
@@ -873,6 +947,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         farmReference: _selectedFarm!.entityReference,
         farmerReference: _selectedFarmer!.entityReference,
         energySource: energySourceCode,
+        crops: List<String>.from(_selectedCrops),
         startedAt: _now(),
       );
       sessionLocalId = envelope.localId;
@@ -1206,6 +1281,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         _selectedFarm = null;
         _energySourceCode = null;
         _selectedPump = solePump;
+        _resetCropSelection();
       });
 
       if (!mounted) return;
@@ -1220,6 +1296,7 @@ class _OperationsScreenState extends State<OperationsScreen>
           totalDurationText: durationText,
           sourceSummaries: sourceSummaries,
           totalAmountMinor: totalAmount,
+          crops: activeSession.crops,
           canRecordPayment: endedWellId != null && paymentFarmerId != null,
         ),
       );
@@ -1515,6 +1592,7 @@ class _OperationsScreenState extends State<OperationsScreen>
               _activeSession = null;
               _isSessionActive = false;
               _activeSessionId = null;
+              _resetCropSelection();
             });
             _loadPumps();
             _loadPriceSchedule();
@@ -1817,6 +1895,46 @@ class _OperationsScreenState extends State<OperationsScreen>
                       ),
                     ],
 
+                    // لقطة المحاصيل المختارة عند بدء الجلسة، لا اقتراحات
+                    // الأرض الحالية ولا قيمة مشتقة بعد ذلك.
+                    if (_isSessionActive &&
+                        activeSession != null &&
+                        activeSession.crops.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.eco_outlined,
+                              size: 18,
+                              color: AppColors.agriculturalGreen,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'المحاصيل: ${activeSession.crops.join('، ')}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.deepBlue,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     // زر تحويل الطاقة في الجلسة الجارية (ق-129 / C3 / C4)
                     if (_isSessionActive) ...[
                       const SizedBox(height: 6),
@@ -1887,6 +2005,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                           setState(() {
                             _selectedFarmer = farmer;
                             _selectedFarm = null;
+                            _resetCropSelection();
                           });
                         },
                         onAddNew: _showAddFarmerDialog,
@@ -1908,11 +2027,124 @@ class _OperationsScreenState extends State<OperationsScreen>
                         itemSecondaryLabel: (f) =>
                             f.isPending ? 'محفوظ على الجهاز' : null,
                         searchFunction: _searchFarms,
-                        onChanged: (farm) =>
-                            setState(() => _selectedFarm = farm),
+                        onChanged: (farm) {
+                          setState(() {
+                            _selectedFarm = farm;
+                            _resetCropSelection();
+                          });
+                          if (farm != null) _loadFarmCrops();
+                        },
                         onAddNew: _showAddFarmDialog,
                         addNewLabel: 'إضافة أرض جديدة',
                       ),
+
+                      // د) المحاصيل (ق-131 البند 1): تظهر بعد اختيار الأرض.
+                      // الاقتراحات محاصيل جلسات هذه الأرض السابقة، والاختيار
+                      // حر غير مانع، والبدء بلا محاصيل ممكن.
+                      if (_selectedFarm != null) ...[
+                        const SizedBox(height: 14),
+                        const Text(
+                          'المحاصيل',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepBlue,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        if (_cropsError != null)
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.error_outline_rounded,
+                                color: AppColors.error,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _cropsError!,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _loadFarmCrops,
+                                child: const Text('إعادة'),
+                              ),
+                            ],
+                          )
+                        else if (_isLoadingCrops)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(8),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else ...[
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final crop in _cropChoices)
+                                FilterChip(
+                                  label: Text(crop),
+                                  selected: _selectedCrops.contains(crop),
+                                  onSelected: (_) => _toggleCrop(crop),
+                                ),
+                            ],
+                          ),
+                          // ملخص ما قبل البدء: المختار صريحًا قبل زر البدء.
+                          if (_selectedCrops.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                'المحاصيل المختارة: '
+                                '${_selectedCrops.join('، ')}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.agriculturalGreen,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _newCropController,
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) => _addNewCrop(),
+                                  decoration: InputDecoration(
+                                    hintText: 'إضافة محصول جديد...',
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.border,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'إضافة المحصول',
+                                onPressed: _addNewCrop,
+                                icon: const Icon(Icons.add_circle_outline),
+                                color: AppColors.agriculturalGreen,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
                       const SizedBox(height: 14),
 
                       // ج) اختيار المضخة العاملة (A4)
