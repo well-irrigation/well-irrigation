@@ -192,6 +192,103 @@ void main() {
     });
 
     testWidgets(
+      'تسميات المدة لا تُشتبه: الفعلي بسطره والمفوتر بعنوانه المالي (ق-131)',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Scaffold(
+                body: PaymentReceiptDialog(
+                  wellName: 'بئر 1',
+                  operatorName: 'مشغل',
+                  farmerName: 'مزارع',
+                  farmName: 'أرض',
+                  energySource: 'طاقة شمسية',
+                  hourlyRateYER: 3600,
+                  // 50 دقيقة تشغيل + 10 دقائق توقف غير محسوبة:
+                  // فعلي 3600 ومفوتر 3000.
+                  actualSeconds: 3600,
+                  billableSeconds: 3000,
+                  totalAmountYER: 3000,
+                  onConfirmPayment: ({
+                    required int paidAmountYER,
+                    required String paymentMethod,
+                    required bool isFullySettled,
+                  }) async {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // السطران مستقلان بقيمهما الصحيحة.
+        expect(find.text('مدة التنفيذ الفعلية:'), findsOneWidget);
+        expect(find.text('1 س : 0 د : 0 ث'), findsOneWidget);
+        expect(find.text('الوقت المفوتر:'), findsOneWidget);
+        expect(find.text('0 س : 50 د : 0 ث'), findsOneWidget);
+        // الصياغة المحظورة زالت كلها: المفوتر لا يُسمى فعليًا أبدًا.
+        expect(find.textContaining('مدة السقي الفعلية'), findsNothing);
+
+        // معاينة الإيصال الحراري تحمل التمييز نفسه.
+        final previewFinder = find.text('معاينة قالب الإيصال الحراري (58mm)');
+        await tester.ensureVisible(previewFinder);
+        await tester.tap(previewFinder);
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('- مدة التنفيذ الفعلية: 1 ساعة و 0 دقيقة'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('- الوقت المفوتر: 0 ساعة و 50 دقيقة'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('- المدة:'), findsNothing);
+      },
+    );
+
+    testWidgets('بلا فعلي متوفر: المفوتر بعنوانه وحده بلا تلفيق (ق-131)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: PaymentReceiptDialog(
+                wellName: 'بئر 1',
+                operatorName: 'مشغل',
+                farmerName: 'مزارع',
+                farmName: 'أرض',
+                energySource: 'طاقة شمسية',
+                hourlyRateYER: 3500,
+                billableSeconds: 7200,
+                totalAmountYER: 7000,
+                onConfirmPayment: ({
+                  required int paidAmountYER,
+                  required String paymentMethod,
+                  required bool isFullySettled,
+                }) async {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('الوقت المفوتر:'), findsOneWidget);
+      expect(find.text('2 س : 0 د : 0 ث'), findsOneWidget);
+      expect(find.text('مدة التنفيذ الفعلية:'), findsNothing);
+      expect(find.textContaining('مدة السقي الفعلية'), findsNothing);
+    });
+
+    testWidgets(
       'زر الطباعة يعلن عدم توفرها ولا يدّعي إرسال أمر طباعة (ق-113 / م-41D4)',
       (tester) async {
         tester.view.physicalSize = const Size(800, 1400);

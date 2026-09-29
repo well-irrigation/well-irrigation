@@ -92,22 +92,29 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     // ق-99: لا نطبع فاتورة لجلسة لم تُفوتر بعد بدل اختراع أصفار.
     if (!session.hasCharge) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('هذه الجلسة غير مفوترة بعد — لا يمكن طباعة فاتورة لها')),
+        const SnackBar(
+          content: Text('هذه الجلسة غير مفوترة بعد — لا يمكن طباعة فاتورة لها'),
+        ),
       );
       return;
     }
 
+    // التسعيرة المعروضة كمية مالية: تُشتق من المفوتر المخزَّن وحده
+    // (ق-131 البند 7: الفعلي للمدة، والمفوتر للمال).
     final hourlyRate = session.billableSeconds > 0
         ? ((session.totalAmountYER * 3600) ~/ session.billableSeconds)
         : 0;
 
     final receiptText = ReceiptFormatter.formatSessionInvoice(
-      invoiceNumber: session.id.substring(0, session.id.length > 8 ? 8 : session.id.length).toUpperCase(),
+      invoiceNumber: session.id
+          .substring(0, session.id.length > 8 ? 8 : session.id.length)
+          .toUpperCase(),
       wellName: widget.wellName,
       farmerName: session.farmerName,
       farmName: session.farmName,
       operatorName: session.operatorName,
       date: session.startedAt,
+      actualSeconds: session.actualSeconds,
       billableSeconds: session.billableSeconds,
       energySource: session.energySource,
       hourlyRateYER: hourlyRate,
@@ -122,7 +129,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           children: const [
             Icon(Icons.print, color: AppColors.deepBlue),
             SizedBox(width: 8),
-            Text('معاينة الفاتورة الحرارية (58mm)', style: TextStyle(fontSize: 16)),
+            Text(
+              'معاينة الفاتورة الحرارية (58mm)',
+              style: TextStyle(fontSize: 16),
+            ),
           ],
         ),
         content: Container(
@@ -152,7 +162,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               Clipboard.setData(ClipboardData(text: receiptText));
               Navigator.of(ctx).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('تم نسخ الفاتورة إلى الحافظة بنجاح ✅')),
+                const SnackBar(
+                  content: Text('تم نسخ الفاتورة إلى الحافظة بنجاح ✅'),
+                ),
               );
             },
             child: const Text('نسخ النص'),
@@ -167,7 +179,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             onPressed: () {
               Navigator.of(ctx).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('تم إرسال أمر الطباعة عبر البلوتوث 🖨️')),
+                const SnackBar(
+                  content: Text('تم إرسال أمر الطباعة عبر البلوتوث 🖨️'),
+                ),
               );
             },
           ),
@@ -185,26 +199,43 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       // ق-99: الجلسة غير المفوترة تُشارك بلا مبالغ مخترعة.
       moneyBlock = 'الحالة: غير مفوترة بعد — لا مبلغ مستحق مسجل';
     } else {
-      moneyBlock = '''
+      moneyBlock =
+          '''
 المبلغ: ${CurrencyUtils.formatAmount(s.totalAmountYER)} ريال يمني (${Tafqeet.format(s.totalAmountYER)})
 المدفوع: ${CurrencyUtils.formatAmount(s.paidAmountYER)} ريال يمني
 المتبقي: ${CurrencyUtils.formatAmount(s.remainingAmountYER)} ريال يمني
 الحالة: ${s.isFullySettled ? 'خالص بالكامل ✅' : 'آجل / متبقي 🔴'}''';
     }
 
-    final text = '''
+    // المدة التشغيلية بالفعلي أولًا وبعنوان صريح (ق-131 البند 7)،
+    // والمفوتر لا يظهر إلا مميزًا حين يختلف عنه.
+    final durationBlock = StringBuffer(
+      'مدة التنفيذ الفعلية: ${s.actualSeconds == null ? '—' : _formatDuration(s.actualSeconds!)}',
+    );
+    if (s.hasCharge &&
+        s.actualSeconds != null &&
+        s.billableSeconds != s.actualSeconds) {
+      durationBlock.write(
+        '\nالوقت المفوتر: ${_formatDuration(s.billableSeconds)}',
+      );
+    }
+
+    final text =
+        '''
 إشعار سقي — ${widget.wellName}
 المزارع: ${s.farmerName} (${s.farmerCode})
 الأرض: ${s.farmName}
 المضخة: ${s.pumpName}
 التاريخ: ${s.startedAt.year}/${s.startedAt.month}/${s.startedAt.day}
-المدة: ${_formatDuration(s.billableSeconds)}
+$durationBlock
 $moneyBlock
 ''';
 
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم نسخ ملخص الجلسة للمشاركة عبر واتساب 📤')),
+      const SnackBar(
+        content: Text('تم نسخ ملخص الجلسة للمشاركة عبر واتساب 📤'),
+      ),
     );
   }
 
@@ -263,11 +294,18 @@ $moneyBlock
           children: [
             Text(
               'تفاصيل جلسة #${session.id.substring(0, session.id.length > 6 ? 6 : session.id.length)}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
             Text(
               widget.wellName,
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -312,10 +350,22 @@ $moneyBlock
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       side: const BorderSide(color: AppColors.deepBlue),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                    icon: const Icon(Icons.share, color: AppColors.deepBlue, size: 18),
-                    label: const Text('مشاركة الإيصال', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                    icon: const Icon(
+                      Icons.share,
+                      color: AppColors.deepBlue,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'مشاركة الإيصال',
+                      style: TextStyle(
+                        color: AppColors.deepBlue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     onPressed: _shareReceiptText,
                   ),
                 ),
@@ -326,10 +376,15 @@ $moneyBlock
                       backgroundColor: AppColors.deepBlue,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     icon: const Icon(Icons.print, size: 18),
-                    label: const Text('طباعة الفاتورة', style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: const Text(
+                      'طباعة الفاتورة',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     onPressed: _showPrintPreview,
                   ),
                 ),
@@ -381,17 +436,27 @@ $moneyBlock
                   children: [
                     Text(
                       session.farmerName,
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${session.farmName} • كود: ${session.farmerCode}',
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -416,14 +481,35 @@ $moneyBlock
             // شبكة التفاصيل
             Row(
               children: [
-                Expanded(child: _buildDetailCell('المضخة', session.pumpName, Icons.water_drop_outlined)),
-                Expanded(child: _buildDetailCell('المشغل', session.operatorName, Icons.badge_outlined)),
+                Expanded(
+                  child: _buildDetailCell(
+                    'المضخة',
+                    session.pumpName,
+                    Icons.water_drop_outlined,
+                  ),
+                ),
+                Expanded(
+                  child: _buildDetailCell(
+                    'المشغل',
+                    session.operatorName,
+                    Icons.badge_outlined,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _buildDetailCell('مدة السقي', _formatDuration(session.billableSeconds), Icons.timer_outlined)),
+                Expanded(
+                  child: _buildDetailCell(
+                    // المدة المعروضة تشغيلية فعلية لا مفوترة (ق-131 البند 7).
+                    'مدة التنفيذ الفعلية',
+                    session.actualSeconds == null
+                        ? '—'
+                        : _formatDuration(session.actualSeconds!),
+                    Icons.timer_outlined,
+                  ),
+                ),
                 Expanded(
                   child: _buildDetailCell(
                     'إجمالي الفاتورة',
@@ -468,32 +554,45 @@ $moneyBlock
             // التفقيط المالي — لا تفقيط لمبلغ غير موجود.
             if (session.hasCharge)
               Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.spellcheck, size: 16, color: AppColors.waterBlue),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'فقط ${Tafqeet.format(session.totalAmountYER)} لا غير.',
-                      style: const TextStyle(fontSize: 12, color: AppColors.deepBlue, fontWeight: FontWeight.w600),
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.spellcheck,
+                      size: 16,
+                      color: AppColors.waterBlue,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'فقط ${Tafqeet.format(session.totalAmountYER)} لا غير.',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.deepBlue,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailCell(String label, String value, IconData icon, {bool isBold = false}) {
+  Widget _buildDetailCell(
+    String label,
+    String value,
+    IconData icon, {
+    bool isBold = false,
+  }) {
     return Row(
       children: [
         Icon(icon, size: 16, color: AppColors.waterBlue),
@@ -501,7 +600,10 @@ $moneyBlock
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
             Text(
               value,
               style: TextStyle(
@@ -534,14 +636,21 @@ $moneyBlock
                 SizedBox(width: 8),
                 Text(
                   'الخط الزمني وتغيرات الطاقة (Timeline)',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepBlue,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
 
             if (segments.isEmpty)
-              const Text('لا توجد تفاصيل مقاطع مسجلة', style: TextStyle(fontSize: 13, color: AppColors.textMuted))
+              const Text(
+                'لا توجد تفاصيل مقاطع مسجلة',
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+              )
             else
               ListView.builder(
                 shrinkWrap: true,
@@ -567,7 +676,9 @@ $moneyBlock
         : (isSolar ? AppColors.agriculturalGreen : Colors.orange);
     final icon = isPause
         ? Icons.pause_circle_outline
-        : (isSolar ? Icons.wb_sunny_outlined : Icons.local_gas_station_outlined);
+        : (isSolar
+              ? Icons.wb_sunny_outlined
+              : Icons.local_gas_station_outlined);
 
     return IntrinsicHeight(
       child: Row(
@@ -605,10 +716,14 @@ $moneyBlock
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isPause ? AppColors.warning.withValues(alpha: 0.05) : AppColors.surface,
+                  color: isPause
+                      ? AppColors.warning.withValues(alpha: 0.05)
+                      : AppColors.surface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isPause ? AppColors.warning.withValues(alpha: 0.2) : AppColors.border.withValues(alpha: 0.5),
+                    color: isPause
+                        ? AppColors.warning.withValues(alpha: 0.2)
+                        : AppColors.border.withValues(alpha: 0.5),
                   ),
                 ),
                 child: Column(
@@ -618,16 +733,23 @@ $moneyBlock
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          isPause ? seg.typeLabel : 'تشغيل عبر ${seg.energySource}',
+                          isPause
+                              ? seg.typeLabel
+                              : 'تشغيل عبر ${seg.energySource}',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: isPause ? AppColors.warning : AppColors.deepBlue,
+                            color: isPause
+                                ? AppColors.warning
+                                : AppColors.deepBlue,
                           ),
                         ),
                         Text(
                           _formatTimeOnly(seg.startedAt),
-                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                       ],
                     ),
@@ -635,11 +757,17 @@ $moneyBlock
                     if (isPause) ...[
                       Text(
                         'محسوب على المزارع: ${seg.isBillable ? 'نعم' : 'لا'}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       Text(
                         'مدة التوقف: ${_formatDuration(seg.actualSeconds)}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     ] else ...[
                       Row(
@@ -647,18 +775,28 @@ $moneyBlock
                         children: [
                           Text(
                             'المدة: ${_formatDuration(seg.actualSeconds)} • المحسوبة: ${_formatDuration(seg.billableSeconds)}',
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                           Text(
                             '${CurrencyUtils.formatAmount(seg.totalChargeYER)} ريال',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepBlue,
+                            ),
                           ),
                         ],
                       ),
                       if (seg.appliedRateYER > 0)
                         Text(
                           'التسعيرة المثبتة: ${CurrencyUtils.formatAmount(seg.appliedRateYER)} ر/س',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                     ],
                   ],
@@ -686,11 +824,19 @@ $moneyBlock
           children: [
             Row(
               children: const [
-                Icon(Icons.receipt_long_outlined, color: AppColors.deepBlue, size: 20),
+                Icon(
+                  Icons.receipt_long_outlined,
+                  color: AppColors.deepBlue,
+                  size: 20,
+                ),
                 SizedBox(width: 8),
                 Text(
                   'تفاصيل السداد وسند القبض',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepBlue,
+                  ),
                 ),
               ],
             ),
@@ -699,10 +845,20 @@ $moneyBlock
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('إجمالي المستحق:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                const Text(
+                  'إجمالي المستحق:',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 CurrencyDisplay(
                   amount: s.totalAmountYER,
-                  amountStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                  amountStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepBlue,
+                  ),
                 ),
               ],
             ),
@@ -710,10 +866,20 @@ $moneyBlock
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('المبلغ المدفوع:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                const Text(
+                  'المبلغ المدفوع:',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 CurrencyDisplay(
                   amount: s.paidAmountYER,
-                  amountStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.agriculturalGreen),
+                  amountStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.agriculturalGreen,
+                  ),
                 ),
               ],
             ),
@@ -721,13 +887,21 @@ $moneyBlock
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('المتبقي على المزارع:', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                const Text(
+                  'المتبقي على المزارع:',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 CurrencyDisplay(
                   amount: s.remainingAmountYER,
                   amountStyle: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: s.remainingAmountYER > 0 ? AppColors.error : AppColors.textMuted,
+                    color: s.remainingAmountYER > 0
+                        ? AppColors.error
+                        : AppColors.textMuted,
                   ),
                 ),
               ],
@@ -742,12 +916,19 @@ $moneyBlock
                 Text(
                   // لا نفترض «نقداً»: طريقة السداد تأتي من الدفعة المرحّلة أو لا تأتي.
                   'طريقة السداد: ${data.paymentMethod ?? 'غير مسجلة'}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 if (data.paidAt != null)
                   Text(
                     'تاريخ السداد: ${data.paidAt!.year}/${data.paidAt!.month}/${data.paidAt!.day}',
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
                   ),
               ],
             ),

@@ -443,14 +443,19 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   MR !21 merged to `main` (`275a99f`)؛ MR pipeline `2887897982` = SUCCESS؛
   post-merge pipeline `2891224749`: app/database = SUCCESS وproduction
   = MANUAL لم تُشغَّل. **Cloud/Production Pending**.
-  البنود 2–23 Pending. الأساسات السابقة لا تُحسب تنفيذًا لبنود ق-131.
+  **البند 7 — الزمن الفعلي مقابل المفوتر — Implemented + Local Verified /
+  GitLab Branch Pushed / CI + Merge + Cloud Pending (2026-09-29)**:
+  Migration 106، قاعدة **45/757 PASS**، Flutter **611/611 PASS**،
+  وcommit `400bd98`. بقية البنود عدا 1 و7 Pending. الأساسات السابقة لا
+  تُحسب تنفيذًا لبنود ق-131.
 - **المراحل:** A) المحاصيل المتعددة، نافذة الشمس والبديل والانتقال
   التلقائي، الزمن الفعلي، تحذير المزارع، تأكيد تطبيق المقدم، تقدير ديزل
   المزارع، حيازة المشغل، مرفقات المصروفات — قبل قبول نهائي متجدد لمسار
   المشغل.
 - **ترتيب الاستئناف المؤقت (2026-09-29):** قرار المالك يؤجل جولة نافذة
-  الشمس/البديل/العدّاد/الانتقال التلقائي دون إسقاطها من المرحلة A؛
-  **NEXT = انتشار الزمن الفعلي في نماذج قراءة الجلسة/الفاتورة/التقرير**.
+  الشمس/البديل/العدّاد/الانتقال التلقائي دون إسقاطها من المرحلة A؛ بعد
+  إكمال الزمن الفعلي محليًا، **NEXT = تحذير المزارع المالي/الوقودي غير
+  المانع**.
  B) إتمام الحجوزات تحت م-28 بقاعدة المسار الواحد. C) الفاتورة
   الرسمية: PDF/حفظ/طباعة/مشاركة. D) المنطقة والمدينون وتصفية التقارير
   والأجهزة النشطة ولمسات التحديث/الحفظ. E) الإشعارات الواسعة منفصلة
@@ -460,4 +465,4 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   تفرض هجرة قاعدة بيانات بذاتها. الكتابة والقراءة عبر عقود `api` حصرًا،
   واختبارات Flutter عند الانطباق، وقبول جهاز حقيقي للبنود الحرجة.
   **لا رقم هجرة مُنسوخ في هذه الوثيقة.**
-- **الحالة:** **Adopted + Documented / Partial Implementation (م-45): Item 1 Local Verified + Emulator UX Accepted + GitLab Branch Pushed / Merge + CI + Cloud Pending / Items 2–23 Pending**.
+- **الحالة:** **Adopted + Documented / Partial Implementation (م-45): Item 1 Implemented + Local Verified + CI Verified + Emulator UX Accepted؛ Item 7 Implemented + Local Verified + GitLab Branch Pushed / CI + Merge + Cloud Pending؛ بقية البنود Pending**.

@@ -314,14 +314,14 @@ begin
   begin
     v_payload := api.get_reports_summary(v_well, 'today');
 
-    if v_payload ->> 'contract' = 'get_reports_summary'
-       and (v_payload ->> 'version')::int = 2
-       and v_payload ->> 'timezone' = 'Asia/Aden'
-       and v_payload ->> 'session_day_basis' = 'ended_at'
-       and v_payload ->> 'week_starts_on' = 'saturday'
-       and (v_payload ->> 'period_start') is not null
-    then
-      raise notice 'PASS 9: المغلَّف يعلن المنطقة وأساس اليوم والنسخة 2';
+  if v_payload ->> 'contract' = 'get_reports_summary'
+     and (v_payload ->> 'version')::int = 3
+     and v_payload ->> 'timezone' = 'Asia/Aden'
+     and v_payload ->> 'session_day_basis' = 'ended_at'
+     and v_payload ->> 'week_starts_on' = 'saturday'
+     and (v_payload ->> 'period_start') is not null
+  then
+    raise notice 'PASS 9: المغلَّف يعلن المنطقة وأساس اليوم والنسخة 3';
     else
       raise notice 'FAIL 9: مغلَّف غير متوقَّع — %',
         (v_payload - 'totals' - 'daily_irrigation'

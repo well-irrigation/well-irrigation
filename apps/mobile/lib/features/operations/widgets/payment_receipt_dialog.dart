@@ -18,6 +18,7 @@ class PaymentReceiptDialog extends StatefulWidget {
     required this.energySource,
     required this.hourlyRateYER,
     required this.billableSeconds,
+    this.actualSeconds,
     required this.totalAmountYER,
     required this.onConfirmPayment,
     super.key,
@@ -30,6 +31,12 @@ class PaymentReceiptDialog extends StatefulWidget {
   final String energySource;
   final int? hourlyRateYER;
   final int billableSeconds;
+
+  /// مدة التنفيذ الفعلية إن وفرها المستدعي من حصيلة المقاطع نفسها
+  /// (`wallClockSeconds` — كامل الخط الزمني المسجَّل قبل الإنهاء).
+  /// غيابها يعني أنها غير متوفرة فلا تُعرض ولا تُخترع محليًا
+  /// (ق-131 البند 7). لا يدخل في أي حساب مالي.
+  final int? actualSeconds;
   final int totalAmountYER;
   final Future<void> Function({
     required int paidAmountYER,
@@ -80,6 +87,7 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
       farmName: widget.farmName,
       energySource: widget.energySource,
       hourlyRateYER: hourlyRate,
+      actualSeconds: widget.actualSeconds,
       billableSeconds: widget.billableSeconds,
       totalAmountYER: widget.totalAmountYER,
       paidAmountYER: paidAmount,
@@ -151,12 +159,30 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
     }
   }
 
+  /// سطر مدة بعنوان صريح: تسمية الفعلي والمفوتر لا تُشتبه (ق-131 البند 7)
+  /// — ولا يُسمى المفوتر أبدًا «مدة السقي الفعلية».
+  Widget _durationRow(String label, int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        Text(label),
+        const SizedBox(width: 8),
+        Text(
+          '$hours س : $minutes د : $secs ث',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hours = widget.billableSeconds ~/ 3600;
-    final minutes = (widget.billableSeconds % 3600) ~/ 60;
-    final seconds = widget.billableSeconds % 60;
-
     final hourlyRate = widget.hourlyRateYER;
     final receiptText = hourlyRate == null
         ? null
@@ -227,23 +253,16 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                 ),
                 child: Column(
                   children: [
-                    Wrap(
-                      alignment: WrapAlignment.spaceBetween,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        const Text('مدة السقي الفعلية:'),
-                        const SizedBox(width: 8),
-                        Text(
-                          '$hours س : $minutes د : $seconds ث',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
-                    ),
+                    // الفعلي إن وُفر من المستدعي يُعرض بسطره المستقل،
+                    // والمفوتر دائمًا بعنوانه المالي الصريح.
+                    if (widget.actualSeconds != null) ...[
+                      _durationRow(
+                        'مدة التنفيذ الفعلية:',
+                        widget.actualSeconds!,
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    _durationRow('الوقت المفوتر:', widget.billableSeconds),
 
                     const SizedBox(height: 6),
                     if (hourlyRate == null)

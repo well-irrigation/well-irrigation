@@ -658,7 +658,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${s.startedAt.year}/${s.startedAt.month}/${s.startedAt.day} • ${_formatDuration(s.billableSeconds)}',
+                  // مدة التنفيذ الفعلية من العقد لا المفوتر (ق-131 البند 7)،
+                  // والجارية بلا مدة نهائية تظهر شرطة.
+                  '${s.startedAt.year}/${s.startedAt.month}/${s.startedAt.day} • '
+                  '${s.actualSeconds == null ? '—' : _formatDuration(s.actualSeconds!)}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,

@@ -353,6 +353,7 @@ class SessionHistoryItem {
     this.endedAt,
     this.status = 'closed',
     this.energySourceCode,
+    this.actualSeconds,
     this.billableSeconds = 0,
     this.totalAmountYER = 0,
     this.paidAmountYER = 0,
@@ -383,6 +384,7 @@ class SessionHistoryItem {
           : null,
       status: json['status'] as String? ?? 'closed',
       energySourceCode: json['energy_source'] as String?,
+      actualSeconds: (json['actual_seconds'] as num?)?.toInt(),
       billableSeconds: (json['billable_seconds'] as num?)?.toInt() ?? 0,
       totalAmountYER: (json['total_amount_minor'] as num?)?.toInt() ?? 0,
       paidAmountYER: (json['paid_amount_minor'] as num?)?.toInt() ?? 0,
@@ -406,6 +408,15 @@ class SessionHistoryItem {
 
   /// رمز القاعدة كما هو (`solar` / `well_diesel` / `farmer_diesel`)
   final String? energySourceCode;
+
+  /// مدة التنفيذ الفعلية بالثواني كما يعيدها العقد (ق-131 البند 7):
+  /// مجموع `actual_seconds` لمقاطع الجلسة المقفلة بما فيها التوقفات،
+  /// ومغلفها المخزَّن للقديمة بلا مقاطع. والجارية بلا مدة نهائية فتبقى
+  /// null — لا تلفيق من بيانات الفوترة.
+  final int? actualSeconds;
+
+  /// المدة المفوترة بالثواني كما خُزّنت في `billing.session_charges`:
+  /// كمية مالية مستقلة لا تُستبدل بالفعلي ولا تُشتق منه (ق-131).
   final int billableSeconds;
   final int totalAmountYER;
   final int paidAmountYER;
