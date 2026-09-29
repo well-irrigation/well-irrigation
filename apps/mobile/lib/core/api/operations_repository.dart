@@ -194,6 +194,65 @@ class FarmerDirectoryData {
   final DateTime currentDay;
 }
 
+/// حالة المزارع لحظة اختياره لجلسة (ق-131 البند 11): ثلاث حقائق يعيدها
+/// عقد `api.get_farmer_selection_status` كما خُزّنت — الدين والمقدم من
+/// عرض الأرصدة الحاكم (060)، وكمية ديزله بالمللتر من الحركات المرحّلة.
+/// معلومة إخبارية غير مانعة: لا تحجب بدء السقي، ولا تُقاص، ولا يُحوَّل
+/// الديزل مالًا (ق-131 البند 9)، ولا يُحسب شيء في العميل (ق-99).
+class FarmerSelectionStatus {
+  const FarmerSelectionStatus({
+    required this.farmerWellAccountId,
+    required this.wellId,
+    required this.debtMinor,
+    required this.advanceMinor,
+    required this.farmerFuelBalanceMl,
+  });
+
+  factory FarmerSelectionStatus.fromContract(Map<String, dynamic> json) {
+    if (json['contract'] != 'get_farmer_selection_status' ||
+        json['version'] != 1) {
+      throw StateError('إصدار عقد حالة المزارع غير متوافق');
+    }
+
+    int requiredInt(String key) {
+      final value = json[key];
+      final parsed = value is num
+          ? value.toInt()
+          : int.tryParse(value?.toString() ?? '');
+      if (parsed == null || parsed < 0) {
+        throw StateError('عقد حالة المزارع أعاد رقمًا غير صالح: $key');
+      }
+      return parsed;
+    }
+
+    return FarmerSelectionStatus(
+      farmerWellAccountId: json['farmer_well_account_id'] as String? ?? '',
+      wellId: json['well_id'] as String? ?? '',
+      debtMinor: requiredInt('debt_minor'),
+      advanceMinor: requiredInt('advance_minor'),
+      farmerFuelBalanceMl: requiredInt('farmer_fuel_balance_ml'),
+    );
+  }
+
+  final String farmerWellAccountId;
+  final String wellId;
+
+  /// المديونية بالريال الكامل كما يحدّها العرض الحاكم (060): صفر حقيقي
+  /// يعني لا مديونية، ولا قيمة سالبة تُقرأ هنا.
+  final int debtMinor;
+
+  /// رصيد المقدم بالريال الكامل من دفعات advance المرحّلة — مستقل عن
+  /// الدين ولا يُعوَّض به تلقائيًا (ق-131 البند 10 لاحق).
+  final int advanceMinor;
+
+  /// كمية ديزل المزارع المملوكة **بالمللتر** كما في حركات المخزون —
+  /// الوحدة الحاكمة تبقى خامًا في النموذج، والليتر عرضٌ وحده.
+  final int farmerFuelBalanceMl;
+
+  bool get hasDebt => debtMinor > 0;
+  bool get hasAdvance => advanceMinor > 0;
+}
+
 class Farm {
   const Farm({
     required this.id,
@@ -636,6 +695,34 @@ class OperationsRepository {
         );
 
     return FarmerDirectoryData.fromContract(response);
+  }
+
+  /// حالة المزارع عند اختياره لجلسة عبر عقد `api.get_farmer_selection_status`
+  /// (ق-131 البند 11): قراءة تشغيلية دنيا بحقائق ثلاث من الخادم — لا
+  /// كشف مالي كامل ولا إعادة استخدام سطح الفواتير/المدفوعات، والفشل
+  /// يصل صريحًا إلى الشاشة كرسالة غير مانعة.
+  Future<FarmerSelectionStatus> fetchFarmerSelectionStatus({
+    required String farmerAccountId,
+  }) async {
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+
+    final response = await client
+        .schema('api')
+        .rpc(
+          'get_farmer_selection_status',
+          params: {'p_farmer_well_account_id': farmerAccountId},
+        );
+
+    if (response is! Map) {
+      throw StateError('استجابة عقد حالة المزارع غير متوقعة');
+    }
+
+    return FarmerSelectionStatus.fromContract(
+      Map<String, dynamic>.from(response),
+    );
   }
 
   /// جلب أراضي البئر أو أراضي مزارع معين عبر عقد `api.list_well_farms`

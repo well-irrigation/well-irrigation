@@ -24,6 +24,7 @@ api.decide_expense(p_expense_id uuid, p_approve boolean, p_note text)|text|volat
 api.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uuid, p_to_description text, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.get_active_price_schedule(p_well_id uuid, p_at timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_farmer_account(p_farmer_well_account_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_farmer_selection_status(p_farmer_well_account_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_reports_summary(p_well_id uuid, p_period text, p_start timestamp with time zone, p_end timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_session_detail(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_details(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -167,6 +168,7 @@ inventory.apply_fuel_transaction()|trigger|volatile|definer|search_path=inventor
 inventory.bridge_fuel_purchase()|trigger|volatile|definer|search_path=inventory, core, pg_temp
 inventory.create_default_fuel_tank()|trigger|volatile|definer|search_path=inventory, core, pg_temp
 inventory.farmer_fuel_balance_ml(p_well_id uuid, p_person_id uuid)|bigint|stable|definer|search_path=inventory, pg_temp
+inventory.farmer_selection_fuel_ml(p_farmer_well_account_id uuid)|bigint|stable|definer|search_path=pg_catalog, pg_temp
 inventory.fill_fuel_transaction()|trigger|volatile|definer|search_path=inventory, core, ops, pg_temp
 inventory.purchase_fuel(p_well_id uuid, p_liters numeric, p_cost_minor bigint, p_purchased_at timestamp with time zone, p_recorded_by uuid)|jsonb|volatile|definer|search_path=inventory, finance, core, audit, iam, pg_temp
 inventory.record_fuel_consumption(p_well_id uuid, p_quantity_ml bigint, p_ownership_type text, p_measurement_type text, p_owner_person_id uuid, p_farmer_well_account_id uuid, p_fuel_tank_id uuid, p_session_segment_id uuid, p_occurred_at timestamp with time zone, p_created_by uuid, p_estimated_transaction_id uuid)|jsonb|volatile|definer|search_path=inventory, finance, ops, core, audit, iam, pg_temp
