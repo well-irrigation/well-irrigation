@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/identity/app_identity.dart';
 import '../../core/api/well_management_repository.dart';
@@ -63,9 +64,8 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
         _summary = null;
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر تحميل التقارير: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('تعذر تحميل التقارير: $e')));
     }
   }
 
@@ -128,7 +128,10 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
                             child: _buildMetricCard(
                               title: 'جلسات السقي',
                               value: '${_summary!.totalSessions} جلسة',
-                              subtitle: '${(_summary!.totalDurationSeconds ~/ 3600)} ساعة تشغيل',
+                              // المدة الفعلية تبقى بساعاتها ودقائقها: لا
+                              // تقريب يقلب 1 س 30 د إلى ساعتين (ق-131).
+                              subtitle:
+                                  _operatingDurationLabel(_summary!.totalDurationSeconds),
                               icon: Icons.water_drop_outlined,
                               color: AppColors.waterBlue,
                               onTap: widget.onNavigateToHistory,
@@ -178,7 +181,9 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
                       const SizedBox(height: 16),
 
                       // 2. رسم توزيع ساعات الطاقة (Energy Distribution - Decision 517)
-                      _buildEnergyDistributionCard(_summary!.energyDistribution),
+                      _buildEnergyDistributionCard(
+                        _summary!.energyDistribution,
+                      ),
 
                       const SizedBox(height: 16),
 
@@ -190,6 +195,28 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
               ),
             ),
     );
+  }
+
+  /// مدة التشغيل الفعلية بساعاتها ودقائقها — التقريب إلى ساعات كاملة
+  /// يُفقد نصف الساعة ويخفي التوقف غير المحسوب (ق-131 البند 7).
+  String _operatingDurationLabel(int totalSeconds) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    if (hours > 0 && minutes > 0) {
+      return '$hours ساعة و $minutes دقيقة تشغيل';
+    } else if (hours > 0) {
+      return '$hours ساعة تشغيل';
+    }
+    return '$minutes دقيقة تشغيل';
+  }
+
+  /// وسم قصير لعمود الرسم البياني من الثواني كما وردت من العقد.
+  String _chartDurationLabel(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    if (hours > 0 && minutes > 0) return '$hours س $minutes د';
+    if (hours > 0) return '$hours س';
+    return '$minutes د';
   }
 
   Widget _buildPeriodTab(String title, String code) {
@@ -246,17 +273,33 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                   Icon(icon, size: 18, color: color),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
                 value,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
               const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ],
           ),
         ),
@@ -288,7 +331,13 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                   Icon(icon, size: 18, color: color),
                 ],
               ),
@@ -296,10 +345,17 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
               CurrencyDisplay(
                 amount: amount,
                 showTafqeet: false,
-                amountStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+                amountStyle: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
               const SizedBox(height: 2),
-              const Text('إجمالي الفترة', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+              const Text(
+                'إجمالي الفترة',
+                style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+              ),
             ],
           ),
         ),
@@ -308,7 +364,12 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
   }
 
   Widget _buildDailyIrrigationChartCard(List<DailyIrrigationMetric> metrics) {
-    final maxHours = metrics.fold<int>(1, (max, m) => m.hours > max ? m.hours : max);
+    // النسبة ووسم العمود من الثواني كما أرجعها العقد: التحويل للساعات
+    // عرضٌ هنا وحده ولا يُخزَّن مُقرَّبًا في النموذج (ق-131).
+    final maxSeconds = metrics.fold<int>(
+      1,
+      (max, m) => m.durationSeconds > max ? m.durationSeconds : max,
+    );
 
     return Card(
       elevation: 0,
@@ -326,15 +387,29 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
               children: [
                 const Text(
                   'ساعات السقي اليومية (Bar Chart V1)',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.waterBlue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Text('ساعة / يوم', style: TextStyle(fontSize: 10, color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'ساعة / يوم',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.deepBlue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -344,7 +419,7 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: metrics.map((m) {
-                  final ratio = m.hours / maxHours;
+                  final ratio = m.durationSeconds / maxSeconds;
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -352,15 +427,22 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Text(
-                            '${m.hours}س',
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+                            _chartDurationLabel(m.durationSeconds),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepBlue,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Container(
                             height: 80 * ratio + 10,
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [AppColors.deepBlue, AppColors.waterBlue],
+                                colors: [
+                                  AppColors.deepBlue,
+                                  AppColors.waterBlue,
+                                ],
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                               ),
@@ -370,7 +452,10 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
                           const SizedBox(height: 6),
                           Text(
                             m.dayName,
-                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -385,7 +470,9 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
     );
   }
 
-  Widget _buildEnergyDistributionCard(List<EnergyDistributionMetric> distribution) {
+  Widget _buildEnergyDistributionCard(
+    List<EnergyDistributionMetric> distribution,
+  ) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -399,7 +486,11 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
           children: [
             const Text(
               'توزيع ساعات السقي حسب مصدر الطاقة (Decision 517)',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 14),
             // شريط النسبة المئوية الملون
@@ -411,7 +502,9 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
                   children: distribution.map((d) {
                     Color color = d.energySource == 'solar'
                         ? Colors.amber.shade700
-                        : (d.energySource == 'well_diesel' ? Colors.deepOrange : AppColors.agriculturalGreen);
+                        : (d.energySource == 'well_diesel'
+                              ? Colors.deepOrange
+                              : AppColors.agriculturalGreen);
                     return Expanded(
                       flex: d.percentage,
                       child: Container(color: color),
@@ -427,12 +520,27 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
               children: distribution.map((d) {
                 Color color = d.energySource == 'solar'
                     ? Colors.amber.shade700
-                    : (d.energySource == 'well_diesel' ? Colors.deepOrange : AppColors.agriculturalGreen);
+                    : (d.energySource == 'well_diesel'
+                          ? Colors.deepOrange
+                          : AppColors.agriculturalGreen);
                 return Row(
                   children: [
-                    Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                     const SizedBox(width: 6),
-                    Text('${d.label} (${d.percentage}%)', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    Text(
+                      '${d.label} (${d.percentage}%)',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ],
                 );
               }).toList(),
@@ -457,7 +565,11 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
           children: [
             const Text(
               'التحصيل مقابل المصروفات خلال الفترة (Line/Trend V1)',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 12),
             ...trends.map((t) {
@@ -466,17 +578,30 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(t.periodLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(
+                      t.periodLabel,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     Row(
                       children: [
                         Text(
                           'تحصيل: ${t.collectedYER} ريال',
-                          style: const TextStyle(fontSize: 11, color: AppColors.agriculturalGreen, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.agriculturalGreen,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Text(
                           'مصروف: ${t.expensesYER} ريال',
-                          style: const TextStyle(fontSize: 11, color: Colors.purple),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.purple,
+                          ),
                         ),
                       ],
                     ),

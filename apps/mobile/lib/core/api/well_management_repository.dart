@@ -105,8 +105,9 @@ class PumpModel {
       name: json['name'] as String,
       pumpType: json['pump_type'] as String?,
       powerRating: json['power_rating'] as String?,
-      estimatedWaterFlowLitersPerMinute:
-          _asDouble(json['estimated_water_flow_liters_per_minute']),
+      estimatedWaterFlowLitersPerMinute: _asDouble(
+        json['estimated_water_flow_liters_per_minute'],
+      ),
       estimatedFuelMlPerHour: _asInt(json['estimated_fuel_ml_per_hour']),
       status: json['status'] as String,
       installedAt: _asDate(json['installed_at']),
@@ -232,11 +233,12 @@ class FuelTankModel {
   }
 }
 
-/// نموذج مؤشرات التقرير المبني على عقد api.get_reports_summary (هجرة 092).
-/// كل رقم فيه مقاس في القاعدة: الجلسات ومدّتها من تكاليف الجلسات،
-/// والتحصيل من الدفعات المرحّلة، والمصروفات من المصروفات المرحّلة،
-/// والوقود من حركات الصرف. وما يُحسب هنا عرضٌ فقط: الليتر والساعة
-/// والنسبة واسم اليوم وصافي التدفق (ق-99: لا حساب مال داخل العقد).
+/// نموذج مؤشرات التقرير المبني على عقد api.get_reports_summary (هجرة 092/106).
+/// كل رقم فيه مقاس في القاعدة: الجلسات والمدة التشغيلية **بالزمن الفعلي
+/// للتنفيذ** (ق-131 البند 7)، والتحصيل من الدفعات المرحّلة، والمصروفات من
+/// المصروفات المرحّلة، والوقود من حركات الصرف، والإيراد من الفوترة المخزَّنة.
+/// وما يُحسب هنا عرضٌ فقط: الليتر والساعة والنسبة واسم اليوم وصافي التدفق
+/// (ق-99: لا حساب مال داخل العقد).
 class ReportSummaryModel {
   final String period;
   final int totalSessions;
@@ -276,7 +278,9 @@ class ReportSummaryModel {
           (row) => DailyIrrigationMetric(
             dayName: _arabicDayName(_asDate(row['day'])),
             date: _asDate(row['day']) ?? DateTime.now(),
-            hours: ((_asInt(row['duration_seconds']) ?? 0) / 3600).round(),
+            // المدة تبقى ثواني كما أرجعتها القاعدة: التقريب إلى ساعات
+            // كاملة يُفقد 1 س 30 د ويجعلها 2 — التحويل عرضٌ وحده (ق-131).
+            durationSeconds: _asInt(row['duration_seconds']) ?? 0,
             sessionsCount: _asInt(row['sessions_count']) ?? 0,
           ),
         )
@@ -293,9 +297,10 @@ class ReportSummaryModel {
         )
         .toList(growable: false);
 
-    final energyRows = (json['energy_distribution'] as List<dynamic>? ?? const [])
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+    final energyRows =
+        (json['energy_distribution'] as List<dynamic>? ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
     final energyTotal = energyRows.fold<int>(
       0,
       (sum, row) => sum + (_asInt(row['total_seconds']) ?? 0),
@@ -317,17 +322,19 @@ class ReportSummaryModel {
       energyDistribution: energyTotal == 0
           ? const <EnergyDistributionMetric>[]
           : energyRows
-              .map(
-                (row) => EnergyDistributionMetric(
-                  energySource: (row['energy_source'] as String?) ?? '',
-                  label: _energyLabel(row['energy_source'] as String?),
-                  totalSeconds: _asInt(row['total_seconds']) ?? 0,
-                  percentage:
-                      ((_asInt(row['total_seconds']) ?? 0) * 100 / energyTotal)
-                          .round(),
-                ),
-              )
-              .toList(growable: false),
+                .map(
+                  (row) => EnergyDistributionMetric(
+                    energySource: (row['energy_source'] as String?) ?? '',
+                    label: _energyLabel(row['energy_source'] as String?),
+                    totalSeconds: _asInt(row['total_seconds']) ?? 0,
+                    percentage:
+                        ((_asInt(row['total_seconds']) ?? 0) *
+                                100 /
+                                energyTotal)
+                            .round(),
+                  ),
+                )
+                .toList(growable: false),
     );
   }
 
@@ -382,13 +389,16 @@ class ReportSummaryModel {
 class DailyIrrigationMetric {
   final String dayName;
   final DateTime date;
-  final int hours;
+
+  /// مدة السقي الفعلية لهذا اليوم بالثواني كما أرجعها العقد — بلا
+  /// تقريب إلى ساعات كاملة في النموذج (ق-131 البند 7 / دقة العرض).
+  final int durationSeconds;
   final int sessionsCount;
 
   const DailyIrrigationMetric({
     required this.dayName,
     required this.date,
-    required this.hours,
+    required this.durationSeconds,
     required this.sessionsCount,
   });
 }
@@ -452,10 +462,9 @@ class WellManagementRepository {
 
   /// 1. تفاصيل البئر — api.get_well_details
   Future<WellDetailsModel> fetchWellDetails(String wellId) async {
-    final res = await _requireClient.schema('api').rpc(
-      'get_well_details',
-      params: {'p_well_id': wellId},
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc('get_well_details', params: {'p_well_id': wellId});
     final envelope = _asMap(res);
     return WellDetailsModel.fromJson(_asMap(envelope['well']));
   }
@@ -472,17 +481,19 @@ class WellManagementRepository {
     double? staticWaterLevelMeters,
     String? notes,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'update_well_details',
-      params: {
-        'p_well_id': wellId,
-        'p_name': name,
-        'p_location': location,
-        'p_depth_meters': depthMeters,
-        'p_static_water_level_meters': staticWaterLevelMeters,
-        'p_notes': notes,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'update_well_details',
+          params: {
+            'p_well_id': wellId,
+            'p_name': name,
+            'p_location': location,
+            'p_depth_meters': depthMeters,
+            'p_static_water_level_meters': staticWaterLevelMeters,
+            'p_notes': notes,
+          },
+        );
     return _asMap(res)['well_id'] as String;
   }
 
@@ -491,13 +502,12 @@ class WellManagementRepository {
     String wellId, {
     bool includeInactive = true,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'list_well_pumps_detail',
-      params: {
-        'p_well_id': wellId,
-        'p_include_inactive': includeInactive,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'list_well_pumps_detail',
+          params: {'p_well_id': wellId, 'p_include_inactive': includeInactive},
+        );
     return _asList(_asMap(res)['items'])
         .map(PumpModel.fromJson)
         .toList(growable: false);
@@ -519,22 +529,24 @@ class WellManagementRepository {
     DateTime? installedAt,
     String? notes,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'save_well_pump',
-      params: {
-        'p_well_id': wellId,
-        'p_name': name,
-        'p_pump_id': pumpId,
-        'p_pump_type': pumpType,
-        'p_power_rating': powerRating,
-        'p_estimated_water_flow_liters_per_minute':
-            estimatedWaterFlowLitersPerMinute,
-        'p_estimated_fuel_ml_per_hour': estimatedFuelMlPerHour,
-        'p_status': status,
-        'p_installed_at': installedAt?.toIso8601String().split('T').first,
-        'p_notes': notes,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'save_well_pump',
+          params: {
+            'p_well_id': wellId,
+            'p_name': name,
+            'p_pump_id': pumpId,
+            'p_pump_type': pumpType,
+            'p_power_rating': powerRating,
+            'p_estimated_water_flow_liters_per_minute':
+                estimatedWaterFlowLitersPerMinute,
+            'p_estimated_fuel_ml_per_hour': estimatedFuelMlPerHour,
+            'p_status': status,
+            'p_installed_at': installedAt?.toIso8601String().split('T').first,
+            'p_notes': notes,
+          },
+        );
     final envelope = _asMap(res);
     return (
       pumpId: envelope['pump_id'] as String,
@@ -549,13 +561,12 @@ class WellManagementRepository {
     String wellId, {
     DateTime? at,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'get_active_price_schedule',
-      params: {
-        'p_well_id': wellId,
-        'p_at': at?.toIso8601String(),
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'get_active_price_schedule',
+          params: {'p_well_id': wellId, 'p_at': at?.toIso8601String()},
+        );
     final envelope = _asMap(res);
     final schedule = envelope['schedule'];
     if (schedule == null) return null;
@@ -576,18 +587,20 @@ class WellManagementRepository {
     int? wellDieselRateMinor,
     int? farmerDieselRateMinor,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'create_price_schedule',
-      params: {
-        'p_well_id': wellId,
-        'p_name': name,
-        'p_effective_from': effectiveFrom?.toIso8601String(),
-        'p_reason': reason,
-        'p_solar_rate_minor': solarRateMinor,
-        'p_well_diesel_rate_minor': wellDieselRateMinor,
-        'p_farmer_diesel_rate_minor': farmerDieselRateMinor,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'create_price_schedule',
+          params: {
+            'p_well_id': wellId,
+            'p_name': name,
+            'p_effective_from': effectiveFrom?.toIso8601String(),
+            'p_reason': reason,
+            'p_solar_rate_minor': solarRateMinor,
+            'p_well_diesel_rate_minor': wellDieselRateMinor,
+            'p_farmer_diesel_rate_minor': farmerDieselRateMinor,
+          },
+        );
     final envelope = _asMap(res);
     return (
       scheduleId: envelope['schedule_id'] as String,
@@ -600,13 +613,12 @@ class WellManagementRepository {
     String wellId, {
     bool includeInactive = false,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'list_well_fuel_tanks',
-      params: {
-        'p_well_id': wellId,
-        'p_include_inactive': includeInactive,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'list_well_fuel_tanks',
+          params: {'p_well_id': wellId, 'p_include_inactive': includeInactive},
+        );
     return _asList(_asMap(res)['items'])
         .map(FuelTankModel.fromJson)
         .toList(growable: false);
@@ -623,15 +635,17 @@ class WellManagementRepository {
     required int totalCostMinor,
     DateTime? purchasedAt,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'purchase_fuel',
-      params: {
-        'p_well_id': wellId,
-        'p_liters': liters,
-        'p_cost_minor': totalCostMinor,
-        'p_purchased_at': purchasedAt?.toIso8601String(),
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'purchase_fuel',
+          params: {
+            'p_well_id': wellId,
+            'p_liters': liters,
+            'p_cost_minor': totalCostMinor,
+            'p_purchased_at': purchasedAt?.toIso8601String(),
+          },
+        );
     return _asMap(res);
   }
 
@@ -642,15 +656,17 @@ class WellManagementRepository {
     required int measuredBalanceMl,
     String? notes,
   }) async {
-    await _requireClient.schema('api').rpc(
-      'record_physical_fuel_count',
-      params: {
-        'p_well_id': wellId,
-        'p_fuel_tank_id': tankId,
-        'p_measured_balance_ml': measuredBalanceMl,
-        'p_notes': notes,
-      },
-    );
+    await _requireClient
+        .schema('api')
+        .rpc(
+          'record_physical_fuel_count',
+          params: {
+            'p_well_id': wellId,
+            'p_fuel_tank_id': tankId,
+            'p_measured_balance_ml': measuredBalanceMl,
+            'p_notes': notes,
+          },
+        );
   }
 
   /// 10. مؤشرات التقارير — api.get_reports_summary
@@ -664,15 +680,17 @@ class WellManagementRepository {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'get_reports_summary',
-      params: {
-        'p_well_id': wellId,
-        'p_period': periodCode,
-        'p_start': startDate?.toIso8601String(),
-        'p_end': endDate?.toIso8601String(),
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'get_reports_summary',
+          params: {
+            'p_well_id': wellId,
+            'p_period': periodCode,
+            'p_start': startDate?.toIso8601String(),
+            'p_end': endDate?.toIso8601String(),
+          },
+        );
     return ReportSummaryModel.fromContract(_asMap(res));
   }
 }

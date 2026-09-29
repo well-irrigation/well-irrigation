@@ -81,7 +81,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
         setState(() {
           _allSessions = [];
           _isLoading = false;
-          _loadError = 'تعذّر تحميل سجل الجلسات. تحقق من الاتصال ثم أعد المحاولة.';
+          _loadError =
+              'تعذّر تحميل سجل الجلسات. تحقق من الاتصال ثم أعد المحاولة.';
         });
       }
     }
@@ -115,8 +116,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
   String _formatDate(DateTime dt) {
     final now = DateTime.now();
-    final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
-    final isYesterday = dt.year == now.year && dt.month == now.month && dt.day == now.day - 1;
+    final isToday =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    final isYesterday =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day - 1;
 
     final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
     final period = dt.hour >= 12 ? 'م' : 'ص';
@@ -131,8 +134,16 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final displayedSessions = _filteredSessions;
-    final totalSecs = displayedSessions.fold<int>(0, (sum, s) => sum + s.billableSeconds);
-    final totalAmount = displayedSessions.fold<int>(0, (sum, s) => sum + s.totalAmountYER);
+    // المدة المعروضة في السجل تشغيلية فعلية لا مفوترة (ق-131 البند 7)،
+    // والجارية بلا مدة نهائية فلا تدخل في الجمع.
+    final totalSecs = displayedSessions.fold<int>(
+      0,
+      (sum, s) => sum + (s.actualSeconds ?? 0),
+    );
+    final totalAmount = displayedSessions.fold<int>(
+      0,
+      (sum, s) => sum + s.totalAmountYER,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
@@ -180,8 +191,15 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                     controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'ابحث باسم المزارع، الكود، أو الأرض...',
-                      hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-                      prefixIcon: const Icon(Icons.search, color: AppColors.waterBlue, size: 20),
+                      hintStyle: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 13,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.waterBlue,
+                        size: 20,
+                      ),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear, size: 18),
@@ -193,7 +211,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                           : null,
                       filled: true,
                       fillColor: AppColors.surface,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: BorderSide.none,
@@ -225,23 +246,36 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: const BoxDecoration(
                 color: AppColors.surface,
-                border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
+                border: Border(
+                  bottom: BorderSide(color: AppColors.border, width: 0.5),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.history, size: 16, color: AppColors.deepBlue),
+                      const Icon(
+                        Icons.history,
+                        size: 16,
+                        color: AppColors.deepBlue,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '${displayedSessions.length} جلسة',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.deepBlue),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: AppColors.deepBlue,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '• ${_formatDuration(totalSecs)}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -249,7 +283,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                     children: [
                       const Text(
                         'الإجمالي: ',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       CurrencyDisplay(
                         amount: totalAmount,
@@ -271,20 +308,20 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _loadError != null
-                      ? _buildErrorState()
-                      : displayedSessions.isEmpty
-                      ? _buildEmptyState()
-                      : RefreshIndicator(
-                          onRefresh: _loadSessions,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: displayedSessions.length,
-                            itemBuilder: (context, index) {
-                              final session = displayedSessions[index];
-                              return _buildSessionCard(session);
-                            },
-                          ),
-                        ),
+                  ? _buildErrorState()
+                  : displayedSessions.isEmpty
+                  ? _buildEmptyState()
+                  : RefreshIndicator(
+                      onRefresh: _loadSessions,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: displayedSessions.length,
+                        itemBuilder: (context, index) {
+                          final session = displayedSessions[index];
+                          return _buildSessionCard(session);
+                        },
+                      ),
+                    ),
             ),
           ],
         ),
@@ -306,13 +343,17 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
               ? Colors.white
               : (isAlert ? AppColors.error : AppColors.textPrimary),
         ),
-        backgroundColor: isAlert ? AppColors.error.withValues(alpha: 0.08) : AppColors.surface,
+        backgroundColor: isAlert
+            ? AppColors.error.withValues(alpha: 0.08)
+            : AppColors.surface,
         selectedColor: isAlert ? AppColors.error : AppColors.waterBlue,
         checkmarkColor: Colors.white,
         side: BorderSide(
           color: isSelected
               ? (isAlert ? AppColors.error : AppColors.waterBlue)
-              : (isAlert ? AppColors.error.withValues(alpha: 0.3) : AppColors.border),
+              : (isAlert
+                    ? AppColors.error.withValues(alpha: 0.3)
+                    : AppColors.border),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -370,12 +411,20 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                 color: AppColors.surface,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.history_toggle_off, size: 36, color: AppColors.textMuted),
+              child: const Icon(
+                Icons.history_toggle_off,
+                size: 36,
+                color: AppColors.textMuted,
+              ),
             ),
             const SizedBox(height: 16),
             const Text(
               'لا توجد جلسات مطابقة',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.deepBlue),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepBlue,
+              ),
             ),
             const SizedBox(height: 6),
             const Text(
@@ -445,7 +494,11 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                             color: AppColors.waterBlue.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.person, color: AppColors.waterBlue, size: 18),
+                          child: const Icon(
+                            Icons.person,
+                            color: AppColors.waterBlue,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -476,7 +529,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
                   // شارة مصدر الطاقة
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(12),
@@ -516,15 +572,26 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                     children: [
                       const Text(
                         'مدة السقي الفعلية',
-                        style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          const Icon(Icons.timer_outlined, size: 14, color: AppColors.waterBlue),
+                          const Icon(
+                            Icons.timer_outlined,
+                            size: 14,
+                            color: AppColors.waterBlue,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            _formatDuration(session.billableSeconds),
+                            // مدة التنفيذ الفعلية من العقد؛ الجارية بلا
+                            // مدة نهائية تظهر شرطة لا صفرًا مصطنعًا.
+                            session.actualSeconds == null
+                                ? '—'
+                                : _formatDuration(session.actualSeconds!),
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
@@ -540,7 +607,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                     children: [
                       const Text(
                         'إجمالي الفاتورة',
-                        style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       CurrencyDisplay(
@@ -563,11 +633,17 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: badgeColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: badgeColor.withValues(alpha: 0.3), width: 0.5),
+                      border: Border.all(
+                        color: badgeColor.withValues(alpha: 0.3),
+                        width: 0.5,
+                      ),
                     ),
                     child: Text(
                       badgeText,
@@ -580,7 +656,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                   ),
                   Text(
                     _formatDate(session.startedAt),
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),

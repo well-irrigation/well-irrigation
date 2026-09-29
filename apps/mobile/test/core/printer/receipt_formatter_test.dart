@@ -47,5 +47,72 @@ void main() {
       expect(text, contains('خمسة عشر ألف ريال'));
       expect(text, contains('البيان / المرجع: دفعة حساب سابق'));
     });
+
+    test('الفعلي أولًا والمفوتر مميزًا حين يختلفان (ق-131 البند 7)', () {
+      // 50 دقيقة تشغيل فعلية + 10 دقائق توقف: فعلي 3600 ومفوتر 3000.
+      final text = ReceiptFormatter.formatSessionInvoice(
+        wellName: 'بئر النور الحديث',
+        invoiceNumber: 'INV-ACT-001',
+        date: DateTime(2026, 9, 10, 9, 0),
+        operatorName: 'خالد النجحي',
+        farmerName: 'محمد عبدالله الشامي',
+        farmName: 'أرض الوادي',
+        energySource: 'طاقة شمسية',
+        hourlyRateYER: 3600,
+        actualSeconds: 3600,
+        billableSeconds: 3000,
+        totalAmountYER: 3000,
+        paidAmountYER: 0,
+      );
+
+      expect(text, contains('- مدة التنفيذ الفعلية: 1 ساعة و 0 دقيقة'));
+      expect(text, contains('- الوقت المفوتر: 0 ساعة و 50 دقيقة'));
+      // لا يظهر المفوتر بوصفه «المدة» ولا العكس.
+      expect(text, isNot(contains('- المدة:')));
+      // المبلغ من المفوتر المخزَّن لا من الفعلي.
+      expect(text, contains('المبلغ الإجمالي: 3,000 ريال يمني'));
+    });
+
+    test('تطابق الفعلي والمفوتر يعرض سطر الفعلي وحده بلا سطر مفوتر', () {
+      final text = ReceiptFormatter.formatSessionInvoice(
+        wellName: 'بئر النور الحديث',
+        invoiceNumber: 'INV-ACT-002',
+        date: DateTime(2026, 9, 10, 9, 0),
+        operatorName: 'خالد النجحي',
+        farmerName: 'محمد عبدالله الشامي',
+        farmName: 'أرض الوادي',
+        energySource: 'طاقة شمسية',
+        hourlyRateYER: 3600,
+        actualSeconds: 7200,
+        billableSeconds: 7200,
+        totalAmountYER: 7200,
+        paidAmountYER: 7200,
+      );
+
+      expect(text, contains('- مدة التنفيذ الفعلية: 2 ساعة و 0 دقيقة'));
+      expect(text, isNot(contains('الوقت المفوتر')));
+    });
+
+    test('غياب الفعلي: المفوتر بعنوانه الصريح ولا «المدة» العامة (ق-131)', () {
+      final text = ReceiptFormatter.formatSessionInvoice(
+        wellName: 'بئر النور الحديث',
+        invoiceNumber: 'INV-ACT-003',
+        date: DateTime(2026, 9, 10, 9, 0),
+        operatorName: 'خالد النجحي',
+        farmerName: 'محمد عبدالله الشامي',
+        farmName: 'أرض الوادي',
+        energySource: 'طاقة شمسية',
+        hourlyRateYER: 3600,
+        billableSeconds: 7200,
+        totalAmountYER: 7200,
+        paidAmountYER: 7200,
+      );
+
+      expect(text, contains('- الوقت المفوتر: 2 ساعة و 0 دقيقة'));
+      // التسمية العامة الملتبسة زالت من كل المسارات.
+      expect(text, isNot(contains('- المدة:')));
+      expect(text, isNot(contains('مدة التنفيذ الفعلية')));
+      expect(text, isNot(contains('مدة السقي الفعلية')));
+    });
   });
 }

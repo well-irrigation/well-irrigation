@@ -1334,6 +1334,9 @@ class _OperationsScreenState extends State<OperationsScreen>
                 : energySourceLabel(singleEnergySource ?? _energySourceCode),
             hourlyRateYER: singleHourlyRate,
             billableSeconds: totalSeconds,
+            // الفعلي من حصيلة المقاطع نفسها (كامل الخط الزمني قبل
+            // الإنهاء) — عرضٌ فقط لا يدخل في أي حساب مالي (ق-131).
+            actualSeconds: totals.wallClockSeconds,
             totalAmountYER: totalAmount,
             onConfirmPayment:
                 ({

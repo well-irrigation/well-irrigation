@@ -25,13 +25,17 @@ void main() {
     });
 
     test('week / month → مدة رجعية بلا حد أعلى', () {
-      final (weekFrom, weekTo) =
-          OperationsRepository.historyWindow('week', now: now);
+      final (weekFrom, weekTo) = OperationsRepository.historyWindow(
+        'week',
+        now: now,
+      );
       expect(weekFrom, now.subtract(const Duration(days: 7)));
       expect(weekTo, isNull);
 
-      final (monthFrom, monthTo) =
-          OperationsRepository.historyWindow('month', now: now);
+      final (monthFrom, monthTo) = OperationsRepository.historyWindow(
+        'month',
+        now: now,
+      );
       expect(monthFrom, now.subtract(const Duration(days: 30)));
       expect(monthTo, isNull);
     });
@@ -133,6 +137,43 @@ void main() {
       expect(item.remainingAmountYER, 4000);
       expect(item.isFullySettled, isFalse);
       expect(item.isBilled, isTrue);
+    });
+
+    test('الفعلي والمفوتر كميتان منفصلتان لا تُعاد إحداهما للأخرى (ق-131)', () {
+      // 50 دقيقة تشغيل + 10 دقائق توقف غير محسوبة: الفعلي 3600 والمفوتر 3000.
+      final item = SessionHistoryItem.fromContract(const {
+        'id': 'ses-actual',
+        'started_at': '2026-09-10T05:00:00+00:00',
+        'ended_at': '2026-09-10T06:00:00+00:00',
+        'actual_seconds': 3600,
+        'billable_seconds': 3000,
+        'total_amount_minor': 3000,
+        'payment_status': 'unpaid',
+        'has_charge': true,
+      });
+
+      expect(item.actualSeconds, 3600);
+      expect(item.billableSeconds, 3000);
+      expect(item.actualSeconds == item.billableSeconds, isFalse);
+    });
+
+    test('الفعلي الغائب يبقى null بلا تلفيق ولا صفر مصطنع (ق-131)', () {
+      // الجلسة الجارية بلا مدة نهائية، والعميل القديم بلا مفتاح الفعلي.
+      final open = SessionHistoryItem.fromContract(const {
+        'id': 'ses-open',
+        'status': 'open',
+        'started_at': '2026-09-10T09:30:00+00:00',
+        'billable_seconds': 0,
+      });
+
+      final legacy = SessionHistoryItem.fromContract(const {
+        'id': 'ses-legacy',
+        'started_at': '2026-09-10T08:00:00+00:00',
+      });
+
+      expect(open.actualSeconds, isNull);
+      expect(legacy.actualSeconds, isNull);
+      expect(legacy.billableSeconds, 0);
     });
 
     test('جلسة غير مفوترة لا تصبح مسدَّدة ولا مستحقة (ق-99)', () {

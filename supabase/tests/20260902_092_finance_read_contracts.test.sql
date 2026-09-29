@@ -308,12 +308,16 @@ begin
     v_started, v_started + interval '2 hours', 'closed'
   ) returning id into v_session;
 
+  -- actual_seconds أُضيف للّقطة بعد 106: مقطع مقفل حقيقي يحمل فعليه
+  -- بالثواني كما يكتبه مسار الإنهاء (085)، وأرقام التقرير هنا لم تتغير.
   insert into ops.session_segments (
     tenant_id, session_id, sequence_number, segment_type,
-    energy_source, started_at, ended_at, actual_minutes, is_billable
+    energy_source, started_at, ended_at, actual_minutes,
+    actual_seconds, is_billable
   ) values (
     v_tenant, v_session, 1, 'solar_run',
-    'solar', v_started, v_started + interval '2 hours', 120, true
+    'solar', v_started, v_started + interval '2 hours', 120,
+    7200, true
   );
 
   insert into billing.session_charges (
