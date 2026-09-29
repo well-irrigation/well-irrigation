@@ -1056,20 +1056,21 @@ void main() {
       );
     }
 
-    // المسار الحقيقي: قراءة السندات من العقد، ثم تخصيص بمبلغ مكتوب.
+    // المسار الحقيقي: قراءة السندات من العقد، واقتراح التسوية من عقد
+    // الخادم (هجرة 108 / ق-131 البند 10)، ثم تخصيص بمبلغ مؤكَّد.
     expect(screen.contains('fetchAdvanceReceipts('), isTrue);
+    expect(screen.contains('fetchAdvanceAllocationProposal('), isTrue);
     expect(screen.contains('allocateAdvance('), isTrue);
     expect(
       screen.contains("{'invoice_id': invoiceId, 'amount_minor': amount}"),
       isTrue,
     );
 
-    // المبلغ من الحقل لا من حساب محلي: لا اشتقاق ولا تعبئة تلقائية.
+    // المبلغ من الحقل لا من حساب محلي: لا اشتقاق ولا تقريب.
     expect(
       screen.contains('CurrencyUtils.parseRawInt(_amountController.text)'),
       isTrue,
     );
-    expect(screen.contains('_amountController.text ='), isFalse);
     for (final math in const [
       'remainingYER -',
       'remainingAmountYER -',
@@ -1083,16 +1084,32 @@ void main() {
       );
     }
 
+    // التعبئة الوحيدة للمبلغ: من قيمة الخادم المقترحة حرفيًا
+    // (ق-131 البند 10) — أي تعبئة أخرى محلية ممنوعة.
+    final amountFills = RegExp(r'_amountController\.text\s*=')
+        .allMatches(screen);
+    expect(amountFills, hasLength(1));
+    expect(
+      RegExp(
+        r'_amountController\.text\s*=\s*CurrencyUtils\.formatAmount\(\s*proposal\.proposedMinor',
+      ).hasMatch(screen),
+      isTrue,
+    );
+
     // ومعرّف السند من العقد وحده: لا نصّ ثابت يُرسل مكانه.
     expect(screen.contains('paymentId: receiptId'), isTrue);
     expect(RegExp(r"paymentId: '").hasMatch(screen), isFalse);
 
-    // والعقدان في المستودع يمرّان بمخطط api وحده.
+    // والعقود الثلاثة في المستودع تمرّ بمخطط api وحده.
     expect(
       RegExp(r"rpc\(\s*'list_advance_receipts'").hasMatch(repository),
       isTrue,
     );
-    expect(repository.contains("rpc('allocate_payment'"), isTrue);
+    expect(
+      RegExp(r"rpc\(\s*'get_advance_allocation_proposal'").hasMatch(repository),
+      isTrue,
+    );
+    expect(RegExp(r"rpc\(\s*'allocate_payment'").hasMatch(repository), isTrue);
   });
 
   // المقياس الثامن والعشرون (م-41E/4): الشريك صار يدخل فعلًا بعد المرحلة 3،
