@@ -76,6 +76,86 @@ void main() {
   });
 
   group('المستحق', () {
+    test('انحدار FIN-001 يسعّر كل مصدر في مقطعه ثم يجمع 3493', () {
+      final segments = [
+        SessionSegment(
+          kind: SegmentKind.running,
+          startedAt: at(0),
+          endedAt: at(2386),
+          energySource: 'solar',
+          hourlyRateMinor: 5000,
+        ),
+        SessionSegment(
+          kind: SegmentKind.running,
+          startedAt: at(2386),
+          energySource: 'well_diesel',
+          hourlyRateMinor: 10000,
+        ),
+      ];
+
+      final beforeSwitch = summarize([segments.first], at(2386));
+      final afterSwitch = summarize(segments, at(2451));
+
+      expect(segments.first.timeChargeMinor(at(2451)), 3313);
+      expect(segments.last.timeChargeMinor(at(2451)), 180);
+      expect(beforeSwitch.accruedMinor, 3313);
+      expect(afterSwitch.accruedMinor, 3493);
+      expect(afterSwitch.accruedMinor, isNot(6808));
+    });
+
+    test('خاصية: مجموع المقاطع يساوي مجموع اقتطاع كل مقطع مستقلًا', () {
+      const cases = [
+        (secondsA: 1, rateA: 5000, secondsB: 1, rateB: 10000),
+        (secondsA: 3599, rateA: 1, secondsB: 3601, rateB: 3599),
+        (secondsA: 2386, rateA: 5000, secondsB: 65, rateB: 10000),
+        (secondsA: 86400, rateA: 999999, secondsB: 7, rateB: 6000),
+      ];
+
+      for (final sample in cases) {
+        final split = sample.secondsA;
+        final end = split + sample.secondsB;
+        final expected =
+            (sample.secondsA * sample.rateA) ~/ 3600 +
+            (sample.secondsB * sample.rateB) ~/ 3600;
+        final totals = summarize([
+          running(0, split, rate: sample.rateA),
+          running(split, end, rate: sample.rateB),
+        ], at(end));
+
+        expect(totals.accruedMinor, expected, reason: '$sample');
+      }
+    });
+
+    test(
+      'تغيير المصدر أثناء التوقف لا يمس السابق والجديد يبدأ بعد الاستئناف',
+      () {
+        final segments = [
+          running(0, 2386, rate: 5000),
+          paused(2386, 2450),
+          SessionSegment(
+            kind: SegmentKind.paused,
+            startedAt: at(2450),
+            endedAt: at(2500),
+            energySource: 'well_diesel',
+            hourlyRateMinor: 10000,
+          ),
+          SessionSegment(
+            kind: SegmentKind.running,
+            startedAt: at(2500),
+            energySource: 'well_diesel',
+            hourlyRateMinor: 10000,
+          ),
+        ];
+
+        expect(
+          summarize(segments.take(3).toList(), at(2499)).accruedMinor,
+          3313,
+        );
+        expect(summarize(segments, at(2565)).accruedMinor, 3493);
+        expect(segments.first.timeChargeMinor(at(2565)), 3313);
+      },
+    );
+
     test('سعر 3600 للساعة = ريال لكل ثانية', () {
       final totals = summarize([running(0, 250)], at(250));
 

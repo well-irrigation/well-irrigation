@@ -33,9 +33,12 @@ class _FakeOperationsRepository extends OperationsRepository {
         pumpName: 'المضخة الرئيسية 1',
         operatorName: 'خالد النجحي',
         startedAt: started,
-        endedAt: started.add(const Duration(hours: 1)),
+        endedAt: started.add(const Duration(hours: 1, minutes: 30)),
         energySourceCode: 'solar',
-        billableSeconds: billed ? 3000 : 0,
+        // الفعلي مجموع المقاطع 3000+600+1800 = 5400، والمفوتر 4800
+        // (التوقف غير محسوب) — كميتان منفصلتان كما يعيدهما العقد (ق-131).
+        actualSeconds: 5400,
+        billableSeconds: billed ? 4800 : 0,
         totalAmountYER: billed ? 2917 : 0,
         paidAmountYER: billed ? 2917 : 0,
         paymentStatus: billed ? 'settled' : 'not_billed',
@@ -80,6 +83,7 @@ class _FakeOperationsRepository extends OperationsRepository {
           totalChargeYER: 1750,
         ),
       ],
+      crops: const ['قات', 'قمح'],
       paymentMethod: billed ? 'cash' : null,
       paymentReference: billed ? 'PMT-090-A' : null,
       paidAt: billed ? started.add(const Duration(hours: 2)) : null,
@@ -103,7 +107,9 @@ Widget _wrap({bool shouldFail = false, bool billed = true}) {
 
 void main() {
   group('SessionDetailScreen Tests (UX-13 / 377)', () {
-    testWidgets('1. عرض تفاصيل الجلسة والخط الزمني والمستحق المالي', (tester) async {
+    testWidgets('1. عرض تفاصيل الجلسة والخط الزمني والمستحق المالي', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap());
       await tester.pumpAndSettle();
 
@@ -111,7 +117,11 @@ void main() {
       expect(find.text('بئر الخير الرئيسي'), findsOneWidget);
       expect(find.text('المضخة الرئيسية 1'), findsOneWidget);
       expect(find.text('خالد النجحي'), findsOneWidget);
-      expect(find.text('الخط الزمني وتغيرات الطاقة (Timeline)'), findsOneWidget);
+      expect(find.text('المحاصيل: قات، قمح'), findsOneWidget);
+      expect(
+        find.text('الخط الزمني وتغيرات الطاقة (Timeline)'),
+        findsOneWidget,
+      );
       expect(find.text('تشغيل عبر طاقة شمسية'), findsOneWidget);
       expect(find.text('إيقاف من المشغل'), findsOneWidget);
       expect(find.text('تشغيل عبر ديزل البئر'), findsOneWidget);
@@ -120,16 +130,32 @@ void main() {
       expect(find.text('مشاركة الإيصال'), findsOneWidget);
     });
 
-    testWidgets('2. المقطع يعرض المبلغ المخزّن والتسعيرة المثبتة بلا حساب محلي', (tester) async {
+    testWidgets(
+      '2. المقطع يعرض المبلغ المخزّن والتسعيرة المثبتة بلا حساب محلي',
+      (tester) async {
+        await tester.pumpWidget(_wrap());
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('2,917 ريال'), findsWidgets);
+        expect(find.textContaining('التسعيرة المثبتة'), findsWidgets);
+        expect(find.textContaining('محسوب على المزارع: لا'), findsOneWidget);
+      },
+    );
+
+    testWidgets('2b. خلية المدة تعرض الفعلي لا المفوتر (ق-131 البند 7)', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap());
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('2,917 ريال'), findsWidgets);
-      expect(find.textContaining('التسعيرة المثبتة'), findsWidgets);
-      expect(find.textContaining('محسوب على المزارع: لا'), findsOneWidget);
+      // 5400 ثانية = 1 س و 30 د و 0 ث — الفعلي بمقاطعه كلها.
+      expect(find.text('مدة التنفيذ الفعلية'), findsOneWidget);
+      expect(find.text('1 س و 30 د و 0 ث'), findsOneWidget);
     });
 
-    testWidgets('3. فتح نافذة معاينة الفاتورة الحرارية عند الضغط على طباعة', (tester) async {
+    testWidgets('3. فتح نافذة معاينة الفاتورة الحرارية عند الضغط على طباعة', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -144,7 +170,34 @@ void main() {
       expect(find.text('إرسال للطابعة'), findsOneWidget);
     });
 
-    testWidgets('4. الجلسة غير المفوترة لا تُطبع ولا تُفقَّط (ق-99)', (tester) async {
+    testWidgets(
+      '3b. الإيصال الحراري يعرض الفعلي أولًا والمفوتر مميزًا حين يختلفا (ق-131)',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1200);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        await tester.pumpWidget(_wrap());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('طباعة الفاتورة'));
+        await tester.pumpAndSettle();
+
+        // سطر الفعلي أساسي، وسطر المفوتر مستقل مميز — لا يظهر أحدهما
+        // بوصفه الآخر. والتسعيرة والمبلغ يبقيان من المفوتر المخزَّن.
+        // (الخلية خلف النافذة والإيصال داخلها يشتركان في بعض النصوص.)
+        expect(find.textContaining('مدة التنفيذ الفعلية'), findsWidgets);
+        expect(find.textContaining('1 ساعة و 30 دقيقة'), findsOneWidget);
+        expect(find.textContaining('الوقت المفوتر'), findsOneWidget);
+        expect(find.textContaining('1 ساعة و 20 دقيقة'), findsOneWidget);
+        expect(find.textContaining('سعر الساعة'), findsOneWidget);
+        expect(find.textContaining('2,917 ريال'), findsWidgets);
+      },
+    );
+
+    testWidgets('4. الجلسة غير المفوترة لا تُطبع ولا تُفقَّط (ق-99)', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -161,20 +214,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('معاينة الفاتورة الحرارية (58mm)'), findsNothing);
-      expect(
-        find.textContaining('هذه الجلسة غير مفوترة بعد'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('هذه الجلسة غير مفوترة بعد'), findsOneWidget);
     });
 
-    testWidgets('5. فشل العقد يظهر خطأً صريحًا مع إعادة المحاولة', (tester) async {
+    testWidgets('5. فشل العقد يظهر خطأً صريحًا مع إعادة المحاولة', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(shouldFail: true));
       await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('تعذّر تحميل تفاصيل الجلسة'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('تعذّر تحميل تفاصيل الجلسة'), findsOneWidget);
       expect(find.text('إعادة المحاولة'), findsOneWidget);
     });
   });

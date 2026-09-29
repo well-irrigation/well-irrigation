@@ -265,6 +265,16 @@ core.well_invitations|claimed_profile_id|uuid|null|-
 core.well_invitations|revoked_at|timestamp with time zone|null|-
 core.well_invitations|created_at|timestamp with time zone|NOT NULL|now()
 core.well_invitations|updated_at|timestamp with time zone|NOT NULL|now()
+core.well_invitations|accepted_profile_id|uuid|null|-
+core.well_invitations|accepted_at|timestamp with time zone|null|-
+core.well_invitations|confirmed_by|uuid|null|-
+core.well_invitations|confirmed_at|timestamp with time zone|null|-
+core.well_invitations|rejected_by|uuid|null|-
+core.well_invitations|rejected_at|timestamp with time zone|null|-
+core.well_invitations|acceptance_kind|text|null|-
+core.well_invitations|continuation_token_salt|text|null|-
+core.well_invitations|continuation_token_hash|text|null|-
+core.well_invitations|continuation_expires_at|timestamp with time zone|null|-
 core.well_partners|id|uuid|NOT NULL|gen_random_uuid()
 core.well_partners|tenant_id|uuid|NOT NULL|-
 core.well_partners|well_id|uuid|NOT NULL|-
@@ -592,6 +602,11 @@ ops.booking_status_history|new_status|text|NOT NULL|-
 ops.booking_status_history|reason|text|null|-
 ops.booking_status_history|changed_at|timestamp with time zone|NOT NULL|now()
 ops.booking_status_history|changed_by|uuid|null|-
+ops.farm_identity_markers|well_id|uuid|NOT NULL|-
+ops.farm_identity_markers|farmer_well_account_id|uuid|NOT NULL|-
+ops.farm_identity_markers|normalized_name|text|NOT NULL|-
+ops.farm_identity_markers|normalized_label|text|NOT NULL|''::text
+ops.farm_identity_markers|created_at|timestamp with time zone|NOT NULL|clock_timestamp()
 ops.farmer_profiles|id|uuid|NOT NULL|gen_random_uuid()
 ops.farmer_profiles|tenant_id|uuid|NOT NULL|-
 ops.farmer_profiles|person_id|uuid|NOT NULL|-
@@ -614,6 +629,7 @@ ops.farms|status|text|NOT NULL|'active'::text
 ops.farms|created_at|timestamp with time zone|NOT NULL|now()
 ops.farms|updated_at|timestamp with time zone|NOT NULL|now()
 ops.farms|farmer_well_account_id|uuid|null|-
+ops.farms|distinguishing_label|text|null|-
 ops.irrigation_bookings|id|uuid|NOT NULL|gen_random_uuid()
 ops.irrigation_bookings|tenant_id|uuid|NOT NULL|-
 ops.irrigation_bookings|public_code|text|NOT NULL|-
@@ -692,6 +708,11 @@ ops.resource_reservations|session_id|uuid|null|-
 ops.resource_reservations|reserved_period|tstzrange|NOT NULL|-
 ops.resource_reservations|status|text|NOT NULL|-
 ops.resource_reservations|created_at|timestamp with time zone|NOT NULL|now()
+ops.session_crops|id|uuid|NOT NULL|gen_random_uuid()
+ops.session_crops|session_id|uuid|NOT NULL|-
+ops.session_crops|crop_name|text|NOT NULL|-
+ops.session_crops|position|integer|NOT NULL|-
+ops.session_crops|created_at|timestamp with time zone|NOT NULL|now()
 ops.session_segments|id|uuid|NOT NULL|gen_random_uuid()
 ops.session_segments|tenant_id|uuid|NOT NULL|-
 ops.session_segments|session_id|uuid|NOT NULL|-

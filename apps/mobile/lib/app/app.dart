@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,10 +7,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/api/app_bootstrap_repository.dart';
 import '../core/api/auth_repository.dart';
 import '../core/config/app_config.dart';
+import '../core/session/offline_session_coordinator.dart';
+import '../core/sync/background_sync_binding.dart';
+import '../core/sync/background_sync_trigger.dart';
+import '../core/sync/workmanager_sync_scheduler.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/member_activation_screen.dart';
 import '../features/auth/password_reset_screen.dart';
 import '../features/splash/splash_screen.dart';
+import '../features/operations/offline_session_recovery_screen.dart';
 import '../features/well_setup/create_well_wizard_screen.dart';
 import 'authenticated_shell.dart';
 import 'identity_gate.dart';
@@ -23,6 +30,7 @@ class WellIrrigationApp extends StatefulWidget {
 }
 
 class _WellIrrigationAppState extends State<WellIrrigationApp> {
+  late final AuthenticatedBackgroundSync _automaticSync;
   bool _splashCompleted = false;
   bool _isLoggedIn = false;
 
@@ -36,6 +44,31 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
   void initState() {
     super.initState();
     _checkInitialAuth();
+    final auth = Supabase.instance.client.auth;
+    _automaticSync = AuthenticatedBackgroundSync(
+      authChanges: auth.onAuthStateChange.map((_) {}),
+      currentAccountId: () {
+        final session = auth.currentSession;
+        if (session == null || session.isExpired || session.user.id.isEmpty) {
+          return null;
+        }
+        return session.user.id;
+      },
+      bindingFactory: () => BackgroundSyncBinding(
+        trigger: BackgroundSyncTrigger(scheduler: WorkmanagerSyncScheduler()),
+      ),
+    );
+    OfflineSessionCoordinator.instance.setCommandQueuedScheduler(
+      _automaticSync.commandQueued,
+    );
+    unawaited(_automaticSync.start());
+  }
+
+  @override
+  void dispose() {
+    OfflineSessionCoordinator.instance.setCommandQueuedScheduler(null);
+    unawaited(_automaticSync.dispose());
+    super.dispose();
   }
 
   void _checkInitialAuth() {
@@ -49,7 +82,18 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
   }
 
   Future<BootstrapData> _loadBootstrap() {
-    return AppBootstrapRepository(Supabase.instance.client).fetchBootstrap();
+    return AppBootstrapRepository(Supabase.instance.client)
+        .fetchBootstrap()
+        .then((data) {
+          unawaited(_automaticSync.refresh());
+          return data;
+        });
+  }
+
+  LocalAuthAccount? _localAuthAccount() {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null || session.user.id.isEmpty) return null;
+    return LocalAuthAccount(session.user.id, isExpired: session.isExpired);
   }
 
   /// الخروج لا يُعلن إلا إن نجح فعلًا: فشل إبطال الجلسة يُعرض للمستخدم بدل
@@ -65,6 +109,7 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
     }
 
     if (mounted) {
+      await _automaticSync.refresh();
       setState(() {
         _isLoggedIn = false;
         _signOutFailure = null;
@@ -82,7 +127,10 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: ThemeData(
         useMaterial3: true,
-        fontFamily: 'Roboto',
+        // الخط المعتمد في VISUAL_IDENTITY §6 ومحزوم في pubspec. كان 'Roboto'
+        // وهو خط لاتيني لا يحمل العربية، فكان النظام يستبدله بخط الجهاز:
+        // شكلٌ مختلف على كل هاتف، وعرضُ حروف مختلف يُزيح التخطيط.
+        fontFamily: 'NotoSansArabic',
         colorSchemeSeed: const Color(0xFF0265BA),
       ),
       home: Builder(builder: _buildHome),
@@ -120,6 +168,9 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
     return IdentityGate(
       key: ValueKey(_identityEpoch),
       loadBootstrap: _loadBootstrap,
+      recoveryCoordinator: OfflineSessionCoordinator.instance,
+      localAuthAccount: _localAuthAccount,
+      authChanges: Supabase.instance.client.auth.onAuthStateChange.map((_) {}),
       onSignOutRequested: _handleLogout,
       onCreateWellRequested: () => _openCreateWellWizard(context),
       builder: (context, identity, onWellChanged) => AuthenticatedShell(
@@ -153,15 +204,15 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
   void _openPasswordReset(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (routeContext) => PasswordResetScreen(
-          onDone: () => Navigator.of(routeContext).pop(),
-        ),
+        builder: (routeContext) =>
+            PasswordResetScreen(onDone: () => Navigator.of(routeContext).pop()),
       ),
     );
   }
 
   void _openCreateWellWizard(BuildContext context) {
-    Navigator.of(context).push(      MaterialPageRoute(
+    Navigator.of(context).push(
+      MaterialPageRoute(
         builder: (_) => CreateWellWizardScreen(
           onCompleted: () {
             setState(() {

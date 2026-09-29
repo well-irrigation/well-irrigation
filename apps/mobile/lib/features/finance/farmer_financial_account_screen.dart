@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/api/finance_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_utils.dart';
@@ -20,10 +21,13 @@ class FarmerFinancialAccountScreen extends StatefulWidget {
   });
 
   @override
-  State<FarmerFinancialAccountScreen> createState() => _FarmerFinancialAccountScreenState();
+  State<FarmerFinancialAccountScreen> createState() =>
+      _FarmerFinancialAccountScreenState();
 }
 
-class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScreen> with SingleTickerProviderStateMixin {
+class _FarmerFinancialAccountScreenState
+    extends State<FarmerFinancialAccountScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late FinanceRepository _repo;
 
@@ -80,7 +84,9 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
         onPaymentRecorded: () {
           _loadAccount();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم تسجيل الدفعة وإصدار السند بنجاح ✅')),
+            const SnackBar(
+              content: Text('تم تسجيل الدفعة وإصدار السند بنجاح ✅'),
+            ),
           );
         },
       ),
@@ -129,7 +135,9 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
     if (_accountData == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('الحساب المالي للمزارع')),
-        body: const Center(child: Text('لم يتم العثور على بيانات الحساب المالي')),
+        body: const Center(
+          child: Text('لم يتم العثور على بيانات الحساب المالي'),
+        ),
       );
     }
 
@@ -142,7 +150,11 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
         elevation: 0,
         title: Text(
           'الحساب المالي: ${data.fullName}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -178,10 +190,18 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                       foregroundColor: AppColors.textSecondary,
                       side: const BorderSide(color: AppColors.border),
                       padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     icon: const Icon(Icons.savings_outlined, size: 18),
-                    label: const Text('استخدام الرصيد المقدم', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    label: const Text(
+                      'استخدام الرصيد المقدم',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     onPressed: _openAdvanceAllocation,
                   ),
                 ),
@@ -194,10 +214,15 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                     backgroundColor: AppColors.agriculturalGreen,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   icon: const Icon(Icons.payments_outlined, size: 18),
-                  label: const Text('تسجيل دفعة / سند قبض', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'تسجيل دفعة / سند قبض',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
                   onPressed: _showRecordPaymentDialog,
                 ),
               ),
@@ -215,66 +240,115 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
               children: [
                 Row(
                   children: [
-                    // كرت المستحق عليه (الديون)
+                    // كرت المستحق عليه (الديون) — لون الخطأ الدلالي: دَينٌ
+                    // مستحق حالةٌ تستحق الانتباه فعلًا، فاللون في موضعه.
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFC0392B).withValues(alpha: 0.08),
+                          color: AppColors.error.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFC0392B).withValues(alpha: 0.25)),
+                          border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.25),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: const [
-                                Icon(Icons.receipt_outlined, color: Color(0xFFC0392B), size: 16),
+                                Icon(
+                                  Icons.receipt_outlined,
+                                  color: AppColors.error,
+                                  size: 16,
+                                ),
                                 SizedBox(width: 4),
-                                Text('إجمالي الديون المستحقة', style: TextStyle(fontSize: 11, color: Color(0xFFC0392B), fontWeight: FontWeight.bold)),
+                                Text(
+                                  'إجمالي الديون المستحقة',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.error,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 6),
                             CurrencyDisplay(
                               amount: data.totalDebtYER,
                               showTafqeet: false,
-                              amountStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFFC0392B)),
+                              amountStyle: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.error,
+                              ),
                             ),
                             const SizedBox(height: 2),
-                            const Text('فواتير غير مسددة', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                            const Text(
+                              'فواتير غير مسددة',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(width: 10),
 
-                    // كرت الرصيد المقدم (Advance)
+                    // كرت الرصيد المقدَّم — بأزرق الماء لا بالبنفسجي: الوثيقة
+                    // تنصّ «لا يضاف لون رابع إلى ألوان العلامة»، والبنفسجي
+                    // والوردي كانا يُدخلان هوية غريبة في شاشة مالية.
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.purple.withValues(alpha: 0.08),
+                          color: AppColors.waterBlue.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.purple.withValues(alpha: 0.25)),
+                          border: Border.all(
+                            color: AppColors.waterBlue.withValues(alpha: 0.25),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: const [
-                                Icon(Icons.account_balance_wallet_outlined, color: Colors.purple, size: 16),
+                                Icon(
+                                  Icons.account_balance_wallet_outlined,
+                                  color: AppColors.waterBlue,
+                                  size: 16,
+                                ),
                                 SizedBox(width: 4),
-                                Text('الرصيد المقدم بحسابه', style: TextStyle(fontSize: 11, color: Colors.purple, fontWeight: FontWeight.bold)),
+                                Text(
+                                  'الرصيد المقدم بحسابه',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.waterBlue,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 6),
                             CurrencyDisplay(
                               amount: data.advanceBalanceYER,
                               showTafqeet: false,
-                              amountStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.purple),
+                              amountStyle: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.waterBlue,
+                              ),
                             ),
                             const SizedBox(height: 2),
-                            const Text('رصيد مدفوع مقدماً', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                            const Text(
+                              'رصيد مدفوع مقدماً',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -284,11 +358,18 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                 const SizedBox(height: 8),
                 Row(
                   children: const [
-                    Icon(Icons.info_outline, size: 14, color: AppColors.waterBlue),
+                    Icon(
+                      Icons.info_outline,
+                      size: 14,
+                      color: AppColors.waterBlue,
+                    ),
                     SizedBox(width: 4),
                     Text(
                       'مبدأ ق-99: يتم عرض الديون والرصيد المقدم منفصلين دون تقاص صامت.',
-                      style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -324,8 +405,12 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
         final isPaid = inv.status == 'paid';
         final isPartial = inv.status == 'partial';
 
-        Color statusColor = isPaid ? AppColors.agriculturalGreen : (isPartial ? Colors.orange : Colors.red);
-        String statusText = isPaid ? 'مسددة بالكامل ✅' : (isPartial ? 'مسددة جزئياً ⚠️' : 'غير مسددة 🔴');
+        Color statusColor = isPaid
+            ? AppColors.agriculturalGreen
+            : (isPartial ? Colors.orange : Colors.red);
+        String statusText = isPaid
+            ? 'مسددة بالكامل ✅'
+            : (isPartial ? 'مسددة جزئياً ⚠️' : 'غير مسددة 🔴');
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -344,23 +429,49 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.receipt, size: 16, color: AppColors.deepBlue),
+                        const Icon(
+                          Icons.receipt,
+                          size: 16,
+                          color: AppColors.deepBlue,
+                        ),
                         const SizedBox(width: 6),
-                        Text(inv.invoiceNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(
+                          inv.invoiceNumber,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(statusText, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text('الأرض: ${inv.farmName}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                Text(
+                  'الأرض: ${inv.farmName}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 const Divider(height: 1, color: AppColors.surfaceSubtle),
                 const SizedBox(height: 8),
@@ -370,28 +481,61 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('المبلغ الأصلي:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                        Text('${inv.originalAmountYER} ريال', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        const Text(
+                          'المبلغ الأصلي:',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          '${inv.originalAmountYER} ريال',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('المدفوع:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                        Text('${inv.paidAmountYER} ريال', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.agriculturalGreen)),
+                        const Text(
+                          'المدفوع:',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          '${inv.paidAmountYER} ريال',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.agriculturalGreen,
+                          ),
+                        ),
                       ],
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text('المتبقي:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        const Text(
+                          'المتبقي:',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                         CurrencyDisplay(
                           amount: inv.remainingAmountYER,
                           showTafqeet: false,
                           amountStyle: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: inv.remainingAmountYER > 0 ? Colors.red : AppColors.agriculturalGreen,
+                            color: inv.remainingAmountYER > 0
+                                ? Colors.red
+                                : AppColors.agriculturalGreen,
                           ),
                         ),
                       ],
@@ -433,33 +577,59 @@ class _FarmerFinancialAccountScreenState extends State<FarmerFinancialAccountScr
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.check_circle_outline, size: 16, color: AppColors.agriculturalGreen),
+                        const Icon(
+                          Icons.check_circle_outline,
+                          size: 16,
+                          color: AppColors.agriculturalGreen,
+                        ),
                         const SizedBox(width: 6),
-                        Text('سند قبض: ${pay.receiptNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(
+                          'سند قبض: ${pay.receiptNumber}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
                     ),
                     CurrencyDisplay(
                       amount: pay.amountYER,
                       showTafqeet: false,
-                      amountStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.agriculturalGreen),
+                      amountStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.agriculturalGreen,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'طريقة الدفع: ${pay.method == "cash" ? "نقداً" : (pay.method == "transfer" ? "حوالة بنكية" : "آجل")}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 if (pay.allocatedInvoiceNumbers.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     'مخصص لسداد: ${pay.allocatedInvoiceNumbers.join(", ")}',
-                    style: const TextStyle(fontSize: 11, color: AppColors.deepBlue),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.deepBlue,
+                    ),
                   ),
                 ],
                 if (pay.note != null && pay.note!.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text('ملاحظة: ${pay.note}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Text(
+                    'ملاحظة: ${pay.note}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -513,7 +683,10 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
         children: const [
           Icon(Icons.payments_outlined, color: AppColors.agriculturalGreen),
           SizedBox(width: 8),
-          Text('تسجيل دفعة وسند قبض', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            'تسجيل دفعة وسند قبض',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
       content: SingleChildScrollView(
@@ -523,9 +696,37 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('المزارع: ${widget.accountData.fullName} (${widget.accountData.publicCode})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              // اسم المزارع بارزًا، والكود `FWA-…` هامشًا صغيرًا: هذه النافذة
+              // تُصدر **سندًا ورقيًّا يُطابَق لاحقًا**، فهي الموضع الوحيد الذي
+              // يخدم فيه المعرّف غرضًا — وأُزيل من الشاشات الثلاث الأخرى.
+              Text(
+                'المزارع: ${widget.accountData.fullName}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                widget.accountData.publicCode,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textMuted,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text('الديون المستحقة: ${widget.accountData.totalDebtYER} ريال', style: const TextStyle(fontSize: 12, color: Colors.red)),
+              // «لا ديون» حقيقةٌ تُعلَن لا رقمٌ أحمر: قبضُ مبلغ بلا دين مقبول
+              // ويُسجَّل رصيدًا مقدَّمًا، لكن المالك يجب أن يعرف ذلك قبل
+              // الإصدار — لا أن يظنّه تسديدًا. والخادم يقبله فلا يُحجب.
+              if (widget.accountData.totalDebtYER > 0)
+                Text(
+                  'الديون المستحقة: ${widget.accountData.totalDebtYER} ريال',
+                  style: const TextStyle(fontSize: 12, color: AppColors.error),
+                )
+              else
+                const Text(
+                  'لا ديون مستحقة — سيُسجَّل المبلغ رصيدًا مقدَّمًا بحسابه',
+                  style: TextStyle(fontSize: 12, color: AppColors.info),
+                ),
               const SizedBox(height: 14),
 
               // المبلغ
@@ -534,8 +735,11 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
                 labelText: 'المبلغ المدفوع (ريال يمني) *',
                 hintText: '0',
                 validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'يرجى إدخال المبلغ';
-                  final numVal = int.tryParse(val.replaceAll(',', '').trim()) ?? 0;
+                  if (val == null || val.trim().isEmpty) {
+                    return 'يرجى إدخال المبلغ';
+                  }
+                  final numVal =
+                      int.tryParse(val.replaceAll(',', '').trim()) ?? 0;
                   if (numVal <= 0) return 'المبلغ يجب أن يكون أكبر من الصفر';
                   return null;
                 },
@@ -551,10 +755,16 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
                   prefixIcon: Icon(Icons.payment, size: 20),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('نقداً (Cash)')),
-                  DropdownMenuItem(value: 'transfer', child: Text('حوالة / إيداع بنكي')),
+                  // بلا ترجمة مزدوجة: «نقداً (Cash)» في تطبيق عربي بالكامل
+                  // حشوٌ لا يفهمه من لا يقرأ الإنجليزية ولا يحتاجه من يقرؤها.
+                  DropdownMenuItem(value: 'cash', child: Text('نقداً')),
+                  DropdownMenuItem(
+                    value: 'transfer',
+                    child: Text('حوالة / إيداع بنكي'),
+                  ),
                 ],
-                onChanged: (val) => setState(() => _paymentMethod = val ?? 'cash'),
+                onChanged: (val) =>
+                    setState(() => _paymentMethod = val ?? 'cash'),
               ),
               const SizedBox(height: 14),
 
@@ -573,19 +783,26 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('إلغاء', style: TextStyle(color: AppColors.textSecondary)),
+          child: const Text(
+            'إلغاء',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.agriculturalGreen,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           onPressed: _isSubmitting
               ? null
               : () async {
                   if (!_formKey.currentState!.validate()) return;
-                  final rawAmount = _amountController.text.replaceAll(',', '').trim();
+                  final rawAmount = _amountController.text
+                      .replaceAll(',', '')
+                      .trim();
                   final amount = int.parse(rawAmount);
 
                   setState(() => _isSubmitting = true);
@@ -613,7 +830,14 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
                   }
                 },
           child: _isSubmitting
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
               : const Text('إصدار سند القبض'),
         ),
       ],
@@ -621,13 +845,16 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
   }
 }
 
-
-/// نافذة التسديد من الرصيد المقدم (م-41G / هجرة 097).
+/// نافذة التسديد من الرصيد المقدم (م-41G / هجرة 097 / ق-131 البند 10).
 ///
-/// ثلاث خطوات صريحة: سندٌ من سندات الرصيد كما أعادها العقد بمتبقّيه، ثم
-/// فاتورة من الفواتير المستحقة بمتبقّيها، ثم مبلغ **يكتبه الإنسان**. لا
-/// مبلغ مُعبَّأ تلقائيًّا ولا رقم يُشتقّ هنا: العميل ينقل قرارًا ولا يحسبه
-/// (ق-99)، والخادم `api.allocate_payment` هو من يتحقق من الحالة والمجموع.
+/// الترتيب: سند من سندات الرصيد كما أعادها العقد بمتبقّيه، ثم فاتورة
+/// مستحقة، **فحين يكتمل الاختيار** يطلب العميل من الخادم التسوية
+/// المقترحة (api.get_advance_allocation_proposal — هجرة 108) ويعرضها
+/// ويعبّئ المبلغ منها. الرقم من الخادم لا من حساب محلي (ق-99)، ويجوز
+/// تعديله قبل التأكيد، **ولا تخصيص إلا بزر التأكيد الصريح** — اختيار
+/// السند أو الفاتورة أو قراءة الاقتراح أو تعديل المبلغ لا يكتب شيئًا،
+/// والإلغاء صفر كتابة. والكتابة نفسها تبقى على api.allocate_payment
+/// بمعرّفات حقيقية والمبلغ المؤكَّد.
 class _AdvanceAllocationDialog extends StatefulWidget {
   const _AdvanceAllocationDialog({
     required this.accountData,
@@ -651,6 +878,13 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   String? _error;
+
+  // اقتراح التسوية من الخادم (ق-131 البند 10): لا يُطلب إلا بعد
+  // اكتمال الاختيارَين، وردٌّ قديم لمزاوجة سابقة لا يُعرض فوق الأحدث.
+  AdvanceAllocationProposal? _proposal;
+  bool _isLoadingProposal = false;
+  String? _proposalError;
+  int _proposalGeneration = 0;
 
   @override
   void initState() {
@@ -679,13 +913,62 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
       setState(() {
         _receipts = const [];
         _isLoading = false;
-        _error = 'تعذر قراءة سندات الرصيد المقدم — لم يُرسل أي تسديد.\n\n$error';
+        _error =
+            'تعذر قراءة سندات الرصيد المقدم — لم يُرسل أي تسديد.\n\n$error';
       });
     }
   }
 
-  /// المبلغ يكتبه الإنسان ويتحقق منه الخادم. وما نرسله ثلاثة معرّفات ومبلغ
-  /// واحد: لا قائمة تخصيصات تُبنى محليًّا ولا معرّف لم يعده عقد.
+  /// تصفير الاقتراح فورًا عند تغيير السند أو الفاتورة: اقتراح مزاوجة
+  /// سابقة لا يبقى معروضًا ولا يُرسل.
+  void _resetProposal() {
+    _proposalGeneration++;
+    _proposal = null;
+    _isLoadingProposal = false;
+    _proposalError = null;
+    _amountController.clear();
+  }
+
+  /// الطلب للخادم فقط حين يكتمل الاختيارَان: سند وفاتورة. الردّ القديم
+  /// لا يُعرض فوق مزاوجة أحدث منه (نمط generation في الشاشة).
+  Future<void> _maybeLoadProposal() async {
+    final receiptId = _receiptId;
+    final invoiceId = _invoiceId;
+    if (receiptId == null || invoiceId == null) return;
+
+    final generation = ++_proposalGeneration;
+    setState(() {
+      _isLoadingProposal = true;
+      _proposalError = null;
+    });
+    try {
+      final proposal = await widget.repository.fetchAdvanceAllocationProposal(
+        paymentId: receiptId,
+        invoiceId: invoiceId,
+      );
+      if (!mounted || generation != _proposalGeneration) return;
+      setState(() {
+        _proposal = proposal;
+        _isLoadingProposal = false;
+        // التعبئة الوحيدة للمبلغ: من قيمة الخادم المقترحة حرفيًا —
+        // لا حساب محلي ولا مشتقّ (ق-99 / ق-131 البند 10).
+        _amountController.text = CurrencyUtils.formatAmount(
+          proposal.proposedMinor,
+        );
+      });
+    } catch (error) {
+      if (!mounted || generation != _proposalGeneration) return;
+      setState(() {
+        _isLoadingProposal = false;
+        _proposalError =
+            'تعذر حساب التسوية المقترحة — لم يُرسل أي تسديد.\n\n$error';
+      });
+    }
+  }
+
+  /// المبلغ المؤكَّد يكتبه/يعدّله الإنسان فوق المقترح ويتحقق منه
+  /// الخادم. وما نرسله ثلاثة معرّفات ومبلغ واحد: لا قائمة تخصيصات
+  /// تُبنى محليًّا ولا معرّف لم يعده عقد.
   Future<void> _submit() async {
     final receiptId = _receiptId;
     final invoiceId = _invoiceId;
@@ -697,6 +980,10 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
     }
     if (invoiceId == null) {
       setState(() => _error = 'اختر الفاتورة المراد تسديدها');
+      return;
+    }
+    if (_isLoadingProposal || _proposal == null) {
+      setState(() => _error = 'بانتظار التسوية المقترحة من الخادم');
       return;
     }
     if (amount <= 0) {
@@ -734,6 +1021,12 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
     final unpaid = widget.accountData.invoices
         .where((i) => i.remainingAmountYER > 0)
         .toList(growable: false);
+    final proposal = _proposal;
+    final canConfirm =
+        !_isSubmitting &&
+        !_isLoadingProposal &&
+        proposal != null &&
+        proposal.canApply;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -761,7 +1054,10 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
                     else ...[
                       const Text(
                         'اختر السند:',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       ..._receipts.map(
                         (receipt) => ListTile(
@@ -776,9 +1072,13 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
                           ),
                           onTap: _isSubmitting
                               ? null
-                              : () => setState(
-                                  () => _receiptId = receipt.paymentId,
-                                ),
+                              : () {
+                                  setState(() {
+                                    _receiptId = receipt.paymentId;
+                                    _resetProposal();
+                                  });
+                                  _maybeLoadProposal();
+                                },
                           title: Text(
                             receipt.publicCode,
                             style: const TextStyle(fontSize: 12),
@@ -793,7 +1093,10 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
                       const SizedBox(height: 8),
                       const Text(
                         'اختر الفاتورة:',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       if (unpaid.isEmpty)
                         const Text(
@@ -814,7 +1117,13 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
                             ),
                             onTap: _isSubmitting
                                 ? null
-                                : () => setState(() => _invoiceId = invoice.id),
+                                : () {
+                                    setState(() {
+                                      _invoiceId = invoice.id;
+                                      _resetProposal();
+                                    });
+                                    _maybeLoadProposal();
+                                  },
                             title: Text(
                               invoice.invoiceNumber,
                               style: const TextStyle(fontSize: 12),
@@ -827,23 +1136,88 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
                           ),
                         ),
                       const SizedBox(height: 10),
-                      CurrencyTextFormField(
-                        controller: _amountController,
-                        labelText: 'المبلغ المسدَّد من السند',
-                        hintText: '0',
-                        enabled: !_isSubmitting,
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'المبلغ تكتبه بنفسك: لا يُملأ تلقائيًّا ولا يُحسب في '
-                        'التطبيق، والخادم يرفض ما يتجاوز متبقي السند أو '
-                        'متبقي الفاتورة.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                          height: 1.5,
+
+                      // التسوية المقترحة من الخادم بعد اكتمال الاختيارَين:
+                      // تحميل ثم ملخص صريح، وفشل صادق بلا اقتراح مُلفَّق.
+                      if (_isLoadingProposal)
+                        const Row(
+                          children: [
+                            SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'جارٍ حساب التسوية المقترحة...',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        )
+                      else if (_proposalError != null)
+                        Text(
+                          _proposalError!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.error,
+                          ),
+                        )
+                      else if (proposal != null) ...[
+                        Container(
+                          key: const ValueKey('advanceProposalSummary'),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'المتاح من الرصيد المقدم: '
+                                '${CurrencyUtils.formatAmount(proposal.advanceRemainingMinor)} ريال',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'المتبقي على الفاتورة: '
+                                '${CurrencyUtils.formatAmount(proposal.invoiceOutstandingMinor)} ريال',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'المقترح تطبيقه: '
+                                '${CurrencyUtils.formatAmount(proposal.proposedMinor)} ريال',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.deepBlue,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        CurrencyTextFormField(
+                          controller: _amountController,
+                          labelText: 'المبلغ المسدَّد من السند',
+                          hintText: '0',
+                          enabled: !_isSubmitting,
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'المقترح من الخادم ويمكن تعديله قبل التأكيد، والخادم '
+                          'يرفض ما يتجاوز متبقي السند أو متبقي الفاتورة. '
+                          'لا يُخصَّص شيء إلا بزر التأكيد.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
                     ],
                     if (_error != null) ...[
                       const SizedBox(height: 10),
@@ -870,11 +1244,14 @@ class _AdvanceAllocationDialogState extends State<_AdvanceAllocationDialog> {
               backgroundColor: AppColors.agriculturalGreen,
               foregroundColor: Colors.white,
             ),
-            onPressed: _isSubmitting ? null : _submit,
-            child: Text(_isSubmitting ? 'جارٍ التسديد…' : 'تسديد'),
+            // لا تأكيد قبل اقتراح الخادم، وصفر مقترح لا يُؤكَّد
+            // (ق-131 البند 10: لا استهلاك صامت ولا قيد بلا تأكيد).
+            onPressed: canConfirm ? _submit : null,
+            child: Text(
+              _isSubmitting ? 'جارٍ التسديد…' : 'تأكيد التسديد من المقدم',
+            ),
           ),
       ],
     );
   }
 }
-

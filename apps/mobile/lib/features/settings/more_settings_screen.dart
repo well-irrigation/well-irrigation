@@ -37,7 +37,6 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
   bool _isLoading = true;
   late WellSummary _activeWell;
 
-
   @override
   void initState() {
     super.initState();
@@ -87,12 +86,21 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 28),
+              Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.warning,
+                size: 28,
+              ),
               SizedBox(width: 8),
-              Text('تنبيه أمان البيانات', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text(
+                'تنبيه أمان البيانات',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
             ],
           ),
           content: Column(
@@ -135,9 +143,16 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('تسجيل الخروج', style: TextStyle(fontWeight: FontWeight.bold)),
-          content: const Text('هل أنت متأكد من رغبتك في تسجيل الخروج من التطبيق؟'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'تسجيل الخروج',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'هل أنت متأكد من رغبتك في تسجيل الخروج من التطبيق؟',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
@@ -173,7 +188,10 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
             Icon(Icons.error_outline, color: AppColors.error, size: 28),
             SizedBox(width: 8),
             Expanded(
-              child: Text('تعذر التحقق قبل الخروج', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              child: Text(
+                'تعذر التحقق قبل الخروج',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
             ),
           ],
         ),
@@ -275,23 +293,26 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   },
                 ),
 
-                const SizedBox(height: 12),
-                _buildSectionHeader('إدارة الفريق والبئر'),
-                _buildMenuItem(
-                  icon: Icons.people_outline,
-                  iconColor: AppColors.agriculturalGreen,
-                  title: 'الفريق والصلاحيات',
-                  subtitle: 'دعوة مشغّل أو شريك وإلغاء الوصول',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => TeamPermissionsScreen(
-                          well: _activeWell,
+                if (_activeWell.isOwner) ...[
+                  const SizedBox(height: 12),
+                  _buildSectionHeader('إدارة الفريق والبئر'),
+                  _buildMenuItem(
+                    icon: Icons.people_outline,
+                    iconColor: AppColors.agriculturalGreen,
+                    title: 'الفريق والصلاحيات',
+                    subtitle: 'دعوة مشغّل أو شريك وإلغاء الوصول',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TeamPermissionsScreen(
+                            well: _activeWell,
+                            senderName: widget.identity.displayName,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
+                ],
 
                 const SizedBox(height: 12),
                 _buildSectionHeader('الجهاز والتشغيل الميداني'),
@@ -299,7 +320,8 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   icon: Icons.sync_rounded,
                   iconColor: const Color(0xFF0284C7),
                   title: 'الجهاز والمزامنة',
-                  subtitle: 'صحة التخزين المحلي، العمليات المعلقة، وتحديث البيانات',
+                  subtitle:
+                      'صحة التخزين المحلي، العمليات المعلقة، وتحديث البيانات',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -315,7 +337,8 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   icon: Icons.tune,
                   iconColor: const Color(0xFF6366F1),
                   title: 'تفضيلات التطبيق والطباعة',
-                  subtitle: 'المظهر الميداني، إعدادات الطابعة الحرارية والإشعارات',
+                  subtitle:
+                      'المظهر الميداني، إعدادات الطابعة الحرارية والإشعارات',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -350,10 +373,15 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                     elevation: 0,
                     side: const BorderSide(color: AppColors.error),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   icon: const Icon(Icons.logout),
-                  label: const Text('تسجيل الخروج من الحساب', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'تسجيل الخروج من الحساب',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   onPressed: _handleSafeLogout,
                 ),
                 const SizedBox(height: 32),
@@ -404,7 +432,11 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
             CircleAvatar(
               radius: 28,
               backgroundColor: AppColors.waterBlue.withValues(alpha: 0.15),
-              child: const Icon(Icons.person, color: AppColors.waterBlue, size: 32),
+              child: const Icon(
+                Icons.person,
+                color: AppColors.waterBlue,
+                size: 32,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -413,16 +445,26 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                 children: [
                   Text(
                     profile.fullName,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.phone_android, size: 14, color: AppColors.textSecondary),
+                      const Icon(
+                        Icons.phone_android,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         profile.phone,
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -432,11 +474,20 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                     runSpacing: 4,
                     children: profile.rolesSummary.map((role) {
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: AppColors.agriculturalGreen.withValues(alpha: 0.1),
+                          color: AppColors.agriculturalGreen.withValues(
+                            alpha: 0.1,
+                          ),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.agriculturalGreen.withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: AppColors.agriculturalGreen.withValues(
+                              alpha: 0.3,
+                            ),
+                          ),
                         ),
                         child: Text(
                           role,
@@ -463,7 +514,11 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
       padding: const EdgeInsets.only(bottom: 6, right: 4),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: AppColors.textSecondary,
+        ),
       ),
     );
   }
@@ -487,9 +542,19 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
           backgroundColor: iconColor.withValues(alpha: 0.1),
           child: Icon(icon, color: iconColor),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 14,
+          color: AppColors.textSecondary,
+        ),
         onTap: () {
           HapticFeedback.lightImpact();
           onTap();

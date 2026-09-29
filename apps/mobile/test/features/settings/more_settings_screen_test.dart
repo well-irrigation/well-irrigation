@@ -3,13 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/account_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/features/settings/more_settings_screen.dart';
+
 import '../../support/identity_fixture.dart';
 
 class _FakeAccountRepository extends AccountRepository {
-  _FakeAccountRepository({
-    this.failProfile = false,
-    this.failPending = false,
-  });
+  _FakeAccountRepository({this.failProfile = false, this.failPending = false});
 
   final bool failProfile;
   final bool failPending;
@@ -47,7 +45,9 @@ void main() {
     tearDown(() {
       OfflineSessionCoordinator.instance.dispose();
     });
-    testWidgets('1. عرض رأس الحساب والبيانات التعريفية وقائمة الأقسام', (tester) async {
+    testWidgets('1. عرض رأس الحساب والبيانات التعريفية وقائمة الأقسام', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -100,60 +100,48 @@ void main() {
       await tester.tap(logoutBtn);
       await tester.pumpAndSettle();
 
-      expect(find.text('هل أنت متأكد من رغبتك في تسجيل الخروج من التطبيق؟'), findsOneWidget);
+      expect(
+        find.text('هل أنت متأكد من رغبتك في تسجيل الخروج من التطبيق؟'),
+        findsOneWidget,
+      );
       final confirmBtn = find.widgetWithText(ElevatedButton, 'تسجيل الخروج');
       await tester.tap(confirmBtn);
       await tester.pumpAndSettle();
 
       expect(loggedOut, isTrue);
     });
-    testWidgets(
-      '3. فشل تحميل الحساب لا يعرض بيانات وهمية',
-      (tester) async {
-        tester.view.physicalSize = const Size(800, 1600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
+    testWidgets('3. فشل تحميل الحساب لا يعرض بيانات وهمية', (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-        await tester.pumpWidget(
-          MaterialApp(
-            locale: const Locale('ar'),
-            home: MoreSettingsScreen(
-              identity: testIdentity(
-                wells: [testWell(name: 'بئر الاختبار')],
-              ),
-              repository: _FakeAccountRepository(
-                failProfile: true,
-              ),
-            ),
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('ar'),
+          home: MoreSettingsScreen(
+            identity: testIdentity(wells: [testWell(name: 'بئر الاختبار')]),
+            repository: _FakeAccountRepository(failProfile: true),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(
-          find.text('تعذر تحميل بيانات الحساب'),
-          findsOneWidget,
-        );
-        expect(find.text('إعادة المحاولة'), findsOneWidget);
-        expect(find.text('محمد عبدالله الشامي'), findsNothing);
-        expect(find.text('777123456'), findsNothing);
+      expect(find.text('تعذر تحميل بيانات الحساب'), findsOneWidget);
+      expect(find.text('إعادة المحاولة'), findsOneWidget);
+      expect(find.text('محمد عبدالله الشامي'), findsNothing);
+      expect(find.text('777123456'), findsNothing);
 
-        expect(
-          find.text('تفضيلات التطبيق والطباعة'),
-          findsOneWidget,
-        );
+      expect(find.text('تفضيلات التطبيق والطباعة'), findsOneWidget);
 
-        await tester.tap(find.text('حسابي والملف الشخصي'));
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('حسابي والملف الشخصي'));
+      await tester.pumpAndSettle();
 
-        expect(
-          find.text(
-            'تعذر تحميل بيانات الحساب. أعد المحاولة أولاً.',
-          ),
-          findsOneWidget,
-        );
-      },
-    );
+      expect(
+        find.text('تعذر تحميل بيانات الحساب. أعد المحاولة أولاً.'),
+        findsOneWidget,
+      );
+    });
 
     testWidgets(
       '4. تعذر قراءة المعلَّق قبل الخروج يفشل مغلقًا لا يمرّ نظيفًا',
@@ -196,5 +184,71 @@ void main() {
       },
     );
 
+    testWidgets('المشغّل لا يرى الفريق والصلاحيات والمالك يراه', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MoreSettingsScreen(
+            key: UniqueKey(),
+            identity: testIdentity(
+              wells: [
+                testWell(roles: const ['operator']),
+              ],
+            ),
+            repository: _FakeAccountRepository(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('الفريق والصلاحيات'), findsNothing);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MoreSettingsScreen(
+            key: UniqueKey(),
+            identity: testIdentity(),
+            repository: _FakeAccountRepository(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('الفريق والصلاحيات'), findsOneWidget);
+    });
+
+    testWidgets('تبديل البئر يحدّث ظهور الفريق والصلاحيات', (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final operatorWell = testWell(
+        id: 'well-2',
+        name: 'بئر المشغّل',
+        roles: const ['operator'],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MoreSettingsScreen(
+            identity: testIdentity(wells: [testWell(), operatorWell]),
+            repository: _FakeAccountRepository(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('الفريق والصلاحيات'), findsOneWidget);
+
+      await tester.tap(find.text('بئر الخير الرئيسي'));
+      await tester.pumpAndSettle();
+      tester
+          .widget<ListTile>(find.widgetWithText(ListTile, 'بئر المشغّل'))
+          .onTap!();
+      await tester.pumpAndSettle();
+
+      expect(find.text('الفريق والصلاحيات'), findsNothing);
+    });
   });
 }

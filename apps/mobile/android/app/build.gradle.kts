@@ -15,8 +15,13 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "dev.wellirrigation.well_irrigation_mobile"
+        // معرّف الحزمة مقرَّر بق-41 ولا يُغيّر بعد أول نشر في جوجل بلاي:
+        // تغييره يعني تطبيقًا جديدًا وفقدان كل المستخدمين. صُحِّح في
+        // 2026-09-04 قبل أول تثبيت على جهاز — وكان الافتراضي المولَّد
+        // dev.wellirrigation.well_irrigation_mobile مخالفًا للقرار.
+        // و`namespace` أعلاه مساحة أسماء داخلية للكود ولا تظهر في المتجر،
+        // فتُترك كما هي: تغييرها ينقل ملفات بلا مقابل.
+        applicationId = "com.wellirrigation.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

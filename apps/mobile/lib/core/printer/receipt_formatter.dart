@@ -3,7 +3,14 @@ import '../utils/tafqeet_utils.dart';
 
 /// تنسيق وقوالب الفواتير وسندات القبض الحرارية (ESC/POS Thermal Printer - قياس 58mm و 80mm)
 class ReceiptFormatter {
-  /// توليد قالب نصي لفاتورة جلسة سقي مكتملة
+  /// توليد قالب نصي لفاتورة جلسة سقي مكتملة.
+  ///
+  /// [actualSeconds] مدة التنفيذ الفعلية (ق-131 البند 7): حين تُمرَّر
+  /// تصير هي «مدة التنفيذ الفعلية» السطر الأول، وإن اختلفت عن المفوتر
+  /// يُضاف «الوقت المفوتر» سطرًا مستقلًا مميزًا — ولا يُوهم أحدهما أنه
+  /// الآخر. وغيابها يُبقي المفوتر بعنوانه المالي الصريح «الوقت المفوتر»
+  /// — فلا يُسمى المفوتر «المدة» ولا «مدة السقي الفعلية» في أي حال.
+  /// المبالغ والتسعيرة تبقى محسوبة من المفوتر في كل الأحوال.
   static String formatSessionInvoice({
     required String wellName,
     required String invoiceNumber,
@@ -14,18 +21,22 @@ class ReceiptFormatter {
     required String energySource,
     required int hourlyRateYER,
     required int billableSeconds,
+    int? actualSeconds,
     required int totalAmountYER,
     required int paidAmountYER,
     int widthChars = 32, // 32 لـ 58mm، 48 لـ 80mm
   }) {
     final separator = '=' * widthChars;
     final subSeparator = '-' * widthChars;
-    final hours = billableSeconds ~/ 3600;
-    final minutes = (billableSeconds % 3600) ~/ 60;
     final remainingAmount = totalAmountYER - paidAmountYER;
     final tafqeetText = Tafqeet.format(totalAmountYER);
+    final actualDurationText = actualSeconds == null
+        ? null
+        : _durationText(actualSeconds);
+    final billableDurationText = _durationText(billableSeconds);
 
-    final dateStr = '${date.year}-${_twoDigits(date.month)}-${_twoDigits(date.day)}';
+    final dateStr =
+        '${date.year}-${_twoDigits(date.month)}-${_twoDigits(date.day)}';
     final timeStr = '${_twoDigits(date.hour)}:${_twoDigits(date.minute)}';
 
     final buffer = StringBuffer();
@@ -46,17 +57,34 @@ class ReceiptFormatter {
     buffer.writeln(subSeparator);
 
     buffer.writeln('تفاصيل التشغيل:');
-    buffer.writeln('- المدة: $hours ساعة و $minutes دقيقة');
+    if (actualDurationText != null) {
+      buffer.writeln('- مدة التنفيذ الفعلية: $actualDurationText');
+      if (actualSeconds != billableSeconds) {
+        buffer.writeln('- الوقت المفوتر: $billableDurationText');
+      }
+    } else {
+      // بلا فعلي متوفر: المفوتر بعنوانه المالي الصريح — لا «المدة»
+      // العامة التي توهم أنها الفعلي (ق-131 البند 7).
+      buffer.writeln('- الوقت المفوتر: $billableDurationText');
+    }
     buffer.writeln('- المصدر: $energySource');
-    buffer.writeln('- سعر الساعة: ${CurrencyUtils.formatAmount(hourlyRateYER)} ريال');
+    buffer.writeln(
+      '- سعر الساعة: ${CurrencyUtils.formatAmount(hourlyRateYER)} ريال',
+    );
     buffer.writeln(subSeparator);
 
-    buffer.writeln('المبلغ الإجمالي: ${CurrencyUtils.formatAmount(totalAmountYER)} ريال يمني');
+    buffer.writeln(
+      'المبلغ الإجمالي: ${CurrencyUtils.formatAmount(totalAmountYER)} ريال يمني',
+    );
     buffer.writeln('المبلغ كتابة: $tafqeetText');
     buffer.writeln(subSeparator);
 
-    buffer.writeln('المدفوع نقداً: ${CurrencyUtils.formatAmount(paidAmountYER)} ريال');
-    buffer.writeln('المتبقي: ${CurrencyUtils.formatAmount(remainingAmount)} ريال');
+    buffer.writeln(
+      'المدفوع نقداً: ${CurrencyUtils.formatAmount(paidAmountYER)} ريال',
+    );
+    buffer.writeln(
+      'المتبقي: ${CurrencyUtils.formatAmount(remainingAmount)} ريال',
+    );
     buffer.writeln(separator);
     buffer.writeln(_centerText('شكراً لتعاملكم معنا', widthChars));
     buffer.writeln(separator);
@@ -80,7 +108,8 @@ class ReceiptFormatter {
     final subSeparator = '-' * widthChars;
     final tafqeetText = Tafqeet.format(amountYER);
 
-    final dateStr = '${date.year}-${_twoDigits(date.month)}-${_twoDigits(date.day)}';
+    final dateStr =
+        '${date.year}-${_twoDigits(date.month)}-${_twoDigits(date.day)}';
     final timeStr = '${_twoDigits(date.hour)}:${_twoDigits(date.minute)}';
 
     final buffer = StringBuffer();
@@ -97,7 +126,9 @@ class ReceiptFormatter {
     buffer.writeln('المستلم منه: $farmerName');
     buffer.writeln(subSeparator);
 
-    buffer.writeln('المبلغ المقبوض: ${CurrencyUtils.formatAmount(amountYER)} ريال يمني');
+    buffer.writeln(
+      'المبلغ المقبوض: ${CurrencyUtils.formatAmount(amountYER)} ريال يمني',
+    );
     buffer.writeln('المبلغ كتابة: $tafqeetText');
     buffer.writeln('طريقة الدفع: $paymentMethod');
     if (reference != null && reference.isNotEmpty) {
@@ -111,6 +142,11 @@ class ReceiptFormatter {
     return buffer.toString();
   }
 
+  static String _durationText(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    return '$hours ساعة و $minutes دقيقة';
+  }
 
   static String _centerText(String text, int width) {
     if (text.length >= width) return text;

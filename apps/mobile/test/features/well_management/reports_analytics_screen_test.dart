@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/well_management_repository.dart';
 import 'package:well_irrigation_mobile/features/well_management/reports_analytics_screen.dart';
+
 import '../../support/identity_fixture.dart';
 
 /// مستودع مزيَّف يعيد غلاف api.get_reports_summary كما هو: الوقود بالمللتر
@@ -38,18 +39,12 @@ class _FakeWellManagementRepository extends WellManagementRepository {
         {
           'day': '2026-08-29',
           'sessions_count': 3,
-          'duration_seconds': 21600,
+          // 6 ساعات و30 دقيقة فعلية: القسمة الصحيحة القديمة كانت ستفقدها
+          // وتعرض 7س (ق-131 البند 7: لا تقريب ساعات في النموذج).
+          'duration_seconds': 23400,
         },
-        {
-          'day': '2026-08-30',
-          'sessions_count': 4,
-          'duration_seconds': 28800,
-        },
-        {
-          'day': '2026-08-31',
-          'sessions_count': 5,
-          'duration_seconds': 36000,
-        },
+        {'day': '2026-08-30', 'sessions_count': 4, 'duration_seconds': 28800},
+        {'day': '2026-08-31', 'sessions_count': 5, 'duration_seconds': 36000},
       ],
       'financial_trends': [
         {
@@ -76,7 +71,9 @@ class _FakeWellManagementRepository extends WellManagementRepository {
 
 void main() {
   group('ReportsAnalyticsScreen Tests (UX-15 / 498–521)', () {
-    testWidgets('1. عرض مؤشرات الأداء والرسوم البيانية البسيطة V1', (tester) async {
+    testWidgets('1. عرض مؤشرات الأداء والرسوم البيانية البسيطة V1', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('ar'),
@@ -98,11 +95,16 @@ void main() {
       expect(find.text('المقبوضات المحصلة'), findsOneWidget);
       expect(find.text('المصروفات المعتمدة'), findsOneWidget);
       expect(find.textContaining('ساعات السقي اليومية'), findsOneWidget);
-      expect(find.textContaining('توزيع ساعات السقي حسب مصدر الطاقة'), findsOneWidget);
+      expect(
+        find.textContaining('توزيع ساعات السقي حسب مصدر الطاقة'),
+        findsOneWidget,
+      );
       expect(find.textContaining('التحصيل مقابل المصروفات'), findsOneWidget);
     });
 
-    testWidgets('2. التبديل بين الفترات الزمنية وتحديث المؤشرات', (tester) async {
+    testWidgets('2. التبديل بين الفترات الزمنية وتحديث المؤشرات', (
+      tester,
+    ) async {
       final repo = _FakeWellManagementRepository();
 
       await tester.pumpWidget(
@@ -132,7 +134,9 @@ void main() {
       expect(repo.requestedPeriods, ['this_month', 'today', 'this_week']);
     });
 
-    testWidgets('3. الوحدات المعروضة مشتقة من وحدات القاعدة: مللتر وثوانٍ', (tester) async {
+    testWidgets('3. الوحدات المعروضة مشتقة من وحدات القاعدة: مللتر وثوانٍ', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           locale: const Locale('ar'),
@@ -148,6 +152,10 @@ void main() {
       expect(find.text('320 لتر'), findsOneWidget);
       expect(find.text('12 جلسة'), findsOneWidget);
       expect(find.text('24 ساعة تشغيل'), findsOneWidget);
+      // الساعة الجزئية محفوظة في وسم العمود لا مُقرَّبة إلى 7س.
+      expect(find.text('6 س 30 د'), findsOneWidget);
+      expect(find.text('8 س'), findsOneWidget);
+      expect(find.text('10 س'), findsOneWidget);
       // النِسَب محسوبة من الثواني المُرجَعة: 50400 من 86400 = 58%.
       expect(find.textContaining('طاقة شمسية'), findsOneWidget);
       expect(find.textContaining('58%'), findsOneWidget);

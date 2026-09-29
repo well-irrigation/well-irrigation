@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/api/app_bootstrap_repository.dart';
 import '../core/api/team_repository.dart';
+import '../core/diagnostics/q129_recovery_diagnostic.dart';
 import '../core/identity/app_identity.dart';
+import '../core/network/bootstrap_connectivity_failure.dart';
+import '../core/session/active_session_record.dart';
+import '../core/session/offline_session_coordinator.dart';
 import '../core/theme/app_colors.dart';
+import '../core/widgets/well_loading_indicator.dart';
+import '../features/operations/offline_session_recovery_screen.dart';
 
 /// بوابة الهوية: تقرأ عقد الحساب مرة واحدة وتُعلن نتيجته الثلاثية (ق-113).
 ///
@@ -21,6 +29,9 @@ class IdentityGate extends StatefulWidget {
     this.onCreateWellRequested,
     this.onSignOutRequested,
     this.teamRepository,
+    this.recoveryCoordinator,
+    this.localAuthAccount,
+    this.authChanges,
     super.key,
   });
 
@@ -32,7 +43,8 @@ class IdentityGate extends StatefulWidget {
     BuildContext context,
     AppIdentity identity,
     ValueChanged<WellSummary> onWellChanged,
-  ) builder;
+  )
+  builder;
 
   final VoidCallback? onCreateWellRequested;
   final VoidCallback? onSignOutRequested;
@@ -40,32 +52,115 @@ class IdentityGate extends StatefulWidget {
   /// مستودع الفريق. يُمرَّر في الاختبار، وفي التشغيل يُبنى افتراضيًا.
   final TeamRepository? teamRepository;
 
+  final OfflineSessionCoordinator? recoveryCoordinator;
+  final LocalAuthAccount? Function()? localAuthAccount;
+  final Stream<void>? authChanges;
+
   @override
   State<IdentityGate> createState() => IdentityGateState();
 }
 
 class IdentityGateState extends State<IdentityGate> {
   IdentityResolution? _resolution;
+  List<ActiveSessionRecord>? _recoverySessions;
+  String? _recoveryAccountId;
+  bool _connectivityUnavailable = false;
+  int _reloadGeneration = 0;
+  StreamSubscription<void>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
+    _authSubscription = widget.authChanges?.listen(
+      (_) => _checkRecoveryAccount(),
+      onError: (Object _, StackTrace _) => _checkRecoveryAccount(),
+    );
     reload();
+  }
+
+  @override
+  void dispose() {
+    _reloadGeneration++;
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _checkRecoveryAccount() {
+    if (!mounted || _recoveryAccountId == null) return;
+    final current = widget.localAuthAccount?.call();
+    if (current?.id != _recoveryAccountId) {
+      setState(() {
+        _recoverySessions = null;
+        _recoveryAccountId = null;
+        _resolution = const IdentityUnavailable('');
+      });
+      return;
+    }
+    // قد يكون الحدث انتهاء الرمز أو تجديده: تعيد الشاشة حساب صلاحية الأفعال.
+    setState(() {});
   }
 
   /// إعادة القراءة: من زر إعادة المحاولة، ومن الأعلى بعد إنشاء بئر جديد.
   Future<void> reload() async {
-    setState(() => _resolution = null);
+    final generation = ++_reloadGeneration;
+    setState(() {
+      _resolution = null;
+      _recoverySessions = null;
+      _recoveryAccountId = null;
+      _connectivityUnavailable = false;
+    });
 
     IdentityResolution next;
+    List<ActiveSessionRecord>? recovered;
+    String? recoveryAccountId;
+    var connectivityUnavailable = false;
     try {
       next = resolveIdentity(await widget.loadBootstrap());
     } catch (error) {
-      next = IdentityUnavailable('$error');
+      connectivityUnavailable = isBootstrapConnectivityFailure(error);
+      logQ129Diagnostic(
+        q129BootstrapFailureFields(
+          error,
+          connectivityClassified: connectivityUnavailable,
+          auth: Q129AuthSnapshot.capture(),
+        ),
+      );
+      next = const IdentityUnavailable('');
+      if (connectivityUnavailable &&
+          widget.recoveryCoordinator != null &&
+          widget.localAuthAccount != null) {
+        try {
+          final auth = widget.localAuthAccount!();
+          if (auth != null && auth.id.isNotEmpty) {
+            final sessions = await widget.recoveryCoordinator!
+                .unresolvedSessions(auth.id);
+            logQ129Diagnostic(
+              q129RecoveryQueryFields(
+                candidateCount: sessions.length,
+                expiredReadOnly: auth.isExpired,
+              ),
+            );
+            if (sessions.isNotEmpty &&
+                widget.localAuthAccount!()?.id == auth.id &&
+                sessions.every((session) => session.accountId == auth.id)) {
+              recovered = sessions;
+              recoveryAccountId = auth.id;
+            }
+          }
+        } catch (queryError) {
+          logQ129Diagnostic(q129RecoveryQueryFailureFields(queryError));
+          // فشل قراءة الطابور لا يفتح وصولًا محليًا ولا يغيّر خطأ الشبكة.
+        }
+      }
     }
 
-    if (!mounted) return;
-    setState(() => _resolution = next);
+    if (!mounted || generation != _reloadGeneration) return;
+    setState(() {
+      _resolution = next;
+      _recoverySessions = recovered;
+      _recoveryAccountId = recoveryAccountId;
+      _connectivityUnavailable = connectivityUnavailable;
+    });
   }
 
   void _selectWell(WellSummary well) {
@@ -116,8 +211,8 @@ class IdentityGateState extends State<IdentityGate> {
         content: Text(
           result.isWrongCode
               ? (left == null
-                  ? 'رمز التنشيط غير صحيح'
-                  : 'رمز التنشيط غير صحيح — بقيت $left محاولات')
+                    ? 'رمز التنشيط غير صحيح'
+                    : 'رمز التنشيط غير صحيح — بقيت $left محاولات')
               : 'لا توجد دعوة سارية لرقمك',
         ),
         backgroundColor: AppColors.error,
@@ -128,6 +223,19 @@ class IdentityGateState extends State<IdentityGate> {
   @override
   Widget build(BuildContext context) {
     final resolution = _resolution;
+    final recoverySessions = _recoverySessions;
+    final recoveryAccountId = _recoveryAccountId;
+    if (recoverySessions != null &&
+        recoveryAccountId != null &&
+        widget.localAuthAccount?.call()?.id == recoveryAccountId) {
+      return OfflineSessionRecoveryScreen(
+        accountId: recoveryAccountId,
+        sessions: recoverySessions,
+        coordinator: widget.recoveryCoordinator!,
+        localAuthAccount: widget.localAuthAccount!,
+        onRetry: reload,
+      );
+    }
 
     return switch (resolution) {
       null => const _IdentityLoadingView(),
@@ -149,12 +257,12 @@ class IdentityGateState extends State<IdentityGate> {
         secondaryLabel: 'لديك رمز تنشيط؟',
         onSecondary: () => _promptClaimInvitation(context),
       ),
-      IdentityUnavailable(:final reason) => AppNoticeView(
+      IdentityUnavailable() => AppNoticeView(
         icon: Icons.cloud_off_outlined,
         title: 'تعذر تحميل بيانات حسابك',
-        message:
-            'لم نتمكن من قراءة حسابك وآبارك من الخادم، ولن نعرض بيانات غير '
-            'بياناتك. تحقق من الاتصال ثم أعد المحاولة.\n\n$reason',
+        message: _connectivityUnavailable
+            ? 'تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت ثم أعد المحاولة.'
+            : 'تعذر التحقق من بيانات حسابك. أعد المحاولة.',
         onRetry: reload,
         onSignOut: widget.onSignOutRequested,
       ),
@@ -162,6 +270,15 @@ class IdentityGateState extends State<IdentityGate> {
   }
 }
 
+/// انتظار حلّ الهوية: القطرة وحدها بلا نصّ ولا بطاقة.
+///
+/// **لماذا لا شاشة كاملة بنصّ:** كانت شاشة مستقلة تُعرض ثوانٍ ثم تختفي —
+/// فيبدو الانتظار انتقالًا إلى مكان آخر لا لحظةً في مكانه. والنصّ «جاري
+/// تحميل بيانات حسابك» لا يضيف شيئًا للحركة، ويُقرأ في كل فتح فيصير ضجيجًا.
+///
+/// وهذه أول شاشة في التطبيق فلا شيء خلفها ليُعتَّم، فتُعرض القطرة على خلفية
+/// الإقلاع بالأزرق. أمّا `WellLoadingOverlay` فلما له خلفية فعلًا: التنقل
+/// بين الأقسام وانتظار العقود.
 class _IdentityLoadingView extends StatelessWidget {
   const _IdentityLoadingView();
 
@@ -169,19 +286,7 @@ class _IdentityLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       backgroundColor: AppColors.splashBackground,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-              'جاري تحميل بيانات حسابك',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-      ),
+      body: Center(child: WellLoadingIndicator(size: 112)),
     );
   }
 }
@@ -265,7 +370,8 @@ class AppNoticeView extends StatelessWidget {
                   TextButton(
                     onPressed: onSignOut,
                     child: const Text('تسجيل الخروج'),
-                  ),              ],
+                  ),
+              ],
             ),
           ),
         ),

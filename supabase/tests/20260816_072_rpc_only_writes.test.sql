@@ -101,7 +101,7 @@ begin
   if
     has_function_privilege(
       'authenticated',
-      'ops.start_irrigation_session(uuid,uuid,uuid,uuid,uuid,text,timestamptz,uuid)',
+      'ops.start_irrigation_session(uuid,uuid,uuid,uuid,uuid,text,timestamptz,uuid,text[])',
       'EXECUTE'
     )
     and has_function_privilege(
@@ -167,7 +167,7 @@ begin
     )
     and has_function_privilege(
       'authenticated',
-      'ops.create_farm(uuid,text,uuid)',
+      'ops.create_farm(uuid,text,uuid,text)',
       'EXECUTE'
     )
     and has_function_privilege(

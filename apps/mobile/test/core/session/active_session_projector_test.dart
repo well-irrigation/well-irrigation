@@ -62,10 +62,7 @@ void main() {
   ActiveSessionProjector projectorFor(
     OutboxStore store, {
     PricingResolver? pricing,
-  }) => ActiveSessionProjector(
-    store: store,
-    pricing: pricing ?? pricingAt(t0),
-  );
+  }) => ActiveSessionProjector(store: store, pricing: pricing ?? pricingAt(t0));
 
   setUp(() async {
     testNow = t0;
@@ -97,10 +94,8 @@ void main() {
       opened.remove(writer);
 
       final reopened = await openStore();
-      final restored = await projectorFor(reopened).activeSessions(
-        sessionAccount,
-        now: at(1200),
-      );
+      final restored = await projectorFor(reopened)
+          .activeSessions(sessionAccount, now: at(1200));
 
       expect(restored, hasLength(1));
 
@@ -160,11 +155,8 @@ void main() {
       opened.remove(writer);
 
       final reopened = await openStore();
-      final record = (await projectorFor(reopened).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(1060),
-      ))!;
+      final record = (await projectorFor(reopened)
+          .projectSession(sessionAccount, session.localId, now: at(1060)))!;
 
       expect(record.businessState, SessionBusinessState.paused);
       expect(record.businessStateText, SessionStateText.paused);
@@ -229,11 +221,8 @@ void main() {
       opened.remove(writer);
 
       final reopened = await openStore();
-      final record = (await projectorFor(reopened).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(600),
-      ))!;
+      final record = (await projectorFor(reopened)
+          .projectSession(sessionAccount, session.localId, now: at(600)))!;
 
       expect(record.payments, hasLength(1));
       expect(record.receivedLocallyMinor, 20000);
@@ -248,6 +237,76 @@ void main() {
         600 - 20000,
         reason: 'ق-99: لا مقاصّة صامتة؛ الزيادة تبقى ظاهرة ولا تُقصَّر لصفر',
       );
+    });
+  });
+
+  group('لقطة محاصيل الجلسة', () {
+    test('محصول واحد يظهر في الإسقاط النشط', () async {
+      final store = await openStore();
+      final repository = repositoryFor(store);
+      final session = await startSession(repository, at: t0, crops: ['قات']);
+
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+      expect(record.crops, ['قات']);
+    });
+
+    test('عدة محاصيل تحفظ ترتيبها وتطبيعها في الإسقاط النشط', () async {
+      final store = await openStore();
+      final repository = repositoryFor(store);
+      final session = await startSession(
+        repository,
+        at: t0,
+        crops: [' قات ', '', 'قمح', 'قات'],
+      );
+
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+      expect(record.crops, ['قات', 'قمح']);
+    });
+
+    test('غياب المحاصيل يبقى قائمة فارغة صالحة', () async {
+      final store = await openStore();
+      final repository = repositoryFor(store);
+      final session = await startSession(repository, at: t0);
+
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+      expect(record.crops, isEmpty);
+    });
+
+    test('الإنهاء لا يمس اللقطة والجلسة اللاحقة لا تغيّر القديمة', () async {
+      final store = await openStore();
+      final repository = repositoryFor(store);
+      final first = await startSession(
+        repository,
+        at: t0,
+        crops: ['قات', 'قمح'],
+      );
+      await complete(repository, session: first, at: at(300));
+      final second = await startSession(
+        repository,
+        at: at(400),
+        crops: ['بصل'],
+      );
+
+      final projector = projectorFor(store);
+      final completed = (await projector.projectSession(
+        sessionAccount,
+        first.localId,
+        now: at(500),
+      ))!;
+      final later = (await projector.projectSession(
+        sessionAccount,
+        second.localId,
+        now: at(500),
+      ))!;
+
+      expect(completed.crops, ['قات', 'قمح']);
+      expect(later.crops, ['بصل']);
     });
   });
 
@@ -268,11 +327,8 @@ void main() {
         newSource: 'grid',
       );
 
-      final record = (await projectorFor(store).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(900),
-      ))!;
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(900)))!;
 
       expect(record.currentEnergySource, 'grid');
       expect(record.segments, hasLength(2));
@@ -300,11 +356,8 @@ void main() {
         newSource: 'grid',
       );
 
-      final record = (await projectorFor(store).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(900),
-      ))!;
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(900)))!;
 
       expect(record.businessState, SessionBusinessState.paused);
       expect(record.currentEnergySource, 'grid');
@@ -324,11 +377,8 @@ void main() {
 
       final session = await startSession(repository, at: t0);
 
-      final record = (await projectorFor(store).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(60),
-      ))!;
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(60)))!;
 
       expect(record.businessState, SessionBusinessState.running);
       expect(record.syncState, SessionSyncState.localOnly);
@@ -349,11 +399,8 @@ void main() {
         clock: clock,
       ).run(sessionAccount);
 
-      final record = (await projectorFor(store).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(60),
-      ))!;
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(60)))!;
 
       expect(
         record.businessState,
@@ -379,11 +426,8 @@ void main() {
         clock: clock,
       ).run(sessionAccount);
 
-      final record = (await projectorFor(store).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(60),
-      ))!;
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(60)))!;
 
       expect(record.businessState, SessionBusinessState.running);
       expect(record.syncState, SessionSyncState.conflict);
@@ -403,16 +447,181 @@ void main() {
         clock: clock,
       ).run(sessionAccount);
 
-      final record = (await projectorFor(store).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(60),
-      ))!;
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(60)))!;
 
       expect(record.syncState, SessionSyncState.synced);
       expect(record.serverSessionId, isNotNull);
       expect(record.pendingCommandCount, 0);
       expect(record.lastSuccessfulSyncAt, isNotNull);
+    });
+
+    group('حقيقة المزامنة وحالة synced (ق-129)', () {
+      test('1. أمر بدء معلق (pending START) لا يُعد مزامَنًا', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        final record = (await projectorFor(store)
+            .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+        expect(record.syncState, isNot(SessionSyncState.synced));
+        expect(record.syncState, SessionSyncState.localOnly);
+      });
+
+      test(
+        '2. أمر بدء مؤكَّد بلا mapping خادمي لا يُعد مزامَنًا (يبقى pending)',
+        () async {
+          final store = await openStore();
+          final repository = repositoryFor(store);
+
+          final session = await startSession(repository, at: t0);
+          await store.markConfirmed(
+            sessionAccount,
+            session.localId,
+            serverResponse: {'session_id': 'srv-123'},
+            attemptedAt: at(10),
+          );
+
+          final record = (await projectorFor(store)
+              .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+          expect(record.syncState, isNot(SessionSyncState.synced));
+          expect(record.syncState, SessionSyncState.pending);
+        },
+      );
+
+      test(
+        '3. أمر بدء مؤكَّد + mapping حقيقي + بلا توابع معلقة ⟹ synced',
+        () async {
+          final store = await openStore();
+          final repository = repositoryFor(store);
+
+          final session = await startSession(repository, at: t0);
+          await store.markConfirmed(
+            sessionAccount,
+            session.localId,
+            serverResponse: {'session_id': 'srv-123'},
+            attemptedAt: at(10),
+          );
+          await store.putMapping(
+            sessionAccount,
+            IdMapping(
+              localId: session.localId,
+              kind: EntityKind.session,
+              serverId: 'srv-123',
+              resolvedAt: at(10),
+            ),
+          );
+
+          final record = (await projectorFor(store)
+              .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+          expect(record.syncState, SessionSyncState.synced);
+          expect(record.serverSessionId, 'srv-123');
+        },
+      );
+
+      test('4. أمر بدء مؤكَّد + mapping + أمر إيقاف معلق (pending child) ⟹ ليس synced', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        await store.markConfirmed(
+          sessionAccount,
+          session.localId,
+          serverResponse: {'session_id': 'srv-123'},
+          attemptedAt: at(10),
+        );
+        await store.putMapping(
+          sessionAccount,
+          IdMapping(
+            localId: session.localId,
+            kind: EntityKind.session,
+            serverId: 'srv-123',
+            resolvedAt: at(10),
+          ),
+        );
+        await pause(repository, session: session, at: at(30));
+
+        final record = (await projectorFor(store)
+            .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+        expect(record.syncState, isNot(SessionSyncState.synced));
+        expect(record.syncState, SessionSyncState.localOnly);
+      });
+
+      test('5. كل أوامر السلسلة مؤكَّدة + mapping ⟹ synced', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        final pauseCmd = await pause(repository, session: session, at: at(30));
+
+        await store.markConfirmed(
+          sessionAccount,
+          session.localId,
+          serverResponse: {'session_id': 'srv-123'},
+          attemptedAt: at(10),
+        );
+        await store.putMapping(
+          sessionAccount,
+          IdMapping(
+            localId: session.localId,
+            kind: EntityKind.session,
+            serverId: 'srv-123',
+            resolvedAt: at(10),
+          ),
+        );
+        await store.markConfirmed(
+          sessionAccount,
+          pauseCmd.localId,
+          serverResponse: {'success': true},
+          attemptedAt: at(35),
+        );
+
+        final record = (await projectorFor(store)
+            .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+        expect(record.syncState, SessionSyncState.synced);
+        expect(record.pendingCommandCount, 0);
+      });
+
+      test('6. أمر في حالة مراجعة (review) ⟹ conflict يبقى conflict', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        await store.markNeedsReview(
+          sessionAccount,
+          session.localId,
+          error: 'نزاع خادمي',
+          attemptedAt: at(10),
+        );
+
+        final record = (await projectorFor(store)
+            .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+        expect(record.syncState, SessionSyncState.conflict);
+      });
+
+      test('7. أمر قيد الإرسال (dispatching) ⟹ syncing يبقى syncing', () async {
+        final store = await openStore();
+        final repository = repositoryFor(store);
+
+        final session = await startSession(repository, at: t0);
+        final claimed = await store.claim(
+          sessionAccount,
+          session.localId,
+          attemptedAt: at(10),
+        );
+        expect(claimed, isTrue);
+
+        final record = (await projectorFor(store)
+            .projectSession(sessionAccount, session.localId, now: at(60)))!;
+
+        expect(record.syncState, SessionSyncState.syncing);
+      });
     });
   });
 
@@ -431,11 +640,7 @@ void main() {
       expect(record.totals.pricingPending, isTrue);
       expect(record.totals.accruedMinor, isNull);
       expect(record.accruedTextOrPending, SessionStateText.pricingPending);
-      expect(
-        record.remainingMinor,
-        isNull,
-        reason: 'لا متبقي بلا مستحق محسوم',
-      );
+      expect(record.remainingMinor, isNull, reason: 'لا متبقي بلا مستحق محسوم');
       expect(
         record.totals.billableSeconds,
         600,
@@ -455,10 +660,7 @@ void main() {
       final record = (await projectorFor(
         store,
         pricing: PricingResolver([
-          PricingSnapshot(
-            hourlyRateMinor: 7200,
-            effectiveFrom: at(150),
-          ),
+          PricingSnapshot(hourlyRateMinor: 7200, effectiveFrom: at(150)),
           PricingSnapshot(hourlyRateMinor: 3600, effectiveFrom: t0),
         ]),
       ).projectSession(sessionAccount, session.localId, now: at(300)))!;
@@ -478,11 +680,8 @@ void main() {
       // إيقاف بوقت أسبق من البدء: ساعة الهاتف عُدِّلت بين الحدثين.
       await pause(repository, session: session, at: at(100));
 
-      final record = (await projectorFor(store).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(1200),
-      ))!;
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(1200)))!;
 
       expect(
         record.timeIntegrityFlags,
@@ -613,10 +812,8 @@ void main() {
       await startSession(repository, at: at(500), well: 'well-b');
       await startSession(repository, at: t0, well: 'well-a');
 
-      final active = await projectorFor(store).activeSessions(
-        sessionAccount,
-        now: at(900),
-      );
+      final active = await projectorFor(store)
+          .activeSessions(sessionAccount, now: at(900));
 
       expect(active, hasLength(2));
       expect(active.first.wellId, 'well-a');
@@ -675,11 +872,8 @@ void main() {
         },
       );
 
-      final record = (await projectorFor(store).projectSession(
-        sessionAccount,
-        session.localId,
-        now: at(60),
-      ))!;
+      final record = (await projectorFor(store)
+          .projectSession(sessionAccount, session.localId, now: at(60)))!;
 
       expect(record.farmReference, farm.localId);
       expect(record.businessState, SessionBusinessState.running);

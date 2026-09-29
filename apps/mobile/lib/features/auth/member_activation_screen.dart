@@ -5,21 +5,25 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/api/auth_repository.dart';
 import '../../core/api/team_repository.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/contact_picker.dart';
 import '../../core/utils/digit_utils.dart';
 
-/// شاشة تنشيط عضو مدعو (ق-123 / هجرة 094 / م-41E المرحلة 3).
-///
-/// **لماذا يُدخل العضو رمزه هنا لا في شاشة الدخول:** معرفة أن لرقمٍ دعوةً
-/// **قبل** المصادقة تحتاج عقدًا ينفّذه المستخدم المجهول، وحدّ
-/// «صفر تنفيذ لـ`anon`» ثابت مقيس بحرس دائم. فالمسار: يُنشئ العضو حسابه
-/// بكلمة مروره التي يختارها هو، ثم يُثبت الدعوة برمزها. وهذا **يفشي أقل**
-/// من سؤال الخادم قبل المصادقة لا أكثر.
-///
-/// ولا كلمة مرور يكتبها المالك لأحد (الثابت 706).
+enum _ActivationStage {
+  validation,
+  waitingOwner,
+  choosePassword,
+  existingPassword,
+  existingInvitations,
+  existingWaiting,
+}
+
+/// تنشيط عضو وفق ق-130: الدعوة والقبول لا يمنحان وصولًا، ولا يُنشأ حساب
+/// جديد إلا بعد تأكيد المالك عبر طرف M104 الموثوق.
 class MemberActivationScreen extends StatefulWidget {
   const MemberActivationScreen({
     this.authRepository,
     this.teamRepository,
+    this.contactPicker,
     this.onActivated,
     super.key,
   });
@@ -27,7 +31,9 @@ class MemberActivationScreen extends StatefulWidget {
   final AuthRepository? authRepository;
   final TeamRepository? teamRepository;
 
-  /// يُنادى بعد **تعيين نافذ حقيقي** على بئر، لا بعد إنشاء الحساب.
+  /// يُحقَن في الاختبارات؛ الافتراضي منتقي جهات الاتصال النظامي.
+  final Future<ContactPickResult> Function()? contactPicker;
+
   final VoidCallback? onActivated;
 
   @override
@@ -35,21 +41,24 @@ class MemberActivationScreen extends StatefulWidget {
 }
 
 class _MemberActivationScreenState extends State<MemberActivationScreen> {
-  final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _existingPasswordController = TextEditingController();
 
-  late TeamRepository _team;
-  bool _isSubmitting = false;
-  bool _obscure = true;
+  late final TeamRepository _team;
+  _ActivationStage _stage = _ActivationStage.validation;
+  List<MyWellInvitation> _invitations = const [];
+  String? _continuationToken;
+  String? _status;
   String? _error;
-  String? _notice;
+  bool _busy = false;
+  bool _obscure = true;
+  bool _activationReported = false;
 
-  /// يصير `true` بعد نجاح المصادقة، فتبقى المطالبة وحدها مطلوبة عند
-  /// إعادة المحاولة — فلا يُعاد إنشاء حساب موجود.
-  bool _authenticated = false;
+  AuthRepository get _auth =>
+      widget.authRepository ?? AuthRepository(Supabase.instance.client);
 
   @override
   void initState() {
@@ -59,150 +68,295 @@ class _MemberActivationScreenState extends State<MemberActivationScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _existingPasswordController.dispose();
     super.dispose();
   }
 
-  AuthRepository get _auth {
-    final injected = widget.authRepository;
-    if (injected != null) return injected;
-    return AuthRepository(Supabase.instance.client);
+  String get _phone => normalizeArabicDigits(_phoneController.text).trim();
+  String get _code => normalizeArabicDigits(_codeController.text).trim();
+
+  /// اختيار رقم من جهات الاتصال يملأ حقل الهاتف؛ وإن رُفضت الصلاحية أو
+  /// فشل القراءة أُعلن ذلك والإدخال اليدوي يبقى كاملًا.
+  Future<void> _pickContact() async {
+    final pick = widget.contactPicker ?? pickContactPhone;
+    final result = await pick();
+    if (!mounted) return;
+    final phone = result.phone;
+    switch (result.status) {
+      case ContactPickStatus.picked:
+        if (phone == null || phone.isEmpty) {
+          _pickNote('لم يُعَد رقمًا صالحًا — أكمل الإدخال اليدوي');
+          return;
+        }
+        setState(() {
+          _phoneController.text = phone;
+          _phoneController.selection = TextSelection.collapsed(
+            offset: phone.length,
+          );
+        });
+      case ContactPickStatus.cancelled:
+        break; // الإلغاء ليس خطأ ولا يُعلَن.
+      case ContactPickStatus.permissionDenied:
+        _pickNote('لم يُمنح الوصول لجهات الاتصال — أكمل الإدخال اليدوي');
+      case ContactPickStatus.failed:
+        _pickNote('تعذر اختيار جهة الاتصال — أكمل الإدخال اليدوي');
+    }
   }
 
-  /// سلّم مصادقة حتمي: دخول بحساب قائم أولًا، وإلا إنشاء حساب جديد.
-  /// وإخفاق الإنشاء لوجود الحساب يُقال صريحًا بدل «تعذر» عامة.
-  Future<bool> _ensureAuthenticated({
-    required String phone,
-    required String password,
-    required String name,
-  }) async {
-    if (_authenticated) return true;
+  void _pickNote(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
-    try {
-      await _auth.signIn(phoneOrEmail: phone, password: password);
-      if (_auth.isAuthenticated) {
-        _authenticated = true;
-        return true;
-      }
-    } on AuthException {
-      // ليس حسابًا قائمًا بهذه الكلمة — نُجرّب الإنشاء.
-    } catch (_) {
-      setState(() => _error = 'تعذر الاتصال بالخادم — لم يُنشأ شيء.');
-      return false;
+  void _reportActivation() {
+    if (_activationReported) return;
+    _activationReported = true;
+    widget.onActivated?.call();
+  }
+
+  Future<void> _validateInvitation() async {
+    if (_phone.length < 9) {
+      setState(() => _error = 'أدخل رقم هاتف صحيحًا.');
+      return;
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(_code)) {
+      setState(() => _error = 'رمز الدعوة ستة أرقام.');
+      return;
     }
 
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    MemberValidationOutcome result;
     try {
-      await _auth.signUpMember(
-        phone: phone,
-        password: password,
-        fullName: name,
+      result = await _auth.validateMemberFinalization(
+        phone: _phone,
+        code: _code,
       );
-    } on AuthException {
-      setState(() {
-        _error = 'يوجد حساب بهذا الرقم وكلمة المرور غير مطابقة. '
-            'سجّل الدخول بحسابك ثم أدخل رمز التنشيط.';
-      });
-      return false;
     } catch (_) {
-      setState(() => _error = 'تعذر الاتصال بالخادم — لم يُنشأ شيء.');
-      return false;
-    }
-
-    if (!_auth.isAuthenticated) {
+      if (!mounted) return;
       setState(() {
-        _error = 'لم تُنشأ جلسة دخول — أعد المحاولة.';
+        _busy = false;
+        _error = 'تعذر التحقق من الدعوة — لم يُنشأ حساب ولم يُمنح وصول.';
       });
-      return false;
+      return;
     }
 
-    _authenticated = true;
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _applyValidation(result);
+    });
+  }
+
+  void _applyValidation(MemberValidationOutcome result) {
+    switch (result.outcome) {
+      case 'accepted_pending_owner':
+        if (!_storeToken(result)) return;
+        _stage = _ActivationStage.waitingOwner;
+        _status = 'بانتظار تأكيد مالك البئر';
+        _error = null;
+      case 'owner_confirmed_pending_account':
+        if (!_storeToken(result)) return;
+        _stage = _ActivationStage.choosePassword;
+        _status = 'تم تأكيد الهوية';
+        _error = null;
+      case 'wrong_code':
+        final left = result.attemptsLeft;
+        _error = left == null
+            ? 'رمز الدعوة غير صحيح.'
+            : 'رمز الدعوة غير صحيح — بقيت $left محاولات.';
+      case 'expired':
+        _error = 'انتهت الدعوة.';
+      case 'revoked':
+        _error = 'أُلغيت الدعوة.';
+      case 'no_invitation':
+        _error = 'لا توجد دعوة مطابقة.';
+      case 'existing_account':
+        _continuationToken = null;
+        _stage = _ActivationStage.existingPassword;
+        _status = 'لديك حساب قائم — سجّل الدخول لعرض دعواتك';
+        _error = null;
+      default:
+        _error = 'تعذر تحديد حالة الدعوة — لم يتغيّر أي وصول.';
+    }
+  }
+
+  bool _storeToken(MemberValidationOutcome result) {
+    final token = result.continuationToken;
+    if (token == null || token.isEmpty) {
+      _error = 'لم يعُد الخادم رمز الاستمرار — لم يُنشأ حساب.';
+      return false;
+    }
+    _continuationToken = token;
     return true;
   }
 
-  Future<void> _activate() async {
-    final name = _nameController.text.trim();
-    final phone = normalizeArabicDigits(_phoneController.text).trim();
-    final code = normalizeArabicDigits(_codeController.text).trim();
+  Future<void> _finalizeNewMember() async {
     final password = _passwordController.text;
-    final confirm = _confirmController.text;
-
-    if (name.isEmpty) {
-      setState(() => _error = 'أدخل اسمك كما تريد ظهوره على السندات.');
-      return;
-    }
-    if (phone.length < 9) {
-      setState(() => _error = 'أدخل رقم هاتفك من 9 أرقام.');
-      return;
-    }
-    if (code.length != 6) {
-      setState(() => _error = 'رمز التنشيط ستة أرقام.');
-      return;
-    }
     if (password.length < 6) {
       setState(() => _error = 'كلمة المرور لا تقل عن 6 خانات.');
       return;
     }
-    if (password != confirm) {
+    if (password != _confirmController.text) {
       setState(() => _error = 'كلمتا المرور غير متطابقتين.');
       return;
     }
-
-    setState(() {
-      _isSubmitting = true;
-      _error = null;
-      _notice = null;
-    });
-
-    final ready = await _ensureAuthenticated(
-      phone: phone,
-      password: password,
-      name: name,
-    );
-
-    if (!mounted) return;
-    if (!ready) {
-      setState(() => _isSubmitting = false);
+    final token = _continuationToken;
+    if (token == null) {
+      setState(() {
+        _stage = _ActivationStage.waitingOwner;
+        _error = 'تحقق من موافقة المالك مرة أخرى.';
+      });
       return;
     }
 
-    ClaimResult? result;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    MemberFinalizationOutcome result;
     try {
-      result = await _team.claimInvitation(code);
+      result = await _auth.finalizeMember(
+        continuationToken: token,
+        password: password,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _isSubmitting = false;
-        _error = 'تعذر التحقق من الرمز — لم يُمنح أي وصول. أعد المحاولة.';
+        _busy = false;
+        _error = 'تعذر إكمال الحساب — لم نعلن تنشيطه.';
       });
       return;
     }
 
     if (!mounted) return;
-    setState(() => _isSubmitting = false);
-
-    if (result.isSuccess) {
-      widget.onActivated?.call();
-      return;
-    }
-
-    if (result.isWrongCode) {
-      final left = result.attemptsLeft;
-      setState(() {
-        _error = left == null
-            ? 'رمز التنشيط غير صحيح.'
-            : 'رمز التنشيط غير صحيح — بقيت $left محاولات.';
-        _notice = 'حسابك جاهز؛ يكفي إدخال الرمز الصحيح.';
-      });
+    if (result.outcome == 'confirmed') {
+      try {
+        await _auth.signIn(phoneOrEmail: _phone, password: password);
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _error = 'اكتمل الحساب لكن تعذر تسجيل الدخول. سجّل الدخول يدويًا.';
+        });
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _busy = false);
+      if (_auth.isAuthenticated) {
+        _reportActivation();
+      } else {
+        setState(() => _error = 'لم تبدأ جلسة دخول — لم نعلن التنشيط.');
+      }
       return;
     }
 
     setState(() {
-      _error = 'لا توجد دعوة سارية لرقمك.';
-      _notice = 'اطلب من مالك البئر أن يدعوك، أو أن يعيد إصدار الرمز.';
+      _busy = false;
+      switch (result.outcome) {
+        case 'not_ready':
+          _stage = _ActivationStage.waitingOwner;
+          _status = 'بانتظار تأكيد مالك البئر';
+          _error = 'لم يكتمل تأكيد المالك بعد.';
+        case 'finalization_failed':
+          _error = 'فشل إكمال الحساب — لم يُفعّل الوصول.';
+        case 'auth_creation_failed':
+          _error = 'تعذر إنشاء الحساب. لا تحاول إنشاءه من مسار آخر.';
+        case 'compensation_failed':
+          _error = 'تحتاج الحالة إلى معالجة من الخادم. لا تعِد إنشاء الحساب.';
+        case 'completion_ambiguous':
+          _error =
+              'نحمي حالة الإكمال الآن — لا تنشئ حسابًا آخر. تواصل مع الدعم.';
+        default:
+          _error = 'تعذر إكمال الحساب — لم نعلن تنشيطه.';
+      }
+    });
+  }
+
+  Future<void> _signInExisting() async {
+    final password = _existingPasswordController.text;
+    if (password.isEmpty) {
+      setState(() => _error = 'أدخل كلمة مرور حسابك.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _auth.signIn(phoneOrEmail: _phone, password: password);
+      if (!_auth.isAuthenticated) {
+        throw const AuthException('No authenticated session');
+      }
+      final invitations = await _team.listMyInvitations();
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _invitations = invitations;
+        _stage = _ActivationStage.existingInvitations;
+        _status = invitations.isEmpty
+            ? 'لا توجد دعوات معلّقة لهذا الحساب'
+            : null;
+      });
+    } on AuthException {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'كلمة مرور الحساب غير صحيحة.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'تعذر قراءة دعوات الحساب — لم يُقبل أي شيء.';
+      });
+    }
+  }
+
+  Future<void> _acceptInvitation(MyWellInvitation invitation) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    InvitationActionResult result;
+    try {
+      result = await _team.acceptInvitation(invitation.invitationId);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'تعذر قبول الدعوة — لم يُمنح وصول.';
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    if (result.outcome == 'already_confirmed') {
+      _reportActivation();
+      return;
+    }
+    if (result.outcome == 'accepted_pending_owner' ||
+        result.outcome == 'already_accepted') {
+      setState(() {
+        _stage = _ActivationStage.existingWaiting;
+        _status = 'تم قبول الدعوة — بانتظار تأكيد المالك';
+      });
+      return;
+    }
+    setState(() {
+      _error = result.outcome == 'expired'
+          ? 'انتهت الدعوة.'
+          : 'تعذر قبول الدعوة في حالتها الحالية.';
     });
   }
 
@@ -225,155 +379,196 @@ class _MemberActivationScreenState extends State<MemberActivationScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'أضافك مالك البئر وأعطاك رمزًا من ستة أرقام. أدخله مع رقمك '
-                'واختر كلمة مرورك — لا يعرفها أحد غيرك.',
+                'أدخل رقمك ورمز الدعوة أولًا. لن يُنشأ حساب ولن يُمنح وصول '
+                'قبل موافقة مالك البئر.',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 18),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'اسمك كما يظهر على السندات *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  ArabicToEnglishDigitsFormatter(),
-                  LengthLimitingTextInputFormatter(9),
-                ],
-                decoration: const InputDecoration(
-                  labelText: 'رقم هاتفك (7xxxxxxxx) *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone_android),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _codeController,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                inputFormatters: [
-                  ArabicToEnglishDigitsFormatter(),
-                  LengthLimitingTextInputFormatter(6),
-                ],
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 8,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'رمز التنشيط *',
-                  hintText: '------',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _obscure,
-                decoration: InputDecoration(
-                  labelText: 'كلمة المرور الجديدة *',
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscure ? Icons.visibility_off : Icons.visibility,
-                    ),
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _confirmController,
-                obscureText: _obscure,
-                decoration: const InputDecoration(
-                  labelText: 'تأكيد كلمة المرور *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
-                ),
-              ),
-              if (_error != null) ...[
-                const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.error),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _error!,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.error,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (_notice != null) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          _notice!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+              if (_stage == _ActivationStage.validation) _validationFields(),
+              if (_status != null) ...[
+                _stateMessage(_status!, isError: false),
+                const SizedBox(height: 12),
               ],
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.agriculturalGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _isSubmitting ? null : _activate,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'تنشيط الحساب',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'لا يوجد إرسال رسائل نصية في هذا الإصدار: الرمز يأخذه العضو '
-                'من مالك البئر مباشرة.',
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-              ),
+              if (_stage == _ActivationStage.waitingOwner)
+                _fullButton('تحقق من موافقة المالك', _validateInvitation),
+              if (_stage == _ActivationStage.choosePassword)
+                _newPasswordFields(),
+              if (_stage == _ActivationStage.existingPassword)
+                _existingPasswordField(),
+              if (_stage == _ActivationStage.existingInvitations)
+                _existingInvitationList(),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                _stateMessage(_error!, isError: true),
+              ],
+              if (_busy) ...[
+                const SizedBox(height: 16),
+                const Center(child: CircularProgressIndicator()),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _validationFields() {
+    return Column(
+      children: [
+        TextFormField(
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [
+            ArabicToEnglishDigitsFormatter(),
+            LengthLimitingTextInputFormatter(16),
+          ],
+          decoration: InputDecoration(
+            labelText: 'رقم هاتفك *',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.phone_android),
+            suffixIcon: IconButton(
+              tooltip: 'اختيار رقم من جهات الاتصال',
+              onPressed: _pickContact,
+              icon: const Icon(Icons.contacts_outlined),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _codeController,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          inputFormatters: [
+            ArabicToEnglishDigitsFormatter(),
+            LengthLimitingTextInputFormatter(6),
+          ],
+          decoration: const InputDecoration(
+            labelText: 'رمز الدعوة *',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 18),
+        _fullButton('التحقق من الدعوة', _validateInvitation),
+      ],
+    );
+  }
+
+  Widget _newPasswordFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'بانتظار اختيار كلمة المرور',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        _passwordField(_passwordController, 'كلمة المرور *'),
+        const SizedBox(height: 12),
+        _passwordField(_confirmController, 'تأكيد كلمة المرور *'),
+        const SizedBox(height: 18),
+        _fullButton('إكمال إنشاء الحساب', _finalizeNewMember),
+      ],
+    );
+  }
+
+  Widget _existingPasswordField() {
+    return Column(
+      children: [
+        _passwordField(_existingPasswordController, 'كلمة مرور الحساب *'),
+        const SizedBox(height: 18),
+        _fullButton('تسجيل الدخول وعرض الدعوات', _signInExisting),
+      ],
+    );
+  }
+
+  Widget _passwordField(TextEditingController controller, String label) {
+    return TextFormField(
+      controller: controller,
+      obscureText: _obscure,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.lock_outline),
+        suffixIcon: IconButton(
+          tooltip: _obscure ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور',
+          onPressed: () => setState(() => _obscure = !_obscure),
+          icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+        ),
+      ),
+    );
+  }
+
+  Widget _existingInvitationList() {
+    if (_invitations.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: _invitations
+          .map((invitation) {
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      invitation.wellName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(_roleLabel(invitation.role)),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: _busy
+                          ? null
+                          : () => _acceptInvitation(invitation),
+                      child: const Text('قبول الدعوة'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+
+  Widget _stateMessage(String message, {required bool isError}) {
+    final color = isError ? AppColors.error : AppColors.deepBlue;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          border: Border.all(color: color),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          message,
+          style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _fullButton(String label, Future<void> Function() action) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: _busy ? null : action,
+        child: Text(label),
+      ),
+    );
+  }
+
+  static String _roleLabel(String role) {
+    return switch (role) {
+      'owner' => 'مالك',
+      'operator' => 'مشغّل',
+      'partner' => 'شريك',
+      'manager' => 'مدير',
+      _ => role,
+    };
   }
 }

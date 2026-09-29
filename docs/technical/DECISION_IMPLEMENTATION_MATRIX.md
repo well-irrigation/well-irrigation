@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-08-31
+**آخر تحديث:** 2026-09-28
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -76,6 +76,8 @@
 | م-40 | **مغلقة — Verified local**؛ Backend failure لا يتحول إلى نجاح/حفظ محلي؛ Cloud verification غير منطبق على سلوك الواجهة |
 | م-41 | **مفتوحة — Repair in progress**؛ initial debt = 9 internal + 20 bare RPC + 5 dotted from؛ م-41A أصلحت 7 finance RPC؛ م-41B1 أصلحت physical fuel count؛ م-41B2 أصلحت account profile read؛ م-41B3A أضافت 088 وapi.update_profile_name ومنعت false-success في حفظ الاسم؛ 088 موجودة Cloud وعقدها الأمني Verified؛ م-41B3B أزالت Team RPC/Mock غير المدعومة وجعلت الشاشة fail-closed؛ current debt = 7 internal + 9 bare + 5 dotted؛ DB = 26/369 PASS؛ Flutter = 234/234 PASS؛ Team management الفعلية تبقى Backend/Auth Gap؛ **تحديث 2026-09-02: الدين المعلَن كله = 0** (م-41C2 أغلقت internal-schema بـ090، وم-41D1 أغلقت bare RPC إلى 1 بـ091، وم-41D2 أغلقت الباقي بـ092: 0 internal + 0 bare + 0 dotted)؛ Flutter = 265/265 PASS؛ NEXT = تحقق DB لـ092 ثم حماية `main` ثم الدمج |
 
+| م-41H / 099 | دليل المزارعين من عقد خادمي واحد: لا ترتيب ولا حساب مال ولا عدّ أرض في Flutter | 099 + `OperationsRepository.fetchFarmerDirectory` + `FarmersDirectoryScreen` | DB `FILES=38 PASS=615 FAIL=0 ERROR=0`؛ الفهرس 833/501/197/44؛ Flutter analyze نظيف و`370/370 PASS`؛ حرس نسخة العقد والأرقام الناقصة وسباق تبديل البئر | **Implemented + Verified local + Cloud Verified** (مدموج ومنشور سحابيًا عبر GitLab CI MR !1) |
+
 ## baseline المرجعي
 
 ## ق-120 — بوابة التدقيق والتثبيت
@@ -118,7 +120,7 @@
 | ق-85 | Super Admin عبر حدود خادم موثوقة | Auth Admin/service role trusted boundary مطلوب | اختبارات صلاحيات وتدقيق مطلوبة | معتمد؛ تنفيذ UI/backend التفصيلي Pending |
 | ق-86 | حق تفعيل بئر دائم لكل شراء واستهلاك ذري | Model/API غير منفذ بعد | اختبارات entitlement/double-spend مطلوبة | معتمد؛ Migration 085+ Pending |
 | ق-87 | التوجيه بعد الدخول حسب الدور | `api.app_bootstrap` أساس جزئي؛ UI routing Pending | UX-05 موثق | معتمد؛ Flutter Pending |
-| ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ عقود البحث/farm dedup/operator farm/payment orchestration Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md` | معتمد؛ Migration 085+ وFlutter Pending |
+| ق-88 | Smart Lookup + Entity Dedup Profiles + live accrued amount | أساس 026/027/062/069/075 وsession APIs موجود؛ **Farm dedup منفَّذ ومُثبت محليًا وسحابيًا (backend + API + تكامل الهاتف) عبر Migration 101 = Implemented + Local Verified + Cloud Verified**؛ عقود البحث/الترتيب/operator farm/payment orchestration وباقي ق-88 لا تزال Pending | acceptance contract في `SEARCH_DEDUP_ARCHITECTURE.md`؛ اختبار دائم 101 = PASS 19/0/0؛ Cloud: MR !6 + Pipeline 2863219601 + production job 16601058583 + Supabase verification | معتمد؛ **Partial** — Farm dedup مكتمل محليًا وسحابيًا، وبقية ق-88 Pending |
 | ق-89 | Offline field operations + Android persistent background sync | Server sync foundation موجود؛ Mobile DB/outbox/worker/idempotent offline contracts غير منفذة | `ANDROID_OFFLINE_BACKGROUND_SYNC.md` + permanent/backend/Android field tests مطلوبة | معتمد؛ Stage 7 implementation Pending |
 | ق-90 | Device Readiness + sync transparency + non-blocking field UX | UX-10 موثق؛ local evaluator/status UI/reminders غير منفذة | Android integration + readiness/sync acceptance tests مطلوبة | معتمد؛ Flutter/Android Pending |
 | ق-91 | Active session UX + live amount + fuel-billing consistency | Session/segments backend foundation موجود؛ Fuel billing conflict تم حله في 085؛ active read/pause detail/resume-new-energy Pending | `ACTIVE_SESSION_ARCHITECTURE.md` + م-26 + backend/Android tests | معتمد؛ Backend Fuel conflict مغلق في 085؛ Flutter Pending |
@@ -151,7 +153,7 @@
 | Farmer dedup | ق-76 + create_farmer موجود | منع suspect duplicate الصامت + concurrency test |
 | Farm ownership | ق-80/075 منفذ | لا تغيير |
 | Farm search | جدول العلاقة موجود | normalized search/index/read contract |
-| Farm dedup | غير مكتمل | scope + discriminator + DB/API enforcement |
+| Farm dedup | منفَّذ ومُثبت محليًا وسحابيًا (Migration 101) | scope=implemented؛ discriminator=`distinguishing_label`؛ DB/API enforcement=implemented (advisory lock + trigger + 23505)؛ permanent test 101 PASS 19؛ **Cloud Verified** عبر MR !6 / Pipeline 2863219601 / production job 16601058583 |
 | Operator add farmer | موجود | ربط UX واختباره |
 | Operator add farm | Backend owner-only حاليًا | Migration 085+ لتفويض operator |
 | Inline return/select | غير منفذ | API/Flutter flow يحفظ السياق |
@@ -332,3 +334,148 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | ق-115 | Session identity + durable device outbox / م-25 | No DB change — `apps/mobile/lib/core/sync/` (13 files)؛ session identity resolved to **durable local-to-server mapping**, proven from `084` (`start_irrigation_session` takes no client session id; replay returns `v_guard -> 'response' ->> 'id'`)؛ stable `command_id` per field operation enforced structurally (table-level UNIQUE, written on INSERT only, no UPDATE path)؛ ordered outbox (strict intra-aggregate sequence + inter-aggregate independence via reference resolution)؛ explicit UTC event time on every dispatch (never the `clock_timestamp()` default)؛ retry-vs-review classification with unknown codes defaulting to review؛ conditional claim carrying attempt age (concurrent loops dispatch once; dead claim recovered after `staleClaimTimeout`)؛ mapping written before confirmation؛ per-account isolation, logout preserves the queue؛ `sqflite` chosen (no code generation) behind abstract `OutboxStore`/`CommandTransport` gates | `flutter analyze` = `No issues found!` + `flutter test` = **69 PASS / 0 FAIL** — no phone, no network, no DB؛ 7 test files incl. real-SQL mirror via `sqflite_common_ffi` (reopened DB file after simulated app death)؛ headline proof «sent twice, executed once»: 2 attempts / 1 execution / 1 row / one amount | Implemented + Verified 2026-08-23; **م-25 narrowed a second time, not closed** — background dispatch, reboot recovery, status/readiness screens and all field UI still open |
 | ق-116 | Active session record + local recovery / م-25 | No DB change — `apps/mobile/lib/core/session/` (5 files)؛ active session **re-derived from the ق-115 outbox**, no parallel local state table and no in-RAM `Timer` (§16 forbids it)؛ events replayed into typed segments (one kind + one energy source each)؛ **integer division per segment then sum, mirroring Migration 066 exactly** — proven by test (two 100s segments @ 3599 ⟹ 198, not 199)؛ truncation never rounds (ق-77)؛ energy change closes a segment and preserves its kind (changing energy while paused does not resume)؛ `business_state` and `sync_state` are two independent fields — the business-state file imports nothing from `core/sync/`, so §3's separation is structural؛ time integrity takes **anchor + device reading** (an earlier draft derived the reading from the anchor, making clock-change detection impossible — found and fixed in-round)؛ local payments are never labelled Posted without a resolved server id (§20)؛ overpayment stays visible, no silent netting (ق-99)؛ missing pricing snapshot ⟹ approved pending text, no invented number (decision 341), measured time still shown | `flutter analyze` = `No issues found!` + `flutter test` = **115 PASS / 0 FAIL** (prior baseline 69, i.e. 46 new) — no phone, no network, no DB؛ recovery proven **on a real disk file**: events written, store closed as if the app died, a brand-new store instance opened on the same path ⟹ business state, billable seconds, current pause + reason, energy source, local payments, sync state and pending count all identical؛ clock pushed +3h ⟹ billable stays 600s / accrued stays 600 with `deviceClockChanged` raised؛ reboot ⟹ `rebootTimelineUnverified` announced, session still running | Implemented + Verified 2026-08-23; **م-25 narrowed a third time, not closed** — W2-02b background dispatch (WorkManager) still open and **blocked in the assistant environment**: `workmanager`/`connectivity_plus` absent from `~/.pub-cache`, `androidx.work` absent from the Gradle cache, pub.dev unreachable (**superseded 2026-08-23:** the owner installed both and ق-117 implemented it); readiness/status screens, conflict UX, the `api.*` display-name read contract and all field UI still open. Local accrued follows ق-17 (time only) while Migration 066 still sums `fuel_charge_minor` — divergence documented in `session_segment.dart`, closes with م-26 in Migration 085+; the bug was **not** mirrored into the phone to force agreement |
 | ق-117 | Background dispatch: the worker's return value is the whole decision / م-25 | No DB change — `apps/mobile/lib/core/sync/` (10 new files + `sync_engine.dart`, `main.dart`, `AndroidManifest.xml`)؛ **the worker schedules nothing** — its `Future<bool>` is the entire conversation with the OS (`false` ⟹ retry with the registered exponential backoff); re-enqueueing the same unique name from inside a running worker would either cancel it (`replace`) or build a needless work chain (`append`)؛ unique work name **per account** (`well_irrigation_outbox_sync::<accountId>`) so two accounts never cancel each other and one account never gets two parallel workers؛ `NetworkType.connected` constraint, one-off work, **no expedited work and no foreground service**؛ backoff 30s→1h then flat — **the cap is on duration, never on attempt count**, because dropping a queued command loses real irrigation revenue؛ **`blockedByReview` / `canRetryWithoutHelp` added to `SyncRunReport`** to separate "waiting on the network" from "waiting on a human" (§20 of ق-90); progress resets the delay to `firstDelay`; the queue drains within one window while progress continues (max 5 passes), and stops after one pass with no progress؛ three wake sources — app start, app resume, connectivity restored — app start being **required** because Force Stop blocks all background work (§10) and cannot be bypassed؛ 20s debounce on automatic reasons, never on manual or app start; only manual sets `replaceExisting` so automatic reasons never reset a live backoff؛ **connectivity is a hint, never proof** — nothing is marked failed and no retry counter is touched from it؛ one file per platform SDK (`workmanager_sync_scheduler.dart`, `connectivity_plus_watcher.dart`, `supabase_command_transport.dart`), every decision in pure Dart behind an interface؛ single `resolveOutboxDatabasePath()` because app and worker are separate isolates on the same file؛ `ACCESS_NETWORK_STATE` only (§11), with the plugin's merged `POST_NOTIFICATIONS`/`FOREGROUND_SERVICE`/`FOREGROUND_SERVICE_SHORT_SERVICE` recorded openly as pending pre-release review | `flutter analyze` = `No issues found!` + `flutter test` = **155 PASS / 0 FAIL** (prior baseline 115, i.e. 40 new) — no phone, no emulator, no network, no DB؛ end-to-end against the real outbox store and a ق-114-faithful transport fake: operation recorded with the app closed ⟹ sent, then the phone is not woken again؛ network drop keeps the command (`retryCount == 1`) and asks for a later slot؛ network returns ⟹ **2 requests / 1 execution**؛ ten payments drain in **one** worker execution؛ a mid-queue failure drains in >1 pass, no progress ⟹ exactly 1 pass؛ business rejection ⟹ `awaitsHumanDecision`, nothing scheduled, and still nothing on the next run؛ a `create_farm` blocked behind a rejected `create_farmer` (**a different aggregate**) does not retry forever؛ a review-blocked well does not stop another well that is only waiting on the network؛ concurrent app loop ⟹ worker gets `alreadyRunning`, 1 execution؛ claim killed mid-flight ⟹ recovered after `staleClaimTimeout`, still 1 execution, final status `confirmed` | Implemented + Verified 2026-08-23; **م-25 narrowed a fourth time, not closed** — **not device-verified:** reboot rescheduling, Force Stop behaviour and the merged manifest are unproven, and an Android build has never been attempted in the assistant environment (`androidx.work` absent from the Gradle cache); **§9 field measurements are not instrumented** (`network_available_to_worker_start`, `worker_start_to_server_ack`, retry count, oldest-pending age) and are required for M-21; readiness/status screens, conflict UX, the `api.*` display-name read contract and all field UI still open |
+
+## ق-128 — تتبع تنفيذ الحوكمة
+
+- القاعدة: نموذج تنفيذ ثلاثي.
+- الوكيل المحلي منفذ كود محدود.
+- البروتوكول الحاكم:
+  `LOCAL_AGENT_EXECUTION_PROTOCOL.md`.
+- الثوابت: 716–718.
+- لا تغيير في التطبيق أو القاعدة.
+- الإثبات: اتساق الوثائق وGit closure.
+- الحالة: Adopted؛ يكتمل التوثيق بوصول هذه الدفعة إلى Git closure.
+
+## ق-129 — تتبع القبول الميداني
+
+- المصدر: `reports/DEVICE_ACCEPTANCE_TEST_LOG.md`.
+- UX الحاكم: ملحق ق-129 في `design/UX_UI_SPEC.md`.
+- المعمارية الحاكمة: `ACTIVE_SESSION_ARCHITECTURE.md`، `SYNC_ARCHITECTURE.md`، و`SESSION_SETTLEMENT_ARCHITECTURE.md`.
+- الهجرة المرتبطة: الهجرة 100 (`20260916010001_100_paused_energy_source_change.sql`) مع اختبارها الدائم (PASS=7/0/0) — **منشورة ومتحقق منها سحابيًا ومحليًا عبر GitLab CI (MR !3 / Job 16548801073)**.
+- الفجوة التنفيذية: أُغلقت بالكامل — م-43 مغلقة (**CLOSED / RESOLVED**) بعد اجتياز بنود القبول الميداني الـ 42 على الهاتف الفعلي (Samsung Galaxy A13 / Android 12) وثبات وصمود مخزن SQLite بعد Process Death وReboot، وحل مشكلة دورة حياة SQLite، والمزامنة التلقائية.
+- تسوية حادثة الـ 13 عملية القديمة: فُقدت محليًا بزوال العملية القديمة، ولم يظهر في المطابقة السحابية ما يثبت وصولها إلى الخادم، وزال مانع الحفاظ على العملية القديمة.
+- NEXT: أُغلقت ق-129 وم-43 بنجاح؛ المتابعة مع البند التالي المفتوح في خارطة طريق المشروع.
+- الدليل الحالي:
+  - قاعدة البيانات محليًا وسحابيًا: **39 ملفًا / 622 PASS / 0 FAIL / 0 ERROR** محليًا؛ وسحابيًا 99/99 هجرة مطبقة ومتحقق منها، 195/195 دالة، و43/79 صلاحيات.
+  - تطبيق الهاتف محليًا: `flutter analyze` نظيف (0 ملاحظات)؛ واختبارات فلاتر: **505 PASS / 0 FAIL**؛ وفحص الشجرة `git diff --check` نظيف.
+  - أدلة الجهاز الحقيقي: 42/42 بند قبول مجتاز بنجاح تام على Samsung Galaxy A13 (Android 12)، وتنفيذ ناجح لعامل WorkManager، وتصفير طابور المعلقات، وإغلاق جلسة الاختبار على الخادم.
+- الحالة: **CLOSED / DEVICE RE-ACCEPTANCE PASSED**
+  استوفى القرار كافة متطلباته التقنية والميدانية والسحابية والتجريبية، واجتاز فحص التطبيق الكامل (505/505 PASS)، وتم إغلاقه رسميًا مع إغلاق موانع الإصدار م-43 ورفع الحظر عن جاهزية الإطلاق التجريبي (Pilot Readiness = UNBLOCKED).
+
+## ق-130 — دورة الحساب والدعوة وحقوق الشريك
+
+- **المصدر الحاكم:** `memory/DECISIONS.md` ق-130.
+- **المعمارية:** `ACCOUNT_SETTINGS_ARCHITECTURE.md` §25.
+- **UX:** UX-02 / UX-03 / UX-16A.
+- **المسألة:** م-44 — **OPEN / Production Blocker**.
+- **التنفيذ الحالي:** Migration 103 هي أول شريحة Backend للحساب القائم/
+  الفريق، **مدموجة في `main` عبر MR !12** (**merge commit لـM103 = `c5e7f7a`**،
+  commit التنفيذ المصدر = `239b8ae`؛ ودمج فرع التوثيق سيغيّر رأس `main`
+  لاحقًا): دعوة بلا auto-link أو وصول، قبول صريح بلا صلاحية، ثم تأكيد مالك
+  idempotent كتحول الصلاحية. هجرة 095 لنطاق قراءة الشريك تبقى صحيحة وغير
+  منسوخة؛ ووصف 094/Q-123 يبقى تاريخيًا لما كان قبله.
+- **دمجات لاحقة (MRs !14–!17):** **M104 — member finalization** عبر MR !14
+  (merge `f229256`) = التثبيت الموثوق للعضو الجديد بلا Auth (ملف
+  `20260922010001_104_member_finalization.sql` واختبارها الدائم)؛ وتكامل
+  **واجهة تنشيط الحساب** عبر MR !15 (merge `0e8a898`)؛ و**workspace
+  المشغل في Home** عبر MR !16 (merge `e9b9afa`) — وكشف القبول الميداني أن
+  شريط الإعلانات مفقود للمشغل؛ ثم **استعادة الشريط الحساس للدور** عبر
+  MR !17 — **رأس `main` الحالي = merge commit `b64e43e`**. شريط !17 تغيير
+  Flutter فقط: آبار المالك بأربع بطاقات كاملة، وآبار المشغل بثلاث بطاقات
+  مسموحة (كرت التقارير/الأرباح مخفي عن المشغل)، وتبديل الدور يعيد بناء
+  حالة السلايدر بأمان — بلا Backend ولا Schema ولا Supabase.
+- **المعتمد المستهدف:** لا Auth جديد بلا Finalization لدور؛ الدعوة بصفر
+  وصول؛ قبول صاحب الهوية ثم تأكيد المالك؛ حقوق الشريك المالية مستقلة عن
+  App Access؛ حساب واحد لكل الأدوار؛ Farmer العادي بلا Auth.
+- **الدليل المحلي وCI (حتى M103 — تاريخي):** Test 103 = `33/0/0`؛
+  Test 094 = `23/0/0`؛ حزمة DB =
+  `FILES=42 PASS=707 FAIL=0 ERROR=0`؛ والفهرس = `845/507/210/45`
+  (columns/constraints/functions/triggers). MR pipeline `2869239530`
+  (database/app success) وmain pipeline `2869249068` (database/app success).
+- **الدليل الحالي على رأس `main` (`b64e43e`):** حالة الهجرات وصلت إلى 104؛
+  اختبارات القاعدة الدائمة = **43 ملفًا / 728 PASS**؛ وCI main pipeline:
+  app = SUCCESS وdatabase = SUCCESS؛ **production بقيت MANUAL ولم تُشغَّل**،
+  ولا تحقق سحابي جديد (السحابة على الحالة الموثقة في `AGENTS.md` §4).
+- **M104 (كانت الشريحة التالية): نُفِّذت ودُمجت عبر MR !14** — لم تعد
+  الخطوة التالية؛ معماريتها كانت موثقة تحت ق-130 §25.4.
+- **Pending:** finalization المالك/البئر الجديد؛ دعوات إعداد البئر؛
+  تطبيع الهاتف المركزي عبر كل المسارات؛ بقية correction/reissue UX؛ موافقات
+  تغيير الشراكة؛ **قبول الجهاز الحقيقي لمساري العضو الجديد والحساب القائم
+  (NEXT — ق-130 لا يُغلق)**؛ **فجوة UX لمشاركة رمز الدعوة** — استبدال
+  المشاركة الشفهية بفلول Share صريح والتحقق من رحلة الدعوة مالك/مشغل؛
+  وتنظيف ما قبل الإطلاق عند الحاجة. (من Flutter دُمج: واجهة تنشيط الحساب
+  MR !15، وworkspace المشغل MR !16، والشريط الحساس للدور MR !17.)
+- **MR !19 (2026-09-27):** `feat: complete m44 invitation ux flow` دُمج
+  في `main` — **رأس `main` الحالي = `573a657`**؛ MR pipeline
+  `2886135900` = SUCCESS، وlatest main pipeline `2886143435` = manual
+  (production يدوي لم يُشغَّل — **لا ادعاء نشر إنتاجي لـ!19**).
+  وفجوة UX لمشاركة رمز الدعوة أعلاه أُغلقت فرعيًا بالبند التالي.
+- **إثبات ميداني (بعد MR !19):** نجاح مسار مشاركة رمز الدعوة (نسخ/
+  مشاركة/فتح مباشر لواتساب والرسائل) على جهاز Android حقيقي بإثبات
+  المالك. **هذه الفجوة الفرعية أُغلقت وحدها؛ ولا يُستنتج إغلاق بقية
+  بنود قبول ق-130.**
+- **الاختبارات المتبقية:** قائمة م-44 المتبقية، Regression Flutter، وقبول
+  جهاز حقيقي لمساري العضو الجديد والحساب القائم.
+- **الحالة:** **Adopted + Documented / Partial Implementation / Backend
+  (M103 + M104) Merged to main + CI Verified / Cloud Pending / Flutter:
+  activation UI + operator workspace + role-aware strip + invitation
+  share Merged (MRs !15–!17، !19) / Device Acceptance: invitation-share
+  flow device-verified؛ الباقي Pending**. لا تُوصف Closed قبل الأدلة
+  الكاملة، وم-44 تبقى OPEN / Production Blocker، وق-130 لا يُغلق.
+
+## ق-131 — توسعة عقد التشغيل والمال والحجوزات والتقارير
+
+- **المصدر الحاكم:** `memory/DECISIONS.md` ق-131 (23 بندًا معتمدة
+  2026-09-28).
+- **المعمارية:** أقسام ق-131 في الوثائق التقنية السبع
+  (`OPERATIONS_RECORDS` و`SESSION_SETTLEMENT` و`MONEY_PARTNERS`
+  و`WELL_MANAGEMENT_REPORTING` و`ACCOUNT_SETTINGS`
+  و`FINAL_CROSS_CUTTING_UX` و`PLATFORM_ADMINISTRATION`) + ملحق ق-131 في
+  `design/UX_UI_SPEC.md`.
+- **المسألة:** م-45 (tracker) — **مع الإحالة الإلزامية إلى م-28 وم-29
+  وم-30** بوصفها بيوت التنفيذ القائمة؛ لا معمارٍ موازية.
+- **التنفيذ الحالي:** **البند 1 — محاصيل الجلسة — Implemented + Local
+  Verified + CI Verified + Emulator UX Accepted (2026-09-29)**. يشمل Migration
+  105 واختبارها الدائم، لقطة مستقلة لكل جلسة، الاقتراحات من جلسات
+  المزرعة نفسها، وظهور اللقطة في الجلسة النشطة وملخص الإنهاء والتفاصيل
+  التاريخية. الدليل المحلي: قاعدة **44 ملفًا / 743 PASS**، Flutter
+  **600/600 PASS** وتحليل نظيف، وقبول المالك على المحاكي. GitLab:
+  MR !21 merged to `main` (`275a99f`)؛ MR pipeline `2887897982` = SUCCESS؛
+  post-merge pipeline `2891224749`: app/database = SUCCESS وproduction
+  = MANUAL لم تُشغَّل. **Cloud/Production Pending**.
+  **البند 7 — الزمن الفعلي مقابل المفوتر — Implemented + Local Verified +
+  CI Verified + Merged / Cloud + Production Pending (2026-09-29)**:
+  Migration 106، قاعدة **45/757 PASS**، Flutter **611/611 PASS**،
+  MR !24 merged to `main` (`d3255022`)؛ MR pipeline `2891435913` =
+  SUCCESS؛ post-merge pipeline `2891454890`: app/database = SUCCESS
+  وproduction = MANUAL لم تُشغَّل.
+  **البند 11 — تحذير حالة المزارع المالي/الوقودي غير المانع — Implemented
+  + Local Verified + CI Verified + Merged / Cloud + Production Pending
+  (2026-09-29)**: Migration 107؛ Test 107 = **13/0/0**؛ قاعدة
+  **46 ملفًا / 770 PASS**؛ Flutter **621/621 PASS** وتحليل نظيف؛ MR !26
+  merged to `main` (`9168ccac`)؛ MR pipeline `2891694253` = SUCCESS؛
+  post-merge pipeline `2891702168`: app/database = SUCCESS وproduction =
+  MANUAL لم تُشغَّل. بقية البنود عدا 1 و7 و11 Pending. الأساسات السابقة لا
+  تُحسب تنفيذًا لبنود ق-131.
+- **المراحل:** A) المحاصيل المتعددة، نافذة الشمس والبديل والانتقال
+  التلقائي، الزمن الفعلي، تحذير المزارع، تأكيد تطبيق المقدم، تقدير ديزل
+  المزارع، حيازة المشغل، مرفقات المصروفات — قبل قبول نهائي متجدد لمسار
+  المشغل.
+- **ترتيب الاستئناف المؤقت (2026-09-29):** قرار المالك يؤجل جولة نافذة
+  الشمس/البديل/العدّاد/الانتقال التلقائي دون إسقاطها من المرحلة A؛ بعد
+  إكمال تحذير حالة المزارع، **NEXT = سلوك تأكيد تطبيق الرصيد المقدم
+  (البند 10)**.
+ B) إتمام الحجوزات تحت م-28 بقاعدة المسار الواحد. C) الفاتورة
+  الرسمية: PDF/حفظ/طباعة/مشاركة. D) المنطقة والمدينون وتصفية التقارير
+  والأجهزة النشطة ولمسات التحديث/الحفظ. E) الإشعارات الواسعة منفصلة
+  ومؤجلة.
+- **الدليل المطلوب للإغلاق:** للبند الذي يتطلب تغييرًا في القاعدة —
+  هجرة برقم §4 من `AGENTS.md` واختبارها الدائم؛ والبنود UI-only لا
+  تفرض هجرة قاعدة بيانات بذاتها. الكتابة والقراءة عبر عقود `api` حصرًا،
+  واختبارات Flutter عند الانطباق، وقبول جهاز حقيقي للبنود الحرجة.
+  **لا رقم هجرة مُنسوخ في هذه الوثيقة.**
+- **الحالة:** **Adopted + Documented / Partial Implementation (م-45):
+  Item 1 Implemented + Local Verified + CI Verified + Emulator UX Accepted؛
+  Item 7 Implemented + Local Verified + CI Verified + Merged / Cloud +
+  Production Pending؛ Item 11 Implemented + Local Verified + CI Verified +
+  Merged / Cloud + Production Pending؛ بقية البنود Pending**.

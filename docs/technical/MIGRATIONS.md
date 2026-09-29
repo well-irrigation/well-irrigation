@@ -1,28 +1,30 @@
 # الهجرات
 
-**آخر تحديث:** 2026-09-02
+**آخر تحديث:** 2026-09-22
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
 ---
 
-## الحالة الحالية الحاكمة — 2026-09-01
+## الحالة الحالية الحاكمة
 
-- Local: **90 migration file** مطبقة حتى الرقم 091؛ الرقم 067
-  غير مستخدم (الترقيم يقفز 066 → 068)، فالعدد 90 لا 91.
-- Cloud: **متزامنة تمامًا — 90 صفًا في
-  `supabase_migrations.schema_migrations`، وفرق الجانبين صفر**
-  (تحقق 2026-09-01 بمقارنة صفحة `Migrations` بملفات المستودع).
-- **سبب المزامنة مُثبت بالدليل**: تكامل `GitHub` مفعَّل في
-  `Settings → Integrations`، `Deploy to production` = ON،
-  وفرع الإنتاج = `main`. أي أن **كل دفع أو دمج في `main`
-  يطبَّق على قاعدة الإنتاج تلقائيًا**، بلا تشغيل اختبارات
-  `supabase/tests` هناك.
-- فروع المعاينة لكل `PR` تحتاج خطة `Pro`؛ والمشروع على `FREE`،
-  فلا قاعدة تجريبية للمراجعة ولا نسخ احتياطي تلقائي. الحاجز
-  الوحيد = `db:reset` + `db:test` محليًا ثم مراجعة `PR`.
-- لذلك سكربت `psql` اليدوي صار مسارًا احتياطيًا لا المسار
-  الأساسي؛ يفيد حين يُطبَّق ملف خارج `main` أو حين يتعطل التكامل.
+الأرقام الحالية للقاعدة والسحابة في `memory/RESUME_POINT.md` §3 وحده،
+وسقف الهجرات ورقم التالية في `AGENTS.md` §4. أما الجداول والأقسام أدناه
+فسجل تاريخي لكل هجرة في وقتها، ولا تُقرأ أرقامها كخط أساس حالي.
+
+- Cloud متحقق منه حتى 102. Migration 103 **مدموجة في `main` (MR !12) +
+  Local Verified + CI Verified**، لكنها **غير منشورة وغير متحققة سحابيًا**؛
+  لا تُقرأ كمنشورة أو متحققة سحابيًا.
+- **المستودع وقناة النشر المعتمدة (ق-126):** المستودع الحاكم أصبح GitLab بعد تعليق حساب GitHub.
+  الدمج في `main` يشغّل فحوص خط العمل (CI)، والنشر إلى قاعدة الإنتاج السحابية
+  يتم عبر وظيفة `production` اليدوية في GitLab CI (عبر القناة المعتمدة: المنفذ 6543
+  بوضع Supavisor transaction mode)، بلا تشغيل اختبارات `supabase/tests` هناك.
+- وظيفة النشر اليدوي رقم `16548801073` طبقت الهجرة 100 بنجاح، وأثبت `cloud:verify`
+  التطابق الكامل 99/99.
+- أي تحويل للنشر إلى تلقائي مستقبلاً يتطلب قرار حوكمة موثقًا ومستقلاً.
+- فروع المعاينة تحتاج خطة `Pro`؛ والمشروع على `FREE`، فلا قاعدة تجريبية
+  للمراجعة ولا نسخ احتياطي تلقائي. الحاجز الوحيد محليًا = `db:reset` + `db:test`
+  ثم مراجعة طلب الدمج. والتراجع يكون بهجرة جديدة.
 
 - 071: ق-78 — Data API boundary.
 - 072: إغلاق Direct DML.
@@ -46,8 +48,11 @@
 - 090: عقود قراءة الجلسة.
 - 091: عقود إدارة البئر قراءةً وكتابةً + أول توسيع لكتالوج
   الصلاحيات بعد 081 (`well.update` و`pump.manage`).
+- 099: عقد دليل المزارعين الغني: عدد الأراضي والأرصدة وآخر جلسة منتهية
+  وحضور الجارية، مرتبًا من الخادم بآخر سقي، مع اختبار دائم (منشور سحابيًا).
+- 100: تغيير مصدر الطاقة أثناء التوقف المؤقت (source_change_pause) والتقاط السعر عند الاستئناف، مع اختبار دائم (منشورة ومتحقق منها سحابيًا ومحليًا).
 
-Migration 071–088 immutable؛ أي DB change تالٍ يبدأ 089+.
+الهجرات المختومة ورقم التالية في `AGENTS.md` §4 وحده.
 
 **مهم:** الجداول أدناه تسجل ما فعلته كل هجرة في وقتها.
 لذلك قد يظهر في هجرة قديمة وصف منسوخ لاحقًا، مثل
@@ -1658,3 +1663,151 @@ columns 833 وconstraints 501 وtriggers 44 **بلا تغيير** — قراءة
 سيبدأ من منتصف الليل المحلي، وجلسات الليل ستُحسب على يوم انتهائها،
 و**ستُستثنى من المجاميع أي جلسة ما زالت جارية** — فتقرير قديم قد يُظهر رقمًا
 مختلفًا عمّا كان. لا بيانات تُعدَّل، والتغيير في القراءة وحدها.
+
+## 100 — 20260916010001_100_paused_energy_source_change.sql
+
+**الملف:** `supabase/migrations/20260916010001_100_paused_energy_source_change.sql`
+**الحالة:** مطبقة ومتحقق منها محليًا وسحابيًا (VERIFIED LOCAL + CLOUD DEPLOYED).
+**القرار الحاكم:** ق-129 / م-43
+
+**الغرض:**
+تمكين تغيير مصدر الطاقة أثناء التوقف المؤقت للجلسة (`source_change_pause`) دون استئناف، ودون إنشاء مقطع تشغيل، مع إبقاء فترة التوقف غير مفوترة بالكامل، والتقاط السعر الرسمي للمصدر الجديد عند الاستئناف الفعلي.
+
+**ما فيها:**
+1. **عدم استحداث نوع توقف جديد وإعادة استخدام `source_change_pause`:**
+   - الهجرة 100 **لا** تستحدث `source_change_pause` كنوع أو سبب توقف جديد في `ops.pause_reason`؛ بل كان `source_change_pause` موجودًا بالفعل كنوع مقطع جلسة مدعوم وتتم إعادة استخدامه في هذه الهجرة.
+2. **تحديث دالة `ops.change_session_energy_source`:**
+   - تحديث الدالة بتوقيعها المعتمد:
+     `ops.change_session_energy_source(uuid, text, timestamptz, bigint, text, uuid)`
+   - فرع التوقف المؤقت (PAUSED branch) في الدالة:
+     - يتعرف على أنواع التوقف: `operator_pause` و`farmer_requested_pause` و`source_change_pause`.
+     - يحدد المصدر الفعال الحالي/المعلق للجلسة.
+     - يرفض اختيار نفس المصدر الفعال المعلق بلا داعٍ.
+     - يفشل إغلاقًا (Fail-closed) إذا مُررت بيانات إغلاق وقود أثناء التوقف (الكمية `p_closed_fuel_quantity_ml` أو نوع القياس `p_closed_fuel_measurement_type`) لمنع تلوث سجلات الوقود دون تشغيل.
+     - يقبل `p_new_fuel_owner_person_id` كسياق شرعي لمالك ديزل المزارع المعلق.
+     - يغلق مقطع التوقف الحالي في لحظة `p_changed_at`.
+     - يدرج مقطع توقف واحد جديد ومفتوح وغير مفوتر من نوع `source_change_pause` يحمل مصدر الطاقة المعلق الجديد.
+     - **لا** يُنشئ أي مقطع تشغيل (running segment).
+3. **تحديث دالة الاستئناف `ops.resume_irrigation_session`:**
+   - تحديث الدالة بتوقيعها:
+     `ops.resume_irrigation_session(uuid, timestamptz)`
+   - عند الاستئناف:
+     - إغلاق مقطع التوقف المؤقت في لحظة `p_resumed_at`.
+     - إذا كان مقطع التوقف يحمل مصدرًا معلقًا، يفتح مقطع التشغيل الجديد عبر مساعد المقاطع المسعرة (`priced-segment helper`).
+     - التقاط تعرفة الطاقة الرسمية المعتمدة في لحظة `p_resumed_at` وتثبيتها بالمقطع الجديد.
+     - الحفاظ الكامل على المقاطع والأسعار التاريخية السابقة دون أي إعادة تسعير.
+4. **ثبات أغلفة API وعدم التكرار (Idempotency):**
+   - بقاء توقيعات أغلفة `api` دون أي تغيير يكسر العملاء (`api.change_session_energy_source` و`api.resume_irrigation_session`).
+   - خاصية عدم التكرار (Idempotency) عبر `p_command_id` موفرة بالكامل عبر أغلفة `api` وآلية النتائج المخزنة (`stored-result mechanism`) التابعة لها، ولا تنتمي `p_command_id` إلى توقيع دوال `ops`.
+5. **سلامة الحساب المالي (FIN-001):**
+   - حماية معادلة 3313 + 180 = 3493 ريال ورفض 6808 ريال.
+
+**الاختبار الدائم:**
+`supabase/tests/20260916_100_paused_energy_source_change.test.sql`
+- الحالات من A إلى L تشمل: تغيير المصدر أثناء التوقف، عدم إنشاء مقطع تشغيل، كلفة التوقف صفر، التغييرات المتعددة تعتمد الأخير، الاستئناف يلتقط السعر في وقته، عدم التكرار عبر أغلفة API و`p_command_id`، وفشل وسائط الوقود أثناء التوقف إغلاقًا (fail-closed).
+- النتيجة: **PASS=7 / FAIL=0 / ERROR=0**.
+
+**التحقق المحلي والإنتاجي (2026-09-17):**
+- محليًا: `db:reset` ناجح، و`db:test` ناجح (`FILES=39 PASS=622 FAIL=0 ERROR=0`)، و`db:index` ناجح ومحدث.
+- سحابيًا: طُبقت في الإنتاج عبر GitLab CI (MR `!3`, Commit `c5a493eb`, Job `16548801073`)، وأثبت `cloud:verify` التطابق الكامل: 99/99 هجرة، و195/195 دالة، و43/79 صلاحيات، ووجود الإصدار في `schema_migrations` ومنطق `source_change_pause` في دالة `ops.change_session_energy_source` السحابية.
+
+## 101 — 20260919010001_101_farm_dedup_and_distinguishing_label.sql
+
+**الملف:** `supabase/migrations/20260919010001_101_farm_dedup_and_distinguishing_label.sql`
+**الحالة:** **Implemented + Local Verified + Cloud Verified** — منفَّذة ومُثبتة محليًا وسحابيًا.
+**النشر:** دُمجت عبر MR `!6` إلى `main` (merge commit `2267f73c`)؛ Pipeline `2863219601` نجح، وproduction job `16601058583` طبّق 101 بنجاح.
+**القرار الحاكم:** ق-88 (جزء منع تكرار الأرض)
+
+**الغرض:**
+منع تكرار إنشاء الأرض لنفس المزارع في نفس البئر مع السماح بأراضٍ حقيقية
+مختلفة تحمل الاسم نفسه عبر صفة مميزة، وتوحيد مسار الإنشاء عبر الطابور
+الدائم.
+
+**ما فيها:**
+1. **`distinguishing_label`:** إضافة عمود `ops.farms.distinguishing_label
+   text null` مع قيد تحقق يرفض الفراغ/المسافات وحدها (تُعامل كـ null).
+   discriminator اختياري لا يُدمج في الاسم الأساسي.
+2. **الهوية القانونية (canonical farm identity):** منع التكرار يقوم على
+   `well_id + farmer_well_account_id + core.normalize_arabic(name) +
+   coalesce(core.normalize_arabic(distinguishing_label), '')` — **لا
+   الاسم منفردًا**.
+3. **Advisory transaction lock:** `ops.lock_farm_base_identity` يأخذ
+   `pg_advisory_xact_lock` على الهوية الأساسية المطبّعة (بلا الصفة
+   المميزة) لتسلسل الإنشاءات المتزامنة. القفل داخلي بحت (بلا EXECUTE
+   للعميل).
+4. **محفّز حماية الفرادة المستقبلية:** `ops.trg_enforce_farm_uniqueness()`
+   على مستوى الجدول عبر مفتاح أساسي في جدول علامات داخلي
+   `ops.farm_identity_markers` (داخلي بحت: بلا Direct DML لأي دور عميل).
+   يحمي حتى ضد INSERT مباشر متزامن.
+5. **العنقود التاريخي محفوظ، بلا Auto-Merge:** الصفوف التاريخية المكررة لا
+   تُدمج ولا تُحذف ولا تُحسم تلقائيًا؛ إدراج العلامات يستثني العناقيد
+   (`having count(*)=1`) فلا تفشل الهجرة ولا تُمَسّ الأدلة.
+6. **لا Unique Expression Index بعد:** الفهرس الفريد الفيزيائي على التعبير
+   **مؤجَّل** لما بعد حسم الصفوف التاريخية المكررة، وغير موجود في 101.
+7. **عقد create_farm:** `ops.create_farm` (4 وسائط) و`api.create_farm`
+   (5 وسائط، `p_command_id` آخر معامل اختياري) بأربع حالات: `created`،
+   `matched_existing`، `requires_resolution` (بلا حسم تلقائي)،
+   `requires_disambiguation`. `api.*` يبقى INVOKER، `anon` denied.
+8. **`api.list_well_farms`:** يعيد `distinguishing_label`.
+9. **ثوابت الأمان محفوظة:** لا توسيع صلاحيات؛ `anon`/`authenticated` بلا
+   Direct DML على `ops.farms`؛ الكتابة عبر عقد `api` وحده. اختبار 072 بقي
+   PASS 9/9، ولا GRANT جديد على `ops.farms`.
+
+**الاختبار الدائم:**
+`supabase/tests/20260919_101_farm_dedup.test.sql`
+- يغطي توقيعات العقد ومنع تضخم السطح، والعنقود التاريخي، والحالات الأربع،
+  وإعادة التشغيل المتطابقة (accepted/conflict)، ونفس الاسم لمزارع مختلف،
+  والصفات المميزة، و`active->inactive` وحماية `inactive->active` (23505)،
+  والتطبيع العربي، وإعادة `distinguishing_label` في list_well_farms،
+  ورفض INSERT المباشر المكرر (23505).
+- النتيجة: **PASS=19 FAIL=0 ERROR=0** (تشغيل المالك).
+
+**التحقق المحلي (2026-09-19):**
+- حزمة القاعدة الكاملة: `FILES=40 PASS=641 FAIL=0 ERROR=0`.
+- `db:index` مولَّد: columns=839، constraints=503، triggers=45،
+  functions=199.
+- `git diff --check` نظيف.
+- **السحابة Cloud Verified:** Job الإنتاج سجّل `applied=1` و`skipped=99` و`MIGRATIONS_LOCAL=100` / `MIGRATIONS_CLOUD=100` / `MISSING_IN_CLOUD=0` و`FUNCTIONS_INDEX=197` / `FUNCTIONS_CLOUD=197`. تحقق Supabase المستقل أثبت الإصدار `20260919010001`، وعمود `distinguishing_label`، وجدول `ops.farm_identity_markers`، والمحفّز `trg_enforce_farm_uniqueness`، والتوقيعات الجديدة، وغياب الـoverloads القديمة، وبقاء Direct DML للعميل على `ops.farms` = false.
+
+## 103 — 20260921010001_103_account_lifecycle_team_confirmation.sql
+
+**الملف:** `supabase/migrations/20260921010001_103_account_lifecycle_team_confirmation.sql`
+**الحالة:** **Merged to main (MR !12) + Local Verified + CI Verified**؛
+**NOT deployed / NOT Cloud Verified** — سقف التحقق السحابي يبقى 102.
+**القرار الحاكم:** ق-130، وم-44 تبقى مفتوحة كـProduction Blocker.
+
+**النطاق:**
+
+1. تمديد دورة `core.well_invitations` إلى `invited` و
+   `accepted_pending_owner` و`confirmed` و`rejected`، مع بقاء
+   `claimed`/`expired`/`revoked` التاريخية مقروءة ومتوافقة.
+2. ستة حقول lifecycle/audit للقبول والتأكيد والرفض، مع قيد اتساق للحالة
+   وحارس قاعدة بيانات لدعوة مفتوحة واحدة لكل
+   `well_id + role + normalized_phone` في حالتي invited/pending.
+3. عقود الحساب القائم: `api.accept_well_invitation(uuid)` و
+   `api.confirm_well_invitation(uuid)` و`api.reject_well_invitation(uuid)`
+   و`api.list_my_well_invitations()`؛ دعوة الحساب القائم لا تنشئ Assignment
+   ولا auto-link، والمطالبة التاريخية تصبح fail-closed `superseded` بلا وصول.
+4. حدود الأمن باقية: لا Direct DML جديد؛ أغلفة `api` هي SECURITY INVOKER؛
+   والمنطق المميز في `core` هو SECURITY DEFINER مع `search_path` ثابت؛
+   `anon` محجوب.
+5. تأكيد الشريك يربط Partner الحالي النشط ماليًا فقط
+   (`status='active'` و`period_end IS NULL`)، ويفشل التعارض التاريخي للهوية؛
+   لا إنشاء Partner بديل ولا تعديل
+   `ownership_share_versions`.
+
+**الاختبار الدائم والتحقق المحلي:**
+
+- `supabase/tests/20260921_103_account_lifecycle_team_confirmation.test.sql`
+  = **33 PASS / 0 FAIL / 0 ERROR**.
+- Test 094 = **23 PASS / 0 FAIL / 0 ERROR**؛ حزمة القاعدة =
+  **FILES=42 PASS=707 FAIL=0 ERROR=0**.
+- `db:reset` نجح حتى 103، و`db:index` = columns=845، constraints=507،
+  functions=210، triggers=45.
+
+**الدمج وCI (2026-09-22):** دُمجت 103 إلى `main` عبر MR !12 (**merge commit
+لـM103 = `c5e7f7a`** عند نقطة تحقق الدمج، commit التنفيذ المصدر `239b8ae`،
+وحُذف الفرع المصدر بعد الدمج؛ ودمج فرع التوثيق سيغيّر رأس `main` لاحقًا). MR
+pipeline `2869239530` = database success + app success، وmain pipeline
+`2869249068` = database success + app success مع بقاء production يدويًا ولم
+يُشغَّل. لم يحدث أي نشر أو تحقق سحابي؛ سقف السحابة يبقى 102.

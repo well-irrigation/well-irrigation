@@ -383,6 +383,13 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# الاستعادة تحدث قبل تسجيل الدخول؛ بقية دوال الحافة تحتفظ بالتحقق الافتراضي.
+[functions.reset-password]
+verify_jwt = false
+
+[functions.member-finalization]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

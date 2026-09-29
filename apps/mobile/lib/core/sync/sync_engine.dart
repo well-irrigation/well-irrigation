@@ -20,6 +20,7 @@ library;
 import 'command_envelope.dart';
 import 'command_reference.dart';
 import 'command_transport.dart';
+import 'command_type.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
@@ -143,109 +144,140 @@ class SyncEngine {
     var skipped = 0;
     var blockedByReview = 0;
 
-    /// الأصول التي توقّف إرسالها في هذا التشغيل، ومعها سبب التوقف.
-    ///
-    /// أول أمر لم يُحسم في أصل يوقف كل ما بعده فيه: لا يُرسل استئناف
-    /// لجلسة لم يُحسم إيقافها. أصول أخرى تكمل بلا تأثر (القسم 6).
-    /// والسبب محفوظ لأن «موقوف على الشبكة» و«موقوف على إنسان» يقودان
-    /// إلى قرارين مختلفين تمامًا في العامل الخلفي.
-    final blockedAggregates = <String, _BlockReason>{};
+    var unblockedByResolver = false;
+    const maxPasses = 2;
 
-    void block(String aggregate, _BlockReason reason) {
-      blockedAggregates[aggregate] = reason;
-    }
+    for (var pass = 0; pass < maxPasses; pass++) {
+      if (pass > 0 && !unblockedByResolver) {
+        break;
+      }
+      if (pass > 0) {
+        // إعادة تصفير المتخطى للمرور الإضافي لأن الأوامر غير المحسومة وحدها تُحسب
+        skipped = 0;
+        blockedByReview = 0;
+      }
+      unblockedByResolver = false;
 
-    for (final command in await _store.pendingCommands(accountId)) {
-      final aggregate = command.effectiveAggregateId;
-      final blockedBy = blockedAggregates[aggregate];
+      /// الأصول التي توقّف إرسالها في هذا المرور، ومعها سبب التوقف.
+      ///
+      /// أول أمر لم يُحسم في أصل يوقف كل ما بعده فيه: لا يُرسل استئناف
+      /// لجلسة لم يُحسم إيقافها. أصول أخرى تكمل بلا تأثر (القسم 6).
+      final blockedAggregates = <String, _BlockReason>{};
 
-      if (blockedBy != null) {
-        skipped += 1;
+      void block(String aggregate, _BlockReason reason) {
+        blockedAggregates[aggregate] = reason;
+      }
 
-        if (blockedBy == _BlockReason.awaitingReview) {
-          blockedByReview += 1;
+      for (final command in await _store.pendingCommands(accountId)) {
+        final aggregate = command.effectiveAggregateId;
+        final blockedBy = blockedAggregates[aggregate];
+
+        // فحص استثنائي ضيق: أمر حسم هوية المزارع هو الوحيد المخوّل بفك حظر المراجعة لأصله
+        final isAuthorizedResolver =
+            command.type == CommandType.resolveFarmerIdentity &&
+            await _isAuthorizedFarmerResolver(accountId, command);
+
+        if (blockedBy != null && !isAuthorizedResolver) {
+          skipped += 1;
+
+          if (blockedBy == _BlockReason.awaitingReview) {
+            blockedByReview += 1;
+          }
+
+          continue;
         }
 
-        continue;
-      }
-
-      // أمرٌ يحتاج مراجعة يوقف أصله: حالة الجلسة على الخادم غير
-      // معروفة، وإرسال حدث لاحق عليها يفاقم اللبس لا يحلّه.
-      if (command.status == CommandStatus.review) {
-        block(aggregate, _BlockReason.awaitingReview);
-        skipped += 1;
-        blockedByReview += 1;
-        continue;
-      }
-
-      final resolution = await _resolvePayload(accountId, command);
-      final resolved = resolution.payload;
-
-      if (resolved == null) {
-        block(aggregate, resolution.reason);
-        skipped += 1;
-
-        if (resolution.reason == _BlockReason.awaitingReview) {
+        // أمرٌ يحتاج مراجعة يوقف أصله: حالة الجلسة على الخادم غير
+        // معروفة، وإرسال حدث لاحق عليها يفاقم اللبس لا يحلّه.
+        if (command.status == CommandStatus.review) {
+          block(aggregate, _BlockReason.awaitingReview);
+          skipped += 1;
           blockedByReview += 1;
+          continue;
         }
 
-        continue;
-      }
+        final resolution = await _resolvePayload(accountId, command);
+        final resolved = resolution.payload;
 
-      final attemptedAt = _clock().toUtc();
-      final claimed = await _store.claim(
-        accountId,
-        command.localId,
-        attemptedAt: attemptedAt,
-      );
+        if (resolved == null) {
+          block(aggregate, resolution.reason);
+          skipped += 1;
 
-      if (!claimed) {
-        // سبقنا إليه غيرنا — حلقة أخرى أو عامل خلفي. لا نلمسه ولا
-        // نُرسل بعده في أصله، فترتيبه ما زال مضمونًا.
-        block(aggregate, _BlockReason.transient);
-        skipped += 1;
-        continue;
-      }
+          if (resolution.reason == _BlockReason.awaitingReview) {
+            blockedByReview += 1;
+          }
 
-      attempted += 1;
+          continue;
+        }
 
-      final result = await _transport.dispatch(
-        DispatchRequest(
-          type: command.type,
-          commandId: command.commandId,
-          arguments: buildRpcArguments(
+        final attemptedAt = _clock().toUtc();
+        final claimed = await _store.claim(
+          accountId,
+          command.localId,
+          attemptedAt: attemptedAt,
+        );
+
+        if (!claimed) {
+          // سبقنا إليه غيرنا — حلقة أخرى أو عامل خلفي. لا نلمسه ولا
+          // نُرسل بعده في أصله، فترتيبه ما زال مضمونًا.
+          block(aggregate, _BlockReason.transient);
+          skipped += 1;
+          continue;
+        }
+
+        attempted += 1;
+
+        final result = await _transport.dispatch(
+          DispatchRequest(
+            accountId: command.accountId,
             type: command.type,
             commandId: command.commandId,
-            occurredAt: command.occurredAt,
-            resolvedPayload: resolved,
+            arguments: buildRpcArguments(
+              type: command.type,
+              commandId: command.commandId,
+              occurredAt: command.occurredAt,
+              resolvedPayload: resolved,
+            ),
           ),
-        ),
-      );
+        );
 
-      switch (result) {
-        case final DispatchAccepted accepted:
-          await _confirm(accountId, command, accepted, attemptedAt);
-          confirmed += 1;
+        switch (result) {
+          case final DispatchAccepted accepted:
+            if (command.type == CommandType.resolveFarmerIdentity) {
+              await _confirmFarmerResolution(
+                accountId,
+                command,
+                accepted,
+                attemptedAt,
+              );
+              blockedAggregates.remove(aggregate);
+              unblockedByResolver = true;
+            } else {
+              await _confirm(accountId, command, accepted, attemptedAt);
+            }
+            confirmed += 1;
 
-        case final DispatchFailed failure when failure.isRetryable:
-          await _store.releaseForRetry(
-            accountId,
-            command.localId,
-            error: failure.message,
-            attemptedAt: attemptedAt,
-          );
-          block(aggregate, _BlockReason.transient);
-          retryScheduled += 1;
+          case final DispatchFailed failure when failure.isRetryable:
+            await _store.releaseForRetry(
+              accountId,
+              command.localId,
+              error: failure.message,
+              attemptedAt: attemptedAt,
+            );
+            block(aggregate, _BlockReason.transient);
+            retryScheduled += 1;
 
-        case final DispatchFailed failure:
-          await _store.markNeedsReview(
-            accountId,
-            command.localId,
-            error: failure.message,
-            attemptedAt: attemptedAt,
-          );
-          block(aggregate, _BlockReason.awaitingReview);
-          needsReview += 1;
+          case final DispatchFailed failure:
+            await _store.markNeedsReview(
+              accountId,
+              command.localId,
+              error: failure.message,
+              attemptedAt: attemptedAt,
+              serverResponse: failure.serverResponse,
+            );
+            block(aggregate, _BlockReason.awaitingReview);
+            needsReview += 1;
+        }
       }
     }
 
@@ -374,6 +406,59 @@ class SyncEngine {
       );
     }
 
+    await _store.markConfirmed(
+      accountId,
+      command.localId,
+      serverResponse: result.response,
+      attemptedAt: attemptedAt,
+    );
+  }
+
+  Future<bool> _isAuthorizedFarmerResolver(
+    String accountId,
+    CommandEnvelope command,
+  ) async {
+    if (command.type != CommandType.resolveFarmerIdentity) return false;
+    final targetLocalId = command.aggregateLocalId;
+    if (targetLocalId == null) return false;
+    final source = await _store.commandByLocalId(accountId, targetLocalId);
+    if (source == null || source.type != CommandType.createFarmer) return false;
+    if (source.status != CommandStatus.review &&
+        source.status != CommandStatus.confirmed) {
+      return false;
+    }
+    final resp = source.serverResponse;
+    return resp != null && resp['status'] == 'requires_resolution';
+  }
+
+  Future<void> _confirmFarmerResolution(
+    String accountId,
+    CommandEnvelope command,
+    DispatchAccepted result,
+    DateTime attemptedAt,
+  ) async {
+    final targetLocalId = command.aggregateLocalId;
+    final entityId =
+        result.entityId ??
+        result.response['farmer_well_account_id']?.toString();
+    if (targetLocalId != null && entityId != null && entityId.isNotEmpty) {
+      await _store.putMapping(
+        accountId,
+        IdMapping(
+          localId: targetLocalId,
+          kind: EntityKind.farmerWellAccount,
+          serverId: entityId,
+          resolvedAt: attemptedAt,
+          matchedExisting: result.matchedExisting,
+        ),
+      );
+      await _store.markConfirmed(
+        accountId,
+        targetLocalId,
+        serverResponse: result.response,
+        attemptedAt: attemptedAt,
+      );
+    }
     await _store.markConfirmed(
       accountId,
       command.localId,

@@ -102,6 +102,20 @@ class WellSetupSubmissionResult {
     message: 'تعذر إنشاء البئر. تحقق من الاتصال وحاول مرة أخرى.',
   );
 
+  /// فشل بسبب **يعرفه الخادم**، فيُعرض كما هو بدل «تحقق من الاتصال».
+  ///
+  /// أُضيف في 2026-09-04 بعد أول تسجيل حقيقي على الإنتاج: الخادم رفض
+  /// بسببين مختلفين (نطاق بريد الهوية غير صالح، ثم كلمة مرور غير مقبولة)
+  /// والشاشة قالت في الحالتين «تحقق من الاتصال» — والاتصال قائم. رسالةٌ
+  /// تُخفي السبب الحقيقي تُوجّه المستخدم إلى إصلاح ما ليس معطوبًا، وهي وجهٌ
+  /// من عائلة النجاح الكاذب: نصٌّ لا يطابق الحقيقة التي يعرفها النظام.
+  factory WellSetupSubmissionResult.serverRejected(String reason) {
+    return WellSetupSubmissionResult._(
+      succeeded: false,
+      message: 'تعذر إنشاء البئر: $reason',
+    );
+  }
+
   final bool succeeded;
   final String message;
 }
@@ -123,6 +137,14 @@ class WellSetupSubmissionFlow {
       return WellSetupSubmissionResult.success;
     } catch (error) {
       debugPrint('Setup error: $error');
+      // خطأ من نظام المصادقة أو من عقد القاعدة يحمل سببًا صريحًا كتبه
+      // الخادم: يُعرض للإنسان بدل تعميمٍ يرسله إلى إصلاح الاتصال السليم.
+      if (error is AuthException) {
+        return WellSetupSubmissionResult.serverRejected(error.message);
+      }
+      if (error is PostgrestException) {
+        return WellSetupSubmissionResult.serverRejected(error.message);
+      }
       return WellSetupSubmissionResult.failure;
     }
   }
@@ -157,6 +179,9 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
 
   // مفاتيح النماذج لكل مرحلة
   final _formKeyStep1 = GlobalKey<FormState>();
+  // هل حاول المالك الانتقال من الخطوة الأولى مرة؟ قبلها لا تُوبَّخ الحقول
+  // الفارغة، وبعدها يظهر التلميح مع كل حرف يُكتب.
+  bool _step1Attempted = false;
   final _formKeyStep2 = GlobalKey<FormState>();
 
   // وحدات التحكم للمرحلة 1
@@ -218,6 +243,13 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
 
   void _nextStep() {
     if (_currentStep == 0) {
+      // أول محاولة تُشغّل التحقق اللحظي، فيبقى التلميح مرئيًّا أثناء التصحيح
+      // بدل أن يظهر مرة واحدة ثم يختفي.
+      if (!_step1Attempted) {
+        setState(() {
+          _step1Attempted = true;
+        });
+      }
       if (!_formKeyStep1.currentState!.validate()) return;
       _setupData.ownerFullName = _ownerNameController.text.trim();
       _setupData.ownerPhone = _ownerPhoneController.text.trim();
@@ -271,6 +303,12 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
     });
 
     try {
+      // كلمة المرور تُقرأ من الحقل **لحظة الإرسال** لا من نسخة حُفظت في
+      // الخطوة الأولى. السبب المقيس في 2026-09-04: أول فشل يمحو الكلمة
+      // المحفوظة (تنظيف مقصود)، فتصير كل محاولة تالية تُرسل فراغًا ويرفضها
+      // الخادم بسبب **مختلف** — ولا شيء يُعلم المالك أن الحقل فُرّغ. فشلٌ
+      // واحد كان يُنتج فشلًا لا علاقة له بسببه الأول.
+      _setupData.ownerPassword = _ownerPasswordController.text;
       _setupData.pumpName = _pumpNameController.text.trim();
       _setupData.solarHourlyRate = CurrencyUtils.parseRawInt(
         _solarRateController.text.trim(),
@@ -304,11 +342,16 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
           ),
         );
       }
+
+      // كلمة المرور تُمحى **عند النجاح وحده**. ومحوها عند الفشل كان يترك
+      // المالك أمام حقل فارغ لا يعلم أنه فُرّغ، فتفشل محاولته التالية بسبب
+      // لا صلة له بالأول — والفشل الذي يُنتج فشلًا آخر يُخفي سببه الحقيقي.
+      if (result.succeeded) {
+        _setupData.ownerPassword = '';
+        _ownerPasswordController.clear();
+        _ownerPasswordConfirmController.clear();
+      }
     } finally {
-      // ضمان تنظيف كلمة المرور دائماً
-      _setupData.ownerPassword = '';
-      _ownerPasswordController.clear();
-      _ownerPasswordConfirmController.clear();
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -533,6 +576,12 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
   Widget _buildStep1OwnerAccount() {
     return Form(
       key: _formKeyStep1,
+      // التحقق يُعاد عند كل تغيير بعد أول محاولة انتقال: التلميح يظهر
+      // **بينما** يكتب الإنسان لا بعد أن يعبر خطوتين ثم يُردّ. ولا يظهر قبل
+      // أول محاولة، فالحقول الفارغة عند الفتح ليست خطأً يُوبَّخ عليه.
+      autovalidateMode: _step1Attempted
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -625,6 +674,14 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
               if (val.length < 6) return 'كلمة المرور يجب أن لا تقل عن 6 خانات';
               return null;
             },
+            // إعادة تحقق حقل التأكيد عند تغيير الأصل: بدونها يبقى التأكيد
+            // معلَّمًا «غير متطابق» بعد أن صار مطابقًا فعلًا.
+            onChanged: (_) {
+              if (_step1Attempted &&
+                  _ownerPasswordConfirmController.text.isNotEmpty) {
+                _formKeyStep1.currentState?.validate();
+              }
+            },
           ),
           const SizedBox(height: 18),
 
@@ -642,6 +699,9 @@ class _CreateWellWizardScreenState extends State<CreateWellWizardScreen> {
             ],
             decoration: _inputDecoration('••••••••'),
             validator: (val) {
+              if (val == null || val.isEmpty) {
+                return 'يرجى تأكيد كلمة المرور';
+              }
               if (val != _ownerPasswordController.text) {
                 return 'كلمة المرور غير متطابقة';
               }

@@ -41,8 +41,7 @@ class LocalPayment {
   /// هل قَبِلها الخادم فعلًا؟
   ///
   /// «مُرحَّلة» تعني معرّفًا خادميًا محسومًا، لا مجرد حالة مؤكَّدة.
-  bool get isPosted =>
-      status == CommandStatus.confirmed && serverId != null;
+  bool get isPosted => status == CommandStatus.confirmed && serverId != null;
 }
 
 /// حالة المزامنة المجمَّعة للجلسة — القسم 27 من وثيقة أندرويد.
@@ -91,6 +90,7 @@ class ActiveSessionRecord {
     this.farmReference,
     this.farmerReference,
     this.pumpId,
+    this.crops = const [],
     this.completedAt,
     this.lastSuccessfulSyncAt,
     this.oldestPendingAt,
@@ -115,6 +115,9 @@ class ActiveSessionRecord {
 
   final String? farmerReference;
   final String? pumpId;
+
+  /// لقطة المحاصيل المختارة عند بدء الجلسة، لا حالة الأرض الحالية.
+  final List<String> crops;
 
   final DateTime startedAt;
   final DateTime? completedAt;

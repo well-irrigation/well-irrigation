@@ -1,7 +1,7 @@
 # AI Handoff Protocol — بروتوكول تسليم المشروع
 
-**القرارات الحاكمة:** ق-93، ق-95، ق-96، ق-97، ق-104
-**آخر تحديث:** 2026-09-02
+**القرارات الحاكمة:** ق-93، ق-95، ق-96، ق-97، ق-104، ق-127، ق-128
+**آخر تحديث:** 2026-09-21
 **الحالة:** نافذ
 
 ## 1. الهدف
@@ -227,7 +227,8 @@ NEXT، ولا يُضاف إليه سرد جديد إلا عند قصٍّ لاح�
 - فحص الملفات المتوقعة.
 - Commit واضح.
 - فرع ثم طلب دمج ثم دمج مضغوط. **لا Push مباشر إلى `main`**: الفرع
-  محميّ بضابط نافذ، ودمج `main` = نشر تلقائي على الإنتاج.
+  محميّ بضابط نافذ. الدمج يشغّل فحوص GitLab CI، أما النشر إلى الإنتاج
+  فوظيفة `production` يدوية منفصلة ما لم يصدر قرار حوكمة موثق يغيّر ذلك.
 - Worktree نظيف.
 
 بعد ذلك فقط تحدث نقطة العمل إلى الدفعة التالية.
@@ -347,7 +348,7 @@ Governing sequence:
 
 `technical/V1_IMPLEMENTATION_SEQUENCE.md`
 
-Current point — ق-120:
+Historical checkpoint — ق-120 (closed by ق-127):
 
 **P0 Create-Well Correctness مغلق بالأدلة المطلوبة.**
 م-38 وم-39 = Verified local + Cloud.
@@ -363,18 +364,30 @@ Current point — ق-120:
 (م-41D7)، وضابط حماية `main` نافذ. والمتبقي في الطابور: عقد قراءة سندات
 الرصيد المقدَّم، ودين الهوية، والطابور الدائم غير الموصول، وCI.
 
-ق-120 تبقى نافذة؛ لا يبدأ W2-02d ولا أي Screen أو Feature
-جديدة قبل استمرار Audit → Inspection → Evaluation → Repair →
-Gap Closing.
+ق-127 أغلق ق-120. الحالة الحالية تؤخذ من
+`memory/RESUME_POINT.md` وحده.
 
 Do not start arbitrary screens.
 
 Do not edit sealed migrations (ceiling: `AGENTS.md` §4).
 
-New DB changes begin 094+.
-
+New DB changes follow `AGENTS.md` §4.
 Use coherent domain-sized migrations and permanent tests.
 
 After foundations, prefer vertical end-to-end slices.
 
 Project DB/Docker verification remains owner-run.
+
+## Local Agent Delegation — ق-128
+
+عند تفويض تنفيذ الكود إلى وكيل محلي،
+يطبق المصدر الحاكم التالي:
+
+`LOCAL_AGENT_EXECUTION_PROTOCOL.md`
+
+الوكيل المحلي لا يدير التوثيق.
+المهندس الرئيسي يحدد النطاق ويراجع
+النتيجة ويعد دفعة التوثيق للمالك.
+
+اقتصاد الرصيد يكون بمنع التكرار
+وتضييق القراءة، لا بتقليل التحقق.

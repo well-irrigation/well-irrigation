@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/api/team_repository.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/contact_picker.dart';
 import '../../core/utils/digit_utils.dart';
+import '../../core/utils/invitation_share.dart';
+import '../../core/widgets/code_actions_row.dart';
 
-/// شاشة الفريق والصلاحيات (ق-123 / هجرة 094 / م-41E المرحلة 3).
+/// شاشة الفريق والصلاحيات ودورة تأكيد الدعوات وفق ق-130.
 ///
 /// كانت تقول «إدارة الفريق غير متاحة في هذه النسخة» لأن العقد لم يكن
 /// موجودًا. صار موجودًا في هجرة 094، فصارت الشاشة تعرض ما يعيده العقد
@@ -18,11 +22,26 @@ class TeamPermissionsScreen extends StatefulWidget {
   const TeamPermissionsScreen({
     required this.well,
     this.repository,
+    this.contactPicker,
+    this.shareHandler,
+    this.senderName,
+    this.shareLauncher,
     super.key,
   });
 
   final WellSummary well;
   final TeamRepository? repository;
+
+  /// يُحقَنان في اختبارات الويدجت؛ الافتراضي: منتقي جهات النظام وقائمة
+  /// مشاركة الجهاز.
+  final Future<ContactPickResult> Function()? contactPicker;
+  final Future<void> Function(String message)? shareHandler;
+
+  /// اسم المرسِل كما تعرضه الهوية؛ فارغه يعني «مالك البئر» في الرسالة.
+  final String? senderName;
+
+  /// يُحقَن في الاختبارات؛ الافتراضي فتح url_launcher الحقيقي.
+  final InvitationShareLauncher? shareLauncher;
 
   @override
   State<TeamPermissionsScreen> createState() => _TeamPermissionsScreenState();
@@ -103,16 +122,14 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
   Future<void> _startInvite() async {
     final draft = await showDialog<_InviteDraft>(
       context: context,
-      builder: (_) => const _InviteFormDialog(),
+      builder: (_) => _InviteFormDialog(contactPicker: widget.contactPicker),
     );
     if (draft == null || !mounted) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => _InviteConfirmDialog(
-        draft: draft,
-        wellName: widget.well.name,
-      ),
+      builder: (_) =>
+          _InviteConfirmDialog(draft: draft, wellName: widget.well.name),
     );
     if (confirmed != true || !mounted) return;
 
@@ -144,13 +161,21 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
     await _load();
     if (!mounted) return;
 
-    if (result.isLinked) {
+    if (result.isAwaitingOwner) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('للرقم حساب قائم — رُبط بالبئر الآن بلا رمز ✅'),
-          backgroundColor: AppColors.agriculturalGreen,
-        ),
+        const SnackBar(content: Text('الدعوة مقبولة — بانتظار تأكيدك أو رفضك')),
       );
+      return;
+    }
+
+    if (result.isAlreadyConfirmed) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('العضو نشط بالفعل')));
+      return;
+    }
+
+    if (!result.isInvited) {
+      _showFailure('لم يصدر الخادم دعوة جديدة — لم يتغيّر أي وصول');
       return;
     }
 
@@ -166,6 +191,11 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
         draft: draft,
         code: code,
         expiresAt: result!.expiresAt,
+        wellName: widget.well.name,
+        senderName: widget.senderName ?? '',
+        shareHandler: widget.shareHandler,
+        shareLauncher:
+            widget.shareLauncher ?? const InvitationShareLauncher(),
       ),
     );
   }
@@ -235,6 +265,46 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
         backgroundColor: AppColors.agriculturalGreen,
       ),
     );
+  }
+
+  Future<void> _confirmInvitation(TeamInvitation invitation) async {
+    InvitationActionResult result;
+    try {
+      result = await _repo.confirmInvitation(invitation.invitationId);
+    } catch (_) {
+      _showFailure('تعذر تأكيد العضو — لم يتغيّر أي وصول.');
+      return;
+    }
+
+    await _load();
+    if (!mounted) return;
+
+    final message = switch (result.outcome) {
+      'owner_confirmed_pending_account' =>
+        'تم تأكيد العضو — بانتظار أن يختار كلمة المرور',
+      'confirmed' || 'already_confirmed' => 'تم تأكيد العضو — أصبح نشطًا',
+      _ => 'لم يكتمل تأكيد العضو — راجع حالته في القائمة',
+    };
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _rejectInvitation(TeamInvitation invitation) async {
+    InvitationActionResult result;
+    try {
+      result = await _repo.rejectInvitation(invitation.invitationId);
+    } catch (_) {
+      _showFailure('تعذر رفض الدعوة — لم يتغيّر أي وصول.');
+      return;
+    }
+
+    await _load();
+    if (!mounted) return;
+    final message = result.outcome == 'rejected'
+        ? 'رُفضت الدعوة — لم يُمنح وصول'
+        : 'لم يكتمل رفض الدعوة — راجع حالتها في القائمة';
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -394,7 +464,10 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
     ),
     child: Padding(
       padding: const EdgeInsets.all(14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
     ),
   );
 
@@ -447,6 +520,8 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
         name: member.fullName,
         code: result.code!,
         expiresAt: result.expiresAt,
+        wellName: widget.well.name,
+        shareHandler: widget.shareHandler,
       ),
     );
 
@@ -488,7 +563,8 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
 
   Widget _memberCard(TeamMember member) {
     final canRevoke =
-        member.isActive && (member.role == 'operator' || member.role == 'partner');
+        member.isActive &&
+        (member.role == 'operator' || member.role == 'partner');
 
     return _card(
       children: [
@@ -506,8 +582,10 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
             _badge(_roleLabel(member.role), AppColors.waterBlue),
             const SizedBox(width: 6),
             _badge(
-              member.isActive ? 'نافذ' : 'مُلغى',
-              member.isActive ? AppColors.agriculturalGreen : AppColors.textMuted,
+              member.isActive ? 'نشط' : 'ملغى',
+              member.isActive
+                  ? AppColors.agriculturalGreen
+                  : AppColors.textMuted,
             ),
           ],
         ),
@@ -548,6 +626,57 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
   }
 
   Widget _pendingCard(TeamInvitation invitation) {
+    if (invitation.isAwaitingOwner) {
+      return _card(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  invitation.fullName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              _badge(_roleLabel(invitation.role), AppColors.waterBlue),
+              const SizedBox(width: 6),
+              _badge('بانتظار تأكيد المالك', AppColors.warning),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            invitation.phone,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () => _confirmInvitation(invitation),
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('تأكيد'),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                ),
+                onPressed: () => _rejectInvitation(invitation),
+                icon: const Icon(Icons.close, size: 18),
+                label: const Text('رفض'),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return _card(
       children: [
         Row(
@@ -563,7 +692,7 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
             ),
             _badge(_roleLabel(invitation.role), AppColors.waterBlue),
             const SizedBox(width: 6),
-            _badge('بانتظار التنشيط', AppColors.warning),
+            _badge('بانتظار القبول', AppColors.warning),
           ],
         ),
         const SizedBox(height: 6),
@@ -607,9 +736,11 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
 
   Widget _closedCard(TeamInvitation invitation) {
     final label = switch (invitation.status) {
-      'claimed' => 'نُشِّطت ${_formatDate(invitation.claimedAt)}',
-      'expired' => 'انتهت ${_formatDate(invitation.expiresAt)}',
-      'revoked' => 'أُلغيت',
+      'claimed' || 'confirmed' => 'نشط',
+      'owner_confirmed_pending_account' => 'بانتظار اختيار كلمة المرور',
+      'rejected' => 'مرفوض',
+      'expired' => 'منتهي',
+      'revoked' => 'ملغى',
       _ => invitation.status,
     };
 
@@ -636,6 +767,20 @@ class _TeamPermissionsScreenState extends State<TeamPermissionsScreen> {
   }
 }
 
+/// المشاركة عبر القناة العامة: المعالج المحقون في الاختبارات، وإلا قائمة
+/// مشاركة الجهاز.
+Future<void> _shareViaDefaultChannel({
+  required String message,
+  Future<void> Function(String message)? injected,
+}) async {
+  final handler = injected;
+  if (handler != null) {
+    await handler(message);
+    return;
+  }
+  await SharePlus.instance.share(ShareParams(text: message));
+}
+
 /// مسوّدة الدعوة كما جمعتها الشاشة قبل التأكيد.
 class _InviteDraft {
   const _InviteDraft({
@@ -650,7 +795,10 @@ class _InviteDraft {
 }
 
 class _InviteFormDialog extends StatefulWidget {
-  const _InviteFormDialog();
+  const _InviteFormDialog({this.contactPicker});
+
+  /// يُحقَن في الاختبارات؛ الافتراضي منتقي جهات الاتصال النظامي.
+  final Future<ContactPickResult> Function()? contactPicker;
 
   @override
   State<_InviteFormDialog> createState() => _InviteFormDialogState();
@@ -668,27 +816,59 @@ class _InviteFormDialogState extends State<_InviteFormDialog> {
     super.dispose();
   }
 
+  /// اختيار رقم من جهة اتصال يملأ الحقل؛ وإن رُفضت الصلاحية أو فشل
+  /// القراءة أُعلن ذلك صراحةً والإدخال اليدوي يبقى كما هو.
+  Future<void> _pickContact() async {
+    final pick = widget.contactPicker ?? pickContactPhone;
+    final result = await pick();
+    if (!mounted) return;
+    final phone = result.phone;
+    switch (result.status) {
+      case ContactPickStatus.picked:
+        if (phone == null || phone.isEmpty) {
+          _pickNote('لم يُعَد رقمًا صالحًا — أكمل الإدخال اليدوي');
+          return;
+        }
+        setState(() {
+          _phoneController.text = phone;
+          _phoneController.selection = TextSelection.collapsed(
+            offset: phone.length,
+          );
+        });
+      case ContactPickStatus.cancelled:
+        break; // الإلغاء ليس خطأ ولا يُعلَن.
+      case ContactPickStatus.permissionDenied:
+        _pickNote('لم يُمنح الوصول لجهات الاتصال — أكمل الإدخال اليدوي');
+      case ContactPickStatus.failed:
+        _pickNote('تعذر اختيار جهة الاتصال — أكمل الإدخال اليدوي');
+    }
+  }
+
+  void _pickNote(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   void _submit() {
     final name = _nameController.text.trim();
     final phone = normalizeArabicDigits(_phoneController.text).trim();
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل اسم العضو')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('أدخل اسم العضو')));
       return;
     }
 
     if (phone.length < 9) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('أدخل رقم هاتف من 9 أرقام')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('أدخل رقم هاتف من 9 أرقام')));
       return;
     }
 
-    Navigator.of(context).pop(
-      _InviteDraft(fullName: name, phone: phone, role: _role),
-    );
+    Navigator.of(context)
+        .pop(_InviteDraft(fullName: name, phone: phone, role: _role));
   }
 
   @override
@@ -724,10 +904,15 @@ class _InviteFormDialogState extends State<_InviteFormDialog> {
               ArabicToEnglishDigitsFormatter(),
               LengthLimitingTextInputFormatter(9),
             ],
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'رقم الهاتف (7xxxxxxxx) *',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.phone_android),
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.phone_android),
+              suffixIcon: IconButton(
+                tooltip: 'اختيار رقم من جهات الاتصال',
+                onPressed: _pickContact,
+                icon: const Icon(Icons.contacts_outlined),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -842,12 +1027,125 @@ class _InvitationCodeDialog extends StatelessWidget {
   const _InvitationCodeDialog({
     required this.draft,
     required this.code,
+    required this.wellName,
     this.expiresAt,
+    this.senderName = '',
+    this.shareHandler,
+    this.shareLauncher = const InvitationShareLauncher(),
   });
 
   final _InviteDraft draft;
   final String code;
+  final String wellName;
   final DateTime? expiresAt;
+
+  /// اسم المرسِل؛ فارغه يعني «مالك البئر» في الرسالة.
+  final String senderName;
+
+  /// يُحقَن في الاختبارات؛ الافتراضي قائمة مشاركة الجهاز (المسار العام
+  /// والمتراجع إليه).
+  final Future<void> Function(String message)? shareHandler;
+
+  /// يُحقَن في الاختبارات؛ الافتراضي فتح url_launcher الحقيقي.
+  final InvitationShareLauncher shareLauncher;
+
+  String get _senderText =>
+      senderName.isEmpty ? 'مالك البئر' : '$senderName (مالك البئر)';
+
+  String get _typeText => switch (draft.role) {
+    'operator' => 'كمشغل',
+    'partner' => 'كشريك',
+    _ => 'بصفة ${draft.role}',
+  };
+
+  /// رسالة الدعوة الجاهزة: المرسل بوصفه، ونوع الدعوة، والبئر، والرمز،
+  /// وتعليمة الاكتمال — كما حددها المالك.
+  String get _shareMessage =>
+      'مرحبا،\n'
+      '\n'
+      'قام $_senderText بدعوتك للانضمام إلى فريق البئر $_typeText.\n'
+      '\n'
+      'اسم البئر:\n'
+      '$wellName\n'
+      '\n'
+      'رمز الدعوة:\n'
+      '$code\n'
+      '\n'
+      'افتح التطبيق وأدخل الرمز لإكمال الانضمام';
+
+  /// منتقي القنوات: واتساب ورسالة تفتحان محادثة الرقم المدخل مباشرة عند
+  /// دعم الجهاز، وتطبيقات أخرى تعود إلى القائمة العامة.
+  Future<void> _openShareSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'مشاركة رمز الدعوة عبر',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _ShareOption(
+                    icon: Icons.chat,
+                    label: 'واتساب',
+                    onTap: () => _shareDirect(sheetContext, viaWhatsApp: true),
+                  ),
+                  _ShareOption(
+                    icon: Icons.sms_outlined,
+                    label: 'رسالة نصية',
+                    onTap: () => _shareDirect(sheetContext, viaWhatsApp: false),
+                  ),
+                  _ShareOption(
+                    icon: Icons.share_outlined,
+                    label: 'تطبيقات أخرى',
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      await _shareViaDefaultChannel(
+                        message: _shareMessage,
+                        injected: shareHandler,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _shareDirect(
+    BuildContext sheetContext, {
+    required bool viaWhatsApp,
+  }) async {
+    final intlPhone = InvitationShareLauncher.toIntlPhone(draft.phone);
+    final opened = viaWhatsApp
+        ? await shareLauncher.openWhatsApp(
+            intlPhone: intlPhone,
+            message: _shareMessage,
+          )
+        : await shareLauncher.openSms(
+            intlPhone: intlPhone,
+            message: _shareMessage,
+          );
+    if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+    if (!opened) {
+      // القناة المباشرة غير مدعومة على هذا الجهاز: القائمة العامة بدل
+      // الادعاء بالنجاح.
+      await _shareViaDefaultChannel(
+        message: _shareMessage,
+        injected: shareHandler,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -895,15 +1193,23 @@ class _InvitationCodeDialog extends StatelessWidget {
           Text(
             expiryText == null
                 ? 'الرمز يُعرض مرة واحدة — لن يظهر مرة أخرى بعد إغلاق هذه '
-                    'النافذة. وإن فُقد فأعد إصداره من القائمة.'
+                      'النافذة. وإن فُقد فأعد إصداره من القائمة.'
                 : 'صالح حتى $expiryText، وخمس محاولات إدخال. والرمز يُعرض '
-                    'مرة واحدة — إن فُقد فأعد إصداره من القائمة.',
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      'مرة واحدة — إن فُقد فأعد إصداره من القائمة.',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          CodeActionsRow(
+            code: code,
+            onShareTap: () => _openShareSheet(context),
           ),
           const SizedBox(height: 10),
           const Text(
-            'إرسال الرمز برسالة نصية غير متاح في هذا الإصدار — ولم تُرسل '
-            'أي رسالة.',
+            'المشاركة تفتح قائمة مشاركة جهازك — ولا يُرسل أي شيء تلقائيًّا '
+            'من التطبيق أو الخادم.',
             style: TextStyle(fontSize: 12, color: AppColors.warning),
           ),
         ],
@@ -997,12 +1303,24 @@ class _ResetCodeDialog extends StatelessWidget {
   const _ResetCodeDialog({
     required this.name,
     required this.code,
+    required this.wellName,
     this.expiresAt,
+    this.shareHandler,
   });
 
   final String name;
   final String code;
+  final String wellName;
   final DateTime? expiresAt;
+
+  /// يُحقَن في الاختبارات؛ الافتراضي قائمة مشاركة الجهاز.
+  final Future<void> Function(String message)? shareHandler;
+
+  String get _shareMessage =>
+      'رمز إعادة تعيين كلمة المرور لحسابك في بئر «$wellName»\n'
+      'الرمز: $code\n'
+      'افتح تطبيق البئر واختر «نسيت كلمة المرور؟» من شاشة الدخول، '
+      'وأدخل رقمك والرمز.';
 
   @override
   Widget build(BuildContext context) {
@@ -1052,9 +1370,18 @@ class _ResetCodeDialog extends StatelessWidget {
             'يُعرض مرة واحدة فقط، ولا يمكن قراءته بعد إغلاق النافذة.',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
+          const SizedBox(height: 8),
+          CodeActionsRow(
+            code: code,
+            onShareTap: () => _shareViaDefaultChannel(
+              message: _shareMessage,
+              injected: shareHandler,
+            ),
+          ),
           const SizedBox(height: 6),
           const Text(
-            'لا تُرسل رسائل نصية في هذا الإصدار، ولم تُرسل أي رسالة الآن.',
+            'المشاركة تفتح قائمة مشاركة جهازك — ولا يُرسل أي شيء تلقائيًّا '
+            'من التطبيق أو الخادم.',
             style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
           if (expiryText != null) ...[
@@ -1079,6 +1406,45 @@ class _ResetCodeDialog extends StatelessWidget {
           child: const Text('أبلغته شفويًّا'),
         ),
       ],
+    );
+  }
+}
+
+/// خيار واحد في ورقة مشاركة رمز الدعوة: أيقونة مختصرة وتسمية صغيرة
+/// تحتها — بلا أزرار نصية كبيرة.
+class _ShareOption extends StatelessWidget {
+  const _ShareOption({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 26, color: AppColors.waterBlue),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

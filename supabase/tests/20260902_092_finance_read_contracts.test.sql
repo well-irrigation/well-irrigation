@@ -52,7 +52,14 @@ declare
   v_payload jsonb;
   v_item jsonb;
   v_code text;
-  v_started timestamptz := date_trunc('day', now()) + interval '9 hours';
+  -- هجرة 098 جعلت «اليوم» يتبع منطقة الجهة (Asia/Aden)؛ نثبّت بيانات الاختبار
+  -- على اليوم المحلي لعدن لمنع فشل الفحص خلال فجوة منتصف الليل بين UTC وعدن.
+  v_started timestamptz := (
+    date_trunc(
+      'day',
+      now() at time zone 'Asia/Aden'
+    ) + interval '9 hours'
+  ) at time zone 'Asia/Aden';
 begin
   v_all := array[v_exp, v_partners, v_cycles, v_farmer, v_reports];
 
@@ -301,12 +308,16 @@ begin
     v_started, v_started + interval '2 hours', 'closed'
   ) returning id into v_session;
 
+  -- actual_seconds أُضيف للّقطة بعد 106: مقطع مقفل حقيقي يحمل فعليه
+  -- بالثواني كما يكتبه مسار الإنهاء (085)، وأرقام التقرير هنا لم تتغير.
   insert into ops.session_segments (
     tenant_id, session_id, sequence_number, segment_type,
-    energy_source, started_at, ended_at, actual_minutes, is_billable
+    energy_source, started_at, ended_at, actual_minutes,
+    actual_seconds, is_billable
   ) values (
     v_tenant, v_session, 1, 'solar_run',
-    'solar', v_started, v_started + interval '2 hours', 120, true
+    'solar', v_started, v_started + interval '2 hours', 120,
+    7200, true
   );
 
   insert into billing.session_charges (

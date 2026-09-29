@@ -1,9 +1,12 @@
 # Application API Architecture
 
-**آخر تحديث:** 2026-09-02
+**آخر تحديث:** 2026-09-22
 **القرارات الحاكمة:** ق-78، ق-79، ق-82
-**الحالة:** العقد معتمد وحد الخادم مثبت؛ ومطابقة Flutter =
-**مغلقة على العميل** بعد م-41D2، بانتظار تحقق DB لـ092
+**الحالة:** حدّ الـData API وحدّ الخادم معتمدان ونافذان. مطابقة Flutter
+للهجرات السابقة (حتى م-41D2) تبقى دليلًا تاريخيًا قائمًا. أما شريحة
+Backend الخاصة بق-130 / Migration 103 فهي **Merged to main + Local Verified
++ CI Verified**، و**Cloud Pending** (سقف السحابة يبقى 102)، و**تكامل
+Flutter لعقود م-103 (الفريق/الحساب القائم) لم يُنجز بعد = Pending**.
 
 > **Audit 2026-08-30 — مغلق 2026-09-02:** المسح الأصلي أثبت
 > 9 وصولات مباشرة إلى internal schemas و20 Bare RPC و5 Dotted
@@ -233,16 +236,30 @@ Surface الحالي يبقى:
 
 العقد موجود ويجب إعادة استخدامه.
 
-### Create Farm
+### Create Farm — Implemented + Local Verified + Cloud Verified (Migration 101، 2026-09-19)
 
-العقد موجود، لكن Business Procedure الحالية owner-only.
+`api.create_farm` هو عقد الـData API العام لإنشاء الأرض، ومنع التكرار
+منفَّذ ومُثبت محليًا وسحابيًا. Migration 101 دُمجت إلى `main` عبر MR `!6` ونُشرت بنجاح؛ التحقق المستقل من Supabase أثبت التوقيع الخماسي وصلاحيات التنفيذ وحدود Direct DML.
 
-UX-08 يسمح للمشغل بإضافة أرض.
+- **توقيع واحد فقط بخمس وسائط**:
+  `api.create_farm(p_well_id, p_name, p_farmer_well_account_id,
+  p_distinguishing_label, p_command_id)`، و`p_command_id` آخر معامل
+  اختياري. `ops.create_farm` توقيع واحد فقط بأربع وسائط (بلا
+  `p_command_id`). لا overload زائد (مثبت في اختبار 101).
+- `api.*` يبقى **SECURITY INVOKER**. محصور في `authenticated` و
+  `service_role`، و`anon` **denied**. لا Direct DML على `ops.farms`.
+- `distinguishing_label` جزء من العقد (discriminator اختياري).
+- **حالات النتيجة الأربع**: `created`, `matched_existing`,
+  `requires_resolution`, `requires_disambiguation`.
+- **Idempotency** عبر `p_command_id` في طبقة الـAPI محفوظة (نفس نمط
+  083+084): نفس المعرّف يعيد الرد المخزن حرفيًا لكل من accepted وconflict.
+- العنقود التاريخي الملتبس (`requires_resolution`) **لا يحسمه الـAPI
+  تلقائيًا** — يعيد المرشحين للحسم البشري.
+- `api.list_well_farms` يعيد `distinguishing_label`.
 
-لا يغير Flutter هذا القيد مباشرة.
-
-يلزم Migration 085+ لتوسيع التفويض واختباره إذا بقي
-UX المعتمد كما هو.
+توسيع تفويض المشغّل (operator) لإنشاء الأرض لا يزال بند UX-08 خارج هذه
+الحزمة. التفاصيل في `MIGRATIONS.md` / 101 و`SEARCH_DEDUP_ARCHITECTURE.md`
+§8.
 
 ### Start Session + Advance Payment
 
@@ -920,6 +937,46 @@ NEXT في م-41:
 `OperationsRepository`، لأنه يحمل كل الوصولات الداخلية
 السبعة المتبقية.
 
+## ق-130 / Migration 103 — الحالة الحالية لدعوات الفريق والحساب القائم
+
+**حالة الشريحة:** **Merged to main (MR !12) + Local Verified + CI Verified**؛
+لا تزال **Flutter Pending** و**Cloud/Production Pending** و**new/no-Auth
+finalization Pending**. سقف التحقق السحابي يبقى 102.
+
+القسم التاريخي M-41B3B يسجل ما كان صحيحًا قبل عقود الفريق. Migration 103
+تسدّ تلك الفجوة في **شريحة Backend للحساب القائم/الفريق فقط**؛ ولا تعني
+تكامل Flutter أو اكتمال new/no-Auth finalization أو إغلاق م-44.
+
+| العقد | الدور في دورة الحياة |
+| --- | --- |
+| `api.accept_well_invitation(uuid)` | قبول الحساب القائم لدعوته بعد مطابقة هويته الموثقة؛ ينقلها إلى `accepted_pending_owner` بلا Assignment أو وصول. |
+| `api.confirm_well_invitation(uuid)` | تأكيد المالك صاحب `team.manage`؛ هو التحول الوحيد الذي ينشئ/يفعّل Assignment واحدًا بصورة idempotent. |
+| `api.reject_well_invitation(uuid)` | رفض المالك للهوية المقبولة؛ يحفظ التدقيق ويترك صفر وصول. |
+| `api.list_my_well_invitations()` | قراءة دعوات الحساب الحالي المطابقة لهاتفه المطبّع فقط، بلا أسرار الدعوة. |
+
+**الدلالات التي تغيرت محليًا في 103:**
+
+- `api.invite_well_member(...)` ينشئ دعوة بصفر وصول للحساب القائم؛ لا
+  auto-link ولا `well_assignment` ولا ربط `well_partners.profile_id` لمجرد
+  تطابق الهاتف.
+- `api.claim_well_invitation(text)` تاريخية للتوافق فقط وتفشل بإرجاع
+  `superseded`؛ لا تمنح Assignment أو وصولًا.
+- الدعوة ليست صلاحية، وقبول الحساب القائم ليس صلاحية؛ تأكيد المالك هو
+  انتقال الصلاحية. لا تكشف عقود القراءة `code_hash` أو `code_salt`.
+
+**الأمن:**
+
+- أغلفة `api.*` = SECURITY INVOKER، ومنح التنفيذ الصريح للحسابات
+  `authenticated` و`service_role` كما نفذته Migration 103؛ `anon` محجوب.
+- لا Direct DML من العميل على `core.well_invitations` أو جداول الأعمال.
+- المنطق ذي الصلاحية في `core.*` = SECURITY DEFINER مع `search_path` ثابت
+  وآمن، والهوية مشتقة من `auth.uid()` لا من profile id يرسله العميل.
+
+**الشريحة الخلفية التالية:** M104 — new/no-Auth trusted finalization للعضو
+الجديد بلا Auth. المعمارية المستهدفة موثقة في
+`ACCOUNT_SETTINGS_ARCHITECTURE.md` ق-130 §25.4، ورقم الهجرة التالي = 104؛
+لكن أسماء عقود/دوال `api.*` أو Edge Function الملموسة لم تُختَر في هذه الجولة.
+
 ## م-41C1 — عقود قراءة العمليات (Migration 089)
 
 قبل هذه الجولة لم يكن في `api` أي عقد قراءة غير
@@ -1132,4 +1189,20 @@ fail-closed بـ`28000`/`22023`/`42501`، ترتيب حتمي، ولا كائن
   **مفتوح**: عقد قراءة يعيد سندات الرصيد غير المخصَّصة (معرّف السند +
   رصيده المتبقي) + واجهة اختيار، وهو ما يُعيد الزر إلى العمل. توسيعٌ
   تمنعه ق-120، مسجَّل في `OPEN_ISSUES.md`.
-- توحيد حدود اليوم على منطقة زمنية محسومة — قرار مستقل.
+- توحيد حدود اليوم على منطقة زمنية محسومة — أُغلق بهجرة 098.
+
+## م-41H / 099 — عقد دليل المزارعين
+
+أضيف `api.list_well_farmer_directory(uuid,text,integer)` لعرض دليل البئر
+في قراءة واحدة: هوية المزارع، الهاتف، عدد الأراضي، أرصدة العرض المالي، آخر
+جلسة **منتهية**، وحضور جلسة جارية بلا عدّها نهاية. العقد `SECURITY INVOKER`
+بـ`search_path` مثبت، و`anon` محجوب، والحد 1..500.
+
+الترتيب خادمي وحاسم: آخر نهاية جلسة تنازليًا، ثم الدين، فالاسم والمعرّف؛
+والحمولة تعلن `sort` و`session_day_basis=ended_at` ويوم البئر ومنطقته من
+أساس 098. العميل لا يعيد الترتيب ولا يحسب مالًا أو عدد أرض، ويرفض نسخة
+العقد أو الأرقام الناقصة بدل اختراع أصفار.
+
+اختبار 099 الدائم يثبت خصائص العقد والمنح والترتيب والمال والجلسة الجارية
+ويوم البئر والرفض الصريح. مثبت محليًا ضمن `FILES=38 PASS=615`، والهاتف
+`370/370` وتحليله نظيف. غير منشور بعد.

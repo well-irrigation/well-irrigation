@@ -74,17 +74,11 @@ void main() {
   });
 
   test('operations reads use the official api read contracts', () {
-    final source = File(
-      'lib/core/api/operations_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/operations_repository.dart')
+        .readAsStringSync();
 
-    final start = source.indexOf(
-      'Future<List<FarmerAccount>> fetchFarmers',
-    );
-    final end = source.indexOf(
-      '/// إنشاء مزارع جديد في البئر',
-      start,
-    );
+    final start = source.indexOf('Future<List<FarmerAccount>> fetchFarmers');
+    final end = source.indexOf('/// إنشاء مزارع جديد في البئر', start);
 
     expect(start, isNonNegative);
     expect(end, greaterThan(start));
@@ -112,9 +106,8 @@ void main() {
   });
 
   test('operations mock fallbacks are gone', () {
-    final repositorySource = File(
-      'lib/core/api/operations_repository.dart',
-    ).readAsStringSync();
+    final repositorySource = File('lib/core/api/operations_repository.dart')
+        .readAsStringSync();
 
     for (final legacyName in const [
       '_getMockFarmers',
@@ -157,17 +150,11 @@ void main() {
   });
 
   test('account profile read uses the official bootstrap contract', () {
-    final source = File(
-      'lib/core/api/account_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/account_repository.dart')
+        .readAsStringSync();
 
-    final start = source.indexOf(
-      'Future<UserProfileData> fetchUserProfile',
-    );
-    final end = source.indexOf(
-      '/// 2. تحديث الاسم الشخصي',
-      start,
-    );
+    final start = source.indexOf('Future<UserProfileData> fetchUserProfile');
+    final end = source.indexOf('/// 2. تحديث الاسم الشخصي', start);
 
     expect(start, isNonNegative);
     expect(end, greaterThan(start));
@@ -175,9 +162,7 @@ void main() {
     final section = source.substring(start, end);
 
     expect(
-      section.contains(
-        'AppBootstrapRepository(client).fetchBootstrap()',
-      ),
+      section.contains('AppBootstrapRepository(client).fetchBootstrap()'),
       isTrue,
     );
     expect(section.contains(".schema('iam')"), isFalse);
@@ -186,17 +171,11 @@ void main() {
   });
 
   test('account profile name write uses the official api contract', () {
-    final source = File(
-      'lib/core/api/account_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/account_repository.dart')
+        .readAsStringSync();
 
-    final start = source.indexOf(
-      'Future<void> updateUserName',
-    );
-    final end = source.indexOf(
-      '/// 3. تغيير كلمة المرور بأمان',
-      start,
-    );
+    final start = source.indexOf('Future<void> updateUserName');
+    final end = source.indexOf('/// 3. تغيير كلمة المرور بأمان', start);
 
     expect(start, isNonNegative);
     expect(end, greaterThan(start));
@@ -210,19 +189,15 @@ void main() {
       isTrue,
     );
 
-    expect(
-      section.contains("'p_full_name': cleanName"),
-      isTrue,
-    );
+    expect(section.contains("'p_full_name': cleanName"), isTrue);
 
     expect(section.contains(".schema('iam')"), isFalse);
     expect(section.contains('catch ('), isFalse);
   });
 
   test('unsupported team contracts are not simulated in production', () {
-    final repositorySource = File(
-      'lib/core/api/account_repository.dart',
-    ).readAsStringSync();
+    final repositorySource = File('lib/core/api/account_repository.dart')
+        .readAsStringSync();
 
     final screenSource = File(
       'lib/features/settings/team_permissions_screen.dart',
@@ -242,21 +217,13 @@ void main() {
     }
 
     expect(
-      screenSource.contains(
-        'إدارة الفريق غير متاحة في هذه النسخة',
-      ),
+      screenSource.contains('إدارة الفريق غير متاحة في هذه النسخة'),
       isTrue,
     );
 
-    expect(
-      screenSource.contains('تمت إضافة عضو الفريق بنجاح'),
-      isFalse,
-    );
+    expect(screenSource.contains('تمت إضافة عضو الفريق بنجاح'), isFalse);
 
-    expect(
-      screenSource.contains('تم تعطيل تعيين العضو'),
-      isFalse,
-    );
+    expect(screenSource.contains('تم تعطيل تعيين العضو'), isFalse);
   });
 
   test('known bare-RPC debt does not grow', () {
@@ -279,9 +246,8 @@ void main() {
   });
 
   test('well management contracts are routed through api', () {
-    final source = File(
-      'lib/core/api/well_management_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/well_management_repository.dart')
+        .readAsStringSync();
 
     for (final contract in const [
       'get_well_details',
@@ -325,17 +291,11 @@ void main() {
   });
 
   test('physical fuel count uses the approved api contract', () {
-    final source = File(
-      'lib/core/api/well_management_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/well_management_repository.dart')
+        .readAsStringSync();
 
-    final start = source.indexOf(
-      'Future<void> recordPhysicalFuelCount',
-    );
-    final end = source.indexOf(
-      '/// 10.',
-      start,
-    );
+    final start = source.indexOf('Future<void> recordPhysicalFuelCount');
+    final end = source.indexOf('/// 10.', start);
 
     expect(start, isNonNegative);
     expect(end, greaterThan(start));
@@ -349,26 +309,15 @@ void main() {
       isTrue,
     );
     expect(section.contains("'p_well_id': wellId"), isTrue);
-    expect(
-      section.contains("'p_fuel_tank_id': tankId"),
-      isTrue,
-    );
+    expect(section.contains("'p_fuel_tank_id': tankId"), isTrue);
     // الوحدة صارت مليلترًا في كل الطبقة: العقد يستلم القياس كما هو،
     // والتحويل من اللتر يجري في الشاشة وحدها.
     expect(
-      section.contains(
-        "'p_measured_balance_ml': measuredBalanceMl",
-      ),
+      section.contains("'p_measured_balance_ml': measuredBalanceMl"),
       isTrue,
     );
-    expect(
-      section.contains("'p_notes': notes"),
-      isTrue,
-    );
-    expect(
-      section.contains("rpc('record_fuel_physical_count'"),
-      isFalse,
-    );
+    expect(section.contains("'p_notes': notes"), isTrue);
+    expect(section.contains("rpc('record_fuel_physical_count'"), isFalse);
     expect(section.contains('catch ('), isFalse);
   });
 
@@ -392,9 +341,8 @@ void main() {
   });
 
   test('finance reads use the official api read contracts', () {
-    final source = File(
-      'lib/core/api/finance_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/finance_repository.dart')
+        .readAsStringSync();
 
     for (final contract in const [
       'list_well_expenses',
@@ -438,9 +386,8 @@ void main() {
   });
 
   test('finance mock fallbacks and fabricated money are gone', () {
-    final source = File(
-      'lib/core/api/finance_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/finance_repository.dart')
+        .readAsStringSync();
 
     for (final legacyName in const [
       '_getMockExpenses',
@@ -467,10 +414,8 @@ void main() {
 
   test('finance screens surface contract failures instead of hiding them', () {
     for (final entry in const {
-      'lib/features/finance/expenses_screen.dart':
-          'تعذر تحميل المصروفات',
-      'lib/features/finance/partners_screen.dart':
-          'تعذر تحميل بيانات الشركاء',
+      'lib/features/finance/expenses_screen.dart': 'تعذر تحميل المصروفات',
+      'lib/features/finance/partners_screen.dart': 'تعذر تحميل بيانات الشركاء',
       'lib/features/finance/profit_distribution_screen.dart':
           'تعذر تحميل دورات الأرباح',
       'lib/features/finance/partner_detail_financial_screen.dart':
@@ -528,73 +473,74 @@ void main() {
   // المقياس السابع (جولة الهوية): الهوية تُقرأ مرة واحدة من العقد وتُمرَّر
   // وحدةً واحدة. القيم الجاهزة هنا لا تُقاس بالنقصان بل يجب أن تكون صفرًا:
   // وجود واحدة منها يعني أن شاشةً عادت تُخمّن صاحبها أو بئره أو دوره.
-  test('identity literals are absent: no fabricated account, tenant or well',
-      () {
-    for (final fabricated in const [
-      "'well-1'",
-      "'tenant-1'",
-      "'active-user'",
-      "'بئر الخير الرئيسي'",
-      "'777123456'",
-      'placeholderAccountKey',
-    ]) {
-      final hits = _collectMatches(
-        RegExp(RegExp.escape(fabricated)),
-        captureGroup: 0,
-      );
-      expect(
-        hits,
-        isEmpty,
-        reason: 'Fabricated identity value returned to lib/: $fabricated',
-      );
-    }
-  });
+  test(
+    'identity literals are absent: no fabricated account, tenant or well',
+    () {
+      for (final fabricated in const [
+        "'well-1'",
+        "'tenant-1'",
+        "'active-user'",
+        "'بئر الخير الرئيسي'",
+        "'777123456'",
+        'placeholderAccountKey',
+      ]) {
+        final hits = _collectMatches(
+          RegExp(RegExp.escape(fabricated)),
+          captureGroup: 0,
+        );
+        expect(
+          hits,
+          isEmpty,
+          reason: 'Fabricated identity value returned to lib/: $fabricated',
+        );
+      }
+    },
+  );
 
-  test('identity is one unit read from the contract, not guessed per screen',
-      () {
-    final identity = File(
-      'lib/core/identity/app_identity.dart',
-    ).readAsStringSync();
+  test(
+    'identity is one unit read from the contract, not guessed per screen',
+    () {
+      final identity = File('lib/core/identity/app_identity.dart')
+          .readAsStringSync();
 
-    // مفتاح الطابور هو `profile.id` = `auth.uid()` كما يعيده العقد: لا يُشتق
-    // في العميل ولا يُكتب بمفتاح ويُقرأ بآخر.
-    expect(identity.contains('String get accountId => profile.id;'), isTrue);
-    expect(identity.contains('final WellSummary activeWell;'), isTrue);
-    expect(identity.contains('WellSummary? activeWell'), isFalse);
+      // مفتاح الطابور هو `profile.id` = `auth.uid()` كما يعيده العقد: لا يُشتق
+      // في العميل ولا يُكتب بمفتاح ويُقرأ بآخر.
+      expect(identity.contains('String get accountId => profile.id;'), isTrue);
+      expect(identity.contains('final WellSummary activeWell;'), isTrue);
+      expect(identity.contains('WellSummary? activeWell'), isFalse);
 
-    // الحالات الثلاث معلنة ومغلقة على نفسها: لا حالة رابعة تُملأ بقيمة.
-    for (final state in const [
-      'sealed class IdentityResolution',
-      'final class IdentityReady',
-      'final class IdentityWithoutWell',
-      'final class IdentityUnavailable',
-      'IdentityResolution resolveIdentity(BootstrapData data)',
-    ]) {
-      expect(identity.contains(state), isTrue, reason: 'Missing: $state');
-    }
+      // الحالات الثلاث معلنة ومغلقة على نفسها: لا حالة رابعة تُملأ بقيمة.
+      for (final state in const [
+        'sealed class IdentityResolution',
+        'final class IdentityReady',
+        'final class IdentityWithoutWell',
+        'final class IdentityUnavailable',
+        'IdentityResolution resolveIdentity(BootstrapData data)',
+      ]) {
+        expect(identity.contains(state), isTrue, reason: 'Missing: $state');
+      }
 
-    final gate = File('lib/app/identity_gate.dart').readAsStringSync();
+      final gate = File('lib/app/identity_gate.dart').readAsStringSync();
 
-    // البوابة لا تبني محتوى إلا من هوية جاهزة، والفشل يُقال مع إعادة محاولة.
-    expect(gate.contains('تعذر تحميل بيانات حسابك'), isTrue);
-    expect(gate.contains('لا يوجد بئر مرتبط بحسابك'), isTrue);
-    expect(gate.contains('إعادة المحاولة'), isTrue);
-    expect(gate.contains('catch (_) {}'), isFalse);
-    // ولا تخزين محلي للهوية: ذلك عمل مؤجَّل بقرار بوابة التثبيت (ق-120).
-    expect(gate.contains('SharedPreferences'), isFalse);
+      // البوابة لا تبني محتوى إلا من هوية جاهزة، والفشل يُقال مع إعادة محاولة.
+      expect(gate.contains('تعذر تحميل بيانات حسابك'), isTrue);
+      expect(gate.contains('لا يوجد بئر مرتبط بحسابك'), isTrue);
+      expect(gate.contains('إعادة المحاولة'), isTrue);
+      expect(gate.contains('catch (_) {}'), isFalse);
+      // ولا تخزين محلي للهوية: ذلك عمل مؤجَّل بقرار بوابة التثبيت (ق-120).
+      expect(gate.contains('SharedPreferences'), isFalse);
 
-    // كل شاشة في الغلاف تُبنى بهوية مُمرَّرة لا بقيم تُكتب عندها.
-    final shell = File('lib/app/authenticated_shell.dart').readAsStringSync();
-    expect(shell.contains('final AppIdentity identity;'), isTrue);
-    expect(RegExp(r"wellId: '").allMatches(shell), isEmpty);
-    expect(RegExp(r"wellName: '").allMatches(shell), isEmpty);
-  });
-
+      // كل شاشة في الغلاف تُبنى بهوية مُمرَّرة لا بقيم تُكتب عندها.
+      final shell = File('lib/app/authenticated_shell.dart').readAsStringSync();
+      expect(shell.contains('final AppIdentity identity;'), isTrue);
+      expect(RegExp(r"wellId: '").allMatches(shell), isEmpty);
+      expect(RegExp(r"wellName: '").allMatches(shell), isEmpty);
+    },
+  );
 
   test('account repository reports measured device state, never constants', () {
-    final source = File(
-      'lib/core/api/account_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/account_repository.dart')
+        .readAsStringSync();
 
     // ابتلاع الخطأ بطبع رسالة كان هو ما حوّل الفشل إلى نجاح صامت.
     expect(source.contains('debugPrint'), isFalse);
@@ -667,9 +613,8 @@ void main() {
   // سابق لأنه لا يخاطب القاعدة، وهو أخطرها: دخول يُعلن بلا جلسة، وتغيير
   // هوية حساب يُعلن بلا أن يجري.
   test('login never announces a session that was not created', () {
-    final source = File(
-      'lib/features/auth/login_screen.dart',
-    ).readAsStringSync();
+    final source = File('lib/features/auth/login_screen.dart')
+        .readAsStringSync();
 
     // المصيدة التي كانت تُعلن دخولًا عند انقطاع الشبكة: انتظار ثم نجاح.
     for (final faked in const [
@@ -702,9 +647,8 @@ void main() {
   });
 
   test('phone change is announced unavailable instead of being simulated', () {
-    final source = File(
-      'lib/features/settings/profile_security_screen.dart',
-    ).readAsStringSync();
+    final source = File('lib/features/settings/profile_security_screen.dart')
+        .readAsStringSync();
 
     // تمثيل كامل: رسالة لم تُرسل، ورمز لا يُقرأ، ونجاح لتغيير لم يحدث،
     // وشارة تحقّق لا وجود له في المنظومة كلها. الفحص على ما **يُبنى** في
@@ -751,17 +695,19 @@ void main() {
     expect(source.contains('أدخل كلمة المرور الحالية أولًا'), isTrue);
   });
 
-  // المقياس التاسع (م-41E المرحلة 3): عقود الفريق ومسار التنشيط.
-  test('team contracts go through api and the code is shown once only', () {
-    final repository = File(
-      'lib/core/api/team_repository.dart',
-    ).readAsStringSync();
+  // المقياس التاسع (ق-130): تنشيط موثوق وعقود فريق بلا كتابة مباشرة.
+  test('Q-130 activation uses Edge and team contracts use api only', () {
+    final repository = File('lib/core/api/team_repository.dart')
+        .readAsStringSync();
 
     for (final contract in const [
       "'list_well_team'",
       "'invite_well_member'",
       "'revoke_well_member'",
-      "'claim_well_invitation'",
+      "'list_my_well_invitations'",
+      "'accept_well_invitation'",
+      "'confirm_well_invitation'",
+      "'reject_well_invitation'",
     ]) {
       expect(
         repository.contains("schema('api')"),
@@ -779,9 +725,14 @@ void main() {
     expect(repository.contains('.from('), isFalse);
     expect(repository.contains("schema('core')"), isFalse);
 
-    final screen = File(
-      'lib/features/settings/team_permissions_screen.dart',
-    ).readAsStringSync();
+    final auth = File('lib/core/api/auth_repository.dart').readAsStringSync();
+    expect(
+      auth.contains("functions.invoke(\n        'member-finalization'"),
+      isTrue,
+    );
+
+    final screen = File('lib/features/settings/team_permissions_screen.dart')
+        .readAsStringSync();
 
     // ادعاء الإصدار السابق زال لأن العقد صار موجودًا (هجرة 094). والفحص
     // على ما يُبنى في شجرة العرض: ذكره في تعليق شرحٌ لتاريخ أُغلق.
@@ -810,17 +761,15 @@ void main() {
     expect(screen.contains('محمد عبدالله الشامي'), isFalse);
     expect(screen.contains('أحمد علي الريمي'), isFalse);
 
-    final activation = File(
-      'lib/features/auth/member_activation_screen.dart',
-    ).readAsStringSync();
+    final activation = File('lib/features/auth/member_activation_screen.dart')
+        .readAsStringSync();
 
     for (final honest in const [
       'widget.onActivated?.call()',
-      'result.isSuccess',
       '_auth.isAuthenticated',
-      'لم تُنشأ جلسة دخول',
-      'يوجد حساب بهذا الرقم وكلمة المرور غير مطابقة',
-      'لا توجد دعوة سارية لرقمك',
+      'بانتظار تأكيد مالك البئر',
+      'تم تأكيد الهوية',
+      'لا تنشئ حسابًا آخر',
     ]) {
       expect(
         activation.contains(honest),
@@ -829,8 +778,14 @@ void main() {
       );
     }
 
-    // التنشيط يُعلن **بعد** نتيجة المطالبة لا بعد إنشاء الحساب: النداء
-    // الوحيد لـonActivated يقع داخل فرع النجاح.
+    // الشاشة لا تنشئ Auth ولا تطالب بالعقد التاريخي ولا تصل إلى الجداول.
+    expect(activation.contains('signUpMember'), isFalse);
+    expect(activation.contains('claimInvitation'), isFalse);
+    expect(activation.contains('claim_well_invitation'), isFalse);
+    expect(activation.contains('.from('), isFalse);
+    expect(activation.contains('.rpc('), isFalse);
+
+    // التنشيط يُعلن من موضع واحد فقط بعد حقيقة خادمية وجلسة ناجحة.
     expect(
       activation.split('widget.onActivated?.call()').length - 1,
       1,
@@ -839,9 +794,9 @@ void main() {
     expect(activation.contains('Future.delayed'), isFalse);
   });
 
-  test('settings screens surface failure instead of claiming success', () {    final deviceSync = File(
-      'lib/features/settings/device_sync_screen.dart',
-    ).readAsStringSync();
+  test('settings screens surface failure instead of claiming success', () {
+    final deviceSync = File('lib/features/settings/device_sync_screen.dart')
+        .readAsStringSync();
 
     expect(
       deviceSync.contains('حالة الاتصال غير مقيسة في هذا الإصدار'),
@@ -857,35 +812,26 @@ void main() {
     expect(deviceSync.contains('منذ دقيقتين'), isFalse);
     expect(deviceSync.contains('مفعلة وتعمل تلقائياً'), isFalse);
 
-    final moreSettings = File(
-      'lib/features/settings/more_settings_screen.dart',
-    ).readAsStringSync();
+    final moreSettings = File('lib/features/settings/more_settings_screen.dart')
+        .readAsStringSync();
 
     // الخروج على عدد معلَّق مجهول يفشل مغلقًا (القرار 578).
     expect(moreSettings.contains('تعذر التحقق قبل الخروج'), isTrue);
-    expect(
-      moreSettings.contains('_showUnknownPendingLogoutDialog'),
-      isTrue,
-    );
+    expect(moreSettings.contains('_showUnknownPendingLogoutDialog'), isTrue);
 
-    final security = File(
-      'lib/features/settings/profile_security_screen.dart',
-    ).readAsStringSync();
+    final security = File('lib/features/settings/profile_security_screen.dart')
+        .readAsStringSync();
 
     expect(security.contains('تعذر تغيير كلمة المرور'), isTrue);
     // تفريغ الحقول يبقى في كل الحالات (ق-118 / القرار 541).
-    expect(
-      security.contains('oldPasswordController.clear();'),
-      isTrue,
-    );
+    expect(security.contains('oldPasswordController.clear();'), isTrue);
   });
 
   // المقياس الخامس (م-41D4): كتابات التشغيل. كانت تعود بنجاح صامت — أو
   // بفاتورة مُلفَّقة — عند غياب العميل، وتبتلعها الشاشة في مصيدة فارغة.
   test('operations write contracts fail loudly without a client', () {
-    final source = File(
-      'lib/core/api/operations_repository.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/api/operations_repository.dart')
+        .readAsStringSync();
 
     expect(
       source.contains('if (client == null) return'),
@@ -906,9 +852,9 @@ void main() {
 
     // كل فرع «لا عميل» يرفع نفس الاستثناء الذي ترفعه القراءات: لا استثناء
     // لكتابة على حساب المستخدم.
-    final guarded = RegExp(
-      r'if \(client == null\) \{',
-    ).allMatches(source).length;
+    final guarded = RegExp(r'if \(client == null\) \{')
+        .allMatches(source)
+        .length;
     final throwing = RegExp(
       r"throw StateError\('Supabase client is unavailable'\)",
     ).allMatches(source).length;
@@ -932,9 +878,8 @@ void main() {
   });
 
   test('operations screen surfaces write failures instead of faking state', () {
-    final source = File(
-      'lib/features/operations/operations_screen.dart',
-    ).readAsStringSync();
+    final source = File('lib/features/operations/operations_screen.dart')
+        .readAsStringSync();
 
     for (final swallowed in const [
       'catch (_) {}',
@@ -978,7 +923,8 @@ void main() {
       expect(
         source.contains(structural),
         isTrue,
-        reason: 'Screen no longer receives its identity as one unit: '
+        reason:
+            'Screen no longer receives its identity as one unit: '
             '$structural',
       );
     }
@@ -1067,9 +1013,8 @@ void main() {
   });
 
   test('top well selector never names a well the user does not have', () {
-    final source = File(
-      'lib/core/widgets/top_well_selector.dart',
-    ).readAsStringSync();
+    final source = File('lib/core/widgets/top_well_selector.dart')
+        .readAsStringSync();
 
     // البئر النشط صار إلزاميًّا وحقيقيًّا: لا `null` يُملأ باسم جاهز، ولا
     // «لا بئر مختار» يُطبع لبئر لُفِّق خارج آبار المستخدم. الحالة التي كان
@@ -1094,9 +1039,8 @@ void main() {
     final screen = File(
       'lib/features/finance/farmer_financial_account_screen.dart',
     ).readAsStringSync();
-    final repository = File(
-      'lib/core/api/finance_repository.dart',
-    ).readAsStringSync();
+    final repository = File('lib/core/api/finance_repository.dart')
+        .readAsStringSync();
 
     // لا بقايا من مسار التلفيق القديم ولا من حالة «غير متاح» بعد وجود العقد.
     for (final gone in const [
@@ -1112,20 +1056,21 @@ void main() {
       );
     }
 
-    // المسار الحقيقي: قراءة السندات من العقد، ثم تخصيص بمبلغ مكتوب.
+    // المسار الحقيقي: قراءة السندات من العقد، واقتراح التسوية من عقد
+    // الخادم (هجرة 108 / ق-131 البند 10)، ثم تخصيص بمبلغ مؤكَّد.
     expect(screen.contains('fetchAdvanceReceipts('), isTrue);
+    expect(screen.contains('fetchAdvanceAllocationProposal('), isTrue);
     expect(screen.contains('allocateAdvance('), isTrue);
     expect(
       screen.contains("{'invoice_id': invoiceId, 'amount_minor': amount}"),
       isTrue,
     );
 
-    // المبلغ من الحقل لا من حساب محلي: لا اشتقاق ولا تعبئة تلقائية.
+    // المبلغ من الحقل لا من حساب محلي: لا اشتقاق ولا تقريب.
     expect(
       screen.contains('CurrencyUtils.parseRawInt(_amountController.text)'),
       isTrue,
     );
-    expect(screen.contains('_amountController.text ='), isFalse);
     for (final math in const [
       'remainingYER -',
       'remainingAmountYER -',
@@ -1139,14 +1084,32 @@ void main() {
       );
     }
 
+    // التعبئة الوحيدة للمبلغ: من قيمة الخادم المقترحة حرفيًا
+    // (ق-131 البند 10) — أي تعبئة أخرى محلية ممنوعة.
+    final amountFills = RegExp(r'_amountController\.text\s*=')
+        .allMatches(screen);
+    expect(amountFills, hasLength(1));
+    expect(
+      RegExp(
+        r'_amountController\.text\s*=\s*CurrencyUtils\.formatAmount\(\s*proposal\.proposedMinor',
+      ).hasMatch(screen),
+      isTrue,
+    );
+
     // ومعرّف السند من العقد وحده: لا نصّ ثابت يُرسل مكانه.
     expect(screen.contains('paymentId: receiptId'), isTrue);
     expect(RegExp(r"paymentId: '").hasMatch(screen), isFalse);
 
-    // والعقدان في المستودع يمرّان بمخطط api وحده.
-    expect(RegExp(r"rpc\(\s*'list_advance_receipts'").hasMatch(repository),
-        isTrue);
-    expect(repository.contains("rpc('allocate_payment'"), isTrue);
+    // والعقود الثلاثة في المستودع تمرّ بمخطط api وحده.
+    expect(
+      RegExp(r"rpc\(\s*'list_advance_receipts'").hasMatch(repository),
+      isTrue,
+    );
+    expect(
+      RegExp(r"rpc\(\s*'get_advance_allocation_proposal'").hasMatch(repository),
+      isTrue,
+    );
+    expect(RegExp(r"rpc\(\s*'allocate_payment'").hasMatch(repository), isTrue);
   });
 
   // المقياس الثامن والعشرون (م-41E/4): الشريك صار يدخل فعلًا بعد المرحلة 3،
@@ -1164,19 +1127,15 @@ void main() {
     expect(shell.contains('PartnerOverviewScreen('), isTrue);
 
     // الدور من العقد لا من نصّ في الشاشة، ويقابل iam.is_partner_only.
-    final bootstrap = File(
-      'lib/core/api/app_bootstrap_repository.dart',
-    ).readAsStringSync();
+    final bootstrap = File('lib/core/api/app_bootstrap_repository.dart')
+        .readAsStringSync();
     expect(
-      bootstrap.contains(
-        'isPartner && !isOwner && !isManager && !isOperator',
-      ),
+      bootstrap.contains('isPartner && !isOwner && !isManager && !isOperator'),
       isTrue,
     );
 
-    final screen = File(
-      'lib/features/finance/partner_overview_screen.dart',
-    ).readAsStringSync();
+    final screen = File('lib/features/finance/partner_overview_screen.dart')
+        .readAsStringSync();
 
     // العقود عبر مخطط api وحده، ولا جدول ولا مخطط داخلي.
     expect(screen.contains('.from('), isFalse);
@@ -1242,9 +1201,8 @@ void main() {
     }
 
     // المستودع يمر بالعقدين الجديدين وحدهما.
-    final repo = File(
-      'lib/core/api/partner_repository.dart',
-    ).readAsStringSync();
+    final repo = File('lib/core/api/partner_repository.dart')
+        .readAsStringSync();
     expect(repo.contains("schema('api')"), isTrue);
     expect(RegExp(r"rpc\(\s*'read_partner_overview'").hasMatch(repo), isTrue);
     expect(
@@ -1257,31 +1215,32 @@ void main() {
   // المقياس التاسع والعشرون (م-41F): الاستعادة تحدث قبل الدخول، فلا عقد في
   // القاعدة يخدمها ولا يكتب أحدٌ كلمة مرور لأحد (الثابت 706).
   test('password reset is owner-proofed and never written by the owner', () {
-    final screen = File(
-      'lib/features/auth/password_reset_screen.dart',
-    ).readAsStringSync();
-    final auth = File(
-      'lib/core/api/auth_repository.dart',
-    ).readAsStringSync();
-    final team = File(
-      'lib/features/settings/team_permissions_screen.dart',
-    ).readAsStringSync();
-    final login = File(
-      'lib/features/auth/login_screen.dart',
-    ).readAsStringSync();
+    final screen = File('lib/features/auth/password_reset_screen.dart')
+        .readAsStringSync();
+    final auth = File('lib/core/api/auth_repository.dart').readAsStringSync();
+    final team = File('lib/features/settings/team_permissions_screen.dart')
+        .readAsStringSync();
+    final login = File('lib/features/auth/login_screen.dart')
+        .readAsStringSync();
     final edge = File('../../supabase/functions/reset-password/index.ts');
 
     // المسار الوحيد إلى إعادة التعيين هو الطرف الخادمي: لا عقد قاعدة هنا.
-    expect(auth.contains("functions.invoke(\n        'reset-password'"), isTrue);
+    expect(
+      auth.contains("functions.invoke(\n        'reset-password'"),
+      isTrue,
+    );
     expect(screen.contains('.rpc('), isFalse);
     expect(screen.contains('.from('), isFalse);
 
     // المالك يُصدر رمزًا ولا يكتب كلمة مرور: لا حقل ولا وسيط لها عنده.
     expect(team.contains('password'), isFalse);
     expect(team.contains('كلمة المرور الجديدة'), isFalse);
-    expect(RegExp(r"rpc\(\s*'request_member_password_reset'").hasMatch(
-      File('lib/core/api/team_repository.dart').readAsStringSync(),
-    ), isTrue);
+    expect(
+      RegExp(
+        r"rpc\(\s*'request_member_password_reset'",
+      ).hasMatch(File('lib/core/api/team_repository.dart').readAsStringSync()),
+      isTrue,
+    );
 
     // الشاشة تقول الحقيقة: الرمز باليد، ولا رسائل في هذا الإصدار.
     for (final honest in const [
@@ -1304,8 +1263,13 @@ void main() {
     expect(edgeSource.contains("'consume_password_reset'"), isTrue);
     expect(edgeSource.contains('updateUserById'), isTrue);
     expect(edgeSource.contains('console.log'), isFalse);
-    expect(RegExp(r'console\.(log|info|debug)\(.*code').hasMatch(edgeSource),
-        isFalse);
-    expect(RegExp(r'console\.\w+\(.*newPassword').hasMatch(edgeSource), isFalse);
+    expect(
+      RegExp(r'console\.(log|info|debug)\(.*code').hasMatch(edgeSource),
+      isFalse,
+    );
+    expect(
+      RegExp(r'console\.\w+\(.*newPassword').hasMatch(edgeSource),
+      isFalse,
+    );
   });
 }

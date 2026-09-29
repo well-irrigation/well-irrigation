@@ -78,8 +78,16 @@ Future<bool> runBackgroundSyncTask(
       _supabaseReady = true;
     }
 
-    store = SqliteOutboxStore(databasePath: await resolveOutboxDatabasePath());
+    store = SqliteOutboxStore(
+      databasePath: await resolveOutboxDatabasePath(),
+      singleInstance: false,
+    );
     await store.initialize();
+
+    if (!canRunBackgroundAccount(Supabase.instance.client, accountId)) {
+      // الطابور يبقى على القرص. لا ترسل مهمة أُنشئت لحساب سابق بهوية لاحقة.
+      return false;
+    }
 
     final coordinator = BackgroundSyncCoordinator(
       engine: SyncEngine(
@@ -107,6 +115,15 @@ Future<bool> runBackgroundSyncTask(
   } finally {
     await store?.close();
   }
+}
+
+/// نفس شرط الناقل، قبل أن يبدأ العامل قراءة طابور الحساب المجدول.
+bool canRunBackgroundAccount(SupabaseClient client, String accountId) {
+  final session = client.auth.currentSession;
+  return accountId.isNotEmpty &&
+      session != null &&
+      !session.isExpired &&
+      session.user.id == accountId;
 }
 
 /// السياسة المستخدمة في العامل — مكشوفة للاختبار والتوثيق.

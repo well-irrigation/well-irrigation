@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
+import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
+
 import '../../support/identity_fixture.dart';
 
 /// منسّق يفشل في كتابتَي الإيقاف والإنهاء فقط، ويترك البدء والاستعادة سليمين،
@@ -51,9 +53,11 @@ void main() {
     );
 
     late _FailingWriteCoordinator coordinator;
+    late InMemoryOutboxStore store;
 
     setUp(() async {
-      coordinator = _FailingWriteCoordinator(store: InMemoryOutboxStore());
+      store = InMemoryOutboxStore();
+      coordinator = _FailingWriteCoordinator(store: store);
       await coordinator.initialize();
       // جلسة جارية فعلية في الطابور: البدء والاستعادة يعملان بلا تلفيق.
       await coordinator.startSession(
@@ -91,46 +95,99 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      ScaffoldMessenger.of(
+        tester.element(find.byType(OperationsScreen)),
+      ).clearSnackBars();
+      await tester.pumpAndSettle();
     }
 
-    testWidgets('1. فشل الإيقاف المؤقت يُعلن والجلسة تبقى معروضة جارية',
-        (tester) async {
+    testWidgets('1. فشل الإيقاف المؤقت يُعلن والجلسة تبقى معروضة جارية', (
+      tester,
+    ) async {
       await pumpScreen(tester);
-      expect(find.text('جلسة سقي جارية الآن'), findsOneWidget);
+      expect(find.text('جاري'), findsOneWidget);
 
       final pauseFinder = find.text('إيقاف مؤقت');
       await tester.ensureVisible(pauseFinder);
+      await tester.pumpAndSettle();
       await tester.tap(pauseFinder);
+      await tester.pumpAndSettle();
+
+      // نافذة تأكيد الإيقاف المؤقت (D1)
+      expect(find.text('إيقاف السقي مؤقتًا؟'), findsOneWidget);
+      final confirmBtn = find.widgetWithText(ElevatedButton, 'تأكيد');
+      await tester.tap(confirmBtn);
       await tester.pumpAndSettle();
 
       expect(
         find.textContaining('تعذر الإيقاف المؤقت — الجلسة ما زالت جارية'),
         findsOneWidget,
       );
-      // الزر لم ينقلب إلى «استئناف السقي»: الحالة تتبع ما سُجِّل.
+      // الزر لم ينقلب إلى «استئناف»: الحالة تتبع ما سُجِّل.
       expect(find.text('إيقاف مؤقت'), findsOneWidget);
-      expect(find.text('استئناف السقي'), findsNothing);
+      expect(find.text('استئناف'), findsNothing);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.widgetWithText(ElevatedButton, 'إيقاف مؤقت'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(
+        (await store.allCommands(accountId)).where(
+          (command) => command.type == CommandType.pauseIrrigationSession,
+        ),
+        isEmpty,
+      );
     });
 
-    testWidgets('2. فشل الإنهاء يُعلن ولا يُفتح سند قبض لجلسة لم تُنهَ',
-        (tester) async {
+    testWidgets('2. فشل الإنهاء يُعلن ولا يُفتح سند قبض لجلسة لم تُنهَ', (
+      tester,
+    ) async {
       await pumpScreen(tester);
 
-      final endFinder = find.text('إنهاء واحتساب');
+      final endFinder = find.text('إنهاء الجلسة');
       await tester.ensureVisible(endFinder);
+      await tester.pumpAndSettle();
       await tester.tap(endFinder);
+      await tester.pumpAndSettle();
+
+      // نافذة تأكيد الإنهاء (E2)
+      expect(find.text('تأكيد إنهاء الجلسة'), findsOneWidget);
+      final confirmEndBtn = find.widgetWithText(
+        ElevatedButton,
+        'تأكيد الإنهاء',
+      );
+      await tester.tap(confirmEndBtn);
       await tester.pumpAndSettle();
 
       expect(
         find.textContaining('تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند'),
         findsOneWidget,
       );
+      expect(find.text('ملخص الجلسة'), findsNothing);
       expect(find.text('اعتماد الجلسة وسند السداد'), findsNothing);
-      expect(find.text('جلسة سقي جارية الآن'), findsOneWidget);
+      expect(find.text('جاري'), findsOneWidget);
+      expect(
+        tester
+            .widget<ElevatedButton>(
+              find.widgetWithText(ElevatedButton, 'إنهاء الجلسة'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(
+        (await store.allCommands(accountId)).where(
+          (command) => command.type == CommandType.completeIrrigationSession,
+        ),
+        isEmpty,
+      );
     });
 
-    testWidgets('3. الشريط العلوي يعرض بئر الهوية نفسه لا بئرًا مُلفَّقًا',
-        (tester) async {
+    testWidgets('3. الشريط العلوي يعرض بئر الهوية نفسه لا بئرًا مُلفَّقًا', (
+      tester,
+    ) async {
       await pumpScreen(tester);
 
       // البئر النشط لم يعد نصًّا يُبنى منه `WellSummary` بمستأجر وأدوار
@@ -139,15 +196,16 @@ void main() {
       expect(find.text('لا بئر مختار'), findsNothing);
     });
 
-    testWidgets('4. الطابور يُقرأ بمفتاح صاحب الهوية لا بمفتاح ثابت',
-        (tester) async {
+    testWidgets('4. الطابور يُقرأ بمفتاح صاحب الهوية لا بمفتاح ثابت', (
+      tester,
+    ) async {
       // الجلسة الجارية في الطابور باسم `owner-1`: هوية أخرى لا ترى جلسته.
       await pumpScreen(tester, identityAccountId: 'owner-2');
-      expect(find.text('جلسة سقي جارية الآن'), findsNothing);
+      expect(find.text('جاري'), findsNothing);
 
       // وبمفتاح صاحبها تظهر الجلسة نفسها بلا أي تغيير في الطابور.
       await pumpScreen(tester, identityAccountId: accountId);
-      expect(find.text('جلسة سقي جارية الآن'), findsOneWidget);
+      expect(find.text('جاري'), findsOneWidget);
     });
   });
 }

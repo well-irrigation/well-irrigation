@@ -162,44 +162,49 @@ class TopWellSelector extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        child: Row(
+        // اسم البئر واسم المستخدم نصّان من الخادم بطول غير معلوم. وبلا
+        // `Flexible` و`ellipsis` يفيض الرأس على الشاشة الضيّقة بلا حدّ —
+        // مقيس في 2026-09-04: فيض 58 نقطة بمجرد أن صار الاسم واللقب كاملين.
+        // فالنصّ يُقصَّر بنقاط ولا يُدفع خارج الشاشة.
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      displayName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepBlue,
-                      ),
-                    ),
-                    if (hasMultipleWells) ...[
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.keyboard_arrow_down,
-                        size: 18,
-                        color: AppColors.waterBlue,
-                      ),
-                    ],
-                  ],
-                ),
-                if (subtitle != null)
-                  Text(
-                    subtitle!,
+                Flexible(
+                  child: Text(
+                    displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepBlue,
                     ),
                   ),
+                ),
+                if (hasMultipleWells) ...[
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 18,
+                    color: AppColors.waterBlue,
+                  ),
+                ],
               ],
             ),
+            if (subtitle != null)
+              Text(
+                subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
           ],
         ),
       ),

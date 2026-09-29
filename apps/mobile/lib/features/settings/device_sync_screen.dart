@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/api/account_repository.dart';
+import '../../core/sync/farmer_identity_review.dart';
 import '../../core/theme/app_colors.dart';
+import '../farmers/farmer_identity_resolution_sheet.dart';
 
 /// شاشة تشخيص الجهاز والمزامنة وقاعدة البيانات المحلية (UX-16A / القرارات 556–570 / ق-89 / ق-90 / ق-114)
 class DeviceSyncScreen extends StatefulWidget {
   const DeviceSyncScreen({
     required this.accountId,
     this.repository,
+    this.localTimeConverter,
     super.key,
   });
 
@@ -16,6 +19,20 @@ class DeviceSyncScreen extends StatefulWidget {
   /// «لا عمليات معلَّقة» لحساب عليه عمليات لم تُرسل (ق-113).
   final String accountId;
   final AccountRepository? repository;
+  final DateTime Function(DateTime)? localTimeConverter;
+
+  /// تحويل التوقيت إلى التوقيت المحلي للهاتف عند العرض فقط (ق-129 / F5)
+  static String formatSyncTime(
+    DateTime time, {
+    DateTime Function(DateTime)? localTimeConverter,
+  }) {
+    final local = localTimeConverter != null
+        ? localTimeConverter(time)
+        : time.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        '${two(local.hour)}:${two(local.minute)}';
+  }
 
   @override
   State<DeviceSyncScreen> createState() => _DeviceSyncScreenState();
@@ -26,6 +43,7 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
   bool _isLoading = true;
   bool _isSyncing = false;
   DeviceSyncStatusModel? _status;
+  List<FarmerIdentityReview> _reviews = const [];
 
   @override
   void initState() {
@@ -39,9 +57,11 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
 
     try {
       final data = await _repo.fetchDeviceSyncStatus(widget.accountId);
+      final reviews = await _repo.fetchFarmerIdentityReviews(widget.accountId);
       if (!mounted) return;
       setState(() {
         _status = data;
+        _reviews = reviews;
         _isLoading = false;
       });
     } catch (_) {
@@ -49,6 +69,7 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
       if (!mounted) return;
       setState(() {
         _status = null;
+        _reviews = const [];
         _isLoading = false;
       });
     }
@@ -68,6 +89,9 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
       // لا يُرسل شيء ولا يُقال إنه أُرسل.
       message = 'المزامنة اليدوية غير متاحة في هذا الإصدار — لم يُرسل شيء';
       background = AppColors.warning;
+    } on ManualSyncNothingPendingException {
+      message = 'لا توجد عمليات بانتظار المزامنة';
+      background = AppColors.info;
     } catch (_) {
       message = 'تعذرت المزامنة الآن. عملياتك محفوظة ولم يُفقد شيء.';
       background = AppColors.error;
@@ -78,17 +102,15 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
     if (!mounted) return;
     setState(() => _isSyncing = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: background,
-      ),
+      SnackBar(content: Text(message), backgroundColor: background),
     );
   }
 
   String _formatSyncTime(DateTime time) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${two(time.day)}/${two(time.month)}/${time.year} '
-        '${two(time.hour)}:${two(time.minute)}';
+    return DeviceSyncScreen.formatSyncTime(
+      time,
+      localTimeConverter: widget.localTimeConverter,
+    );
   }
 
   /// لا يُترجم «غير مقيس» إلى «متصل»: `null` تبقى `null` في النص المعروض.
@@ -124,7 +146,11 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
           const SizedBox(height: 6),
           const Text(
             'لا تُعرض هنا أرقام لم تُقرأ من هذا الجهاز. أعد المحاولة لقراءة الحالة الفعلية.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -144,7 +170,10 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: const Text('الجهاز والمزامنة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text(
+          'الجهاز والمزامنة',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -157,6 +186,11 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                 else
                   _buildStatusCard(_status!),
 
+                if (_reviews.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildReviewsSection(),
+                ],
+
                 const SizedBox(height: 16),
 
                 // 2. شرح مبدأ Offline-First الميداني (القرار 562–567)
@@ -165,25 +199,39 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.agriculturalGreen.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.agriculturalGreen.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: AppColors.agriculturalGreen.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.wifi_off, color: AppColors.agriculturalGreen, size: 20),
+                          Icon(
+                            Icons.wifi_off,
+                            color: AppColors.agriculturalGreen,
+                            size: 20,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'العمل الميداني دون اتصال (Offline-First)',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.agriculturalGreen),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: AppColors.agriculturalGreen,
+                            ),
                           ),
                         ],
                       ),
                       SizedBox(height: 6),
                       Text(
                         'صُمم التطبيق ليعمل في المزارع والحقول عند انقطاع شبكة الإنترنت: تُحفظ جلسات السقي وسندات القبض والمصروفات في طابور الهاتف ثم تُرفع للسحابة (ق-89/ق-90). وما تراه أعلاه هو المقيس فعلًا على هذا الجهاز؛ وما لم يُقس بعد يُكتب «غير مقيس» ولا يُعرض كأنه يعمل.',
-                        style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textPrimary,
+                          height: 1.4,
+                        ),
                       ),
                     ],
                   ),
@@ -193,12 +241,165 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
     );
   }
 
+  /// بطاقة العمليات المحتاجة مراجعة وحسم بشري (ق-88 / ق-114).
+  Widget _buildReviewsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.warning.withValues(alpha: 0.12),
+                child: const Icon(
+                  Icons.assignment_late_outlined,
+                  color: AppColors.warning,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'عمليات تحتاج مراجعة',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: AppColors.deepBlue,
+                      ),
+                    ),
+                    Text(
+                      '${_reviews.length} عملية بانتظار الحسم البشري',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'توجد عمليات إنشاء مزارعين معلقة بسبب تشابه أسماء أو اشتباه تكرار. يلزم حسم الهوية لإكمال مزامنتها مع السحابة:',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._reviews.map((review) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.person_search_outlined,
+                    color: AppColors.deepBlue,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          review.fullName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            if (review.phone != null &&
+                                review.phone!.isNotEmpty)
+                              Text(
+                                review.phone!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              )
+                            else
+                              const Text(
+                                'بدون هاتف',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            if (review.wellId.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '• بئر: ${review.wellId.length > 8 ? review.wellId.substring(0, 8) : review.wellId}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      FarmerIdentityResolutionSheet.show(
+                        context,
+                        review: review,
+                        accountId: widget.accountId,
+                        coordinator: _repo.coordinator,
+                        onResolved: _loadSyncStatus,
+                      );
+                    },
+                    icon: const Icon(Icons.how_to_reg, size: 16),
+                    label: const Text('حسم'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.deepBlue,
+                      foregroundColor: Colors.white,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   /// بطاقة تعرض المقيس فقط: عدد الطابور وتاريخ آخر مزامنة وجاهزية التخزين،
   /// وما لم يُقس يُكتب «غير مقيس» بلون محايد (م-41B3B / ق-120).
   Widget _buildStatusCard(DeviceSyncStatusModel status) {
     final pending = status.pendingOperationsCount;
     final isClear = pending == 0;
-    final headerColor = isClear ? AppColors.agriculturalGreen : AppColors.warning;
+    final headerColor = isClear
+        ? AppColors.agriculturalGreen
+        : AppColors.warning;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -216,7 +417,9 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                 radius: 20,
                 backgroundColor: headerColor.withValues(alpha: 0.12),
                 child: Icon(
-                  isClear ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
+                  isClear
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_upload_outlined,
                   color: headerColor,
                 ),
               ),
@@ -229,12 +432,18 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
                       isClear
                           ? 'لا توجد عمليات بانتظار المزامنة'
                           : 'بانتظار المزامنة: $pending عملية',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       _connectionLabel(status.isOnline),
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -273,7 +482,9 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
       _buildStatusRow(
         icon: Icons.history,
         label: 'آخر مزامنة ناجحة',
-        value: lastSync == null ? 'لم تنجح مزامنة بعد' : _formatSyncTime(lastSync),
+        value: lastSync == null
+            ? 'لم تنجح مزامنة بعد'
+            : _formatSyncTime(lastSync),
         isGood: lastSync != null,
       ),
       const SizedBox(height: 10),
@@ -297,7 +508,10 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
             ? const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : const Icon(Icons.sync, size: 18),
         label: Text(_isSyncing ? 'جارٍ المحاولة…' : 'مزامنة الآن'),
@@ -321,7 +535,13 @@ class _DeviceSyncScreenState extends State<DeviceSyncScreen> {
         Icon(icon, size: 16, color: AppColors.textSecondary),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ),
         Text(
           value,

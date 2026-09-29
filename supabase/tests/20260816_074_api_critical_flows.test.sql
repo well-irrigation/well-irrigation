@@ -48,25 +48,22 @@ begin
   -- لا يثبت 074 العدد العالمي إلى الأبد؛
   -- الهجرات اللاحقة قد توسع العقد بصورة معتمدة.
   -- المطلوب هنا أن كل دالة متاحة لـauthenticated
-  -- تحمل grant متناظرًا لـservice_role وأن anon يبقى صفرًا.
+  -- تكون متاحة أيضًا لـservice_role، وأن anon يبقى صفرًا.
   select count(*)
   into v_count
   from pg_proc p
   join pg_namespace n
     on n.oid = p.pronamespace
   where n.nspname = 'api'
-    and (
-      has_function_privilege(
-        'authenticated',
-        p.oid,
-        'EXECUTE'
-      )
-      is distinct from
-      has_function_privilege(
-        'service_role',
-        p.oid,
-        'EXECUTE'
-      )
+    and has_function_privilege(
+      'authenticated',
+      p.oid,
+      'EXECUTE'
+    )
+    and not has_function_privilege(
+      'service_role',
+      p.oid,
+      'EXECUTE'
     );
 
   if v_count = 0
@@ -83,7 +80,7 @@ begin
          )
      ) = 0
   then
-    raise notice 'PASS 2: منح api متناظرة للأدوار المعتمدة وanon محجوب بالكامل';
+    raise notice 'PASS 2: منح authenticated جزء من service_role وanon محجوب بالكامل';
   else
     raise notice 'FAIL 2: منح سطح api لا تطابق قواعد العقد';
   end if;

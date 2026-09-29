@@ -794,3 +794,40 @@ Reminder record يحتاج منطقًا محليًا يضمن:
 - 24-hour reminder deduplication.
 - manufacturer guidance absent when not validated.
 - status is understandable without color.
+
+---
+
+## تحديث 2026-09-15 — W2-02d/1
+
+الـforeground لم يعد يستخدم `InMemoryOutboxStore`
+افتراضيًا. `OfflineSessionCoordinator` يفتح
+`SqliteOutboxStore`، والمسار الافتراضي يأتي من
+`resolveOutboxDatabasePath()` نفسه المستخدم في
+`background_sync_worker.dart`.
+
+لا fallback إلى RAM عند فشل فتح الملف.
+حقن Store صريح للاختبارات ما زال مسموحًا.
+
+المثبت محليًا: إعادة فتح الملف تحفظ الأوامر
+والترتيب وعزل الحسابات؛ Full Flutter = 374 PASS.
+
+غير منفذ في هذه الجولة: foreground SyncEngine،
+manual sync الحقيقي، Server ACK UI، واختبار
+Process Death على جهاز Android.
+
+---
+
+## تحديث 2026-09-15 — W2-02d/2
+
+المنسق العام يُهيأ بعميل Supabase الحقيقي قبل أول استخدام.
+يبني `SupabaseCommandTransport` و`SyncEngine` فوق مخزن SQLite نفسه.
+
+الأمر يُحفظ محليًا أولًا ثم تبدأ محاولة الإرسال.
+فشل النقل لا يغير command ID ولا يحول Pending إلى نجاح.
+التأكيد يأتي فقط من مسار ACK في `SyncEngine`.
+
+`مزامنة الآن` تستخدم المحرك نفسه؛ الطابور الفارغ أو الذي
+أفرغته محاولة متزامنة يعيد حالة محايدة بدل نجاح أو خطأ كاذب.
+
+الإثبات المحلي: 381 Flutter PASS وanalyze بلا ملاحظات.
+إثبات الجهاز الحقيقي ما زال مطلوبًا في Device Acceptance.

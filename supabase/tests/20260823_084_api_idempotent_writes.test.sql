@@ -50,8 +50,10 @@ begin
   -- ============================================================
 
   -- ------------------------------------------------------------
-  -- 1. الأغلفة الثمانية تقبل p_command_id، وهي آخر معامل
-  --    وقابلة للحذف (default) حتى لا يتأثر أي عميل قائم.
+  -- 1. الأغلفة الثمانية تقبل p_command_id اختياريةً (default) حتى لا
+  --    يتأثر أي عميل قائم. وبعد ق-131/105 صار لبداية الجلسة وحدها بند
+  --    اختياري تالٍ لها (p_crops text[])، فالمطابقة هنا تشترط وجود
+  --    p_command_id في وسيطات الهوية ولا تشترط أن تكون الأخيرة حصرًا.
   -- ------------------------------------------------------------
 
   select count(*)
@@ -71,7 +73,7 @@ begin
       'create_farm'
     )
     and pg_get_function_identity_arguments(p.oid)
-        like '%p_command_id uuid'
+        like '%p_command_id uuid%'
     and pg_get_function_arguments(p.oid)
         like '%p_command_id uuid DEFAULT NULL%';
 
@@ -696,11 +698,17 @@ begin
   v_command := gen_random_uuid();
 
   v_first := api.create_farm(
-    v_well, 'أرض مُعادة الإرسال', v_farmer_account, v_command
+    p_well_id => v_well,
+    p_name => 'أرض مُعادة الإرسال',
+    p_farmer_well_account_id => v_farmer_account,
+    p_command_id => v_command
   );
 
   v_second := api.create_farm(
-    v_well, 'أرض مُعادة الإرسال', v_farmer_account, v_command
+    p_well_id => v_well,
+    p_name => 'أرض مُعادة الإرسال',
+    p_farmer_well_account_id => v_farmer_account,
+    p_command_id => v_command
   );
 
   select count(*)

@@ -45,6 +45,17 @@ APP_SCHEMAS="left(n.nspname, 3) <> 'pg_'
     'net', 'cron', 'pgsodium', 'pgsodium_masks'
   )"
 
+# ونفس استثناء دوال الإضافات المكتوب في scripts/db_index.sh: ما يعتمد على
+# إضافة في pg_depend بنوع 'e' ليس من كتابتنا. بدونه تُعدّ دوال يضيفها
+# المزوّد (مثل public.max / public.min) «زائدة سحابيًا» في كل قياس، فيصير
+# التحذير معتادًا — وتحذيرٌ يُتجاهَل غطاءٌ لتحذير حقيقي يأتي بنفس الشكل.
+NOT_EXTENSION="not exists (
+    select 1 from pg_depend d
+    where d.classid = 'pg_proc'::regclass
+      and d.objid = p.oid
+      and d.deptype = 'e'
+  )"
+
 if ! command -v psql > /dev/null 2>&1; then
   echo "ERROR: psql غير متوفر." >&2
   exit 2
@@ -144,7 +155,7 @@ grep -v '^#' "$functions_index" \
 $PSQL_VAL -c "select n.nspname || '.' || p.proname
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
-  where $APP_SCHEMAS" \
+  where p.prokind = 'f' and $APP_SCHEMAS and $NOT_EXTENSION" \
   | sed '/^[[:space:]]*$/d' \
   | sort -u > "$work_dir/cloud_fn.txt" || exit 1
 

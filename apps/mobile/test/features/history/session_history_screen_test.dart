@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 import 'package:well_irrigation_mobile/features/history/session_history_screen.dart';
+
 import '../../support/identity_fixture.dart';
 
 /// مستودع اختبار يحاكي عقد `api.list_well_sessions` (م-41C2).
@@ -36,6 +37,7 @@ class _FakeOperationsRepository extends OperationsRepository {
         startedAt: started,
         endedAt: started.add(const Duration(hours: 1)),
         energySourceCode: 'solar',
+        actualSeconds: 3600,
         billableSeconds: 3600,
         totalAmountYER: 3500,
         paidAmountYER: 3500,
@@ -55,6 +57,8 @@ class _FakeOperationsRepository extends OperationsRepository {
         startedAt: started.subtract(const Duration(hours: 4)),
         endedAt: started.subtract(const Duration(hours: 2)),
         energySourceCode: 'well_diesel',
+        // توقف 5 دقائق غير محسوبة: الفعلي 7500 والمفوتر 7200 (ق-131).
+        actualSeconds: 7500,
         billableSeconds: 7200,
         totalAmountYER: 7000,
         paidAmountYER: 3000,
@@ -74,6 +78,8 @@ class _FakeOperationsRepository extends OperationsRepository {
         startedAt: started.subtract(const Duration(days: 9)),
         endedAt: started.subtract(const Duration(days: 9, hours: -1)),
         energySourceCode: 'farmer_diesel',
+        // غير مفوترة وقديمة بلا مقاطع في هذا التجهيز: بلا مدة فعلية.
+        actualSeconds: null,
       ),
     ];
   }
@@ -84,7 +90,9 @@ Widget _wrap({bool shouldFail = false}) {
     locale: const Locale('ar'),
     home: SessionHistoryScreen(
       identity: testIdentity(
-        wells: [testWell(roles: const ['owner', 'operator'])],
+        wells: [
+          testWell(roles: const ['owner', 'operator']),
+        ],
       ),
       repository: _FakeOperationsRepository(shouldFail: shouldFail),
     ),
@@ -93,7 +101,9 @@ Widget _wrap({bool shouldFail = false}) {
 
 void main() {
   group('SessionHistoryScreen Tests (UX-13 / 373–376)', () {
-    testWidgets('1. عرض عناصر شاشة سجل الجلسات وشريط البحث والفلاتر', (tester) async {
+    testWidgets('1. عرض عناصر شاشة سجل الجلسات وشريط البحث والفلاتر', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap());
       await tester.pumpAndSettle();
 
@@ -107,7 +117,13 @@ void main() {
       expect(find.text('غير مسددة'), findsOneWidget);
     });
 
-    testWidgets('2. عرض بطاقات الجلسات ومؤشرات السداد والمدة والمبالغ', (tester) async {
+    testWidgets('2. عرض بطاقات الجلسات ومؤشرات السداد والمدة والمبالغ', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
       await tester.pumpWidget(_wrap());
       await tester.pumpAndSettle();
 
@@ -119,7 +135,40 @@ void main() {
       expect(find.text('ديزل البئر'), findsWidgets);
     });
 
-    testWidgets('3. الجلسة غير المفوترة تظهر بحالتها لا كغير مدفوعة (ق-99)', (tester) async {
+    testWidgets(
+      '2b. بطاقة الجلسة تعرض مدة التنفيذ الفعلية لا المفوتر (ق-131)',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() => tester.view.resetPhysicalSize());
+
+        await tester.pumpWidget(_wrap());
+        await tester.pumpAndSettle();
+
+        // ses-1: فعلي 3600 = '1 ساعة' (المفوتر نفسه هنا).
+        // ses-2: فعلي 7500 = '2 س و 5 د' مع مفوتر 7200 = '2 ساعة'.
+        expect(find.textContaining('مدة السقي الفعلية'), findsWidgets);
+        expect(find.text('1 ساعة'), findsOneWidget);
+        expect(find.text('2 س و 5 د'), findsOneWidget);
+        expect(find.text('2 ساعة'), findsNothing);
+        // ses-3 بلا مدة فعلية نهائية: شرطة لا صفر مصطنع.
+        expect(find.text('—'), findsOneWidget);
+      },
+    );
+
+    testWidgets('2c. مجموع المدة في رأس السجل يُجمع من الفعلي (ق-131)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_wrap());
+      await tester.pumpAndSettle();
+
+      // 3600 + 7500 + (الجارية بلا فعلي) = 11100 ث = 3 س و 5 د.
+      expect(find.text('• 3 س و 5 د'), findsOneWidget);
+    });
+
+    testWidgets('3. الجلسة غير المفوترة تظهر بحالتها لا كغير مدفوعة (ق-99)', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 2000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -143,14 +192,13 @@ void main() {
       expect(find.text('عبدالله مسعد القادري'), findsNothing);
     });
 
-    testWidgets('5. فشل العقد يظهر خطأً صريحًا مع إعادة المحاولة', (tester) async {
+    testWidgets('5. فشل العقد يظهر خطأً صريحًا مع إعادة المحاولة', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(shouldFail: true));
       await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('تعذّر تحميل سجل الجلسات'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('تعذّر تحميل سجل الجلسات'), findsOneWidget);
       expect(find.text('إعادة المحاولة'), findsOneWidget);
       expect(find.text('محمد علي الحبيشي'), findsNothing);
     });

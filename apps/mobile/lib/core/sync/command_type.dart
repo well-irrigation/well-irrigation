@@ -22,6 +22,7 @@ enum CommandScope {
 /// مرجعًا لأوامر لاحقة.
 enum EntityKind {
   session,
+  sessionCharge,
   farmerWellAccount,
   farm,
   payment;
@@ -104,7 +105,16 @@ enum CommandType {
     scopeArgument: 'p_session_id',
     eventTimeArgument: 'p_ended_at',
     returnsJson: true,
-    resultKey: 'session_id',
+    resultKey: 'session_charge_id',
+    produces: EntityKind.sessionCharge,
+  ),
+
+  resolveFarmerIdentity(
+    rpcName: 'resolve_farmer_identity',
+    scope: CommandScope.well,
+    scopeArgument: 'p_well_id',
+    returnsJson: true,
+    resultKey: 'farmer_well_account_id',
   );
 
   const CommandType({
@@ -147,9 +157,8 @@ enum CommandType {
   /// الكيان الذي يُنتجه هذا الأمر ويُسجَّل في جدول الربط لتعتمد عليه
   /// أوامر لاحقة.
   ///
-  /// `null` لأحداث الجلسة (إيقاف/استئناف/تغيير طاقة/إنهاء): نتائجها
-  /// تُخزَّن كما هي، لكنها لا تُنشئ كيانًا جديدًا يشير إليه أمر آخر —
-  /// الجلسة نفسها ربطت عند البدء.
+  /// `null` لأحداث الجلسة التي لا تُنشئ كيانًا جديدًا. الإنهاء استثناء:
+  /// فهو ينشئ تكلفة جلسة يربط بها أمر الدفع اللاحق.
   final EntityKind? produces;
 
   String get storageValue => name;

@@ -1,8 +1,10 @@
 # Smart Lookup, Deduplication, and Live Session Amount Architecture
 
-**آخر تحديث:** 2026-08-18
+**آخر تحديث:** 2026-09-20
 **القرار الحاكم:** ق-88
-**الحالة:** تصميم تقني ملزم؛ بعض الأساس موجود والتنفيذ الكامل ما زال Pending
+**الحالة:** تصميم تقني ملزم؛ ق-88 ككل ما زال Partial. **Farm Dedup منفَّذ
+ومُثبت محليًا وسحابيًا (Implemented + Local Verified + Cloud Verified) عبر Migration 101** — انظر §8؛
+وبقية بنود ق-88 (البحث/الترتيب/دفعة بدء الجلسة/تفويض المشغّل) لا تزال Pending.
 **أول Migration جديدة:** 085 أو أحدث
 
 هذه الوثيقة لا تنشئ تنفيذًا بحد ذاتها.
@@ -238,33 +240,42 @@ Migration 075 تثبت أن Farm/Account/Well يجب أن تكون
 
 ## 8. Farm Dedup Profile
 
-### النطاق
+**الحالة: Implemented + Local Verified + Cloud Verified عبر Migration 101 (2026-09-19).**
+هذا الجزء من ق-88 (منع تكرار الأرض) منفَّذ ومُثبت محليًا وسحابيًا.
+أما ق-88 ككل فيبقى **Partial**: عقود البحث العربي/الترتيب، وربط بحث
+الهاتف بالهوية العالمية، وتنسيق الدفعة عند بدء الجلسة، وباقي بنود UX-08 لا
+تزال Pending حسب الأقسام الأخرى. Migration 101 دُمجت إلى `main` عبر MR `!6` ونُشرت سحابيًا بنجاح؛ التحقق المستقل أثبت بنية 101 وتوقيعاتها وحدود الصلاحيات.
 
-الأرض داخل:
+### الهوية القانونية (Canonical Identity)
 
-- well.
-- farmer_well_account.
+هوية الأرض الفعالة لمنع التكرار **ليست الاسم منفردًا**، بل تركيبة من أربعة
+حقول:
 
-### الاسم
+    well_id
+    + farmer_well_account_id
+    + core.normalize_arabic(name)
+    + coalesce(core.normalize_arabic(distinguishing_label), '')
 
-يجب وجود normalized representation مناسب للبحث.
+### distinguishing_label
 
-### Exact duplicate
+`distinguishing_label` هو discriminator اختياري (nullable) يسمح لنفس
+المزارع في نفس البئر بامتلاك أراضٍ لها الاسم الأساسي نفسه حين تمثل أراضي
+مختلفة فعلًا. لا يُدمج في الاسم الأساسي المخزن. الفراغ/المسافات وحدها
+مرفوضة بقيد تحقق (تُعامل كـ null).
 
-إذا كان:
+### حالات create_farm الأربع المنفذة
 
-- نفس البئر.
-- نفس Farmer Well Account.
-- نفس الاسم المطبع.
-- ولا يوجد distinguishing label حقيقي.
-
-فلا يسمح بإنشاء نسخة ثانية بلا حسم.
+- `created` — لا مطابق تام قائم، فتُنشأ أرض جديدة.
+- `matched_existing` — مطابق تام واحد قائم، يُعاد canonical farm_id نفسه
+  بلا صف ثانٍ.
+- `requires_resolution` — أكثر من مطابق تام قائم (عنقود تاريخي ملتبس)،
+  يُعاد مع `candidate_farm_ids` **دون اختيار أحد الصفوف تلقائيًا**.
+- `requires_disambiguation` — طلب بلا `distinguishing_label` مع وجود
+  أشقاء بنفس الاسم يحملون صفات مميزة، يُعاد مع `existing_labels`.
 
 ### Same name / different farmer
 
-مسموح.
-
-العرض:
+مسموح. العرض:
 
     أرض الوادي — محمد علي
     أرض الوادي — أحمد صالح
@@ -273,24 +284,46 @@ Migration 075 تثبت أن Farm/Account/Well يجب أن تكون
 
 ### Same farmer / two real farms / same name
 
-يسمح فقط ببيان تمييز مستقل مثل:
+مسموح فقط بـ`distinguishing_label` مستقل (مثل: الشرقية، الغربية). نفس
+المزارع + نفس الاسم + نفس الصفة = نفس الهوية، لا ينشأ duplicate.
 
-- الشرقية.
-- الغربية.
-- عند البيت.
-- بجانب الطريق.
+### العنقود التاريخي (Historical duplicate cluster)
 
-يجب أن تدخل قاعدة التفرد الجديدة التمييز في حسابها
-دون خلطه عشوائيًا بالاسم.
+الصفوف التاريخية المكررة (قبل 101) **لا تُدمج ولا تُحذف ولا تُحسم
+تلقائيًا**. Migration 101 تحمي الإنشاءات المستقبلية وتُبقي الأدلة
+التاريخية كما هي. لا يُدَّعى أن البيانات القديمة نُظِّفت.
 
-### Permission gap
+### الحماية التزامنية
 
-UX-08 يسمح للمشغل بإضافة أرض.
+- `ops.create_farm` يأخذ **Advisory Transaction Lock**
+  (`pg_advisory_xact_lock`) على الهوية المطبّعة قبل الفحص، لتسلسل
+  الإنشاءات المتزامنة لنفس الاسم الأساسي.
+- محفّز على مستوى الجدول `ops.trg_enforce_farm_uniqueness()` يحمي الفرادة
+  المستقبلية حتى ضد INSERT مباشر متزامن، عبر مفتاح أساسي في جدول علامات
+  داخلي (`ops.farm_identity_markers`).
+- المطابقة التامة الفعالة (Exact active duplicate) تُرفض بـ**SQLSTATE
+  23505**.
+- `active -> inactive` مسموح دائمًا (أرشفة/تعطيل).
+- إعادة تفعيل صف inactive يتعارض مع canonical identity فعالة تُرفض بـ23505.
+- INSERT مباشر مكرر مع المحفّز مُفعّلًا يُرفض بـ23505.
 
-Backend الحالي owner-only.
+### لا Physical Unique Expression Index في 101
 
-يجب توسيع `ops.create_farm`/العقد المناسب في Migration
-085+ مع اختبار صلاحيات دائم.
+الفهرس الفريد الفيزيائي على التعبير **مؤجَّل** لما بعد معالجة/حسم الصفوف
+التاريخية المكررة، ولا يوجد في Migration 101. الحماية الحالية بالمحفّز
+والقفل الاستشاري وجدول العلامات.
+
+### الصلاحيات
+
+`api.create_farm` هو العقد العام (INVOKER)، محصور في `authenticated` و
+`service_role`، و`anon` محجوب. لا Direct DML على `ops.farms` لأي دور
+عميل. توسيع تفويض المشغّل (operator) لإنشاء الأرض لا يزال بند UX-08 خارج
+هذه الحزمة.
+
+### دليل الاختبار
+
+الاختبار الدائم `supabase/tests/20260919_101_farm_dedup.test.sql` =
+**PASS=19 FAIL=0 ERROR=0** (محليًا، تشغيل المالك).
 
 ---
 

@@ -147,14 +147,19 @@ core.well_assignments|well_assignments_role_check|c|CHECK ((role = ANY (ARRAY['o
 core.well_assignments|well_assignments_status_check|c|CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
 core.well_assignments|well_assignments_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
 core.well_assignments|well_assignments_well_id_profile_id_role_key|u|UNIQUE (well_id, profile_id, role)
+core.well_invitations|well_invitations_acceptance_kind_check|c|CHECK (((acceptance_kind IS NULL) OR (acceptance_kind = ANY (ARRAY['existing_auth'::text, 'new_no_auth'::text]))))
+core.well_invitations|well_invitations_accepted_profile_id_fkey|f|FOREIGN KEY (accepted_profile_id) REFERENCES iam.profiles(id) ON DELETE SET NULL
 core.well_invitations|well_invitations_attempts_check|c|CHECK (((attempts_left >= 0) AND (attempts_left <= 5)))
 core.well_invitations|well_invitations_claim_shape|c|CHECK (((status = 'claimed'::text) = ((claimed_at IS NOT NULL) AND (claimed_profile_id IS NOT NULL))))
 core.well_invitations|well_invitations_claimed_profile_id_fkey|f|FOREIGN KEY (claimed_profile_id) REFERENCES iam.profiles(id) ON DELETE SET NULL
+core.well_invitations|well_invitations_confirmed_by_fkey|f|FOREIGN KEY (confirmed_by) REFERENCES iam.profiles(id) ON DELETE SET NULL
 core.well_invitations|well_invitations_invited_by_fkey|f|FOREIGN KEY (invited_by) REFERENCES iam.profiles(id) ON DELETE CASCADE
+core.well_invitations|well_invitations_lifecycle_audit_check|c|CHECK ((((status = ANY (ARRAY['invited'::text, 'expired'::text, 'revoked'::text, 'claimed'::text])) AND (acceptance_kind IS NULL) AND (accepted_profile_id IS NULL) AND (accepted_at IS NULL) AND (confirmed_by IS NULL) AND (confirmed_at IS NULL) AND (rejected_by IS NULL) AND (rejected_at IS NULL) AND (continuation_token_salt IS NULL) AND (continuation_token_hash IS NULL) AND (continuation_expires_at IS NULL)) OR ((status = 'accepted_pending_owner'::text) AND (accepted_at IS NOT NULL) AND (confirmed_by IS NULL) AND (confirmed_at IS NULL) AND (rejected_by IS NULL) AND (rejected_at IS NULL) AND (((COALESCE(acceptance_kind, 'existing_auth'::text) = 'existing_auth'::text) AND (accepted_profile_id IS NOT NULL) AND (continuation_token_salt IS NULL) AND (continuation_token_hash IS NULL) AND (continuation_expires_at IS NULL)) OR ((acceptance_kind = 'new_no_auth'::text) AND (accepted_profile_id IS NULL) AND (continuation_token_salt IS NOT NULL) AND (continuation_token_hash IS NOT NULL) AND (continuation_expires_at IS NOT NULL)))) OR ((status = 'owner_confirmed_pending_account'::text) AND (acceptance_kind = 'new_no_auth'::text) AND (accepted_profile_id IS NULL) AND (accepted_at IS NOT NULL) AND (confirmed_by IS NOT NULL) AND (confirmed_at IS NOT NULL) AND (rejected_by IS NULL) AND (rejected_at IS NULL) AND (continuation_token_salt IS NOT NULL) AND (continuation_token_hash IS NOT NULL) AND (continuation_expires_at IS NOT NULL)) OR ((status = 'confirmed'::text) AND (accepted_profile_id IS NOT NULL) AND (accepted_at IS NOT NULL) AND (confirmed_by IS NOT NULL) AND (confirmed_at IS NOT NULL) AND (rejected_by IS NULL) AND (rejected_at IS NULL) AND (continuation_token_salt IS NULL) AND (continuation_token_hash IS NULL) AND (continuation_expires_at IS NULL) AND (COALESCE(acceptance_kind, 'existing_auth'::text) = ANY (ARRAY['existing_auth'::text, 'new_no_auth'::text]))) OR ((status = 'rejected'::text) AND (accepted_at IS NOT NULL) AND (confirmed_by IS NULL) AND (confirmed_at IS NULL) AND (rejected_by IS NOT NULL) AND (rejected_at IS NOT NULL) AND (continuation_token_salt IS NULL) AND (continuation_token_hash IS NULL) AND (continuation_expires_at IS NULL) AND (((COALESCE(acceptance_kind, 'existing_auth'::text) = 'existing_auth'::text) AND (accepted_profile_id IS NOT NULL)) OR ((acceptance_kind = 'new_no_auth'::text) AND (accepted_profile_id IS NULL))))))
 core.well_invitations|well_invitations_person_id_fkey|f|FOREIGN KEY (person_id) REFERENCES core.persons(id) ON DELETE CASCADE
 core.well_invitations|well_invitations_pkey|p|PRIMARY KEY (id)
+core.well_invitations|well_invitations_rejected_by_fkey|f|FOREIGN KEY (rejected_by) REFERENCES iam.profiles(id) ON DELETE SET NULL
 core.well_invitations|well_invitations_role_check|c|CHECK ((role = ANY (ARRAY['operator'::text, 'partner'::text])))
-core.well_invitations|well_invitations_status_check|c|CHECK ((status = ANY (ARRAY['invited'::text, 'claimed'::text, 'expired'::text, 'revoked'::text])))
+core.well_invitations|well_invitations_status_check|c|CHECK ((status = ANY (ARRAY['invited'::text, 'accepted_pending_owner'::text, 'owner_confirmed_pending_account'::text, 'confirmed'::text, 'rejected'::text, 'claimed'::text, 'expired'::text, 'revoked'::text])))
 core.well_invitations|well_invitations_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id) ON DELETE CASCADE
 core.well_invitations|well_invitations_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
 core.well_partners|well_partners_person_id_fkey|f|FOREIGN KEY (person_id) REFERENCES core.persons(id)
@@ -368,6 +373,7 @@ ops.booking_status_history|booking_status_history_booking_id_fkey|f|FOREIGN KEY 
 ops.booking_status_history|booking_status_history_changed_by_fkey|f|FOREIGN KEY (changed_by) REFERENCES iam.profiles(id)
 ops.booking_status_history|booking_status_history_pkey|p|PRIMARY KEY (id)
 ops.booking_status_history|booking_status_history_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id)
+ops.farm_identity_markers|farm_identity_markers_pkey|p|PRIMARY KEY (well_id, farmer_well_account_id, normalized_name, normalized_label)
 ops.farmer_profiles|farmer_profiles_person_id_fkey|f|FOREIGN KEY (person_id) REFERENCES core.persons(id)
 ops.farmer_profiles|farmer_profiles_pkey|p|PRIMARY KEY (id)
 ops.farmer_profiles|farmer_profiles_status_check|c|CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'blocked'::text, 'archived'::text])))
@@ -381,6 +387,7 @@ ops.farmer_well_accounts|farmer_well_accounts_tenant_id_fkey|f|FOREIGN KEY (tena
 ops.farmer_well_accounts|farmer_well_accounts_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id)
 ops.farmer_well_accounts|farmer_well_accounts_well_id_id_key|u|UNIQUE (well_id, id)
 ops.farmer_well_accounts|farmer_well_accounts_well_id_public_code_key|u|UNIQUE (well_id, public_code)
+ops.farms|farms_distinguishing_label_check|c|CHECK (((distinguishing_label IS NULL) OR (NULLIF(btrim(distinguishing_label), ''::text) IS NOT NULL)))
 ops.farms|farms_id_farmer_account_key|u|UNIQUE (id, farmer_well_account_id)
 ops.farms|farms_pkey|p|PRIMARY KEY (id)
 ops.farms|farms_status_check|c|CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
@@ -442,6 +449,12 @@ ops.resource_reservations|resource_reservations_resource_type_check|c|CHECK ((re
 ops.resource_reservations|resource_reservations_status_check|c|CHECK ((status = ANY (ARRAY['active'::text, 'released'::text, 'cancelled'::text])))
 ops.resource_reservations|resource_reservations_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id)
 ops.resource_reservations|resource_reservations_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id)
+ops.session_crops|session_crops_name_not_blank|c|CHECK ((btrim(crop_name) <> ''::text))
+ops.session_crops|session_crops_pkey|p|PRIMARY KEY (id)
+ops.session_crops|session_crops_position_positive|c|CHECK (("position" >= 1))
+ops.session_crops|session_crops_session_crop_unique|u|UNIQUE (session_id, crop_name)
+ops.session_crops|session_crops_session_id_fkey|f|FOREIGN KEY (session_id) REFERENCES ops.irrigation_sessions(id)
+ops.session_crops|session_crops_session_position_unique|u|UNIQUE (session_id, "position")
 ops.session_segments|session_segments_actual_seconds_check|c|CHECK (((actual_seconds IS NULL) OR (actual_seconds >= 0)))
 ops.session_segments|session_segments_applied_price_rule_id_fkey|f|FOREIGN KEY (applied_price_rule_id) REFERENCES ops.price_rules(id)
 ops.session_segments|session_segments_billable_seconds_check|c|CHECK (((billable_seconds IS NULL) OR (billable_seconds >= 0)))
