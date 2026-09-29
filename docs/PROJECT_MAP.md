@@ -88,9 +88,11 @@ Pending. حالة الهجرات ورقمها التالي يُؤخذان من `
 **الحالة:** العقد Adopted + Documented؛ **البند 1 (محاصيل الجلسة)
 Implemented + Local Verified + CI Verified + Emulator UX Accepted**؛
 MR !21 merged to `main` (`275a99f`)؛ Cloud/Production Pending.
-**البند 7 (الزمن الفعلي مقابل المفوتر) Implemented + Local Verified /
-GitLab Branch Pushed / CI + Merge + Cloud Pending** على `400bd98`؛
-بقية البنود ما تزال Implementation Pending.
+**البند 7 (الزمن الفعلي مقابل المفوتر) Implemented + Local Verified +
+CI Verified + Merged / Cloud + Production Pending**؛ MR !24 merged to
+`main` (`d3255022`)؛ MR pipeline `2891435913` = SUCCESS؛ post-merge
+pipeline `2891454890`: app/database = SUCCESS وproduction = MANUAL لم
+تُشغَّل. بقية البنود ما تزال Implementation Pending.
 
 - **المتتبع:** **م-45** في `memory/OPEN_ISSUES.md` — متتبع عابر للنطاقات
   بمراحل A–E، **يعتمد ويتنسق مع م-28 وم-29 وم-30 القائمتين ولا يستبدلهما

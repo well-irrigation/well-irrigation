@@ -2,6 +2,14 @@
 
 **آخر تحديث:** 2026-09-29
 
+## 2026-09-29 — م-45/A: إغلاق جولة الزمن الفعلي على GitLab/CI
+
+- **الحالة النهائية لهذه الشريحة:** ق-131 البند 7 = **Implemented + Local Verified + CI Verified + Merged / Cloud + Production Pending**.
+- **الدمج:** MR !24 دُمج إلى `main`؛ merge commit = `d3255022`.
+- **CI قبل الدمج:** MR pipeline `2891435913` = SUCCESS.
+- **CI بعد الدمج:** main pipeline `2891454890` أنهى `app` و`database` = SUCCESS؛ وظيفة `production` بقيت MANUAL ولم تُشغَّل، لذلك لا نشر Production ولا Cloud verification جديد.
+- **الأدلة:** قاعدة **45/757 PASS**، Flutter **611/611 PASS**، analyze نظيف، و`c:db = SUCCESS`.
+- **التالي في م-45/A:** تحذير المزارع المالي/الوقودي غير المانع؛ جولة الشمس/البديل/العدّاد/الانتقال التلقائي تبقى مؤجلة مؤقتًا بطلب المالك.
 ## 2026-09-29 — م-45/A: الزمن الفعلي مقابل المفوتر — تنفيذ وتحقق محلي ورفع الفرع
 
 - **الحالة:** ق-131 البند 7 = **Implemented + Local Verified / GitLab Branch Pushed / CI + Merge + Cloud Pending**.

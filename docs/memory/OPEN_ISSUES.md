@@ -3452,9 +3452,11 @@ M103 يبقى دون تغيير، وباقي بنود م-44 تبقى مفتوح�
 
 **الحالة:** مفتوحة — Tracker؛ العقد **Adopted + Documented (2026-09-28)**.
 **البند 1 (محاصيل الجلسة) Implemented + Local Verified + CI Verified + Emulator UX Accepted**؛
-MR !21 merged to `main`؛ Cloud/Production Pending. **البند 7 (الزمن الفعلي
-مقابل المفوتر) Implemented + Local Verified / GitLab Branch Pushed / CI +
-Merge + Cloud Pending** على commit `400bd98`. بقية البنود Pending.
+MR !21 merged to `main`؛ Cloud/Production Pending. **البند 7 (الزمن الفعلي مقابل المفوتر) Implemented + Local Verified +
+CI Verified + Merged / Cloud + Production Pending**؛ MR !24 merged to
+`main` (`d3255022`)؛ MR pipeline `2891435913` = SUCCESS؛ post-merge
+pipeline `2891454890`: app/database = SUCCESS وproduction = MANUAL لم
+تُشغَّل. بقية البنود Pending.
 **التاريخ:** 2026-09-28
 **القرار الحاكم:** ق-131 (المصدر الكامل في `memory/DECISIONS.md`)
 **مسائل الأساس:** **م-28** (السجلات والحجوزات والتسليم) و**م-29** (المال
@@ -3502,11 +3504,13 @@ Production Blocker بقرارها الخاص لا بعلاقة بها.
   `main` (`275a99f`) بعد MR pipeline `2887897982` = SUCCESS، وفحوص
   post-merge على `main` في pipeline `2891224749`: app/database = SUCCESS
   وproduction = MANUAL لم تُشغَّل. **Cloud/Production Pending**.
-  **الزمن الفعلي مقابل المفوتر مكتمل محليًا ومرفوع إلى GitLab:** Migration
-  106 + اختبار دائم؛ قاعدة **45/757 PASS**؛ Flutter **611/611 PASS**؛
+  **الزمن الفعلي مقابل المفوتر مكتمل ومدموج ومتحقق CI:** Migration 106 +
+  اختبار دائم؛ قاعدة **45/757 PASS**؛ Flutter **611/611 PASS**؛
   `actual_seconds` حاكم للمدة التشغيلية والسجل/التفصيل/التقارير، بينما
-  `billable_seconds` يبقى حاكمًا للحساب المالي. CI/merge/cloud ما تزال
-  Pending. المتبقي من المرحلة A: نافذة الشمس واختيار المصدر البديل والعدّاد
+  `billable_seconds` يبقى حاكمًا للحساب المالي. MR !24 merged to
+  `main` (`d3255022`)؛ MR pipeline `2891435913` = SUCCESS؛
+  post-merge pipeline `2891454890`: app/database = SUCCESS وproduction =
+  MANUAL لم تُشغَّل. Cloud/Production تبقيان Pending. المتبقي من المرحلة A: نافذة الشمس واختيار المصدر البديل والعدّاد
   المتبقي والتذكير والانتقال التلقائي المعتمد عند انتهاء نافذة الطاقة
   الشمسية؛ تحذير المزارع المالي/الوقودي غير المانع؛ سلوك تأكيد تطبيق
   المقدم؛ تقدير ديزل المزارع وتأكيده/تصحيحه؛ صحة حيازة المشغل والترحيل؛
