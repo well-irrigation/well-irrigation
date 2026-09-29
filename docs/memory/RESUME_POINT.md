@@ -53,8 +53,11 @@ app/database = SUCCESS بينما production بقيت MANUAL ولم تُشغَّ
 المالك **ق-131** وفتحت **م-45**؛ البند 1 (محاصيل الجلسة) أصبح
 **Implemented + Local Verified + CI Verified + Emulator UX Accepted**.
 وفي 2026-09-29 اكتمل محليًا البند 7 (الزمن الفعلي مقابل المفوتر):
-**Implemented + Local Verified / GitLab Branch Pushed / CI + Merge + Cloud Pending**
-على commit `400bd98`، مع قاعدة **45/757 PASS** وFlutter **611/611 PASS**.
+**Implemented + Local Verified + CI Verified + Merged / Cloud + Production Pending**.
+MR !24 دُمج إلى `main` بالـmerge commit `d3255022`؛ MR pipeline
+`2891435913` = SUCCESS، وpost-merge pipeline `2891454890` أنهى
+app/database = SUCCESS بينما production بقيت MANUAL ولم تُشغَّل.
+الدليل المحلي: قاعدة **45/757 PASS** وFlutter **611/611 PASS**.
 جولة الطاقة الشمسية/البديل تبقى مؤجلة بطلب المالك، مع بقاء م-44
 Production Blocker مستقلًا — والتفصيل في §4 أدناه.
 
@@ -264,7 +267,10 @@ Production Blocker مستقلًا — والتفصيل في §4 أدناه.
 **آخر شريحة مكتملة محليًا في م-45/A = الزمن الفعلي مقابل المفوتر**:
 Migration 106 تفصل `actual_seconds` عن `billable_seconds` في سجل الجلسة
 وتفصيلها والتقارير والعرض/الإيصال، وتحافظ على الحساب المالي بالمفوتر.
-الحالة: **Implemented + Local Verified / Branch Pushed / CI + Merge + Cloud Pending**؛
+الحالة: **Implemented + Local Verified + CI Verified + Merged / Cloud + Production Pending**؛
+MR !24 merged to `main` (`d3255022`)؛ MR pipeline `2891435913` =
+SUCCESS؛ post-merge pipeline `2891454890`: app/database = SUCCESS
+وproduction = MANUAL لم تُشغَّل؛
 الدليل المحلي: قاعدة **45 ملفًا / 757 PASS / 0 FAIL / 0 ERROR**،
 Flutter **611/611 PASS**، analyze نظيف، و`git diff --check` نظيف.
 **NEXT وفق ترتيب م-45/A = تحذير المزارع المالي/الوقودي غير المانع**.

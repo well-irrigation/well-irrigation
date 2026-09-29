@@ -443,10 +443,12 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   MR !21 merged to `main` (`275a99f`)؛ MR pipeline `2887897982` = SUCCESS؛
   post-merge pipeline `2891224749`: app/database = SUCCESS وproduction
   = MANUAL لم تُشغَّل. **Cloud/Production Pending**.
-  **البند 7 — الزمن الفعلي مقابل المفوتر — Implemented + Local Verified /
-  GitLab Branch Pushed / CI + Merge + Cloud Pending (2026-09-29)**:
+  **البند 7 — الزمن الفعلي مقابل المفوتر — Implemented + Local Verified +
+  CI Verified + Merged / Cloud + Production Pending (2026-09-29)**:
   Migration 106، قاعدة **45/757 PASS**، Flutter **611/611 PASS**،
-  وcommit `400bd98`. بقية البنود عدا 1 و7 Pending. الأساسات السابقة لا
+  MR !24 merged to `main` (`d3255022`)؛ MR pipeline `2891435913` =
+  SUCCESS؛ post-merge pipeline `2891454890`: app/database = SUCCESS
+  وproduction = MANUAL لم تُشغَّل. بقية البنود عدا 1 و7 Pending. الأساسات السابقة لا
   تُحسب تنفيذًا لبنود ق-131.
 - **المراحل:** A) المحاصيل المتعددة، نافذة الشمس والبديل والانتقال
   التلقائي، الزمن الفعلي، تحذير المزارع، تأكيد تطبيق المقدم، تقدير ديزل
@@ -465,4 +467,4 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   تفرض هجرة قاعدة بيانات بذاتها. الكتابة والقراءة عبر عقود `api` حصرًا،
   واختبارات Flutter عند الانطباق، وقبول جهاز حقيقي للبنود الحرجة.
   **لا رقم هجرة مُنسوخ في هذه الوثيقة.**
-- **الحالة:** **Adopted + Documented / Partial Implementation (م-45): Item 1 Implemented + Local Verified + CI Verified + Emulator UX Accepted؛ Item 7 Implemented + Local Verified + GitLab Branch Pushed / CI + Merge + Cloud Pending؛ بقية البنود Pending**.
+- **الحالة:** **Adopted + Documented / Partial Implementation (م-45): Item 1 Implemented + Local Verified + CI Verified + Emulator UX Accepted؛ Item 7 Implemented + Local Verified + CI Verified + Merged / Cloud + Production Pending؛ بقية البنود Pending**.

@@ -541,8 +541,11 @@ MR !21 merged to `main` (`275a99f`)؛ Cloud/Production Pending. **الحجوزا
 
 ### الزمن الفعلي في سجلات العمليات
 
-**الحالة (2026-09-29): Implemented + Local Verified / GitLab Branch Pushed /
-CI + Merge + Cloud Pending** عبر Migration 106 وcommit `400bd98`.
+**الحالة (2026-09-29): Implemented + Local Verified + CI Verified +
+Merged / Cloud + Production Pending** عبر Migration 106؛ MR !24 merged to
+`main` (`d3255022`)؛ MR pipeline `2891435913` = SUCCESS؛ post-merge
+pipeline `2891454890`: app/database = SUCCESS وproduction = MANUAL لم
+تُشغَّل.
 
 سجلات العمليات قد تعرض بداية/نهاية الحجز (المخططة) وبداية/نهاية التنفيذ
 (الفعلية) معًا **بشرط تمييزهما صراحةً دائمًا**؛ والفواتير والتقارير
