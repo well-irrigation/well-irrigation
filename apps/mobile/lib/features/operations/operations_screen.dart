@@ -81,6 +81,14 @@ class _OperationsScreenState extends State<OperationsScreen>
   int _cropLoadGeneration = 0;
   final TextEditingController _newCropController = TextEditingController();
 
+  // حالة المزارع عند اختياره (ق-131 البند 11): ملخص إخباري غير مانع —
+  // الدين والمقدم وكمية ديزله من الخادم، ولا يحجب بدء السقي أبدًا.
+  FarmerSelectionStatus? _farmerStatus;
+  bool _isLoadingFarmerStatus = false;
+  String? _farmerStatusError;
+  bool _farmerStatusAwaitingSync = false;
+  int _farmerStatusGeneration = 0;
+
   /// رمز مصدر الطاقة: يبدأ فارغًا (null) قبل كل جلسة جديدة وفق ق-129
   /// (لا اختيار افتراضي تلقائي ذو أثر تشغيلي أو مالي).
   String? _energySourceCode;
@@ -422,6 +430,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         _isSessionActive = false;
         _activeSessionId = null;
         _resetCropSelection();
+        _resetFarmerStatus();
       });
       _loadPumps();
       _loadPriceSchedule();
@@ -462,6 +471,70 @@ class _OperationsScreenState extends State<OperationsScreen>
         _isLoadingCrops = false;
       });
     }
+  }
+
+  /// تحميل حالة المزارع المختار (ق-131 البند 11) عبر عقد
+  /// `api.get_farmer_selection_status`: إخبارية غير مانعة، والفشل
+  /// رسالة معلوماتية ولا يُمسّ زر البدء. ولا نداء بمعرّف مفلفق لمزارع
+  /// محلي بلا مزامنة — فلا أصفار مخترعة.
+  Future<void> _loadFarmerStatus() async {
+    final farmer = _selectedFarmer;
+    if (farmer == null) return;
+
+    if (farmer.isPending || farmer.id.isEmpty) {
+      setState(() {
+        _farmerStatus = null;
+        _isLoadingFarmerStatus = false;
+        _farmerStatusError = null;
+        _farmerStatusAwaitingSync = true;
+      });
+      return;
+    }
+
+    final generation = ++_farmerStatusGeneration;
+    setState(() {
+      _isLoadingFarmerStatus = true;
+      _farmerStatusError = null;
+      _farmerStatusAwaitingSync = false;
+    });
+    try {
+      final status = await _repo.fetchFarmerSelectionStatus(
+        farmerAccountId: farmer.id,
+      );
+      // ردّ قديم لمزارع سابق لا يُعرض فوق المزارع الحالي.
+      if (!mounted || generation != _farmerStatusGeneration) return;
+      setState(() {
+        _farmerStatus = status;
+        _isLoadingFarmerStatus = false;
+      });
+    } catch (_) {
+      if (!mounted || generation != _farmerStatusGeneration) return;
+      setState(() {
+        _farmerStatus = null;
+        _isLoadingFarmerStatus = false;
+        _farmerStatusError = 'تعذر عرض حالة المزارع — يمكنك متابعة السقي';
+      });
+    }
+  }
+
+  /// تصفير الحالة فورًا عند مسح الاختيار أو تغييره أو تبديل البئر.
+  void _resetFarmerStatus() {
+    _farmerStatusGeneration++;
+    _farmerStatus = null;
+    _isLoadingFarmerStatus = false;
+    _farmerStatusError = null;
+    _farmerStatusAwaitingSync = false;
+  }
+
+  /// كمية الليتر للعرض وحدها من المللتر الخام المحفوظ في النموذج:
+  /// كسور لتر ذات معنى تبقى ظاهرة (4.5) ولا تُقرَّب لعدد صحيح.
+  String _formatLitres(int ml) {
+    var text = (ml / 1000).toStringAsFixed(3);
+    while (text.endsWith('0')) {
+      text = text.substring(0, text.length - 1);
+    }
+    if (text.endsWith('.')) text += '0';
+    return text;
   }
 
   /// خيارات القسم: اقتراحات الأرض أولًا ثم ما أضافه المشغل حديثًا.
@@ -552,6 +625,86 @@ class _OperationsScreenState extends State<OperationsScreen>
     } catch (_) {
       // تعذر استعلام المراجعات دون افتعال حالة أو تعطيل واجهة العمليات
     }
+  }
+
+  /// منطقة حالة المزارع المختار (ق-131 البند 11): ملخص مختصر غير مانع
+  /// — المديونية ورصيد المقدم وكمية ديزل المزارع. الدلالات نصية صريحة
+  /// لا +/- غامضة ولا لون وحده، والفشل أو انتظار المزامنة رسالة
+  /// معلوماتية تخبر أن المتابعة ممكنة، ولا يُخترع رقم لغياب.
+  Widget _buildFarmerStatusArea() {
+    const textStyle = TextStyle(fontSize: 13, color: AppColors.textPrimary);
+
+    Widget statusLine(String text, {IconData icon = Icons.info_outline}) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 15, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Expanded(child: Text(text, style: textStyle)),
+        ],
+      );
+    }
+
+    Widget body;
+    if (_isLoadingFarmerStatus) {
+      body = Row(
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          const Text('جارٍ تحميل حالة المزارع...', style: textStyle),
+        ],
+      );
+    } else if (_farmerStatusAwaitingSync) {
+      body = statusLine('حالة المزارع ستظهر بعد مزامنته — يمكنك متابعة السقي');
+    } else if (_farmerStatusError != null) {
+      body = statusLine(_farmerStatusError!);
+    } else if (_farmerStatus != null) {
+      final s = _farmerStatus!;
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // الدلالات نصية صريحة لا إشارات +/- ولا لون وحده (ق-131/11).
+          statusLine(
+            s.hasDebt
+                ? 'عليه مديونية: '
+                      '${CurrencyUtils.formatAmount(s.debtMinor)} ريال'
+                : 'لا توجد مديونية',
+            icon: Icons.payments_outlined,
+          ),
+          const SizedBox(height: 4),
+          statusLine(
+            s.hasAdvance
+                ? 'له رصيد مقدم: '
+                      '${CurrencyUtils.formatAmount(s.advanceMinor)} ريال'
+                : 'لا يوجد رصيد مقدم',
+            icon: Icons.savings_outlined,
+          ),
+          const SizedBox(height: 4),
+          statusLine(
+            'ديزل المزارع: '
+            '${_formatLitres(s.farmerFuelBalanceMl)} لتر',
+            icon: Icons.local_gas_station_outlined,
+          ),
+        ],
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: body,
+    );
   }
 
   Widget _buildFarmerReviewBanner() {
@@ -1282,6 +1435,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         _energySourceCode = null;
         _selectedPump = solePump;
         _resetCropSelection();
+        _resetFarmerStatus();
       });
 
       if (!mounted) return;
@@ -1596,6 +1750,7 @@ class _OperationsScreenState extends State<OperationsScreen>
               _isSessionActive = false;
               _activeSessionId = null;
               _resetCropSelection();
+              _resetFarmerStatus();
             });
             _loadPumps();
             _loadPriceSchedule();
@@ -2009,12 +2164,24 @@ class _OperationsScreenState extends State<OperationsScreen>
                             _selectedFarmer = farmer;
                             _selectedFarm = null;
                             _resetCropSelection();
+                            // حالة المزارع تُصفَّر فورًا مع كل تغيير
+                            // (ق-131 البند 11) ثم تُحمَّل للاختيار الجديد.
+                            _resetFarmerStatus();
                           });
+                          if (farmer != null) _loadFarmerStatus();
                         },
                         onAddNew: _showAddFarmerDialog,
                         addNewLabel: 'إضافة مزارع جديد',
                       ),
                       const SizedBox(height: 14),
+
+                      // حالة المزارع المختار (ق-131 البند 11): ملخص
+                      // إخباري غير مانع أسفل منتقي المزارع وقبل منتقي
+                      // الأرض — لا يحجب بدء السقي في أي حال.
+                      if (_selectedFarmer != null) ...[
+                        _buildFarmerStatusArea(),
+                        const SizedBox(height: 14),
+                      ],
 
                       // ب) مكوّن البحث الذكي عن الأرض الزراعية (A3)
                       SmartLookupField<Farm>(
