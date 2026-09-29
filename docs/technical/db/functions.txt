@@ -23,6 +23,7 @@ api.create_tenant_with_well(p_tenant_name text, p_well_name text)|uuid|volatile|
 api.decide_expense(p_expense_id uuid, p_approve boolean, p_note text)|text|volatile|invoker|search_path=pg_catalog, pg_temp
 api.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uuid, p_to_description text, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.get_active_price_schedule(p_well_id uuid, p_at timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_advance_allocation_proposal(p_payment_id uuid, p_invoice_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_farmer_account(p_farmer_well_account_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_farmer_selection_status(p_farmer_well_account_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_reports_summary(p_well_id uuid, p_period text, p_start timestamp with time zone, p_end timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp

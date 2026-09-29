@@ -48,7 +48,9 @@ class ExpenseItem {
       amountYER: (json['amount_minor'] as num?)?.toInt() ?? 0,
       description: (json['description'] as String?) ?? '',
       status: (json['status'] as String?) ?? 'posted',
-      spentAt: DateTime.tryParse(json['spent_at'] as String? ?? '') ?? DateTime.now(),
+      spentAt:
+          DateTime.tryParse(json['spent_at'] as String? ?? '') ??
+          DateTime.now(),
       paymentSource: (json['payment_source'] as String?) ?? 'cashbox',
       partnerId: json['partner_id'] as String?,
       partnerName: json['partner_name'] as String?,
@@ -155,8 +157,10 @@ class DistributionPartnerLine {
       partnerName: (json['partner_name'] as String?) ?? 'شريك',
       profitPercent: (json['profit_percent'] as num?)?.toInt() ?? 0,
       grossShareYER: (json['gross_share_minor'] as num?)?.toInt() ?? 0,
-      outOfPocketReimbursementYER: (json['out_of_pocket_minor'] as num?)?.toInt() ?? 0,
-      irrigationDeductionYER: (json['irrigation_deduction_minor'] as num?)?.toInt() ?? 0,
+      outOfPocketReimbursementYER:
+          (json['out_of_pocket_minor'] as num?)?.toInt() ?? 0,
+      irrigationDeductionYER:
+          (json['irrigation_deduction_minor'] as num?)?.toInt() ?? 0,
       netShareYER: (json['net_share_minor'] as num?)?.toInt() ?? 0,
       paidAmountYER: (json['paid_amount_minor'] as num?)?.toInt() ?? 0,
       remainingYER: (json['remaining_minor'] as num?)?.toInt() ?? 0,
@@ -200,16 +204,31 @@ class ProfitDistributionCycleItem {
     return ProfitDistributionCycleItem(
       id: json['id'] as String,
       wellId: json['well_id'] as String,
-      periodStart: DateTime.tryParse(json['period_start'] as String? ?? '') ?? DateTime.now(),
-      periodEnd: DateTime.tryParse(json['period_end'] as String? ?? '') ?? DateTime.now(),
+      periodStart:
+          DateTime.tryParse(json['period_start'] as String? ?? '') ??
+          DateTime.now(),
+      periodEnd:
+          DateTime.tryParse(json['period_end'] as String? ?? '') ??
+          DateTime.now(),
       status: (json['status'] as String?) ?? 'calculated',
-      eligibleRevenueYER: (json['eligible_revenue_minor'] as num?)?.toInt() ?? 0,
-      eligibleExpensesYER: (json['eligible_expenses_minor'] as num?)?.toInt() ?? 0,
-      retainedLiabilitiesYER: (json['retained_liabilities_minor'] as num?)?.toInt() ?? 0,
-      maintenanceReserveYER: (json['maintenance_reserve_minor'] as num?)?.toInt() ?? 0,
-      distributableProfitYER: (json['distributable_profit_minor'] as num?)?.toInt() ?? 0,
-      approvedAt: json['approved_at'] != null ? DateTime.tryParse(json['approved_at'] as String) : null,
-      partnerLines: linesJson.map((e) => DistributionPartnerLine.fromJson(e as Map<String, dynamic>)).toList(),
+      eligibleRevenueYER:
+          (json['eligible_revenue_minor'] as num?)?.toInt() ?? 0,
+      eligibleExpensesYER:
+          (json['eligible_expenses_minor'] as num?)?.toInt() ?? 0,
+      retainedLiabilitiesYER:
+          (json['retained_liabilities_minor'] as num?)?.toInt() ?? 0,
+      maintenanceReserveYER:
+          (json['maintenance_reserve_minor'] as num?)?.toInt() ?? 0,
+      distributableProfitYER:
+          (json['distributable_profit_minor'] as num?)?.toInt() ?? 0,
+      approvedAt: json['approved_at'] != null
+          ? DateTime.tryParse(json['approved_at'] as String)
+          : null,
+      partnerLines: linesJson
+          .map(
+            (e) => DistributionPartnerLine.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(),
     );
   }
 }
@@ -281,11 +300,16 @@ class FarmerPaymentReceiptItem {
     return FarmerPaymentReceiptItem(
       id: json['id'] as String,
       receiptNumber: (json['receipt_number'] as String?) ?? '',
-      paidAt: DateTime.tryParse(json['paid_at'] as String? ?? '') ?? DateTime.now(),
+      paidAt:
+          DateTime.tryParse(json['paid_at'] as String? ?? '') ?? DateTime.now(),
       amountYER: (json['amount_minor'] as num?)?.toInt() ?? 0,
       method: (json['method'] as String?) ?? 'cash',
       note: json['note'] as String?,
-      allocatedInvoiceNumbers: (json['allocated_invoices'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      allocatedInvoiceNumbers:
+          (json['allocated_invoices'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 }
@@ -317,7 +341,10 @@ class FarmerFinancialAccountData {
   factory FarmerFinancialAccountData.fromContract(Map<String, dynamic> json) {
     final account = Map<String, dynamic>.from(json['account'] as Map);
     final invoices = (json['invoices'] as List<dynamic>? ?? const [])
-        .map((e) => FarmerInvoiceItem.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map(
+          (e) =>
+              FarmerInvoiceItem.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
         .toList(growable: false);
     final payments = (json['payments'] as List<dynamic>? ?? const [])
         .map(
@@ -385,14 +412,12 @@ class FinanceRepository {
     String? status,
     int limit = 100,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'list_well_expenses',
-      params: {
-        'p_well_id': wellId,
-        'p_status': status,
-        'p_limit': limit,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'list_well_expenses',
+          params: {'p_well_id': wellId, 'p_status': status, 'p_limit': limit},
+        );
     return _asList(_asMap(res)['expenses'])
         .map(ExpenseItem.fromJson)
         .toList(growable: false);
@@ -411,17 +436,24 @@ class FinanceRepository {
     String? note,
   }) async {
     final client = _requireClient;
-    await client.schema('api').rpc('record_expense', params: {
-      'p_well_id': wellId,
-      'p_category_code': categoryCode,
-      'p_amount_minor': amountYER,
-      'p_description': description,
-      'p_attachment_url': attachmentUrl,
-      'p_attachment_skipped': attachmentSkipped,
-      'p_payment_source': paymentSource,
-      'p_note': skipReason != null && skipReason.isNotEmpty ? 'تخطي المرفق: $skipReason | $note' : note,
-      'p_partner_id': partnerId,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'record_expense',
+          params: {
+            'p_well_id': wellId,
+            'p_category_code': categoryCode,
+            'p_amount_minor': amountYER,
+            'p_description': description,
+            'p_attachment_url': attachmentUrl,
+            'p_attachment_skipped': attachmentSkipped,
+            'p_payment_source': paymentSource,
+            'p_note': skipReason != null && skipReason.isNotEmpty
+                ? 'تخطي المرفق: $skipReason | $note'
+                : note,
+            'p_partner_id': partnerId,
+          },
+        );
   }
 
   Future<void> decideExpense({
@@ -430,11 +462,16 @@ class FinanceRepository {
     String? note,
   }) async {
     final client = _requireClient;
-    await client.schema('api').rpc('decide_expense', params: {
-      'p_expense_id': expenseId,
-      'p_approve': approve,
-      'p_note': note,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'decide_expense',
+          params: {
+            'p_expense_id': expenseId,
+            'p_approve': approve,
+            'p_note': note,
+          },
+        );
   }
 
   // ---------------------------------------------------------------------------
@@ -451,13 +488,12 @@ class FinanceRepository {
     String wellId, {
     int limit = 100,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'list_well_partners',
-      params: {
-        'p_well_id': wellId,
-        'p_limit': limit,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'list_well_partners',
+          params: {'p_well_id': wellId, 'p_limit': limit},
+        );
     return _asList(_asMap(res)['partners'])
         .map(PartnerFinancialItem.fromJson)
         .toList(growable: false);
@@ -491,13 +527,12 @@ class FinanceRepository {
     String wellId, {
     int limit = 24,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'list_well_profit_cycles',
-      params: {
-        'p_well_id': wellId,
-        'p_limit': limit,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'list_well_profit_cycles',
+          params: {'p_well_id': wellId, 'p_limit': limit},
+        );
     return _asList(_asMap(res)['cycles'])
         .map(ProfitDistributionCycleItem.fromJson)
         .toList(growable: false);
@@ -510,23 +545,25 @@ class FinanceRepository {
     int manualReserveYER = 0,
   }) async {
     final client = _requireClient;
-    final res = await client.schema('api').rpc(
-      'calculate_profit_distribution',
-      params: {
-        'p_well_id': wellId,
-        'p_period_start': periodStart.toIso8601String(),
-        'p_period_end': periodEnd.toIso8601String(),
-        'p_manual_reserve_minor': manualReserveYER,
-      },
-    );
+    final res = await client
+        .schema('api')
+        .rpc(
+          'calculate_profit_distribution',
+          params: {
+            'p_well_id': wellId,
+            'p_period_start': periodStart.toIso8601String(),
+            'p_period_end': periodEnd.toIso8601String(),
+            'p_manual_reserve_minor': manualReserveYER,
+          },
+        );
     return res as String;
   }
 
   Future<void> approveProfitDistribution(String cycleId) async {
     final client = _requireClient;
-    await client.schema('api').rpc('approve_profit_distribution', params: {
-      'p_cycle_id': cycleId,
-    });
+    await client
+        .schema('api')
+        .rpc('approve_profit_distribution', params: {'p_cycle_id': cycleId});
   }
 
   Future<void> payPartnerDistribution({
@@ -534,10 +571,15 @@ class FinanceRepository {
     required int amountYER,
   }) async {
     final client = _requireClient;
-    await client.schema('api').rpc('pay_partner_distribution', params: {
-      'p_distribution_line_id': distributionLineId,
-      'p_amount_minor': amountYER,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'pay_partner_distribution',
+          params: {
+            'p_distribution_line_id': distributionLineId,
+            'p_amount_minor': amountYER,
+          },
+        );
   }
 
   // ---------------------------------------------------------------------------
@@ -556,13 +598,15 @@ class FinanceRepository {
     String farmerAccountId, {
     int limit = 50,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'get_farmer_account',
-      params: {
-        'p_farmer_well_account_id': farmerAccountId,
-        'p_limit': limit,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'get_farmer_account',
+          params: {
+            'p_farmer_well_account_id': farmerAccountId,
+            'p_limit': limit,
+          },
+        );
     return FarmerFinancialAccountData.fromContract(_asMap(res));
   }
 
@@ -575,14 +619,19 @@ class FinanceRepository {
     String? note,
   }) async {
     final client = _requireClient;
-    await client.schema('api').rpc('record_payment', params: {
-      'p_well_id': wellId,
-      'p_farmer_well_account_id': farmerAccountId,
-      'p_amount_minor': amountYER,
-      'p_method': method,
-      'p_allocations': allocations,
-      'p_note': note,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'record_payment',
+          params: {
+            'p_well_id': wellId,
+            'p_farmer_well_account_id': farmerAccountId,
+            'p_amount_minor': amountYER,
+            'p_method': method,
+            'p_allocations': allocations,
+            'p_note': note,
+          },
+        );
   }
 
   /// تخصيص دفعة قائمة على فواتير مفتوحة. العقد صحيح، لكن **لا شاشة تناديه
@@ -594,10 +643,12 @@ class FinanceRepository {
     required List<Map<String, dynamic>> allocations,
   }) async {
     final client = _requireClient;
-    await client.schema('api').rpc('allocate_payment', params: {
-      'p_payment_id': paymentId,
-      'p_allocations': allocations,
-    });
+    await client
+        .schema('api')
+        .rpc(
+          'allocate_payment',
+          params: {'p_payment_id': paymentId, 'p_allocations': allocations},
+        );
   }
 
   /// سندات الرصيد المقدَّم لحساب مزارع — `api.list_advance_receipts`
@@ -610,17 +661,92 @@ class FinanceRepository {
     String farmerAccountId, {
     int limit = 50,
   }) async {
-    final res = await _requireClient.schema('api').rpc(
-      'list_advance_receipts',
-      params: {
-        'p_farmer_well_account_id': farmerAccountId,
-        'p_limit': limit,
-      },
-    );
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'list_advance_receipts',
+          params: {
+            'p_farmer_well_account_id': farmerAccountId,
+            'p_limit': limit,
+          },
+        );
     return _asList(_asMap(res)['receipts'])
         .map(AdvanceReceipt.fromJson)
         .toList(growable: false);
   }
+
+  /// اقتراح تسوية من الرصيد المقدم — `api.get_advance_allocation_proposal`
+  /// (ق-131 البند 10 / هجرة 108): الخادم وحده يحسب المقترح من المخزَّن
+  /// (متبقّي السند ناقص تخصيصاته، والمتبقي على الفاتورة، وأصغُرهما).
+  /// قراءة صرف لا تخصيص — والتطبيق يُرسل التخصيص فقط بعد تأكيد الإنسان
+  /// عبر [allocateAdvance] بالمعرّفات الحقيقية والمبلغ المؤكَّد.
+  Future<AdvanceAllocationProposal> fetchAdvanceAllocationProposal({
+    required String paymentId,
+    required String invoiceId,
+  }) async {
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'get_advance_allocation_proposal',
+          params: {'p_payment_id': paymentId, 'p_invoice_id': invoiceId},
+        );
+    return AdvanceAllocationProposal.fromContract(_asMap(res));
+  }
+}
+
+/// اقتراح التسوية كما يحسبه الخادم (ق-131 البند 10 / هجرة 108): ثلاث
+/// حقائق مخزَّنة لا حساب في العميل — متبقّي السند، والمتبقي على
+/// الفاتورة، والمقترح تطبيقه أصغُرهما. `canApply` قرار الخادم وحده:
+/// صفر مقترح لا يُؤكَّد، ولا يُخصَّص شيء بلا زر التأكيد الصريح.
+class AdvanceAllocationProposal {
+  const AdvanceAllocationProposal({
+    required this.paymentId,
+    required this.invoiceId,
+    required this.farmerWellAccountId,
+    required this.wellId,
+    required this.advanceRemainingMinor,
+    required this.invoiceOutstandingMinor,
+    required this.proposedMinor,
+    required this.canApply,
+  });
+
+  factory AdvanceAllocationProposal.fromContract(Map<String, dynamic> json) {
+    if (json['contract'] != 'get_advance_allocation_proposal' ||
+        json['version'] != 1) {
+      throw StateError('إصدار عقد اقتراح تسوية المقدم غير متوافق');
+    }
+
+    int requiredInt(String key) {
+      final value = json[key];
+      final parsed = value is num
+          ? value.toInt()
+          : int.tryParse(value?.toString() ?? '');
+      if (parsed == null || parsed < 0) {
+        throw StateError('عقد اقتراح التسوية أعاد رقمًا غير صالح: $key');
+      }
+      return parsed;
+    }
+
+    return AdvanceAllocationProposal(
+      paymentId: json['payment_id'] as String? ?? '',
+      invoiceId: json['invoice_id'] as String? ?? '',
+      farmerWellAccountId: json['farmer_well_account_id'] as String? ?? '',
+      wellId: json['well_id'] as String? ?? '',
+      advanceRemainingMinor: requiredInt('advance_remaining_minor'),
+      invoiceOutstandingMinor: requiredInt('invoice_outstanding_minor'),
+      proposedMinor: requiredInt('proposed_minor'),
+      canApply: json['can_apply'] as bool? ?? false,
+    );
+  }
+
+  final String paymentId;
+  final String invoiceId;
+  final String farmerWellAccountId;
+  final String wellId;
+  final int advanceRemainingMinor;
+  final int invoiceOutstandingMinor;
+  final int proposedMinor;
+  final bool canApply;
 }
 
 /// سند رصيد مقدَّم كما يعيده العقد: مبلغه والمخصَّص منه والمتبقّي فيه.
