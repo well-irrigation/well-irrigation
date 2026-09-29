@@ -49,8 +49,8 @@
   لم يعد الحظر السابق نافذًا.
   الخطوة الحالية يحددها
   `docs/memory/RESUME_POINT.md` وحده.
-- الهجرات **071–107 مختومة محليًا**، وأي تغيير جديد في القاعدة يبدأ من
-  **108**، مع **اختبار دائم واحد** في `supabase/tests` لكل هجرة.
+- الهجرات **071–108 مختومة محليًا**، وأي تغيير جديد في القاعدة يبدأ من
+  **109**، مع **اختبار دائم واحد** في `supabase/tests` لكل هجرة.
   السحابة **Cloud Verified إجرائيًا حتى 102**؛ وقد نُشرت 101 و102 وتحقق
   `cloud:verify` من عدم وجود هجرات أو دوال مفقودة. **قراءة مباشرة بتاريخ
   2026-09-29 لسجل `supabase_migrations.schema_migrations` أثبتت وجود
@@ -61,8 +61,14 @@
   في سجل الهجرات السحابي الحالي؛ وproduction بقيت MANUAL ولم تُشغَّل.
   Migration 107 دُمجت عبر MR !26 إلى merge commit `9168ccac`؛ MR pipeline
   `2891694253` = SUCCESS، وpost-merge pipeline `2891702168`:
-  app/database = SUCCESS وproduction = MANUAL. **سقف Cloud Verified
-  الإجرائي يبقى 102، والهجرة التالية = 108.**
+  app/database = SUCCESS وproduction = MANUAL. Migration 108 دُمجت عبر
+  MR !28 إلى merge commit `5446bcfa`؛ MR pipeline `2891865738`:
+  app/database = SUCCESS. أما post-merge pipeline `2891873719` فحُجب
+  فورًا بحصة GitLab (`ci_quota_exceeded`) قبل تنفيذ الفحوص: app/database/
+  production = FAILED بسبب البنية التحتية، لا بسبب فشل اختبار، ولم يجرِ
+  نشر production. لم يُنفَّذ تحقق سحابي جديد لـM108، فلا يثبت هذا النص
+  وجودها في Supabase أو غيابها عنه. **سقف Cloud Verified الإجرائي يبقى
+  102، والهجرة التالية = 109.**
   **وهذا السطر هو المصدر الوحيد لرقم السقف والتالي**: الوثائق التابعة تشير
   إليه ولا تنسخ الرقم.
 - ق-78: `api` هو السطح المكشوف وحده. ق-79: لا كتابة إلا عبر عقد `api`.
