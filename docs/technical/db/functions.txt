@@ -22,6 +22,7 @@ api.create_price_schedule(p_well_id uuid, p_name text, p_effective_from timestam
 api.create_tenant_with_well(p_tenant_name text, p_well_name text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.decide_expense(p_expense_id uuid, p_approve boolean, p_note text)|text|volatile|invoker|search_path=pg_catalog, pg_temp
 api.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uuid, p_to_description text, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.declare_my_operator_cash_remittance(p_well_id uuid, p_amount_minor bigint, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.declare_operator_cash_remittance(p_shift_id uuid, p_amount_minor bigint, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.get_active_price_schedule(p_well_id uuid, p_at timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_advance_allocation_proposal(p_payment_id uuid, p_invoice_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -38,6 +39,7 @@ api.list_advance_receipts(p_farmer_well_account_id uuid, p_limit integer)|jsonb|
 api.list_farm_recent_crops(p_farm_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_member_reset_requests(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_my_well_invitations()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.list_operator_cash_remittances(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_expenses(p_well_id uuid, p_status text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farmer_balances(p_well_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_well_farmer_directory(p_well_id uuid, p_query text, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -194,6 +196,7 @@ ops.create_price_schedule(p_well_id uuid, p_name text, p_effective_from timestam
 ops.create_priced_session_segment(p_session_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, billing, core, pg_temp
 ops.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uuid, p_to_description text, p_note text)|uuid|volatile|definer|search_path=ops, pg_temp
 ops.declare_operator_cash_remittance(p_shift_id uuid, p_amount_minor bigint, p_note text)|uuid|volatile|definer|search_path=ops, core, finance, pg_temp
+ops.declare_operator_cash_remittance_for_well(p_well_id uuid, p_operator_profile_id uuid, p_amount_minor bigint, p_note text)|uuid|volatile|definer|search_path=ops, core, finance, pg_temp
 ops.enforce_farm_assignment_consistency()|trigger|volatile|invoker|search_path=ops, pg_temp
 ops.flag_approaching_long_sessions()|SETOF uuid|volatile|definer|search_path=ops, core, iam, pg_temp
 ops.flag_long_running_sessions()|SETOF uuid|volatile|definer|search_path=ops, core, iam, pg_temp

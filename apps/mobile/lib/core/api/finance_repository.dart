@@ -692,6 +692,183 @@ class FinanceRepository {
         );
     return AdvanceAllocationProposal.fromContract(_asMap(res));
   }
+
+  // ---------------------------------------------------------------------------
+  // 7. حيازة المشغل النقدية والترحيل (ق-131 البند 18 / هجرتا 109–110)
+  // ---------------------------------------------------------------------------
+
+  /// 7.1 حيازة المشغل النقدية — api.get_my_operator_cash_custody
+  ///
+  /// رصيد دفتري حقيقي بلا أي إنشاء جانبي: صندوق الحيازة ينشأ في
+  /// الخادم بأول مناوبة أو تحصيل نقدي، وهنا قراءة وحدها.
+  Future<OperatorCashCustody> fetchMyOperatorCashCustody(String wellId) async {
+    final res = await _requireClient
+        .schema('api')
+        .rpc('get_my_operator_cash_custody', params: {'p_well_id': wellId});
+    return OperatorCashCustody.fromContract(_asMap(res));
+  }
+
+  /// 7.2 إقرار ترحيل الحيازة إلى صندوق البئر —
+  /// api.declare_my_operator_cash_remittance (جسر 110 بلا نوبة).
+  ///
+  /// إقرار فقط: لا قيد محاسبي حتى تأكيد المالك، والفاعل على الخادم
+  /// من auth.uid() وحده — لا يُمرَّر معرّف ملف من العميل.
+  Future<String> declareMyOperatorCashRemittance({
+    required String wellId,
+    required int amountYER,
+    String? note,
+  }) async {
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'declare_my_operator_cash_remittance',
+          params: {
+            'p_well_id': wellId,
+            'p_amount_minor': amountYER,
+            'p_note': note,
+          },
+        );
+    if (res is String && res.isNotEmpty) return res;
+    return _asMap(res)['id'] as String? ?? '';
+  }
+
+  /// 7.3 قائمة تراخيم الحيازة — api.list_operator_cash_remittances
+  ///
+  /// المالك يرى تراخيم البئر كلها والمشغل النشط يرى تراخيمه وحده
+  /// (التصريح على الخادم)؛ الأحدث أولًا.
+  Future<List<OperatorCashRemittance>> fetchOperatorCashRemittances(
+    String wellId, {
+    int limit = 50,
+  }) async {
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'list_operator_cash_remittances',
+          params: {'p_well_id': wellId, 'p_limit': limit},
+        );
+    return _asList(_asMap(res)['remittances'])
+        .map(OperatorCashRemittance.fromJson)
+        .toList(growable: false);
+  }
+
+  /// 7.4 تأكيد المالك لترحيل الحيازة — api.confirm_handover (م109).
+  ///
+  /// العقد المحاسبي الوحيد للمؤكِّد: مطابق يعرج قيد النقل 1000→1000،
+  /// وبمبلغ مغاير يعلق الفرق difference_pending بلا أي ترحيل — وحسم
+  /// الفرق عقد مالي مستقل ليس له RPC هنا. تعيد نتيجة الخادم الحرفية
+  /// ('confirmed' أو 'difference_pending').
+  Future<String> confirmOperatorCashRemittance({
+    required String handoverId,
+    required int confirmedAmountYER,
+    String? differenceReason,
+  }) async {
+    final res = await _requireClient
+        .schema('api')
+        .rpc(
+          'confirm_handover',
+          params: {
+            'p_handover_id': handoverId,
+            'p_confirmed_amount_minor': confirmedAmountYER,
+            'p_difference_reason': differenceReason,
+          },
+        );
+    if (res is String && res.isNotEmpty) return res;
+    return _asMap(res)['result'] as String? ?? '';
+  }
+}
+
+/// حيازة المشغل النقدية كما يقرؤها العقد (هجرة 109): رصيد دفتري من
+/// قيود صندوق الحيازة، موسوم بأنه مال البئر في حيازته لا محفظة شخصية.
+class OperatorCashCustody {
+  const OperatorCashCustody({
+    required this.wellId,
+    required this.profileId,
+    required this.cashboxId,
+    required this.cashboxPublicCode,
+    required this.cashboxName,
+    required this.balanceYER,
+    required this.isWellMoneyInCustody,
+    this.semantics,
+  });
+
+  factory OperatorCashCustody.fromContract(Map<String, dynamic> json) {
+    return OperatorCashCustody(
+      wellId: json['well_id'] as String? ?? '',
+      profileId: json['profile_id'] as String? ?? '',
+      cashboxId: json['cashbox_id'] as String? ?? '',
+      cashboxPublicCode: json['cashbox_public_code'] as String? ?? '',
+      cashboxName: json['cashbox_name'] as String? ?? '',
+      balanceYER: (json['balance_minor'] as num?)?.toInt() ?? 0,
+      isWellMoneyInCustody:
+          json['is_well_money_in_operator_custody'] as bool? ?? false,
+      semantics: json['semantics'] as String?,
+    );
+  }
+
+  final String wellId;
+  final String profileId;
+  final String cashboxId;
+  final String cashboxPublicCode;
+  final String cashboxName;
+  final int balanceYER;
+  final bool isWellMoneyInCustody;
+  final String? semantics;
+}
+
+/// إقرار ترحيل حيازة كما يعيده عقد القراءة (هجرة 110): أحدث التراخيم
+/// أولًا، بحالاته الصريحة نصًّا لا لونًا — مقرر بانتظار التأكيد، مؤكد
+/// رُحِّل محاسبيًا، أو فرق معلق بحسم المالك.
+class OperatorCashRemittance {
+  const OperatorCashRemittance({
+    required this.id,
+    required this.wellId,
+    required this.fromProfileId,
+    required this.fromProfileName,
+    required this.declaredAmountYER,
+    required this.status,
+    required this.declaredAt,
+    this.confirmedAmountYER,
+    this.differenceYER,
+    this.differenceReason,
+    this.confirmedAt,
+    this.note,
+    this.journalEntryId,
+  });
+
+  factory OperatorCashRemittance.fromJson(Map<String, dynamic> json) {
+    final rawDeclaredAt = json['declared_at'] as String?;
+    final rawConfirmedAt = json['confirmed_at'] as String?;
+    return OperatorCashRemittance(
+      id: json['id'] as String? ?? '',
+      wellId: json['well_id'] as String? ?? '',
+      fromProfileId: json['from_profile_id'] as String? ?? '',
+      fromProfileName: json['from_profile_name'] as String? ?? '',
+      declaredAmountYER: (json['declared_amount_minor'] as num?)?.toInt() ?? 0,
+      status: json['status'] as String? ?? 'declared',
+      declaredAt:
+          DateTime.tryParse(rawDeclaredAt ?? '') ?? DateTime.now(),
+      confirmedAmountYER: (json['confirmed_amount_minor'] as num?)?.toInt(),
+      differenceYER: (json['difference_minor'] as num?)?.toInt(),
+      differenceReason: json['difference_reason'] as String?,
+      confirmedAt: rawConfirmedAt == null ? null : DateTime.tryParse(rawConfirmedAt),
+      note: json['note'] as String?,
+      journalEntryId: json['journal_entry_id'] as String?,
+    );
+  }
+
+  final String id;
+  final String wellId;
+  final String fromProfileId;
+  final String fromProfileName;
+  final int declaredAmountYER;
+  final String status; // declared, confirmed, difference_pending
+  final DateTime declaredAt;
+  final int? confirmedAmountYER;
+  final int? differenceYER;
+  final String? differenceReason;
+  final DateTime? confirmedAt;
+  final String? note;
+  final String? journalEntryId;
 }
 
 /// اقتراح التسوية كما يحسبه الخادم (ق-131 البند 10 / هجرة 108): ثلاث

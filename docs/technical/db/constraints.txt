@@ -494,6 +494,7 @@ ops.shift_handovers|shift_handovers_journal_entry_id_fkey|f|FOREIGN KEY (journal
 ops.shift_handovers|shift_handovers_kind_check|c|CHECK ((handover_kind = ANY (ARRAY['person'::text, 'operator_cash_remittance'::text])))
 ops.shift_handovers|shift_handovers_pkey|p|PRIMARY KEY (id)
 ops.shift_handovers|shift_handovers_shift_id_fkey|f|FOREIGN KEY (shift_id) REFERENCES ops.shifts(id) ON DELETE CASCADE
+ops.shift_handovers|shift_handovers_shift_required_for_person|c|CHECK (((handover_kind <> 'person'::text) OR (shift_id IS NOT NULL)))
 ops.shift_handovers|shift_handovers_status_check|c|CHECK ((status = ANY (ARRAY['declared'::text, 'confirmed'::text, 'difference_pending'::text, 'settled'::text, 'rejected'::text])))
 ops.shift_handovers|shift_handovers_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id) ON DELETE CASCADE
 ops.shift_handovers|shift_handovers_to_cashbox_id_fkey|f|FOREIGN KEY (to_cashbox_id) REFERENCES finance.cashboxes(id)

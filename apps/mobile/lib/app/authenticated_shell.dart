@@ -4,6 +4,7 @@ import '../core/api/app_bootstrap_repository.dart';
 import '../core/identity/app_identity.dart';
 import '../features/farmers/farmers_directory_screen.dart';
 import '../features/finance/expenses_screen.dart';
+import '../features/finance/operator_cash_custody_screen.dart';
 import '../features/finance/partner_overview_screen.dart';
 import '../features/finance/partners_screen.dart';
 import '../features/history/session_history_screen.dart';
@@ -91,6 +92,10 @@ class AuthenticatedShell extends StatelessWidget {
       onNavigateToFuelInventory: () => _push(
         context,
         FuelInventoryScreen(identity: identity, onWellChanged: onWellChanged),
+      ),
+      onNavigateToCashCustody: () => _push(
+        context,
+        OperatorCashCustodyScreen(identity: identity),
       ),
       onNavigateToPartners: () => _push(
         context,

@@ -756,7 +756,7 @@ ops.session_shift_transfers|created_at|timestamp with time zone|NOT NULL|now()
 ops.shift_handovers|id|uuid|NOT NULL|gen_random_uuid()
 ops.shift_handovers|tenant_id|uuid|NOT NULL|-
 ops.shift_handovers|well_id|uuid|NOT NULL|-
-ops.shift_handovers|shift_id|uuid|NOT NULL|-
+ops.shift_handovers|shift_id|uuid|null|-
 ops.shift_handovers|from_profile_id|uuid|NOT NULL|-
 ops.shift_handovers|to_profile_id|uuid|null|-
 ops.shift_handovers|to_description|text|null|-

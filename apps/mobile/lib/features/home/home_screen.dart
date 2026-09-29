@@ -24,6 +24,7 @@ class HomeScreen extends StatefulWidget {
     this.onNavigateToFarmers,
     this.onNavigateToExpenses,
     this.onNavigateToFuelInventory,
+    this.onNavigateToCashCustody,
     this.onNavigateToPartners,
     this.onNavigateToWellManagement,
     this.onNavigateToReports,
@@ -39,6 +40,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onNavigateToFarmers;
   final VoidCallback? onNavigateToExpenses;
   final VoidCallback? onNavigateToFuelInventory;
+  final VoidCallback? onNavigateToCashCustody;
   final VoidCallback? onNavigateToPartners;
   final VoidCallback? onNavigateToWellManagement;
   final VoidCallback? onNavigateToReports;
@@ -260,6 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onNavigateToFarmers: widget.onNavigateToFarmers,
                   onNavigateToExpenses: widget.onNavigateToExpenses,
                   onNavigateToFuelInventory: widget.onNavigateToFuelInventory,
+                  onNavigateToCashCustody: widget.onNavigateToCashCustody,
                   onNavigateToPartners: widget.onNavigateToPartners,
                   onNavigateToWellManagement: widget.onNavigateToWellManagement,
                   onNavigateToReports: widget.onNavigateToReports,
@@ -572,6 +575,7 @@ class _ServicesGrid3x3 extends StatelessWidget {
     this.onNavigateToFarmers,
     this.onNavigateToExpenses,
     this.onNavigateToFuelInventory,
+    this.onNavigateToCashCustody,
     this.onNavigateToPartners,
     this.onNavigateToWellManagement,
     this.onNavigateToReports,
@@ -584,6 +588,7 @@ class _ServicesGrid3x3 extends StatelessWidget {
   final VoidCallback? onNavigateToFarmers;
   final VoidCallback? onNavigateToExpenses;
   final VoidCallback? onNavigateToFuelInventory;
+  final VoidCallback? onNavigateToCashCustody;
   final VoidCallback? onNavigateToPartners;
   final VoidCallback? onNavigateToWellManagement;
   final VoidCallback? onNavigateToReports;
@@ -655,6 +660,25 @@ class _ServicesGrid3x3 extends StatelessWidget {
                   onTap: onNavigateToMoreSettings,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // حيازة النقد: بطاقة المشغل وحده (ق-131 البند 18).
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _ServiceCardTile(
+                  icon: Icons.account_balance_wallet_rounded,
+                  title: 'حيازة النقد',
+                  color: AppColors.waterBlueDark,
+                  onTap: onNavigateToCashCustody,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(child: SizedBox()),
+              const SizedBox(width: 10),
+              const Expanded(child: SizedBox()),
             ],
           ),
         ],
@@ -761,6 +785,26 @@ class _ServicesGrid3x3 extends StatelessWidget {
                 onTap: onNavigateToMoreSettings,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // ترحيلات النقد: تأكيدات المالك لحيازة المشغلين (ق-131 البند 18).
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _ServiceCardTile(
+                icon: Icons.account_balance_wallet_rounded,
+                title: 'ترحيلات النقد',
+                color: AppColors.waterBlueDark,
+                onTap: onNavigateToCashCustody,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(child: SizedBox()),
+            const SizedBox(width: 10),
+            const Expanded(child: SizedBox()),
           ],
         ),
       ],
