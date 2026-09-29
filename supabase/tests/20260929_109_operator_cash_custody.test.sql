@@ -315,7 +315,7 @@ begin
   -- -------------------------------------------------------------
   perform api.record_expense(
     v_well1, 'salaries', 200, 'أجور حراسة من حيازة المشغل',
-    null, true, 'cashbox'
+    null, true, 'cashbox', null, null, 'أجور نقدية بلا فاتورة'
   );
 
   if finance.cashbox_balance_minor(v_custody1) = 1300 then
@@ -329,7 +329,7 @@ begin
   -- -------------------------------------------------------------
   perform api.record_expense(
     v_well1, 'salaries', 300, 'مصروف مؤجل من المشغل',
-    null, true, 'unpaid_payable'
+    null, true, 'unpaid_payable', null, null, 'مؤجل باتفاق المالك'
   );
 
   if finance.cashbox_balance_minor(v_custody1) = 1300 then

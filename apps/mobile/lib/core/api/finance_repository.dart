@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -448,10 +449,11 @@ class FinanceRepository {
             'p_attachment_url': attachmentUrl,
             'p_attachment_skipped': attachmentSkipped,
             'p_payment_source': paymentSource,
-            'p_note': skipReason != null && skipReason.isNotEmpty
-                ? 'تخطي المرفق: $skipReason | $note'
-                : note,
+            // ملاحظة عمل مستقلة — سبب التخطي له عموده الحاكم ولا
+            // يُطوى هنا (هجرة 111).
+            'p_note': note,
             'p_partner_id': partnerId,
+            'p_attachment_skip_reason': skipReason,
           },
         );
   }
@@ -691,6 +693,69 @@ class FinanceRepository {
           params: {'p_payment_id': paymentId, 'p_invoice_id': invoiceId},
         );
     return AdvanceAllocationProposal.fromContract(_asMap(res));
+  }
+
+  // ---------------------------------------------------------------------------
+  // 8. إثباتات المصروفات: الفئات من الخادم، ورفع الدلو الخاص (هجرة 111)
+  // ---------------------------------------------------------------------------
+
+  static const String expenseEvidenceBucket = 'expense-evidence';
+
+  /// 8.1 فئات المصروفات — api.list_expense_categories
+  ///
+  /// الكتالوج الحي من الخادم: لا أكواد ملفقة في العميل، ولا بديل صامت
+  /// عند الفشل.
+  Future<List<ExpenseCategoryItem>> fetchExpenseCategories(String wellId) async {
+    final res = await _requireClient
+        .schema('api')
+        .rpc('list_expense_categories', params: {'p_well_id': wellId});
+    return _asList(_asMap(res)['categories'])
+        .map(ExpenseCategoryItem.fromJson)
+        .toList(growable: false);
+  }
+
+  /// 8.2 رفع إثبات المصروف إلى الدلو الخاص —
+  /// `<well_id>/<auth_uid>/<unique_file_name>`.
+  ///
+  /// يعيد المرجع المستقر `storage://expense-evidence/<path>` الذي يُخزَّن
+  /// في `attachment_url` — روابط التوقيع قيم عرض لحظية لا تُخزَّن.
+  Future<String> uploadExpenseEvidence({
+    required String wellId,
+    required String localPath,
+    required String fileName,
+  }) async {
+    final client = _requireClient;
+    final uid = client.auth.currentUser?.id;
+    if (uid == null || uid.isEmpty) {
+      throw StateError('يجب تسجيل الدخول قبل إرفاق سند المصروف');
+    }
+    final objectName =
+        '$wellId/$uid/${DateTime.now().microsecondsSinceEpoch}_$fileName';
+    await client.storage.from(expenseEvidenceBucket).upload(
+          objectName,
+          File(localPath),
+        );
+    return 'storage://$expenseEvidenceBucket/$objectName';
+  }
+
+  /// 8.3 تحويل مرجع الإثبات المستقر إلى رابط موقّع لحظي للعرض فقط.
+  /// لا يُخزَّن الرابط الموقَّع إطلاقًا.
+  Future<String> resolveAttachmentViewUrl(String attachmentUrl) async {
+    const prefix = 'storage://';
+    if (!attachmentUrl.startsWith(prefix)) {
+      // مراجع قديمة بصيغة أخرى تُعاد كما هي للعرض.
+      return attachmentUrl;
+    }
+    final ref = attachmentUrl.substring(prefix.length);
+    final slash = ref.indexOf('/');
+    if (slash <= 0) {
+      throw StateError('مرجع مرفق غير صالح: $attachmentUrl');
+    }
+    final bucket = ref.substring(0, slash);
+    final objectPath = ref.substring(slash + 1);
+    return _requireClient.storage
+        .from(bucket)
+        .createSignedUrl(objectPath, 10 * 60);
   }
 
   // ---------------------------------------------------------------------------
@@ -961,4 +1026,32 @@ class AdvanceReceipt {
   final bool isExhausted;
   final DateTime? paidAt;
   final String? method;
+}
+
+/// فئة مصروف من كتالوج الخادم الحي (هجرة 111): الكود الحاكم الذي
+/// يُرسل كما هو، وأسماء العربية، وخصائص الإثبات والاعتماد.
+class ExpenseCategoryItem {
+  const ExpenseCategoryItem({
+    required this.code,
+    required this.nameAr,
+    required this.attachmentRequired,
+    required this.requiresApproval,
+    required this.sortOrder,
+  });
+
+  factory ExpenseCategoryItem.fromJson(Map<String, dynamic> json) {
+    return ExpenseCategoryItem(
+      code: json['code'] as String? ?? '',
+      nameAr: json['name_ar'] as String? ?? '',
+      attachmentRequired: json['attachment_required'] as bool? ?? true,
+      requiresApproval: json['requires_approval'] as bool? ?? false,
+      sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  final String code;
+  final String nameAr;
+  final bool attachmentRequired;
+  final bool requiresApproval;
+  final int sortOrder;
 }
