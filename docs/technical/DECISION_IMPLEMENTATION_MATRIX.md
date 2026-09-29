@@ -490,7 +490,7 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   حيازته، ترحيل صريح بلا نوبة مختلقة، تأكيد المالك عبر `api.confirm_handover`
   بقيد نقل 1000→1000 وقفل صف صندوق المصدر نقطة تسلسل، وقراءة الحيازة
   من الدفتر (`api.get_my_operator_cash_custody`). الدليل: اختبارات
-  109/110 دائمة (32 و20 فحصًا)؛ PR #41 merge `4ca0e019` وPR #42 merge
+  109/110 دائمة (36 و13 فحصًا)؛ PR #41 merge `4ca0e019` وPR #42 merge
   `fbd04125`.
   **البند 13 — إثبات المصروف أو سبب عدم الإرفاق — Implemented + Local
   Verified + CI Verified + Merged / Cloud + Production Pending
