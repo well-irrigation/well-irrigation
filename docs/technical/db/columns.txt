@@ -770,6 +770,10 @@ ops.shift_handovers|confirmed_by|uuid|null|-
 ops.shift_handovers|confirmed_at|timestamp with time zone|null|-
 ops.shift_handovers|note|text|null|-
 ops.shift_handovers|created_at|timestamp with time zone|NOT NULL|now()
+ops.shift_handovers|handover_kind|text|NOT NULL|'person'::text
+ops.shift_handovers|from_cashbox_id|uuid|null|-
+ops.shift_handovers|to_cashbox_id|uuid|null|-
+ops.shift_handovers|journal_entry_id|uuid|null|-
 ops.shifts|id|uuid|NOT NULL|gen_random_uuid()
 ops.shifts|tenant_id|uuid|NOT NULL|-
 ops.shifts|well_id|uuid|NOT NULL|-
