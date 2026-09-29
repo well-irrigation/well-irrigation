@@ -448,7 +448,14 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   Migration 106، قاعدة **45/757 PASS**، Flutter **611/611 PASS**،
   MR !24 merged to `main` (`d3255022`)؛ MR pipeline `2891435913` =
   SUCCESS؛ post-merge pipeline `2891454890`: app/database = SUCCESS
-  وproduction = MANUAL لم تُشغَّل. بقية البنود عدا 1 و7 Pending. الأساسات السابقة لا
+  وproduction = MANUAL لم تُشغَّل.
+  **البند 11 — تحذير حالة المزارع المالي/الوقودي غير المانع — Implemented
+  + Local Verified + CI Verified + Merged / Cloud + Production Pending
+  (2026-09-29)**: Migration 107؛ Test 107 = **13/0/0**؛ قاعدة
+  **46 ملفًا / 770 PASS**؛ Flutter **621/621 PASS** وتحليل نظيف؛ MR !26
+  merged to `main` (`9168ccac`)؛ MR pipeline `2891694253` = SUCCESS؛
+  post-merge pipeline `2891702168`: app/database = SUCCESS وproduction =
+  MANUAL لم تُشغَّل. بقية البنود عدا 1 و7 و11 Pending. الأساسات السابقة لا
   تُحسب تنفيذًا لبنود ق-131.
 - **المراحل:** A) المحاصيل المتعددة، نافذة الشمس والبديل والانتقال
   التلقائي، الزمن الفعلي، تحذير المزارع، تأكيد تطبيق المقدم، تقدير ديزل
@@ -456,8 +463,8 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   المشغل.
 - **ترتيب الاستئناف المؤقت (2026-09-29):** قرار المالك يؤجل جولة نافذة
   الشمس/البديل/العدّاد/الانتقال التلقائي دون إسقاطها من المرحلة A؛ بعد
-  إكمال الزمن الفعلي محليًا، **NEXT = تحذير المزارع المالي/الوقودي غير
-  المانع**.
+  إكمال تحذير حالة المزارع، **NEXT = سلوك تأكيد تطبيق الرصيد المقدم
+  (البند 10)**.
  B) إتمام الحجوزات تحت م-28 بقاعدة المسار الواحد. C) الفاتورة
   الرسمية: PDF/حفظ/طباعة/مشاركة. D) المنطقة والمدينون وتصفية التقارير
   والأجهزة النشطة ولمسات التحديث/الحفظ. E) الإشعارات الواسعة منفصلة
@@ -467,4 +474,8 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   تفرض هجرة قاعدة بيانات بذاتها. الكتابة والقراءة عبر عقود `api` حصرًا،
   واختبارات Flutter عند الانطباق، وقبول جهاز حقيقي للبنود الحرجة.
   **لا رقم هجرة مُنسوخ في هذه الوثيقة.**
-- **الحالة:** **Adopted + Documented / Partial Implementation (م-45): Item 1 Implemented + Local Verified + CI Verified + Emulator UX Accepted؛ Item 7 Implemented + Local Verified + CI Verified + Merged / Cloud + Production Pending؛ بقية البنود Pending**.
+- **الحالة:** **Adopted + Documented / Partial Implementation (م-45):
+  Item 1 Implemented + Local Verified + CI Verified + Emulator UX Accepted؛
+  Item 7 Implemented + Local Verified + CI Verified + Merged / Cloud +
+  Production Pending؛ Item 11 Implemented + Local Verified + CI Verified +
+  Merged / Cloud + Production Pending؛ بقية البنود Pending**.
