@@ -105,8 +105,11 @@ begin
     and to_regprocedure('api.open_shift(uuid,uuid)') is null
 
     and to_regprocedure(
-      'api.record_expense(uuid,text,bigint,text,text,boolean,text,text,uuid)'
+      'api.record_expense(uuid,text,bigint,text,text,boolean,text,text,uuid,text)'
     ) is not null
+    and to_regprocedure(
+      'api.record_expense(uuid,text,bigint,text,text,boolean,text,text,uuid)'
+    ) is null
     and to_regprocedure(
       'api.record_expense(uuid,text,bigint,text,uuid,text,boolean,text,text,uuid)'
     ) is null
@@ -252,7 +255,8 @@ begin
     true,
     'other',
     'اختبار API',
-    null
+    null,
+    'الفاتورة ورقية ولم تُصوَّر'
   );
 
   if exists (
@@ -341,7 +345,8 @@ begin
             true,
             'other',
             null,
-            null
+            null,
+            'سبب للتخطي'
           );
 
           raise notice 'FAIL 10: مستخدم بلا تعيين استطاع تسجيل مصروف';

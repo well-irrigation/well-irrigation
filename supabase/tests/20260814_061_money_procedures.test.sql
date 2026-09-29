@@ -88,8 +88,8 @@ begin
   then raise notice 'PASS 5: دفعة على جلسة مسددة بالكامل تحولت كليا الى رصيد مقدم';
   else raise notice 'FAIL 5'; end if;
 
-  insert into finance.expenses (well_id, category_id, amount_minor, description, payment_source, attachment_skipped)
-  values (v_well, v_cat, 6000, 'مصروف صيانة تجريبي', 'cashbox', true) returning id into v_e1;
+  insert into finance.expenses (well_id, category_id, amount_minor, description, payment_source, attachment_skipped, attachment_skip_reason)
+  values (v_well, v_cat, 6000, 'مصروف صيانة تجريبي', 'cashbox', true, 'الفاتورة ورقية ولم تُصوَّر') returning id into v_e1;
 
   if exists (select 1 from finance.expenses x
              join finance.journal_entries e on e.id = x.journal_entry_id and e.status = 'posted'
@@ -99,8 +99,8 @@ begin
   then raise notice 'PASS 6: المصروف النقدي رُحّل 5100 / 1000 مع الصندوق';
   else raise notice 'FAIL 6'; end if;
 
-  insert into finance.expenses (well_id, category_id, amount_minor, description, payment_source, partner_id, attachment_skipped)
-  values (v_well, v_cat, 800, 'مصروف دفعه شريك', 'partner_paid', v_partner, true) returning id into v_e2;
+  insert into finance.expenses (well_id, category_id, amount_minor, description, payment_source, partner_id, attachment_skipped, attachment_skip_reason)
+  values (v_well, v_cat, 800, 'مصروف دفعه شريك', 'partner_paid', v_partner, true, 'سند شخصي بين الشريك والمورد') returning id into v_e2;
 
   if exists (select 1 from finance.expenses x
              join finance.journal_entries e on e.id = x.journal_entry_id and e.status = 'posted'
@@ -109,8 +109,8 @@ begin
   then raise notice 'PASS 7: مصروف الشريك يقيد 2400 دائنا بمعرف الشريك';
   else raise notice 'FAIL 7'; end if;
 
-  insert into finance.expenses (well_id, category_id, amount_minor, description, payment_source, attachment_skipped)
-  values (v_well, v_cat, 900, 'مصروف آجل', 'unpaid_payable', true) returning id into v_e3;
+  insert into finance.expenses (well_id, category_id, amount_minor, description, payment_source, attachment_skipped, attachment_skip_reason)
+  values (v_well, v_cat, 900, 'مصروف آجل', 'unpaid_payable', true, 'مؤجل باتفاق مكتوب مع المالك') returning id into v_e3;
 
   if exists (select 1 from finance.expenses x
              join finance.journal_entries e on e.id = x.journal_entry_id and e.status = 'posted'

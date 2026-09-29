@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api/app_bootstrap_repository.dart';
@@ -89,8 +90,47 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     );
   }
 
-  void _showApproveExpenseDialog(ExpenseItem expense) {
-    showDialog(
+  /// عرض الإثبات: تحويل المرجع المستقر إلى رابط موقّع لحظي وقت العرض
+  /// فقط — الرابط الموقَّع لا يُخزَّن إطلاقًا.
+  Future<void> _viewAttachment(ExpenseItem expense) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final url = await _repo.resolveAttachmentViewUrl(
+        expense.attachmentUrl ?? '',
+      );
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('مرفق السند'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('رابط عرض لحظي (ينتهي صلاحيته تلقائيًا):'),
+              const SizedBox(height: 8),
+              SelectableText(
+                url,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('تعذر فتح المرفق: $e')),
+      );
+    }
+  }
+
+  void _showApproveExpenseDialog(ExpenseItem expense) {    showDialog(
       context: context,
       builder: (dialogCtx) {
         return _ApproveExpenseDialog(
@@ -475,38 +515,68 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                   ],
                 ),
                 if (expense.attachmentSkipped)
-                  Tooltip(
-                    message: 'سبب التخطي: ${expense.skipReason ?? "غير محدد"}',
-                    child: Row(
-                      children: const [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          size: 14,
-                          color: Colors.orange,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 14,
+                            color: Colors.orange,
+                          ),
+                          SizedBox(width: 2),
+                          Text(
+                            'تم تخطي المرفق',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'سبب عدم الإرفاق: ${expense.skipReason ?? ""}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textSecondary,
                         ),
-                        SizedBox(width: 2),
-                        Text(
-                          'تم تخطي المرفق',
-                          style: TextStyle(fontSize: 10, color: Colors.orange),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   )
                 else
-                  Row(
-                    children: const [
-                      Icon(
-                        Icons.attachment,
-                        size: 14,
-                        color: AppColors.agriculturalGreen,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(
+                            Icons.attachment,
+                            size: 14,
+                            color: AppColors.agriculturalGreen,
+                          ),
+                          SizedBox(width: 2),
+                          Text(
+                            'مرفق سند',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppColors.agriculturalGreen,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 2),
-                      Text(
-                        'مرفق سند',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.agriculturalGreen,
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 28),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
+                        icon: const Icon(Icons.visibility_outlined, size: 14),
+                        label: const Text(
+                          'عرض المرفق',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        onPressed: () => _viewAttachment(expense),
                       ),
                     ],
                   ),
@@ -562,20 +632,71 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
   final _descController = TextEditingController();
   final _skipReasonController = TextEditingController();
 
-  String _categoryCode = 'fuel';
+  // الفئات من كتالوج الخادم وحده — لا خريطة ملفقة في العميل، ولا بديل
+  // صامت عند الفشل: تحميل/فشل صريح/فراغ صريح (هجرة 111).
+  List<ExpenseCategoryItem>? _categories;
+  String? _categoriesError;
+
+  String? _categoryCode;
   String _paymentSource = 'cashbox';
   String? _selectedPartnerId;
   bool _skipAttachment = false;
   bool _isSubmitting = false;
 
-  final Map<String, String> _categories = {
-    'fuel': 'ديزل ووقود',
-    'maintenance': 'صيانة وقطع غيار',
-    'oil': 'زيوت وشحوم',
-    'payroll': 'رواتب وعمالة',
-    'electricity': 'كهرباء وطاقة',
-    'other': 'مصروفات أخرى',
-  };
+  PlatformFile? _evidenceFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    setState(() {
+      _categories = null;
+      _categoriesError = null;
+    });
+    try {
+      final cats = await widget.repository.fetchExpenseCategories(
+        widget.wellId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _categories = cats;
+        _categoryCode = cats.isEmpty ? null : cats.first.code;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _categoriesError = e.toString());
+    }
+  }
+
+  Future<void> _pickEvidenceFile() async {
+    final files = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+    );
+    if (files.isEmpty) return;
+    if (!mounted) return;
+    setState(() {
+      // الاختيار الحصري: ملف ⟹ لا تخطٍ.
+      _evidenceFile = files.first;
+      _skipAttachment = false;
+      _skipReasonController.clear();
+    });
+  }
+
+  void _toggleSkipAttachment(bool? value) {
+    setState(() {
+      _skipAttachment = value ?? false;
+      if (_skipAttachment) {
+        // الاختيار الحصري: تخطٍ ⟹ يُمسى الملف المختار.
+        _evidenceFile = null;
+      } else {
+        _skipReasonController.clear();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -583,6 +704,138 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
     _descController.dispose();
     _skipReasonController.dispose();
     super.dispose();
+  }
+
+  Widget _buildCategorySection() {
+    if (_categoriesError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'تعذر تحميل فئات المصروفات من الخادم',
+            style: TextStyle(fontSize: 12, color: AppColors.error),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: _loadCategories,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('إعادة المحاولة'),
+          ),
+        ],
+      );
+    }
+    if (_categories == null) {
+      return const LinearProgressIndicator(minHeight: 2);
+    }
+    if (_categories!.isEmpty) {
+      return const Text(
+        'لا توجد فئات مصروفات مفعّلة لهذه الجهة على الخادم',
+        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+      );
+    }
+    return DropdownButtonFormField<String>(
+      initialValue: _categoryCode,
+      decoration: const InputDecoration(
+        labelText: 'فئة المصروف *',
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.category_outlined, size: 20),
+      ),
+      items: _categories!
+          .map(
+            (c) => DropdownMenuItem(value: c.code, child: Text(c.nameAr)),
+          )
+          .toList(),
+      validator: (val) =>
+          val == null || val.isEmpty ? 'اختر فئة المصروف' : null,
+      onChanged: (val) => setState(() => _categoryCode = val),
+    );
+  }
+
+  Widget _buildEvidenceSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // الخيار أ: إرفاق سند / فاتورة
+        Row(
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: _isSubmitting ? null : _pickEvidenceFile,
+              icon: const Icon(Icons.upload_file_outlined, size: 18),
+              label: const Text('إرفاق سند / فاتورة'),
+            ),
+            const SizedBox(width: 8),
+            if (_evidenceFile != null)
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_evidenceFile!.name}'
+                        ' (${_evidenceFile!.extension ?? "ملف"})',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.close, size: 16),
+                      tooltip: 'إزالة الملف المختار',
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => setState(() => _evidenceFile = null),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'أو',
+          style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+        ),
+        // الخيار ب: تخطي المرفق بسبب صريح — حصري مع الملف.
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text(
+            'تخطي إرفاق صورة السند / الفاتورة',
+            style: TextStyle(fontSize: 13),
+          ),
+          subtitle: const Text(
+            'يلزم تدوين سبب التخطي لحفظ الشفافية',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          value: _skipAttachment,
+          onChanged: _isSubmitting ? null : _toggleSkipAttachment,
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
+        if (_skipAttachment) ...[
+          const SizedBox(height: 4),
+          TextFormField(
+            controller: _skipReasonController,
+            decoration: const InputDecoration(
+              labelText: 'سبب عدم توفر المرفق *',
+              hintText: 'مثال: المحل لا يصدر فواتير ورقية',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.edit_note, size: 20),
+            ),
+            validator: (val) {
+              if (_skipAttachment &&
+                  (val == null || val.trim().isEmpty)) {
+                return 'سبب التخطي إلزامي عند عدم إرفاق سند';
+              }
+              return null;
+            },
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -606,20 +859,8 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // فئة المصروف
-              DropdownButtonFormField<String>(
-                initialValue: _categoryCode,
-                decoration: const InputDecoration(
-                  labelText: 'فئة المصروف *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.category_outlined, size: 20),
-                ),
-                items: _categories.entries.map((e) {
-                  return DropdownMenuItem(value: e.key, child: Text(e.value));
-                }).toList(),
-                onChanged: (val) =>
-                    setState(() => _categoryCode = val ?? 'other'),
-              ),
+              // فئة المصروف من كتالوج الخادم
+              _buildCategorySection(),
               const SizedBox(height: 14),
 
               // المبلغ والتفقيط
@@ -680,45 +921,8 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
               ),
               const SizedBox(height: 14),
 
-              // خيار تخطي المرفق
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'تخطي إرفاق صورة السند / الفاتورة',
-                  style: TextStyle(fontSize: 13),
-                ),
-                subtitle: const Text(
-                  'يلزم تدوين سبب التخطي لحفظ الشفافية',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                value: _skipAttachment,
-                onChanged: (val) =>
-                    setState(() => _skipAttachment = val ?? false),
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
-
-              if (_skipAttachment) ...[
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _skipReasonController,
-                  decoration: const InputDecoration(
-                    labelText: 'سبب عدم توفر المرفق *',
-                    hintText: 'مثال: المحل لا يصدر فواتير ورقية',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.edit_note, size: 20),
-                  ),
-                  validator: (val) {
-                    if (_skipAttachment &&
-                        (val == null || val.trim().isEmpty)) {
-                      return 'سبب التخطي إلزامي عند عدم إرفاق سند';
-                    }
-                    return null;
-                  },
-                ),
-              ],
+              // الإثبات: مرفق أو تخطٍ صريح بسببه — حصريًا ولا ثالث.
+              _buildEvidenceSection(),
             ],
           ),
         ),
@@ -744,6 +948,18 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
               : () async {
                   if (!_formKey.currentState!.validate()) return;
 
+                  // بوابة الإثبات: لا حفظ بلا ملف أو تخطٍ صريح بسبب.
+                  if (_evidenceFile == null && !_skipAttachment) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'أرفق سند/فاتورة أو تخطَّ الإرفاق بسبب صريح',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
                   final rawAmount = _amountController.text
                       .replaceAll(',', '')
                       .trim();
@@ -753,17 +969,35 @@ class _RecordExpenseDialogState extends State<_RecordExpenseDialog> {
                   final nav = Navigator.of(context);
                   final scaffold = ScaffoldMessenger.of(context);
                   try {
+                    String? attachmentUrl;
+                    bool skipped = false;
+                    String? skipReason;
+
+                    if (_evidenceFile != null) {
+                      // مسار الإرفاق: الرفع إلى الدلو الخاص أولًا، ثم
+                      // المرجع المستقر — ولا تخطٍ في هذا الفرع.
+                      attachmentUrl = await widget.repository
+                          .uploadExpenseEvidence(
+                        wellId: widget.wellId,
+                        localPath: _evidenceFile!.path!,
+                        fileName: _evidenceFile!.name,
+                      );
+                    } else {
+                      // مسار التخطي: بلا رفع، والسبب في عموده الحاكم.
+                      skipped = true;
+                      skipReason = _skipReasonController.text.trim();
+                    }
+
                     await widget.repository.recordExpense(
                       wellId: widget.wellId,
-                      categoryCode: _categoryCode,
+                      categoryCode: _categoryCode!,
                       amountYER: amount,
                       description: _descController.text.trim(),
                       paymentSource: _paymentSource,
                       partnerId: _selectedPartnerId,
-                      attachmentSkipped: _skipAttachment,
-                      skipReason: _skipAttachment
-                          ? _skipReasonController.text.trim()
-                          : null,
+                      attachmentUrl: attachmentUrl,
+                      attachmentSkipped: skipped,
+                      skipReason: skipReason,
                     );
                     if (mounted) {
                       nav.pop();
@@ -820,11 +1054,48 @@ class _ApproveExpenseDialogState extends State<_ApproveExpenseDialog> {
     super.dispose();
   }
 
+  /// عرض الإثبات وقت القرار: تحويل المرجع المستقر إلى رابط موقّع
+  /// لحظي — لا يُخزَّن الرابط الموقَّع إطلاقًا.
+  Future<void> _openAttachmentViewer(String? attachmentUrl) async {
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      final url = await widget.repository.resolveAttachmentViewUrl(
+        attachmentUrl ?? '',
+      );
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (urlContext) => AlertDialog(
+          title: const Text('مرفق السند'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('رابط عرض لحظي (ينتهي صلاحيته تلقائيًا):'),
+              const SizedBox(height: 8),
+              SelectableText(url, style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(urlContext).pop(),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      scaffold.showSnackBar(
+        SnackBar(content: Text('تعذر فتح المرفق: $e')),
+      );
+    }
+  }
+
   Future<void> _makeDecision(bool approve) async {
     setState(() => _isSubmitting = true);
     final nav = Navigator.of(context);
-    final scaffold = ScaffoldMessenger.of(context);
-    try {
+    final scaffold = ScaffoldMessenger.of(context);    try {
       await widget.repository.decideExpense(
         expenseId: widget.expense.id,
         approve: approve,
@@ -919,14 +1190,52 @@ class _ApproveExpenseDialogState extends State<_ApproveExpenseDialog> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+                  // الإثبات قبل القرار: مرفق بعَرض لحظي، أو سبب تخطٍ
+                  // صريح — لا قرار بلا رؤية الدليل (هجرة 111).
                   if (exp.attachmentSkipped) ...[
                     const SizedBox(height: 6),
                     Text(
-                      'تنبيه: تم تخطي المرفق بسبب: ${exp.skipReason ?? "غير محدد"}',
+                      'تم تخطي المرفق — سبب عدم الإرفاق: '
+                      '${exp.skipReason ?? ""}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: Colors.deepOrange,
                       ),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.attachment,
+                          size: 14,
+                          color: AppColors.agriculturalGreen,
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'مرفق سند',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.agriculturalGreen,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 28),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          icon: const Icon(
+                            Icons.visibility_outlined,
+                            size: 14,
+                          ),
+                          label: const Text('عرض المرفق',
+                              style: TextStyle(fontSize: 11)),
+                          onPressed: () =>
+                              _openAttachmentViewer(exp.attachmentUrl),
+                        ),
+                      ],
                     ),
                   ],
                 ],

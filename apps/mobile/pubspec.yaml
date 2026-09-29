@@ -22,6 +22,7 @@ dependencies:
   share_plus: ^13.3.0
   flutter_contacts: ^2.5.0
   url_launcher: ^6.3.2
+  file_picker: 12.0.0
 
 dev_dependencies:
   flutter_test:
@@ -29,6 +30,9 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   integration_test:
     sdk: flutter
+  # مساندة اختبارية لمنتقي الملفات: بناء PlatformFile مزيَّف بلا قنوات.
+  cross_file: 0.3.5+5
+  file_picker_platform_interface: 3.4.0
 
   # Runs the real SQLite store in host tests, without a device.
   sqflite_common_ffi: ^2.3.4
