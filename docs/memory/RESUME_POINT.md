@@ -43,11 +43,20 @@ Migration 103 (أول شريحة Backend لمسار الحساب القائم/ا
 الوجود السحابي مثبت ومسار النشر غير مثبت، ويبقى سقف **Cloud Verified
 الإجرائي = 102**. ولا تظهر M105–M107 في سجل الهجرات السحابي الحالي.
 
-**رأس `main` الحالي = merge commit `5446bcfa` بعد MR !28.** في م-45:
+**GitHub هو المستودع الحاكم ومصدر الحقيقة مجددًا منذ 2026-09-29، ورأس
+`main` الحالي = merge commit `bbc661ac`.** أعاد PR #38 فرع
+`sync/gitlab-history-20260929` إلى GitHub من مقارنة **82 commit ahead / 0
+behind** بدمج عادي بلا force-push أو squash/rebase، فاحتوى تاريخ GitLab
+كاملًا حتى `5446bcfa`. نجح workflow `36524544084` قبل الدمج في app/database،
+ثم نجح post-merge workflow `36524928657` في app/database و`npm run c:app`
+و`npm run c:db` ومطابقة الفهرس المولَّد. GitLab يحتفظ بالسجل التاريخي/
+الاحتياطي حتى `5446bcfa`، ولم يعد مصدر التطوير الحاكم.
+
+في م-45:
 البنود المنفذة هي 1 و7 و10 و11. آخر شريحة مكتملة في المرحلة A هي
 **البند 10 — التأكيد الصريح قبل تطبيق الرصيد المقدم القائم**، وحالتها:
-**Implemented + Local Verified + CI Verified (MR) + Merged / Post-merge
-CI Blocked by GitLab Quota / Cloud + Production Pending**.
+**Implemented + Local Verified + CI Verified + Merged / Cloud + Production
+Pending**.
 
 Migration 108 (`20260929030001_108_advance_allocation_proposal.sql`)
 تضيف عقد الاقتراح الخادمي للقراءة فقط، ويثبت اختبارها الدائم
@@ -69,8 +78,10 @@ Migration 108 (`20260929030001_108_advance_allocation_proposal.sql`)
 database/app = SUCCESS؛ ثم الدمج `5446bcfa5c0d48ebe09307313a207160516d8cf7`.
 post-merge pipeline `2891873719` لم ينفذ الفحوص المعتادة؛ وُسمت
 app/database/production بالفشل فورًا بسبب `ci_quota_exceeded`، وهو حجب
-بنية تحتية/حصة لا فشل اختبار، ولم يجرِ نشر production. لا تحقق سحابي
-جديد؛ Cloud وProduction باقيتان Pending.
+بنية تحتية/حصة لا فشل اختبار. هذه حادثة GitLab تاريخية؛ حالة المشروع
+نفسها أُعيد التحقق منها بنجاح قبل دمج GitHub PR #38 وبعده عبر workflow
+`36524544084` و`36524928657`. لم يجرِ نشر production أو تحقق سحابي جديد؛
+Cloud وProduction باقيتان Pending.
 
 **NEXT في م-45/A = البند 12: تقدير استهلاك ديزل المزارع، ثم تأكيد أو
 تصحيح صريح من المشغّل قبل أن يصبح فعليًا/نهائيًا؛ يبقى المقدّر منفصلًا
@@ -291,14 +302,16 @@ app/database/production بالفشل فورًا بسبب `ci_quota_exceeded`، �
 عبر `api.allocate_payment` القائم. لم تتغير صلاحيات أو RLS أو محاسبة
 موازية أو تنسيقات تسوية نهاية الجلسة/العمل دون اتصال.
 
-الحالة: **Implemented + Local Verified + CI Verified (MR) + Merged /
-Post-merge CI Blocked by GitLab Quota / Cloud + Production Pending**؛
+الحالة: **Implemented + Local Verified + CI Verified + Merged / Cloud +
+Production Pending**؛
 Test 108 = **12/0/0**، وحزمة القاعدة =
 **47 ملفًا / 782 PASS / 0 FAIL / 0 ERROR**، وFlutter **627/627 PASS**.
 MR !28 pipeline `2891865738` = database/app SUCCESS؛ الدمج `5446bcfa`؛
 post-merge pipeline `2891873719` حُجب فورًا بـ`ci_quota_exceeded` قبل
-تنفيذ الفحوص أو production، فلا يوصف Post-merge CI بأنه Verified ولا
-يوصف أي اختبار بأنه فشل. Cloud/Production Pending.
+تنفيذ الفحوص أو production؛ وهذه حادثة تاريخية لا فشل اختبار. أعاد GitHub
+PR #38 التحقق من الحالة نفسها: workflow `36524544084` وpost-merge workflow
+`36524928657` = app/database SUCCESS، مع نجاح `c:app` و`c:db` ومطابقة
+الفهرس، ورأس GitHub `main` = `bbc661ac`. Cloud/Production Pending.
 **NEXT وفق ترتيب م-45/A = البند 12: تقدير ديزل المزارع ثم تأكيده أو
 تصحيحه صراحةً قبل اعتماده فعليًا، مع فصل المقدّر عن الفعلي.**
 جولة **نافذة الطاقة الشمسية + الوقت المتبقي + المصدر البديل + الانتقال التلقائي**
@@ -330,8 +343,10 @@ post-merge pipeline `2891873719` حُجب فورًا بـ`ci_quota_exceeded` ق�
   تُشغَّل بعد دمجهما ومسار النشر غير مثبت؛ لذلك لا يُرفع سقف Cloud Verified
   الإجرائي فوق 102. M105–M107 لا تظهر في سجل الهجرات السحابي الحالي.
   كل هجرة جديدة تحتاج اختبارًا دائمًا في `supabase/tests`.
-- **الدمج في `main` يشغّل فحوص خط العمل**؛ والنشر إلى الإنتاج وظيفة
-  يدوية منفصلة (`production`) في GitLab CI، وفرع `main` محميّ.
+- **المسار النشط هو GitHub:** فرع ← Pull Request ← فحوص GitHub Actions
+  المطلوبة ← دمج إلى `main` المحمي. نشر الإنتاج مسار يدوي منفصل/إرثي في
+  GitLab CI، لم يُنقل بعد إلى GitHub ولم يُشغَّل لـM108؛ وترحيله مهمة
+  مستقبلية مستقلة، فلا يعني نجاح GitHub Actions نشرًا إنتاجيًا.
   التراجع يكون **بهجرة جديدة** لا بتعديل هجرة منشورة. والخطة المجانية بلا
   نسخ احتياطي وبلا فروع معاينة.
 - **ق-78 / ق-79:** `api` هو السطح المكشوف وحده، ولا كتابة إلا عبر عقد

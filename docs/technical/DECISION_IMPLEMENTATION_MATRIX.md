@@ -457,8 +457,8 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   post-merge pipeline `2891702168`: app/database = SUCCESS وproduction =
   MANUAL لم تُشغَّل.
   **البند 10 — التأكيد الصريح قبل تطبيق الرصيد المقدم — Implemented +
-  Local Verified + CI Verified (MR) + Merged / Post-merge CI Blocked by
-  GitLab Quota / Cloud + Production Pending (2026-09-29)**: Migration 108
+  Local Verified + CI Verified + Merged / Cloud + Production Pending
+  (2026-09-29)**: Migration 108
   (`20260929030001_108_advance_allocation_proposal.sql`) واختبارها الدائم
   (`20260929_108_advance_allocation_proposal.test.sql`). اقتراح الخادم
   للقراءة فقط يأخذ مبلغ الدفعة المخزّن ناقص التخصيصات المخزّنة، ويأخذ
@@ -474,9 +474,13 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   `1d83371187c7b8d2dad9d1a8dd5090ded9526745`؛ pipeline `2891865738`:
   database/app = SUCCESS؛ merge `5446bcfa5c0d48ebe09307313a207160516d8cf7`.
   post-merge pipeline `2891873719` وسم app/database/production بالفشل
-  فورًا بسبب `ci_quota_exceeded` قبل تنفيذها؛ هذا حجب حصة لا فشل اختبار،
-  ولم يجرِ نشر production أو تحقق سحابي جديد. بقية البنود عدا 1 و7 و10
-  و11 Pending. الأساسات السابقة لا تُحسب تنفيذًا لبنود ق-131.
+  فورًا بسبب `ci_quota_exceeded` قبل تنفيذها؛ هذا سجل تاريخي لحجب الحصة،
+  لا فشل اختبار. أعاد GitHub PR #38 التحقق من حالة المشروع نفسها: workflow
+  `36524544084` قبل الدمج وpost-merge workflow `36524928657` بعده =
+  app/database SUCCESS، مع نجاح `c:app` و`c:db` ومطابقة الفهرس؛ ورأس
+  GitHub `main` = `bbc661ac7a58e944b64af36c5ebc704a0f642c7c`. لم يجرِ نشر
+  production أو تحقق سحابي جديد. بقية البنود عدا 1 و7 و10 و11 Pending.
+  الأساسات السابقة لا تُحسب تنفيذًا لبنود ق-131.
 - **المراحل:** A) المحاصيل المتعددة، نافذة الشمس والبديل والانتقال
   التلقائي، الزمن الفعلي، تحذير المزارع، تأكيد تطبيق المقدم، تقدير ديزل
   المزارع، حيازة المشغل، مرفقات المصروفات — قبل قبول نهائي متجدد لمسار
@@ -497,7 +501,7 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 - **الحالة:** **Adopted + Documented / Partial Implementation (م-45):
   Item 1 Implemented + Local Verified + CI Verified + Emulator UX Accepted؛
   Item 7 Implemented + Local Verified + CI Verified + Merged / Cloud +
-  Production Pending؛ Item 10 Implemented + Local Verified + CI Verified
-  (MR) + Merged / Post-merge CI Blocked by GitLab Quota / Cloud +
-  Production Pending؛ Item 11 Implemented + Local Verified + CI Verified +
+  Production Pending؛ Item 10 Implemented + Local Verified + CI Verified +
+  Merged / Cloud + Production Pending؛ Item 11 Implemented + Local Verified +
+  CI Verified +
   Merged / Cloud + Production Pending؛ بقية البنود Pending**.

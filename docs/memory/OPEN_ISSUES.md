@@ -46,8 +46,8 @@
   وبقية بنود القسم أدناه.
 - م-45: **مفتوحة — Tracker (ق-131)** — العقد **Adopted + Documented**؛
   البنود المنفذة 1 و7 و10 و11. البند 10 **Implemented + Local Verified +
-  CI Verified (MR) + Merged / Post-merge CI Blocked by GitLab Quota /
-  Cloud + Production Pending**؛ والبنود الباقية Pending. التنفيذ بمراحل
+  CI Verified + Merged / Cloud + Production Pending**؛ والبنود الباقية
+  Pending. التنفيذ بمراحل
   A–E مع إحالة إلزامية إلى م-28/م-29/م-30. التفصيل في قسمها أدناه.
 
 ### مغلقة ذات صلة مباشرة بالحالة الحالية
@@ -3137,7 +3137,22 @@ NEXT = إعادة `npm run c:db` بعد غلاف الاستهلاك، ثم دم�
 
 ### ما تبقّى كمهمة مستقلة لاحقة
 
-- إنشاء مرآة مستقلة ثانية للمستودع (احتياط طوارئ).
+**إضافة 2026-09-29 — استعادة GitHub:** يبقى الانتقال الأصلي إلى GitLab
+مغلقًا وصحيحًا تاريخيًا؛ فقد عالج تعليق الحساب وحفظ التطوير والنشر حينها.
+بعد استعادة الوصول، نُقل التاريخ الكامل من حالة GitHub القديمة
+`0ded3c859db375c73d3d305f49b79878c13733eb` إلى حالة المشروع الحالية
+`5446bcfa5c0d48ebe09307313a207160516d8cf7` عبر PR #38 من الفرع
+`sync/gitlab-history-20260929` (82 commits ahead / 0 behind)، بدمج عادي
+بلا force-push أو squash/rebase. نجح workflow `36524544084` قبل الدمج،
+ثم post-merge workflow `36524928657` بعد merge commit
+`bbc661ac7a58e944b64af36c5ebc704a0f642c7c`؛ app/database و`c:app`
+و`c:db` ومطابقة الفهرس كلها SUCCESS.
+
+GitHub هو الآن المستودع الحاكم ومصدر التطوير، ومساره المحمي فرع ← Pull
+Request ← فحوص GitHub Actions المطلوبة ← دمج. يبقى GitLab سجلًا تاريخيًا/
+احتياطيًا ومستودع مسار النشر الإرثي. **المتبقي كمهمة مستقلة:** نقل نشر
+production اليدوي إلى GitHub؛ لم يحدث هذا النقل ولم يُشغَّل production
+لـM108، لذلك Cloud وProduction باقيتان Pending.
 
 ---
 
@@ -3468,10 +3483,11 @@ Verified + CI Verified + Merged / Cloud + Production Pending**؛ Migration
 107، MR !26 merged to `main` (`9168ccac`)؛ MR pipeline `2891694253`
 = SUCCESS؛ post-merge pipeline `2891702168`: app/database = SUCCESS
 وproduction = MANUAL لم تُشغَّل. **البند 10 (التأكيد الصريح قبل تطبيق
-الرصيد المقدم القائم) Implemented + Local Verified + CI Verified (MR) +
-Merged / Post-merge CI Blocked by GitLab Quota / Cloud + Production
-Pending**؛ Migration 108، MR !28 merged to `main` (`5446bcfa`). بقية
-البنود عدا 1 و7 و10 و11 Pending.
+الرصيد المقدم القائم) Implemented + Local Verified + CI Verified + Merged /
+Cloud + Production Pending**؛ Migration 108، MR !28 merged to GitLab
+`main` (`5446bcfa`) تاريخيًا، ثم أعاد GitHub PR #38 التحقق من الحالة نفسها
+قبل الدمج وبعده، ورأس GitHub `main` = `bbc661ac`. بقية البنود عدا 1 و7
+و10 و11 Pending.
 **التاريخ:** 2026-09-28
 **القرار الحاكم:** ق-131 (المصدر الكامل في `memory/DECISIONS.md`)
 **مسائل الأساس:** **م-28** (السجلات والحجوزات والتسليم) و**م-29** (المال
@@ -3561,10 +3577,13 @@ Production Blocker بقرارها الخاص لا بعلاقة بها.
   `5446bcfa5c0d48ebe09307313a207160516d8cf7`. post-merge pipeline
   `2891873719` لم ينفذ الفحوص المعتادة؛ app/database/production وُسمت
   FAILED فورًا بسبب `ci_quota_exceeded`، وهو حجب حصة/بنية تحتية لا فشل
-  اختبار، ولم يجرِ production deployment. **الحالة الدقيقة: Implemented +
-  Local Verified + CI Verified (MR) + Merged / Post-merge CI Blocked by
-  GitLab Quota / Cloud + Production Pending.** لا تحقق سحابي جديد، ولا
-  ادعاء بوجود M108 في Supabase أو غيابها عنه.
+  اختبار. بقي ذلك سجل GitLab تاريخيًا؛ ثم نجح GitHub PR #38 workflow
+  `36524544084` في app/database، ونجح post-merge workflow `36524928657`
+  في app/database و`c:app` و`c:db` ومطابقة الفهرس، عند رأس `main`
+  `bbc661ac7a58e944b64af36c5ebc704a0f642c7c`. **الحالة الدقيقة:
+  Implemented + Local Verified + CI Verified + Merged / Cloud + Production
+  Pending.** لم يجرِ production deployment أو تحقق سحابي جديد، ولا ادعاء
+  بوجود M108 في Supabase أو غيابها عنه.
   المتبقي من المرحلة A: نافذة الشمس واختيار المصدر البديل والعدّاد
   المتبقي والتذكير والانتقال التلقائي المعتمد عند انتهاء نافذة الطاقة
   الشمسية؛ تقدير ديزل المزارع وتأكيده/تصحيحه مع إبقاء المقدّر منفصلًا عن
