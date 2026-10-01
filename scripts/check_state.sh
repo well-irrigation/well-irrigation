@@ -60,9 +60,26 @@ fi
 
 mig_dir="supabase/migrations"
 mig_count=$(find "$mig_dir" -maxdepth 1 -type f -name '*.sql' 2>/dev/null | wc -l | tr -d ' ')
-mig_max=$(find "$mig_dir" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' 2>/dev/null \
-  | sed -n 's/^[0-9]\{8,\}_\([0-9]\{3\}\)_.*/\1/p' | LC_ALL=C sort | tail -n 1)
-[ -z "$mig_max" ] && mig_max='?'
+
+# SEALED_NEXT يقرأ من المصدر الحاكم وحده: AGENTS.md §4 عبارة
+# «الهجرة التالية = N». لا استنتاج من أسماء ملفات الهجرات ولا من
+# أي نص تاريخي خارج §4 (الثابت 699: لا رقم مكتوب بلا مصدر حي،
+# ولا نجاح كاذب إذا غاب المصدر أو التبس).
+# يجب العثور على قيمة رقمية واحدة بالضبط؛ غير ذلك STATE=BLOCKED.
+agents_file="AGENTS.md"
+sealed_next='UNKNOWN'
+state_ok=no
+if [ -f "$agents_file" ]; then
+  section4=$(sed -n '/^## 4\./,/^## 5\./p' "$agents_file" 2>/dev/null)
+  candidates=$(printf '%s\n' "$section4" \
+    | sed -n 's/.*الهجرة التالية[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+    | sort -u)
+  candidate_count=$(printf '%s' "$candidates" | grep -c . || true)
+  if [ "$candidate_count" = 1 ]; then
+    sealed_next=$candidates
+    state_ok=yes
+  fi
+fi
 
 test_count=$(find supabase/tests -maxdepth 1 -type f -name '*.test.sql' 2>/dev/null | wc -l | tr -d ' ')
 
@@ -76,8 +93,7 @@ printf 'HEAD=%s\n' "${head_line:-UNKNOWN}"
 printf 'VS_MAIN=%s\n' "$(count_vs main)"
 printf 'VS_ORIGIN_MAIN=%s\n' "$(count_vs origin/main)"
 printf 'DIRTY_TRACKED=%s\n' "$dirty"
-printf 'MIGRATIONS=%s max=%s SEALED_NEXT=%s\n' "$mig_count" "$mig_max" \
-  "$(printf '%s' "$mig_max" | awk '/^[0-9]+$/ {printf "%03d", $1 + 1; found=1} END {if (!found) printf "?"}')"
+printf 'MIGRATIONS=%s SEALED_NEXT=%s\n' "$mig_count" "$sealed_next"
 printf 'DB_TESTS=%s\n' "$test_count"
 printf 'RESUME=%s lines date=%s\n' "$resume_lines" "$resume_date"
 printf 'DB_INDEX=columns:%s constraints:%s functions:%s triggers:%s\n' \
@@ -97,6 +113,12 @@ fi
 if [ "$git_ok" = no ]; then
   printf 'GIT=BLOCKED سبب: git لا يعمل في هذا المجلد — لا تُقرأ حقوله رقمًا\n'
   printf 'RESULT=BLOCKED_GIT\n'
+  exit 0
+fi
+
+if [ "$state_ok" = no ]; then
+  printf 'STATE=BLOCKED سبب: «الهجرة التالية» غير موجودة قيمةً واحدة رقمية في AGENTS.md §4 — لا يُقرأ SUCCESS (الثابت 699)\n'
+  printf 'RESULT=BLOCKED_STATE\n'
   exit 0
 fi
 
