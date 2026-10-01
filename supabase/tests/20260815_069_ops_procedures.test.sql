@@ -197,39 +197,39 @@ begin
     raise notice 'FAIL 4: إنشاء الأرض أثناء الجلسة المفتوحة لم ينجح';
   end if;
 
-  -- الحجز السعيد يحجز المضخة والخط معًا.
+  -- الحجز السعيد يحجز مسار البئر (ق-131 بند 8: بلا مضخة ولا خط).
   v_summary := ops.create_booking(
     v_well, v_account, v_farm,
     timestamptz '2026-09-02 06:00:00+00',
     timestamptz '2026-09-02 08:00:00+00',
-    v_booking_pump, v_water_line, 'well_diesel', 1, 'حجز اختبار'
+    'well_diesel', 1, 'حجز اختبار'
   );
   v_booking := (v_summary ->> 'booking_id')::uuid;
   if v_summary ->> 'status' = 'confirmed'
      and (select count(*) from ops.resource_reservations
-          where booking_id = v_booking and status = 'active') = 2
+          where booking_id = v_booking and status = 'active'
+            and resource_type = 'well_path') = 1
      and exists (select 1 from ops.booking_status_history
                  where booking_id = v_booking and new_status = 'confirmed') then
-    raise notice 'PASS 5: إنشاء الحجز أكد الموعد وحجز المضخة وخط المياه ذريًا';
+    raise notice 'PASS 5: إنشاء الحجز أكد الموعد وحجز مسار البئر ذريًا';
   else
-    raise notice 'FAIL 5: الحجز أو موارده أو تاريخ حالته غير مكتمل';
+    raise notice 'FAIL 5: الحجز أو مسار البئر أو تاريخ حالته غير مكتمل';
   end if;
 
-  begin
-    perform ops.create_booking(
-      v_well, v_account, v_farm,
-      timestamptz '2026-09-02 07:00:00+00',
-      timestamptz '2026-09-02 09:00:00+00',
-      v_booking_pump, v_water_line, 'well_diesel'
-    );
-    raise notice 'FAIL 6: سُمح بحجز متعارض على المورد نفسه';
-  exception when others then
-    if position('المورد محجوز بالكامل' in sqlerrm) > 0 then
-      raise notice 'PASS 6: رُفض الحجز المتعارض على المورد المحجوز';
-    else
-      raise notice 'FAIL 6: سبب رفض تعارض الحجز غير متوقع: %', sqlerrm;
-    end if;
-  end;
+  -- التعارض على مسار البئر نتيجة مكتوبة لا خطأ (M112).
+  v_summary := ops.create_booking(
+    v_well, v_account, v_farm,
+    timestamptz '2026-09-02 07:00:00+00',
+    timestamptz '2026-09-02 09:00:00+00',
+    'well_diesel'
+  );
+  if v_summary ->> 'status' = 'conflict'
+     and v_summary ->> 'conflict_code' = 'time_overlap'
+     and (v_summary ->> 'conflicting_booking_id')::uuid = v_booking then
+    raise notice 'PASS 6: رُفض الحجز المتعارض بنتيجة مكتوبة على مسار البئر';
+  else
+    raise notice 'FAIL 6: نتيجة تعارض الحجز غير متوقعة: %', v_summary;
+  end if;
 
   v_summary := ops.reschedule_booking(
     v_booking,
@@ -237,23 +237,25 @@ begin
     timestamptz '2026-09-03 11:30:00+00',
     'طلب المزارع تغيير الموعد'
   );
-  if (select scheduled_start from ops.irrigation_bookings where id = v_booking)
+  if v_summary ->> 'status' = 'confirmed'
+     and (select scheduled_start from ops.irrigation_bookings where id = v_booking)
        = timestamptz '2026-09-03 09:00:00+00'
      and (select count(*) from ops.resource_reservations
-          where booking_id = v_booking and status = 'released') = 2
+          where booking_id = v_booking and status = 'released'
+            and resource_type = 'well_path') = 1
      and (select count(*) from ops.resource_reservations
-          where booking_id = v_booking and status = 'active') = 2 then
-    raise notice 'PASS 7: إعادة الجدولة حررت الموارد القديمة وحجزت الفترة الجديدة';
+          where booking_id = v_booking and status = 'active'
+            and resource_type = 'well_path') = 1 then
+    raise notice 'PASS 7: إعادة الجدولة حررت مسار البئر القديم وحجزت الفترة الجديدة';
   else
-    raise notice 'FAIL 7: إعادة الجدولة أو تبديل حجوزات الموارد غير صحيح';
+    raise notice 'FAIL 7: إعادة الجدولة أو تبديل حجز مسار البئر غير صحيح';
   end if;
 
   begin
     perform ops.create_booking(
       v_well, v_account, v_farm,
       timestamptz '2026-09-04 10:00:00+00',
-      timestamptz '2026-09-04 09:00:00+00',
-      v_booking_pump, v_water_line
+      timestamptz '2026-09-04 09:00:00+00'
     );
     raise notice 'FAIL 8: سُمح بحجز نهايته قبل بدايته';
   exception when others then

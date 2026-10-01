@@ -472,17 +472,19 @@ begin
     'session.start', 'session.pause', 'session.resume',
     'session.complete', 'session.energy.change',
     'farmer.create', 'farm.create', 'booking.create',
-    'booking.reschedule', 'fuel.purchase', 'fuel.consume',
+    'booking.reschedule', 'booking.read', 'fuel.purchase', 'fuel.consume',
     'fuel.count', 'shift.open', 'shift.close_override'
   ]) code
   where iam.has_well_permission(v_well_1, code);
 
   execute 'reset role';
 
-  if v_src = 'session.complete,session.energy.change,session.pause,'
-             || 'session.resume,session.start'
+  -- M112 أعادت لـmanager قراءة الحجوزات (booking.read) حفاظًا على
+  -- دلالة 079، بلا أي كتابة حجوزات.
+  if v_src = 'booking.read,session.complete,session.energy.change,'
+             || 'session.pause,session.resume,session.start'
   then
-    raise notice 'PASS 12: manager يملك سلطة الجلسة وحدها بلا توسيع';
+    raise notice 'PASS 12: manager يملك سلطة الجلسة وقراءة الحجوزات بلا كتابة';
   else
     raise notice 'FAIL 12: manager ops set = "%"', v_src;
   end if;
@@ -502,14 +504,17 @@ begin
     'session.start', 'session.pause', 'session.resume',
     'session.complete', 'session.energy.change',
     'farmer.create', 'farm.create', 'booking.create',
-    'booking.reschedule', 'fuel.purchase', 'fuel.consume',
+    'booking.reschedule', 'booking.cancel', 'booking.read',
+    'fuel.purchase', 'fuel.consume',
     'fuel.count', 'shift.open', 'shift.close_override'
   ]) code
   where iam.has_well_permission(v_well_1, code);
 
   execute 'reset role';
 
-  if v_src = 'booking.create,booking.reschedule,farmer.create,'
+  -- M112 أضافت booking.cancel وbooking.read للمشغل مع المالك.
+  if v_src = 'booking.cancel,booking.create,booking.read,'
+             || 'booking.reschedule,farmer.create,'
              || 'fuel.consume,fuel.count,fuel.purchase,'
              || 'session.complete,session.energy.change,session.pause,'
              || 'session.resume,session.start,shift.open'

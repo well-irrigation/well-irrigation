@@ -36,10 +36,12 @@ begin
   -- ثم صار 42 بعد Migration 093 التي أضافت `price.read` لفصل
   -- الاطلاع على التسعيرة عن تعديلها.
   -- ثم 43 بعد Migration 094 التي أضافت `team.manage` للمالك وحده.
-  if v_count = 1 and v_count_2 = 43 then
-    raise notice 'PASS 1: session.energy.change مضافة والكتالوج = 43';
+  -- ثم 45 بعد Migration 112 التي أضافت `booking.cancel` و`booking.read`
+  -- لعقد الحجوزات (ق-131 بند 8 / م-45 مرحلة B).
+  if v_count = 1 and v_count_2 = 45 then
+    raise notice 'PASS 1: session.energy.change مضافة والكتالوج = 45';
   else
-    raise notice 'FAIL 1: energy_code=% catalog_total=% (توقع 1 و42)',
+    raise notice 'FAIL 1: energy_code=% catalog_total=% (توقع 1 و45)',
       v_count, v_count_2;
   end if;
 
@@ -86,10 +88,12 @@ begin
   -- وصار 78 بعد هجرة 093: price.read للمالك والمدير والمشغل، وهي
   -- مجموعة الأدوار نفسها التي تقبلها ops.start_irrigation_session.
   -- ثم 79 بعد هجرة 094: `team.manage` للمالك وحده بلا توسيع.
-  if v_count = 79 then
-    raise notice 'PASS 3: iam.role_permissions = 79 (70 + 3 + 2 + 3 + 1)';
+  -- ثم 84 بعد هجرة 112: booking.cancel (مالك+مشغل) وbooking.read
+  -- (مالك+مدير+مشغل) حفاظًا على دلالة قراءة 079.
+  if v_count = 84 then
+    raise notice 'PASS 3: iam.role_permissions = 84 (79 + 5)';
   else
-    raise notice 'FAIL 3: role_permissions = % بدل 79', v_count;
+    raise notice 'FAIL 3: role_permissions = % بدل 84', v_count;
   end if;
 
 

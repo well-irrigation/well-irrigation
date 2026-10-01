@@ -518,8 +518,7 @@ begin
       v_farm,
       timestamptz '2030-01-01 06:00:00+00',
       timestamptz '2030-01-01 07:00:00+00',
-      v_pump,
-      null,
+      gen_random_uuid(),
       'solar',
       0,
       'اختبار عدم تطابق الأرض'
@@ -554,8 +553,7 @@ begin
     v_farm,
     timestamptz '2030-01-01 06:00:00+00',
     timestamptz '2030-01-01 07:00:00+00',
-    v_pump,
-    null,
+    gen_random_uuid(),
     'solar',
     0,
     'حجز صحيح لق-80'

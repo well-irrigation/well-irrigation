@@ -92,10 +92,12 @@ begin
   -- فصارت صلاحية اطلاع مستقلة لمن يشغّل البئر.
   -- ثم صار 43 بعد Migration 094 التي أضافت `team.manage`: دعوة أعضاء
   -- البئر وإلغاء وصولهم وقراءة الفريق، للمالك وحده في جولة م-41E.
+  -- ثم صار 45 بعد Migration 112 التي أضافت `booking.cancel`
+  -- و`booking.read` لعقد الحجوزات (ق-131 بند 8 / م-45 مرحلة B).
   -- و`v_count_2` قائمة تدفقات V1 الثابتة (17) ولا تتغير بإضافة صلاحية
   -- خارجها — فهي تقيس تغطية التدفقات لا حجم الكتالوج.
-  if v_count = 43 and v_count_2 = 17 then
-    raise notice 'PASS 2: Permission catalog = 43 ويغطي تدفقات V1 الحالية';
+  if v_count = 45 and v_count_2 = 17 then
+    raise notice 'PASS 2: Permission catalog = 45 ويغطي تدفقات V1 الحالية';
   else
     raise notice 'FAIL 2: permission_total=% new_codes=%', v_count, v_count_2;
   end if;
@@ -119,27 +121,30 @@ begin
   -- من يبدأ جلسة مُسعَّرة يرى السعر الذي ستُسعَّر به.
   -- +1 منحة بعد Migration 094: `team.manage` للمالك وحده — إدارة
   -- الفريق تفويض سلطة، وتفويضها لـwell_manager قرار مستقل (ق-123 §10).
-  if v_count = 79
+  -- +5 منح بعد Migration 112: `booking.cancel` للمالك والمشغل،
+  -- و`booking.read` للمالك والمدير والمشغل — حفاظًا على دلالة
+  -- قراءة 079 (عقد الحجوزات، ق-131 بند 8).
+  if v_count = 84
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'tenant_owner'
-     ) = 43
+     ) = 45
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'well_manager'
-     ) = 14
+     ) = 15
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'operator'
-     ) = 22
+     ) = 24
   then
-    raise notice 'PASS 3: Role permission seed = owner 42 / manager 14 / operator 22';
+    raise notice 'PASS 3: Role permission seed = owner 45 / manager 15 / operator 24';
   else
     raise notice 'FAIL 3: role_permissions total=%', v_count;
   end if;

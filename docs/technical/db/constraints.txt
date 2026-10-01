@@ -399,6 +399,7 @@ ops.irrigation_bookings|irrigation_bookings_expected_energy_source_check|c|CHECK
 ops.irrigation_bookings|irrigation_bookings_farm_farmer_account_fkey|f|FOREIGN KEY (farm_id, farmer_well_account_id) REFERENCES ops.farms(id, farmer_well_account_id)
 ops.irrigation_bookings|irrigation_bookings_farm_id_fkey|f|FOREIGN KEY (farm_id) REFERENCES ops.farms(id)
 ops.irrigation_bookings|irrigation_bookings_farmer_well_account_id_fkey|f|FOREIGN KEY (farmer_well_account_id) REFERENCES ops.farmer_well_accounts(id)
+ops.irrigation_bookings|irrigation_bookings_no_confirmed_well_overlap|x|EXCLUDE USING gist (well_id WITH =, tstzrange(scheduled_start, scheduled_end, '[)'::text) WITH &&) WHERE ((status = 'confirmed'::text))
 ops.irrigation_bookings|irrigation_bookings_pkey|p|PRIMARY KEY (id)
 ops.irrigation_bookings|irrigation_bookings_pump_id_fkey|f|FOREIGN KEY (pump_id) REFERENCES core.pumps(id)
 ops.irrigation_bookings|irrigation_bookings_status_check|c|CHECK ((status = ANY (ARRAY['draft'::text, 'pending'::text, 'confirmed'::text, 'waiting'::text, 'ready'::text, 'started'::text, 'completed'::text, 'postponed'::text, 'cancelled'::text, 'no_show'::text])))
@@ -445,7 +446,7 @@ ops.resource_concurrency_rules|resource_concurrency_rules_tenant_id_fkey|f|FOREI
 ops.resource_concurrency_rules|resource_concurrency_rules_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
 ops.resource_reservations|resource_reservations_booking_id_fkey|f|FOREIGN KEY (booking_id) REFERENCES ops.irrigation_bookings(id)
 ops.resource_reservations|resource_reservations_pkey|p|PRIMARY KEY (id)
-ops.resource_reservations|resource_reservations_resource_type_check|c|CHECK ((resource_type = ANY (ARRAY['pump'::text, 'water_line'::text])))
+ops.resource_reservations|resource_reservations_resource_type_check|c|CHECK ((resource_type = ANY (ARRAY['pump'::text, 'water_line'::text, 'well_path'::text])))
 ops.resource_reservations|resource_reservations_status_check|c|CHECK ((status = ANY (ARRAY['active'::text, 'released'::text, 'cancelled'::text])))
 ops.resource_reservations|resource_reservations_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id)
 ops.resource_reservations|resource_reservations_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id)
