@@ -78,14 +78,16 @@ begin
   -- ---------------------------------------------------------------
   -- 3. أرقام الكتالوج: 42 صلاحية و78 منحًا بعد 093، ثم 43 و79 بعد
   --    هجرة 094 التي أضافت `team.manage` للمالك وحده (ق-123 §10).
+  --    ثم 45 و83 بعد هجرة 112 التي أضافت `booking.cancel`
+  --    و`booking.read` للمالك والمشغل (ق-131 بند 8).
   -- ---------------------------------------------------------------
 
   select count(*) into v_count from iam.permissions;
 
   select count(*) into v_count_2 from iam.role_permissions;
 
-  if v_count = 43 and v_count_2 = 79 then
-    raise notice 'PASS 3: الكتالوج 43 صلاحية وiam.role_permissions 79 منحًا';
+  if v_count = 45 and v_count_2 = 84 then
+    raise notice 'PASS 3: الكتالوج 45 صلاحية وiam.role_permissions 84 منحًا';
   else
     raise notice 'FAIL 3: أرقام السلطة غير متوقعة (% صلاحية، % منحًا)',
       v_count, v_count_2;

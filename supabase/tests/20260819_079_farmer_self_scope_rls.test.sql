@@ -252,7 +252,7 @@ begin
   insert into ops.irrigation_bookings
     (tenant_id,public_code,well_id,farmer_well_account_id,farm_id,pump_id,scheduled_start,scheduled_end,expected_duration_minutes,expected_energy_source,status,created_by)
   values
-    (v_tenant,'BOOK-2-W1',v_well_1,v_account_2_well_1,v_farm_2_well_1,v_pump_2,'2031-01-01 06:00:00+00','2031-01-01 07:00:00+00',60,'solar','confirmed',v_owner)
+    (v_tenant,'BOOK-2-W1',v_well_1,v_account_2_well_1,v_farm_2_well_1,v_pump_2,'2031-01-01 08:00:00+00','2031-01-01 09:00:00+00',60,'solar','confirmed',v_owner)
   returning id into v_booking_2_well_1;
 
   insert into ops.booking_status_history (tenant_id,booking_id,new_status,changed_by) values

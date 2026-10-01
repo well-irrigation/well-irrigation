@@ -172,7 +172,7 @@ begin
     )
     and has_function_privilege(
       'authenticated',
-      'ops.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,uuid,uuid,text,integer,text)',
+      'ops.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,text,integer,text)',
       'EXECUTE'
     )
     and has_function_privilege(
