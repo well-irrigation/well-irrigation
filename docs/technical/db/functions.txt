@@ -247,7 +247,7 @@ ops.start_irrigation_session(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_f
 ops.start_irrigation_session_from_booking(p_booking_id uuid, p_operator_profile_id uuid, p_started_at timestamp with time zone, p_crops text[])|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.trg_enforce_farm_uniqueness()|trigger|volatile|definer|search_path=ops, core, pg_catalog, pg_temp
 ops.validate_session_segment_overlap()|trigger|volatile|invoker|-
-sync.begin_adhoc_session_command(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_energy_source text, p_planned_duration_minutes integer, p_started_at timestamp with time zone, p_command_id uuid, p_crops text[])|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+sync.begin_adhoc_session_command(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_energy_source text, p_planned_duration_minutes integer, p_started_at timestamp with time zone, p_command_id uuid, p_crops text[], p_fuel_owner_person_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.begin_booking_completion_command(p_session_id uuid, p_ended_at timestamp with time zone, p_fuel_quantity_ml bigint, p_fuel_measurement_type text, p_fuel_tank_id uuid, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.begin_booking_execution_command(p_chain_id uuid, p_expected_revision bigint, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.begin_booking_session_command(p_booking_id uuid, p_command_id uuid, p_started_at timestamp with time zone, p_crops text[])|jsonb|volatile|definer|search_path=pg_catalog, pg_temp

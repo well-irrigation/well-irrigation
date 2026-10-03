@@ -15,6 +15,12 @@
 - **الحالة الدقيقة:** Implemented + Locally Verified (في نطاق الاختبارات المذكورة فقط)؛ Git integration / GitHub Actions / Merged / Cloud / Production = **Pending**. لا M114، لا إكمال كامل M113، لا تصميم واجهات، لا تشغيل تلقائي شامل مُثبت.
 
 
+## 2026-10-03 — إثبات CI لإصلاح بصمة مالك الوقود (PR #47)
+
+- اكتمل في Commit `aab26436` إدراج `p_fuel_owner_person_id` في بصمة `start_adhoc_session`، وتوثيق اختبار EE11b/EE11c لرفض إعادة إرسال بمعرف ثابت ومالك مختلف بلا تكرار جلسة.
+- **الدليل المنفّذ:** GitHub Actions #33 نجح في `db:reset` و`db:test` (`FILES=52 PASS=1071 FAIL=0 ERROR=0`) و`db:index` (`889/544/261/49`) وكذلك `c:app` (667 PASS). فشلت **خطوة مطابقة الفهرس فقط** بسبب اختلاف توقيع `sync.begin_adhoc_session_command`؛ يُنقل السطر الذي ولدته القاعدة فعلًا إلى المستودع ثم يُعاد CI. لا يُنسب نجاح الفهرس/Workflow الكامل إلى #33.
+- لا Merge/Cloud/Production مثبتة لهذه الحزمة؛ M113 وPhase B مفتوحتان، والتحقق من Supabase `Deploy to production` شرط قبل الدمج.
+
 ## 2026-09-29 — م-45/A: إغلاق جولة الزمن الفعلي على GitLab/CI
 
 - **الحالة النهائية لهذه الشريحة:** ق-131 البند 7 = **Implemented + Local Verified + CI Verified + Merged / Cloud + Production Pending**.
