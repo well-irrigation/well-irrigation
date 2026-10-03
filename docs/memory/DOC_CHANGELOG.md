@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-03 — إغلاق توثيق دمج PR #47 (closeout)
+
+- **الدمج:** PR #47 merged إلى `main` بmerge commit `e1d2c68936d910cd091fafba1b598ce5a8b28ccc`، و**GitHub Actions #36 على main = SUCCESS**: `c:db` = `FILES=52 PASS=1071 FAIL=0 ERROR=0`، فهرس `889/544/261/49` مطابق، و`c:app` = `667 PASS` و`analyze=0 issues`.
+- **حد النشر:** `Deploy to production` عُطّل قبل الدمج، و**M113 غير موجودة في سجل migrations السحابي** لمشروع Supabase `hxfhczpfrfdpzsobfbab` بعد الدمج — لا Cloud Verified ولا Production، ولا يُستنتج توافق السحابة من نجاح CI.
+- **حد الإغلاق:** M113 ليست مغلقة وظيفيًا (الانتقال الزمني الكامل والتنبيهات وOffline gaps واختبارات التزامن Pending)؛ M114 وFlutter UX Pending. لا SQL ولا Flutter ولا هجرة في هذه الدفعة التوثيقية.
+
 ## 2026-10-03 — سد فجوة إيديمبوتنس مالك الوقود في PR #47
 
 - **السبب:** بصمة بدء السقي الحر الجديد أغفلت `p_fuel_owner_person_id` رغم أن التنفيذ يتلقاه؛ قد تُعامل إعادة إرسال بمعرّف ثابت ومالك مختلف كأنها نفس الطلب.
