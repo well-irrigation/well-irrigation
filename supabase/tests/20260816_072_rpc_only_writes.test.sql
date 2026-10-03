@@ -172,12 +172,12 @@ begin
     )
     and has_function_privilege(
       'authenticated',
-      'ops.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,text,integer,text)',
+      'ops.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,text,integer,text,text)',
       'EXECUTE'
     )
     and has_function_privilege(
       'authenticated',
-      'ops.reschedule_booking(uuid,timestamptz,timestamptz,text)',
+      'ops.reschedule_booking(uuid,timestamptz,timestamptz,text,text)',
       'EXECUTE'
     )
   then

@@ -197,7 +197,9 @@ begin
     (v_well_1,v_user_2,'farmer','active');
 
   insert into core.pumps (well_id,name,power_source) values (v_well_1,'مضخة 1','solar') returning id into v_pump_1;
-  insert into core.pumps (well_id,name,power_source) values (v_well_1,'مضخة 2','solar') returning id into v_pump_2;
+  -- ق-132 (M113): مضخة فعالة واحدة لكل بئر — التجهيز الثالث يكفي غير
+  -- الفعالة لأنه مرجع صفوف فقط في هذا الاختبار.
+  insert into core.pumps (well_id,name,power_source,status) values (v_well_1,'مضخة 2','solar','inactive') returning id into v_pump_2;
   insert into core.pumps (well_id,name,power_source) values (v_well_2,'مضخة 3','solar') returning id into v_pump_3;
   insert into core.pumps (well_id,name,power_source) values (v_well_3,'مضخة 4','solar') returning id into v_pump_4;
 

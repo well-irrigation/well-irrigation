@@ -593,6 +593,12 @@ class OfflineSessionCoordinator {
   /// [crops] محاصيل هذه الجلسة (ق-131 البند 1): تسافر داخل أمر البدء
   /// نفسه في الطابور المتين، فتصل إلى الخادم مع المزامنة ولا تختفي
   /// بعدها، والفراغ مسموح ولا يمنع البدء.
+  ///
+  /// [plannedDurationMinutes] المدة المخطّطة (ق-132/750). `null` يعني
+  /// «لم يحدد المستخدم مدة» فيسافر الأمر بالنوع القديم وحمولته الحرفية
+  /// — لا مدة ضمنية ولا افتراض. بقيمة موجبة يسافر إلى عقد
+  /// `start_adhoc_session` الحاكم. توفّر حجوزات قادمة لا يتحقق منه
+  /// العميل إطلاقًا — الخادم وحده حاكم، والرفض يصير مراجعة بشرية.
   Future<CommandEnvelope> startSession({
     required String accountId,
     required String wellId,
@@ -604,8 +610,17 @@ class OfflineSessionCoordinator {
     EntityReference? farmReference,
     EntityReference? farmerReference,
     DateTime? startedAt,
+    int? plannedDurationMinutes,
   }) async {
     await initialize();
+
+    if (plannedDurationMinutes != null && plannedDurationMinutes <= 0) {
+      throw ArgumentError.value(
+        plannedDurationMinutes,
+        'plannedDurationMinutes',
+        'المدة المخطّطة يجب أن تكون دقائق موجبة',
+      );
+    }
 
     final eventTime = startedAt ?? DateTime.now();
     final effectiveFarm = farmReference != null
@@ -622,7 +637,9 @@ class OfflineSessionCoordinator {
     final envelope = await _outbox.enqueue(
       accountId: accountId,
       wellId: wellId,
-      type: CommandType.startIrrigationSession,
+      type: plannedDurationMinutes == null
+          ? CommandType.startIrrigationSession
+          : CommandType.startAdhocSession,
       occurredAt: eventTime,
       payload: {
         'p_well_id': wellId,
@@ -630,6 +647,7 @@ class OfflineSessionCoordinator {
         'p_farm_id': effectiveFarm,
         'p_farmer_well_account_id': effectiveFarmer,
         'p_energy_source': energySource,
+        'p_planned_duration_minutes': ?plannedDurationMinutes,
         'p_crops': normalizeCropSnapshot(crops),
       },
     );
@@ -821,11 +839,16 @@ class OfflineSessionCoordinator {
     String sessionLocalId,
   ) async {
     final start = await _outbox.byLocalId(accountId, sessionLocalId);
-    if (start == null || start.type != CommandType.startIrrigationSession) {
+    if (start == null || !_isSessionStartType(start.type)) {
       throw StateError('مرجع جلسة محلي غير صالح: $sessionLocalId');
     }
     return start;
   }
+
+  /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
+  static bool _isSessionStartType(CommandType type) =>
+      type == CommandType.startIrrigationSession ||
+      type == CommandType.startAdhocSession;
 
   Future<ActiveSessionRecord?> _projectExactSession(
     String accountId,

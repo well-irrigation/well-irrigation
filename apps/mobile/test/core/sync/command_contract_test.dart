@@ -197,7 +197,7 @@ void main() {
     });
   });
 
-  group('عقد الأنواع الثمانية', () {
+  group('عقد أنواع الأوامر', () {
     test('كل نوع يعرف جهته ووسيطها', () {
       for (final type in CommandType.values) {
         expect(
@@ -217,6 +217,10 @@ void main() {
     test('أحداث الجلسة كلها تحمل وسيط وقت حدث', () {
       expect(
         CommandType.startIrrigationSession.eventTimeArgument,
+        'p_started_at',
+      );
+      expect(
+        CommandType.startAdhocSession.eventTimeArgument,
         'p_started_at',
       );
       expect(
@@ -248,6 +252,7 @@ void main() {
         CommandType.createFarmer: EntityKind.farmerWellAccount,
         CommandType.createFarm: EntityKind.farm,
         CommandType.startIrrigationSession: EntityKind.session,
+        CommandType.startAdhocSession: EntityKind.session,
         CommandType.recordPayment: EntityKind.payment,
         CommandType.completeIrrigationSession: EntityKind.sessionCharge,
       });

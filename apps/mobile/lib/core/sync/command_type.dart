@@ -65,6 +65,23 @@ enum CommandType {
     produces: EntityKind.session,
   ),
 
+  /// بدء سقي حرّ بمدة مخطّطة (ق-132/750 / M113-E2-e-c2).
+  ///
+  /// نوع منفصل لا حقل إضافي على النوع القديم: أمر بلا مدة يبقى مسافرًا
+  /// إلى `start_irrigation_session` بحمولته الحرفية وبصمته التاريخية،
+  /// وأمر بمدة صريحة يُرسل إلى `start_adhoc_session` ببصمته الخادمية
+  /// المستقلة. التراجع إلى إصدار تطبيق أقدم لا يفكّ هذا النوع فيرفض
+  /// بصوت عالٍ عند قراءة الطابور — لا أن يُرسَل الأمر بصمت إلى عقد
+  /// خاطئ.
+  startAdhocSession(
+    rpcName: 'start_adhoc_session',
+    scope: CommandScope.well,
+    scopeArgument: 'p_well_id',
+    eventTimeArgument: 'p_started_at',
+    returnsJson: false,
+    produces: EntityKind.session,
+  ),
+
   pauseIrrigationSession(
     rpcName: 'pause_irrigation_session',
     scope: CommandScope.session,

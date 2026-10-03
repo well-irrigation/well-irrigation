@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-09-28
+**آخر تحديث:** 2026-10-03
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -558,7 +558,7 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | --- | --- |
 | ق-132 ككل | **Adopted + Documented (2026-10-01)** |
 | أساس الحجوزات (M112 — قيد الاستبعاد وwell_path وعقود api والقراءات) | **Implemented + Local Verified + CI Verified + Merged (PR #45، `db45b7d`) / Cloud + Production Pending** |
-| M113 — Booking Execution / جدول اليوم / booking→session / solar fallback والانتقال التلقائي | Implementation Pending |
+| M113 — Booking Execution / جدول اليوم / booking→session / solar fallback والانتقال التلقائي | Partial Implemented + Local DB Verified (`FILES=52 PASS=1069`), CI / Merged / Cloud / Production Pending؛ auto transition / Offline timing / notifications remain pending؛ M113 NOT CLOSED |
 | M114 — Diesel reference-price history + valuation معلوماتي | Implementation Pending |
 | Flutter / Offline / Notifications | بعد M113/M114 **ضمن المرحلة B نفسها** |
 
@@ -566,3 +566,15 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
   وFCM/Push جزء تنفيذ Phase B لم يُنفَّذ ولا يوصف منفذًا بمجرد
   وجود `ops.notifications`.
 - **المتتبع:** م-45 (مفتوحة) بإحالة إلزامية إلى م-28.
+
+[DOC-RECOVERY-Q133-2026-10-03]
+## ق-133 — المدة المشروطة للسقي الحر وتوافق Offline (استدراك 2026-10-03)
+
+| المجال | التنفيذ/الدليل المحلي | الباقي/حالة Git |
+| --- | --- | --- |
+| السلوك المعتمد | لا مدة دون حجز قادم؛ مدة صريحة لا تتجاوز بداية الحجز المؤكد القادم؛ لا إكمال/تشغيل فوق جلسة مفتوحة | Adopted من المالك 2026-10-02؛ توثيق/Git closure Pending |
+| M113 backend | عمودا التخطيط، قيد مؤجل على صف الجلسة النهائي، عقد `api.start_adhoc_session`، تغطية القديم والمربوط بحجز | Owner `c:db`: 1069/0/0؛ branch commit/CI/Cloud/Production Pending |
+| Flutter command layer | نوع `startAdhocSession`، وسيط اختياري، دعم projector وOutbox القديم | تقرير الوكيل: `flutter test` 667/667، analyze نظيف؛ لا تصميم شاشات |
+| Flutter UX / booking awareness | لا معلومات حجز محلية ولا عرض `pending/review` في الشاشة بعد | Requires owner UI design approval |
+| Offline recovery | مراجعة أوامر review وتوابعها؛ Downgrade؛ زمن الهاتف؛ reason_code لرفض المدة | Pending — لا تلقائية صامتة، لا فقدان بيانات |
+| M113 باقي ق-132 / M114 | توقيت الانتقال، التنبيهات، التزامن؛ التاريخ المرجعي للديزل | Pending؛ لا إغلاق Phase B أو م-28 أو م-45 |

@@ -315,6 +315,10 @@ begin
     raise notice 'FAIL 10: عمود rounding_minor ما زال موجودًا';
   end if;
 
+  -- ق-132 (M113): مضخة فعالة واحدة لكل بئر — مضخة الجلسة المقفلة
+  -- صارت تاريخية فتجعلها غير فعالة قبل فتح مضخة الجلسة المفتوحة.
+  update core.pumps set status = 'retired' where id = v_pump;
+
   insert into core.pumps (well_id, name, power_source)
   values (v_well, 'مضخة جلسة مفتوحة', 'solar')
   returning id into v_open_pump;

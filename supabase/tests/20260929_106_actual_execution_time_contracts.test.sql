@@ -90,21 +90,22 @@ begin
   values (v_well, 'مزرعة الزمن الفعلي', v_farmer_account)
   returning id into v_farm;
 
-  -- أربع مضخات: زناد منع التوازي يحكم المضخة الواحدة.
+  -- أربع مضخات: زناد منع التوازي يحكم المضخة الواحدة. ق-132 (M113):
+  -- مضخة فعالة واحدة لكل بئر — تُدخل غير فعالة وتُفعَّل عند دورها.
   insert into core.pumps (well_id, name, power_source)
   values (v_well, 'مضخة الزمن الفعلي أ', 'solar')
   returning id into v_pump_a;
 
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة الزمن الفعلي ج', 'solar')
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة الزمن الفعلي ج', 'solar', 'inactive')
   returning id into v_pump_c;
 
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة الزمن الفعلي ب', 'solar')
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة الزمن الفعلي ب', 'solar', 'inactive')
   returning id into v_pump_b;
 
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة الزمن الفعلي د', 'solar')
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة الزمن الفعلي د', 'solar', 'inactive')
   returning id into v_pump_d;
 
   insert into billing.well_pricing
@@ -150,6 +151,14 @@ begin
 
   -- الجلسة ج (دقة الثواني في الطاقة): تشغيل 1000 ثانية = 16 دقيقة و40
   -- ثانية. مسار actual_minutes*60 القديم كان سيعطي 960.
+  execute 'reset role';
+
+  update core.pumps set status = 'retired' where id = v_pump_a;
+  update core.pumps set status = 'active' where id = v_pump_c;
+
+  perform set_config('request.jwt.claim.sub', v_user::text, true);
+  execute 'set local role authenticated';
+
   v_session_c := api.start_irrigation_session(
     v_well, v_pump_c, v_farm, v_farmer_account, 'solar',
     timestamptz '2026-09-10 10:00:00+03'

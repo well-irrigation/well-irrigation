@@ -602,6 +602,33 @@ ops.booking_status_history|new_status|text|NOT NULL|-
 ops.booking_status_history|reason|text|null|-
 ops.booking_status_history|changed_at|timestamp with time zone|NOT NULL|now()
 ops.booking_status_history|changed_by|uuid|null|-
+ops.booking_transition_chains|id|uuid|NOT NULL|gen_random_uuid()
+ops.booking_transition_chains|tenant_id|uuid|NOT NULL|-
+ops.booking_transition_chains|well_id|uuid|NOT NULL|-
+ops.booking_transition_chains|status|text|NOT NULL|'active'::text
+ops.booking_transition_chains|opened_by_session_id|uuid|NOT NULL|-
+ops.booking_transition_chains|opened_at|timestamp with time zone|NOT NULL|-
+ops.booking_transition_chains|current_session_id|uuid|null|-
+ops.booking_transition_chains|next_booking_id|uuid|null|-
+ops.booking_transition_chains|last_decision|text|null|-
+ops.booking_transition_chains|decided_at|timestamp with time zone|null|-
+ops.booking_transition_chains|decided_by|uuid|null|-
+ops.booking_transition_chains|decision_revision|bigint|NOT NULL|0
+ops.booking_transition_chains|ended_at|timestamp with time zone|null|-
+ops.booking_transition_chains|ended_reason|text|null|-
+ops.booking_transition_chains|created_at|timestamp with time zone|NOT NULL|now()
+ops.booking_transition_chains|created_by|uuid|NOT NULL|-
+ops.booking_transition_decisions|id|uuid|NOT NULL|gen_random_uuid()
+ops.booking_transition_decisions|tenant_id|uuid|NOT NULL|-
+ops.booking_transition_decisions|well_id|uuid|NOT NULL|-
+ops.booking_transition_decisions|chain_id|uuid|NOT NULL|-
+ops.booking_transition_decisions|prev_session_id|uuid|NOT NULL|-
+ops.booking_transition_decisions|next_booking_id|uuid|NOT NULL|-
+ops.booking_transition_decisions|decision|text|NOT NULL|-
+ops.booking_transition_decisions|decided_by|uuid|NOT NULL|-
+ops.booking_transition_decisions|decided_at|timestamp with time zone|NOT NULL|now()
+ops.booking_transition_decisions|command_id|uuid|NOT NULL|-
+ops.booking_transition_decisions|created_at|timestamp with time zone|NOT NULL|now()
 ops.farm_identity_markers|well_id|uuid|NOT NULL|-
 ops.farm_identity_markers|farmer_well_account_id|uuid|NOT NULL|-
 ops.farm_identity_markers|normalized_name|text|NOT NULL|-
@@ -647,6 +674,7 @@ ops.irrigation_bookings|priority|integer|NOT NULL|0
 ops.irrigation_bookings|notes|text|null|-
 ops.irrigation_bookings|created_at|timestamp with time zone|NOT NULL|now()
 ops.irrigation_bookings|created_by|uuid|null|-
+ops.irrigation_bookings|alternative_energy_source|text|null|-
 ops.irrigation_sessions|id|uuid|NOT NULL|gen_random_uuid()
 ops.irrigation_sessions|well_id|uuid|NOT NULL|-
 ops.irrigation_sessions|pump_id|uuid|NOT NULL|-
@@ -663,6 +691,9 @@ ops.irrigation_sessions|current_shift_id|uuid|null|-
 ops.irrigation_sessions|collector_profile_id|uuid|null|-
 ops.irrigation_sessions|price_per_hour_minor_snapshot|bigint|null|-
 ops.irrigation_sessions|farmer_well_account_id|uuid|null|-
+ops.irrigation_sessions|booking_id|uuid|null|-
+ops.irrigation_sessions|planned_duration_minutes|integer|null|-
+ops.irrigation_sessions|planned_end_at|timestamp with time zone|null|-
 ops.notifications|id|uuid|NOT NULL|gen_random_uuid()
 ops.notifications|recipient_profile_id|uuid|NOT NULL|-
 ops.notifications|well_id|uuid|NOT NULL|-

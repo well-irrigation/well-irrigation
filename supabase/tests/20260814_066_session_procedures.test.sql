@@ -84,12 +84,14 @@ begin
   values (v_well, 'مضخة الدورة السعيدة', 'solar')
   returning id into v_pump;
 
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة الجلسة البسيطة', 'solar')
+  -- ق-132 (M113): مضخة فعالة واحدة لكل بئر — المضخات التالية تُدخل
+  -- غير فعالة وتُفعَّل عند دورها في السيناريو بعد إخلاء السابقة.
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة الجلسة البسيطة', 'solar', 'inactive')
   returning id into v_simple_pump;
 
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة اختبار القفل', 'solar')
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة اختبار القفل', 'solar', 'inactive')
   returning id into v_busy_pump;
 
   select id into v_tank
@@ -405,6 +407,9 @@ begin
   -- ليست مسار إنشاء مسموحًا لتطبيق العميل بعد ق-79.
   execute 'reset role';
 
+  update core.pumps set status = 'retired' where id = v_pump;
+  update core.pumps set status = 'active' where id = v_simple_pump;
+
   insert into ops.irrigation_sessions (
     well_id, pump_id, farm_id, farmer_well_account_id,
     operator_profile_id, started_at
@@ -454,6 +459,13 @@ begin
   else
     raise notice 'FAIL 13: زناد الجلسة البسيطة لم يحسب السعر الواحد كما كان';
   end if;
+
+  execute 'reset role';
+
+  update core.pumps set status = 'retired' where id = v_simple_pump;
+  update core.pumps set status = 'active' where id = v_busy_pump;
+
+  execute 'set local role authenticated';
 
   v_busy_session := ops.start_irrigation_session(
     v_well, v_busy_pump, v_farm, v_farmer_account, v_profile, 'solar',
