@@ -84,16 +84,18 @@ begin
   end if;
 
   -- ============================================================
-  -- 2. الحمل الداخلي القديم ops.create_booking بمضخة/خط مفقود،
-  --    والتوقيع القانوني الجديد موجود وحده.
+  -- 2. حملا ops.create_booking القديمان مفقودان، وتوقيع M113 موجود.
   -- ============================================================
   if to_regprocedure(
     'ops.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,uuid,uuid,text,integer,text)'
   ) is null
     and to_regprocedure(
       'ops.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,text,integer,text)'
+    ) is null
+    and to_regprocedure(
+      'ops.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,text,integer,text,text)'
     ) is not null then
-    raise notice 'PASS 2: ops.create_booking على التوقيع القانوني وحده بلا حمل مضخة/خط';
+    raise notice 'PASS 2: توقيع M113 الداخلي وحده موجود بلا أحمال قديمة';
   else
     raise notice 'FAIL 2: حمل ops.create_booking غير صحيح';
   end if;
@@ -133,9 +135,9 @@ begin
   -- 5. anon محجوب عن كل عقود الحجوزات العامة.
   -- ============================================================
   if not has_function_privilege('anon',
-       'api.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,integer,text)', 'EXECUTE')
+       'api.create_booking(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,integer,text,text)', 'EXECUTE')
      and not has_function_privilege('anon',
-       'api.reschedule_booking(uuid,timestamptz,timestamptz,text,uuid)', 'EXECUTE')
+       'api.reschedule_booking(uuid,timestamptz,timestamptz,text,uuid,text)', 'EXECUTE')
      and not has_function_privilege('anon',
        'api.cancel_booking(uuid,text,uuid)', 'EXECUTE')
      and not has_function_privilege('anon',
@@ -153,7 +155,8 @@ begin
   -- ============================================================
   v_sig := 'p_well_id uuid, p_farmer_well_account_id uuid, p_farm_id uuid, '
            || 'p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, '
-           || 'p_expected_energy_source text, p_priority integer, p_notes text';
+           || 'p_expected_energy_source text, p_priority integer, p_notes text, '
+           || 'p_alternative_energy_source text';
   if exists (
     select 1 from pg_trigger t
     join pg_class c on c.oid = t.tgrelid
@@ -277,6 +280,11 @@ begin
   insert into core.wells (tenant_id, name) values (v_tenant, 'بئر الحجوزات ب 112')
     returning id into v_well_b;
 
+  insert into core.pumps (well_id, name, power_source)
+  values
+    (v_well_a, 'مضخة الحجوزات أ 112', 'diesel'),
+    (v_well_b, 'مضخة الحجوزات ب 112', 'diesel');
+
   insert into core.well_assignments (well_id, profile_id, role, status)
   values
     (v_well_a, v_owner_user, 'owner', 'active'),
@@ -386,7 +394,7 @@ begin
     v_well_a, v_account_1, v_farm_a,
     timestamptz '2026-10-05 10:00:00+00',
     timestamptz '2026-10-05 11:00:00+00',
-    v_cmd_touch_1, null, 0, null
+    v_cmd_touch_1, 'well_diesel', 0, null
   );
   v_booking_2 := (v_response_2 ->> 'booking_id')::uuid;
 
@@ -394,7 +402,7 @@ begin
     v_well_a, v_account_1, v_farm_a,
     timestamptz '2026-10-05 11:00:00+00',
     timestamptz '2026-10-05 12:00:00+00',
-    v_cmd_touch_2, null, 0, null
+    v_cmd_touch_2, 'well_diesel', 0, null
   );
   v_booking_3 := (v_response ->> 'booking_id')::uuid;
 
@@ -412,7 +420,7 @@ begin
     v_well_b, v_account_b, v_farm_b,
     timestamptz '2026-10-05 08:00:00+00',
     timestamptz '2026-10-05 10:00:00+00',
-    v_cmd_well_b, null, 0, null
+    v_cmd_well_b, 'well_diesel', 0, null
   );
 
   if v_response ->> 'status' = 'confirmed' then
@@ -428,7 +436,7 @@ begin
     v_well_a, v_account_1, v_farm_a,
     timestamptz '2026-10-05 09:00:00+00',
     timestamptz '2026-10-05 11:00:00+00',
-    v_cmd_conflict, null, 0, null
+    v_cmd_conflict, 'well_diesel', 0, null
   );
 
   if v_conflict_response ->> 'status' = 'conflict'
@@ -488,7 +496,7 @@ begin
     v_well_a, v_account_1, v_farm_a,
     timestamptz '2026-10-05 09:00:00+00',
     timestamptz '2026-10-05 11:00:00+00',
-    v_cmd_conflict, null, 0, null
+    v_cmd_conflict, 'well_diesel', 0, null
   );
 
   if v_response = v_conflict_response then
@@ -505,7 +513,7 @@ begin
       v_well_a, v_account_2, v_farm_a,
       timestamptz '2026-10-06 08:00:00+00',
       timestamptz '2026-10-06 09:00:00+00',
-      gen_random_uuid(), null, 0, 'اختبار عدم التطابق'
+      gen_random_uuid(), 'well_diesel', 0, 'اختبار عدم التطابق'
     );
     raise notice 'FAIL 15: سُمح بحجز أرض تخص حساب مزارع آخر';
   exception when others then
@@ -658,7 +666,7 @@ begin
     v_well_a, v_account_1, v_farm_a,
     timestamptz '2026-10-05 08:00:00+00',
     timestamptz '2026-10-05 09:00:00+00',
-    v_cmd_after_cancel, null, 0, null
+    v_cmd_after_cancel, 'well_diesel', 0, null
   );
 
   if v_response ->> 'status' = 'confirmed' then
@@ -714,7 +722,7 @@ begin
     v_well_a, v_account_2, v_farm_2,
     timestamptz '2026-10-05 17:00:00+00',
     timestamptz '2026-10-05 18:00:00+00',
-    gen_random_uuid(), null, 0, 'حجز المزارع ب 112'
+    gen_random_uuid(), 'well_diesel', 0, 'حجز المزارع ب 112'
   );
   v_booking_5 := (v_response ->> 'booking_id')::uuid;
 
@@ -908,7 +916,7 @@ begin
       v_well_a, v_account_1, v_farm_a,
       timestamptz '2026-10-06 08:00:00+00',
       timestamptz '2026-10-06 09:00:00+00',
-      null, null, 0, null
+      null, 'well_diesel', 0, null
     );
     raise notice 'FAIL 29: سُمح بإنشاء حجز بلا معرّف عملية';
   exception when others then

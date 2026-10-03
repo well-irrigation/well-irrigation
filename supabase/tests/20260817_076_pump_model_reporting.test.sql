@@ -328,6 +328,10 @@ begin
   -- Public code unique inside the well.
   -- -----------------------------------------------------------
 
+  -- ق-132 (M113): مضخة فعالة واحدة لكل بئر — إخفاء تتابعي للمضخات
+  -- التاريخية في هذا الملف مع إعادة تفعيل من يحتاجه الدور اللاحق.
+  update core.pumps set status = 'retired' where id = v_pump;
+
   insert into core.pumps (
     well_id,
     public_code,
@@ -523,6 +527,10 @@ begin
   -- Legacy flat session remains supported.
   -- -----------------------------------------------------------
 
+  update core.pumps set status = 'retired'
+  where id = (select id from core.pumps where well_id = v_well
+              and public_code = 'PUMP-Q81-DUP');
+
   insert into core.pumps (
     well_id,
     name,
@@ -587,6 +595,9 @@ begin
   -- PASS 10
   -- Reservation function now honors pump-specific limit = 2.
   -- -----------------------------------------------------------
+
+  update core.pumps set status = 'retired' where id = v_legacy_pump;
+  update core.pumps set status = 'active' where id = v_pump;
 
   insert into ops.resource_concurrency_rules (
     tenant_id,

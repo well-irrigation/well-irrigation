@@ -85,8 +85,10 @@ begin
   insert into core.pumps (well_id, name, power_source)
   values (v_well, 'مضخة جلسة مفتوحة 069', 'solar')
   returning id into v_session_pump;
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة حجوزات 069', 'diesel')
+  -- ق-132 (M113): مضخة فعالة واحدة لكل بئر — مضخة الروابط التاريخية
+  -- تُدخل غير فعالة لأن عقد الحجوزات الجديد بلا مضخة يدوية.
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة حجوزات 069', 'diesel', 'inactive')
   returning id into v_booking_pump;
 
   insert into core.water_lines (
@@ -202,7 +204,7 @@ begin
     v_well, v_account, v_farm,
     timestamptz '2026-09-02 06:00:00+00',
     timestamptz '2026-09-02 08:00:00+00',
-    'well_diesel', 1, 'حجز اختبار'
+    'well_diesel', 1, 'حجز اختبار', null
   );
   v_booking := (v_summary ->> 'booking_id')::uuid;
   if v_summary ->> 'status' = 'confirmed'
@@ -221,7 +223,7 @@ begin
     v_well, v_account, v_farm,
     timestamptz '2026-09-02 07:00:00+00',
     timestamptz '2026-09-02 09:00:00+00',
-    'well_diesel'
+    'well_diesel', 0, null, null
   );
   if v_summary ->> 'status' = 'conflict'
      and v_summary ->> 'conflict_code' = 'time_overlap'
@@ -235,7 +237,7 @@ begin
     v_booking,
     timestamptz '2026-09-03 09:00:00+00',
     timestamptz '2026-09-03 11:30:00+00',
-    'طلب المزارع تغيير الموعد'
+    'طلب المزارع تغيير الموعد', null
   );
   if v_summary ->> 'status' = 'confirmed'
      and (select scheduled_start from ops.irrigation_bookings where id = v_booking)
@@ -251,19 +253,44 @@ begin
     raise notice 'FAIL 7: إعادة الجدولة أو تبديل حجز مسار البئر غير صحيح';
   end if;
 
+  declare
+    v_invalid_result jsonb;
+    v_booking_count_before bigint;
+    v_history_count_before bigint;
+    v_reservation_count_before bigint;
   begin
-    perform ops.create_booking(
+    select
+      (select count(*) from ops.irrigation_bookings),
+      (select count(*) from ops.booking_status_history),
+      (select count(*) from ops.resource_reservations)
+    into
+      v_booking_count_before,
+      v_history_count_before,
+      v_reservation_count_before;
+
+    v_invalid_result := ops.create_booking(
       v_well, v_account, v_farm,
       timestamptz '2026-09-04 10:00:00+00',
-      timestamptz '2026-09-04 09:00:00+00'
+      timestamptz '2026-09-04 09:00:00+00',
+      'well_diesel', 0, null, null
     );
-    raise notice 'FAIL 8: سُمح بحجز نهايته قبل بدايته';
-  exception when others then
-    if position('فترة الحجز غير صالحة' in sqlerrm) > 0 then
-      raise notice 'PASS 8: رُفضت فترة حجز غير صالحة';
+
+    if v_invalid_result ->> 'status' = 'rejected'
+       and v_invalid_result ->> 'reason_code' = 'invalid_period'
+       and v_invalid_result -> 'execution_readiness' ->> 'reason_code'
+         = 'invalid_period'
+       and (select count(*) from ops.irrigation_bookings)
+         = v_booking_count_before
+       and (select count(*) from ops.booking_status_history)
+         = v_history_count_before
+       and (select count(*) from ops.resource_reservations)
+         = v_reservation_count_before then
+      raise notice 'PASS 8: رُفضت الفترة غير الصالحة بلا أثر جزئي';
     else
-      raise notice 'FAIL 8: سبب رفض فترة الحجز غير متوقع: %', sqlerrm;
+      raise notice 'FAIL 8: رفض الفترة أو ذريته غير صحيح: %', v_invalid_result;
     end if;
+  exception when others then
+    raise notice 'FAIL 8: أطلق رفض الفترة استثناءً غير متوقع: %', sqlerrm;
   end;
 
   -- تغيير الحالة إلى completed هو إعداد إداري لاختبار الرفض اللاحق.
@@ -280,7 +307,7 @@ begin
       v_booking,
       timestamptz '2026-09-05 09:00:00+00',
       timestamptz '2026-09-05 10:00:00+00',
-      'محاولة نقل حجز مكتمل'
+      'محاولة نقل حجز مكتمل', null
     );
     raise notice 'FAIL 9: سُمح بإعادة جدولة حجز مكتمل';
   exception when others then

@@ -320,8 +320,10 @@ begin
   values (v_well, 'مضخة التكرار الأولى', 'solar')
   returning id into v_pump_1;
 
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة التكرار الثانية', 'solar')
+  -- ق-132 (M113): مضخة فعالة واحدة لكل بئر — المضخة الثانية غير
+  -- مستخدمة في هذا الاختبار فتُدخل غير فعالة.
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة التكرار الثانية', 'solar', 'inactive')
   returning id into v_pump_2;
 
   select id

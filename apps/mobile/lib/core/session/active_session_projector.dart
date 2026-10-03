@@ -195,7 +195,7 @@ class ActiveSessionProjector {
     final byAggregate = <String, List<CommandEnvelope>>{};
 
     for (final command in commands) {
-      if (command.type == CommandType.startIrrigationSession) {
+      if (_isSessionStartType(command.type)) {
         byAggregate.putIfAbsent(command.localId, () => []).add(command);
         continue;
       }
@@ -211,7 +211,7 @@ class ActiveSessionProjector {
 
     for (final entry in byAggregate.entries) {
       final start = entry.value
-          .where((c) => c.type == CommandType.startIrrigationSession)
+          .where((c) => _isSessionStartType(c.type))
           .firstOrNull;
 
       // مجموعة بلا أمر بدء تعني أوامر تابعة لأصل حُذف أو لم يُسجَّل.
@@ -314,6 +314,7 @@ class ActiveSessionProjector {
 
       switch (command.type) {
         case CommandType.startIrrigationSession:
+        case CommandType.startAdhocSession:
           openSegment(SegmentKind.running, at);
 
         case CommandType.pauseIrrigationSession:
@@ -416,6 +417,11 @@ class ActiveSessionProjector {
   /// من `aggregateLocalId` الذي كتبه المُدخِل.
   static bool _isSessionScoped(CommandType type) =>
       type.scope == CommandScope.session || type == CommandType.recordPayment;
+
+  /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
+  static bool _isSessionStartType(CommandType type) =>
+      type == CommandType.startIrrigationSession ||
+      type == CommandType.startAdhocSession;
 
   /// أعلى حالة مزامنة في أوامر الجلسة، بأولوية القسم 32.
   ///

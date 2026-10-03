@@ -222,6 +222,8 @@ begin
   insert into billing.well_pricing (well_id, price_per_hour_minor, period_start)
   values (v_well, 3600, date '2026-01-01');
 
+  update core.pumps set status = 'retired' where id = v_pump;
+
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة 61 دقيقة', 'solar') returning id into v_pump_61;
   insert into ops.irrigation_sessions (
     well_id,
@@ -244,6 +246,8 @@ begin
   if (select duration_seconds = 3660 and amount_minor = 3660 from billing.session_charges where session_id = v_session) then
     raise notice 'PASS 12: جلسة شمس 1:01 حُسبت 3660 ثانية بلا تقريب';
   else raise notice 'FAIL 12: جلسة 1:01 لم تُحسب حرفيًا'; end if;
+
+  update core.pumps set status = 'retired' where id = v_pump_61;
 
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة 75 دقيقة', 'solar') returning id into v_pump_75;
   insert into ops.irrigation_sessions (
@@ -274,6 +278,8 @@ begin
   insert into billing.well_pricing (well_id, price_per_hour_minor, period_start)
   values (v_well, 5000, date '2026-04-02');
 
+  update core.pumps set status = 'retired' where id = v_pump_75;
+
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة كسر الريال', 'solar') returning id into v_pump_fraction;
   insert into ops.irrigation_sessions (
     well_id,
@@ -298,6 +304,8 @@ begin
     raise notice 'PASS 14: كسر الريال 1.388 اقتُطع إلى ريال كامل واحد حسب ق-71 وق-77';
   else raise notice 'FAIL 14: ناتج كسر الريال = % والمتوقع 1', v_amount; end if;
 
+  update core.pumps set status = 'retired' where id = v_pump_fraction;
+
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة نهاية الشهر', 'solar') returning id into v_pump_month;
   insert into ops.irrigation_sessions (
     well_id,
@@ -321,6 +329,8 @@ begin
      and not exists (select 1 from reporting.well_daily_summary where well_id = v_well and day = date '2026-01-31' and sessions_count > 0) then
     raise notice 'PASS 15: جلسة نهاية الشهر نُسبت كاملة إلى فبراير يوم النهاية';
   else raise notice 'FAIL 15: جلسة نهاية الشهر لم تُنسب حصريًا إلى يوم النهاية'; end if;
+
+  update core.pumps set status = 'retired' where id = v_pump_month;
 
   insert into core.pumps (well_id, name, power_source) values (v_well, 'مضخة الجلسة المنسية', 'solar') returning id into v_pump_long;
   insert into ops.irrigation_sessions (

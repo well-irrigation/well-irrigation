@@ -196,17 +196,18 @@ begin
   returning id into v_pump;
 
   -- أربع مضخات: زناد منع التوازي يحكم المضخة الواحدة، وكل جلسة اختبار
-  -- تُبدأ على مضخة خاصة بها.
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة محاصيل الجلسة الثانية', 'solar')
+  -- تُبدأ على مضخة خاصة بها. ق-132 (M113): مضخة فعالة واحدة لكل بئر
+  -- — تُدخل غير فعالة وتُفعَّل بالتناوب قبل كل جلسة.
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة محاصيل الجلسة الثانية', 'solar', 'inactive')
   returning id into v_pump_2;
 
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة محاصيل الجلسة الثالثة', 'solar')
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة محاصيل الجلسة الثالثة', 'solar', 'inactive')
   returning id into v_pump_3;
 
-  insert into core.pumps (well_id, name, power_source)
-  values (v_well, 'مضخة محاصيل الجلسة الرابعة', 'solar')
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_well, 'مضخة محاصيل الجلسة الرابعة', 'solar', 'inactive')
   returning id into v_pump_4;
 
   insert into billing.well_pricing
@@ -298,6 +299,13 @@ begin
   -- -------------------------------------------------------------
   -- 5. بلا محصول: البدء يتم ولا صفوف محاصيل تُصطنع.
   -- -------------------------------------------------------------
+  execute 'reset role';
+
+  update core.pumps set status = 'retired' where id = v_pump;
+  update core.pumps set status = 'active' where id = v_pump_2;
+
+  execute 'set local role authenticated';
+
   v_session_2 := api.start_irrigation_session(
     v_well, v_pump_2, v_farm, v_farmer_account, 'solar',
     timestamptz '2026-09-10 09:00:00+00', null, null, null
@@ -315,6 +323,13 @@ begin
   -- -------------------------------------------------------------
   -- 6. التطبيع والدنئة: الفراغ يُتجاهل والتكرار لا يتضاعف.
   -- -------------------------------------------------------------
+  execute 'reset role';
+
+  update core.pumps set status = 'retired' where id = v_pump_2;
+  update core.pumps set status = 'active' where id = v_pump_3;
+
+  execute 'set local role authenticated';
+
   v_session_3 := api.start_irrigation_session(
     v_well, v_pump_3, v_farm, v_farmer_account, 'solar',
     timestamptz '2026-09-10 10:00:00+00', null, null,
@@ -335,6 +350,13 @@ begin
   -- 7. الإعادة بمعرّف العملية: نفس الجلسة ولا مضاعفة للمحاصيل (ق-114).
   -- -------------------------------------------------------------
   v_command := gen_random_uuid();
+
+  execute 'reset role';
+
+  update core.pumps set status = 'retired' where id = v_pump_3;
+  update core.pumps set status = 'active' where id = v_pump_4;
+
+  execute 'set local role authenticated';
 
   v_first_id := api.start_irrigation_session(
     v_well, v_pump_4, v_farm, v_farmer_account, 'solar',

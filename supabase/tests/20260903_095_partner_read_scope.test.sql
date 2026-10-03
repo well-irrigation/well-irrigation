@@ -158,8 +158,10 @@ begin
   values (v_well, 'مضخة 095', 'active', 'submersible', '30 HP')
   returning id into v_pump;
 
+  -- ق-132 (M113): مضخة فعالة واحدة لكل بئر — الجلسة تُدرج مباشرة
+  -- بلا شرط فعالية على المضخة في هذا الاختبار.
   insert into core.pumps (well_id, name, status, pump_type, power_rating)
-  values (v_well, 'مضخة 095-ب', 'active', 'submersible', '30 HP')
+  values (v_well, 'مضخة 095-ب', 'inactive', 'submersible', '30 HP')
   returning id into v_pump2;
 
   insert into core.persons (tenant_id, full_name, normalized_name)
