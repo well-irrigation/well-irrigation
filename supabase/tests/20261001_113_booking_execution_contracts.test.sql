@@ -331,6 +331,27 @@ begin
   end if;
   execute 'set constraints ' || v_cons || ' deferred';
 
+  -- EE11b: تغيير مالك الوقود مع command_id ثابت ليس replay مطابقًا؛
+  -- يجب رفض الحمولة المختلفة وعدم إنشاء جلسة ثانية.
+  begin
+    perform api.start_adhoc_session(
+      v_wrp, v_pump, v_farm, v_acc, 'well_diesel', null,
+      v_now, v_person, v_cmd, null
+    );
+    raise notice 'FAIL EE11b: قُبل replay بمالك وقود مختلف';
+  exception when others then
+    if position('معرّف العملية مستخدم لمحتوى مختلف' in sqlerrm) > 0 then
+      raise notice 'PASS EE11b: رُفض replay المختلف في مالك الوقود';
+    else
+      raise notice 'FAIL EE11b: رفض غير متوقع: %', left(sqlerrm, 80);
+    end if;
+  end;
+  if (select count(*) from ops.irrigation_sessions where well_id = v_wrp) = 1 then
+    raise notice 'PASS EE11c: رفض replay لم يُنشئ جلسة إضافية';
+  else
+    raise notice 'FAIL EE11c: عدد الجلسات تغيّر بعد رفض replay';
+  end if;
+
   -- E2-e-b2-S1) EE13: العقد القديم (api.start_irrigation_session) على بئر
   -- بلا حجز مؤكّد قادم ينجح والزناد المؤجَّل يُطلَق على إدراجه فعلًا —
   -- إثبات توافق المسار القديم لا صمته. ثم EE14: يُكمل عبر عقد الإكمال

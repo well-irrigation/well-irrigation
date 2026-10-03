@@ -573,7 +573,7 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | المجال | التنفيذ/الدليل المحلي | الباقي/حالة Git |
 | --- | --- | --- |
 | السلوك المعتمد | لا مدة دون حجز قادم؛ مدة صريحة لا تتجاوز بداية الحجز المؤكد القادم؛ لا إكمال/تشغيل فوق جلسة مفتوحة | Adopted من المالك 2026-10-02؛ توثيق/Git closure Pending |
-| M113 backend | عمودا التخطيط، قيد مؤجل على صف الجلسة النهائي، عقد `api.start_adhoc_session`، تغطية القديم والمربوط بحجز | Owner `c:db`: 1069/0/0؛ branch commit/CI/Cloud/Production Pending |
+| M113 backend | عمودا التخطيط، قيد مؤجل على صف الجلسة النهائي، عقد `api.start_adhoc_session`، تغطية القديم والمربوط بحجز؛ سد نقص مالك الوقود في بصمة replay + EE11b/EE11c | PR #47 قبل الإصلاح: CI `c:db` 1069 PASS؛ الإصلاح الجديد وإعادة توليد الفهرس وCI Pending؛ Merge/Cloud/Production Pending |
 | Flutter command layer | نوع `startAdhocSession`، وسيط اختياري، دعم projector وOutbox القديم | تقرير الوكيل: `flutter test` 667/667، analyze نظيف؛ لا تصميم شاشات |
 | Flutter UX / booking awareness | لا معلومات حجز محلية ولا عرض `pending/review` في الشاشة بعد | Requires owner UI design approval |
 | Offline recovery | مراجعة أوامر review وتوابعها؛ Downgrade؛ زمن الهاتف؛ reason_code لرفض المدة | Pending — لا تلقائية صامتة، لا فقدان بيانات |

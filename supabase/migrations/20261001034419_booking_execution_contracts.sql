@@ -3195,7 +3195,8 @@ create function sync.begin_adhoc_session_command(
   p_planned_duration_minutes integer,
   p_started_at timestamptz,
   p_command_id uuid,
-  p_crops text[]
+  p_crops text[],
+  p_fuel_owner_person_id uuid
 )
 returns jsonb
 language plpgsql
@@ -3246,7 +3247,8 @@ begin
     'energy_source', p_energy_source,
     'planned_duration_minutes', p_planned_duration_minutes,
     'started_at', p_started_at,
-    'crops', to_jsonb(p_crops)
+    'crops', to_jsonb(p_crops),
+    'fuel_owner_person_id', p_fuel_owner_person_id
   );
 
   v_guard := sync.begin_command(
@@ -3276,10 +3278,10 @@ end;
 $function$;
 
 revoke all on function sync.begin_adhoc_session_command(
-  uuid, uuid, uuid, uuid, text, integer, timestamptz, uuid, text[]
+  uuid, uuid, uuid, uuid, text, integer, timestamptz, uuid, text[], uuid
 ) from public, anon, authenticated, service_role;
 grant execute on function sync.begin_adhoc_session_command(
-  uuid, uuid, uuid, uuid, text, integer, timestamptz, uuid, text[]
+  uuid, uuid, uuid, uuid, text, integer, timestamptz, uuid, text[], uuid
 ) to authenticated, service_role;
 -- سطح البدء الحرّ بمدة — SECURITY INVOKER، إيديمبوتنت. command_id اختياري
 -- (توافق مع نمط M105). الإنفاذ المؤجَّل يقع عند COMMIT عبر زناد القيد؛ فشل
@@ -3310,7 +3312,7 @@ begin
     v_guard := sync.begin_adhoc_session_command(
       p_well_id, p_pump_id, p_farm_id, p_farmer_well_account_id,
       p_energy_source, p_planned_duration_minutes, p_started_at,
-      p_command_id, p_crops
+      p_command_id, p_crops, p_fuel_owner_person_id
     );
     if coalesce((v_guard ->> 'duplicate')::boolean, false) then
       if v_guard ->> 'status' = 'accepted' then
