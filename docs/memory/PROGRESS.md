@@ -5,6 +5,14 @@
 [DOC-RECOVERY-Q133-2026-10-03]
 
 
+## 2026-10-03 — إغلاق توثيق الدمج: PR #47 مدموج وCI #36 ناجح على main
+
+- **الدمج:** PR #47 merged إلى `main`؛ merge commit = `e1d2c68936d910cd091fafba1b598ce5a8b28ccc`.
+- **CI بعد الدمج:** GitHub Actions #36 على `main` = SUCCESS: قاعدة البيانات `FILES=52 PASS=1071 FAIL=0 ERROR=0`، الفهرس `columns=889 constraints=544 functions=261 triggers=49` مطابق، وFlutter `667 PASS` مع `analyze=0 issues`.
+- **حد النشر:** عُطّل `Deploy to production` قبل الدمج، و**M113 غير موجودة في سجل migrations السحابي** لمشروع Supabase `hxfhczpfrfdpzsobfbab` بعد الدمج — فلا Cloud Verified ولا Production، ولا يُستنتج توافق السحابة مع الهجرات من نجاح CI.
+- **حد الإغلاق:** M113 ليست مغلقة وظيفيًا (الانتقال الزمني الكامل والتنبيهات وفوات لحظة التشغيل Offline واختبارات التزامن Pending)؛ M114 وFlutter UX Pending. الأقسام الأدنى في هذا الملف سجل زمني بوقائع لحظتها.
+
+
 ## 2026-10-03 — استدراك سجل التنفيذ المحلي M113 وشريحة Offline/Outbox (ق-132/ق-133)
 
 **حد الدليل:** جولات نُفذت على جهاز المالك/وكيله خلال هذه المحادثة، ولم يُثبت لها commit/push/PR/CI أو Cloud/Production. هذه وقائع تنفيذ محلي وليست إغلاقًا للميزة أو نشرًا.

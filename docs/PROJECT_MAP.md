@@ -44,9 +44,9 @@
 ### استدراك نطاق ق-133 والمرحلة B (2026-10-03)
 
 - **ق-133** أحدث قرار معتمد من المالك: مدة السقي الحر مشروطة بوجود حجز مؤكد قادم، وتحفظ الأوامر القديمة دون محو أو تزوير زمن. التفصيل المرجعي في `memory/DECISIONS.md` ثم `design/UX_UI_SPEC.md`؛ الثوابت 757–760.
-- **M113** منفذة جزئيًا في PR #47؛ بعد سد نقص مالك الوقود من بصمة replay واختبار EE11b/EE11c، اجتاز Commit `2a3d311` GitHub Actions #34 (`1071 DB PASS`، `667 Flutter PASS`، وفهرس القاعدة مطابق). لا Merge/Cloud/Production مثبتة، والتحقق من ربط Supabase وخيار `Deploy to production` ما زال مطلوبًا قبل الدمج. **M113 ليست مغلقة** (الانتقال الزمني الكامل والتنبيهات والتوقيت الفائت والتزامن Pending).
+- **M113** منفذة جزئيًا ومدموجة: **PR #47 = Merged** (merge commit `e1d2c689`) و**CI Verified** — GitHub Actions #36 على `main` = SUCCESS (`1071 DB PASS`، `667 Flutter PASS`، فهرس `889/544/261/49` مطابق). **Cloud/Production Pending**: عُطّل `Deploy to production` قبل الدمج، وM113 غير موجودة في سجل migrations لمشروع Supabase `hxfhczpfrfdpzsobfbab` بعد الدمج. **M113 ليست مغلقة** (الانتقال الزمني الكامل والتنبيهات والتوقيت الفائت والتزامن Pending).
 - **Flutter/Outbox**: شريحة أوامر غير مرئية منفذة مبكرًا لحماية التوافق (`flutter test` 667/667 و`analyze` نظيف بحسب تقرير الوكيل) **رغم الترتيب الأصلي الذي كان يضع Flutter بعد M114**؛ هذه استثناء تنفيذي محدود لا يعني بدء تصميم الواجهات أو إغلاق Phase B. M114 ما زالت Pending.
-- **حدود الإنجاز المجمعة:** M112 منفذة ومدموجة (PR #45، `db45b7d`) بحدود Cloud/Production Pending؛ M113 منفذة جزئيًا ومختبرة محليًا فقط (Partial Implemented + Local DB Verified، M113 NOT CLOSED)؛ شريحة أوامر Flutter/Outbox منفذة محليًا؛ M114 ما تزال Pending؛ لا CI ولا Merge ولا Cloud ولا Production مثبتة لتغييرات M113 الحالية؛ م-28 وم-45 وPhase B مفتوحة.
+- **حدود الإنجاز المجمعة:** M112 منفذة ومدموجة (PR #45، `db45b7d`) بحدود Cloud/Production Pending؛ M113 منفذة جزئيًا (Partial Implemented + CI Verified + Merged عبر PR #47 `e1d2c689`، M113 NOT CLOSED)؛ شريحة أوامر Flutter/Outbox منفذة ومدموجة؛ M114 ما تزال Pending؛ Cloud/Production Pending وM113 غير منشورة سحابيًا؛ م-28 وم-45 وPhase B مفتوحة.
 - **المصدر الوحيد للعمل التالي:** `memory/RESUME_POINT.md`؛ لا يُعتمد هذا السجل التاريخي لاستنتاج NEXT.
 
 
