@@ -4,7 +4,7 @@
 
 ## 2026-10-04 — P1-B / ق-134: نواة الانتقال الذرية وإثبات التزامن (محلي)
 
-- **الحالة:** Implemented + Local DB Verified (`FILES=52 PASS=1119` وفهرس `891/544/265/49`) + Concurrency Proof Verified على الفرع `feat/p1b-atomic-transition`؛ Git/CI/Merge/Cloud/Production Pending. P1-B-CONCURRENCY-PROOF-VERIFIED-2026-10-04.
+- **الحالة:** **Implemented + Verified + Branch Pushed** — Local DB Verified (`FILES=52 PASS=1119` وفهرس `891/544/265/49`) + Concurrency Proof Verified + commit التنفيذ `decacc7` مرفوع إلى `github/feat/p1b-atomic-transition` على الفرع `feat/p1b-atomic-transition`؛ CI/Merge/Cloud/Production Pending. P1-B-CONCURRENCY-PROOF-VERIFIED-2026-10-04.
 - **التنفيذ:** أُضيفت الدالة `ops.execute_booking_transition(uuid, bigint, uuid) -> jsonb` داخل M113. تجمع في معاملة ذرية واحدة: إغلاق الجلسة المحجوزة عند حدها الموثوق (748/762) بتفويض كامل لـ `ops.complete_irrigation_session` وبدء الحجز التالي المستحق بتفويض `ops.start_booking_session_core`، مع حراس: هوية المشغل الحقيقية، إعداد ON مقفول، سلسلة active مسلّحة، بلوغ حد التشغيل الموثوق (البداية الفعلية + المدة المحجوزة)، الحجز التالي مستحق، CAS على نسخة السلسلة، دورة أمر `sync`، وترتيب أقفال settings → session → chain → booking → pump.
 - **إثبات قاعدة البيانات (`db:test`):** 52 ملفًا / 1119 PASS / 0 FAIL / 0 ERROR (منها 227 PASS لاختبار M113 بـ 16 تحققًا لكتلة PB تغطي كافة حالات القبول والرفض والتراجع الذري)؛ الفهرس: columns=891 constraints=544 functions=265 triggers=49 (زيادة دالة واحدة).
 - **إثبات التزامن باتصالين مستقلين (`scripts/p1b_transition_concurrency_proof.py`):**
