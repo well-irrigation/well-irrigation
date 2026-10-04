@@ -5909,4 +5909,485 @@ begin
 end
 $test_ed$;
 
+-- =====================================================================
+-- M113-P1-A — ق-134 §1/§5: إعداد تشغيل/إيقاف الانتقال الآلي لكل بئر.
+--   الافتراض OFF بمراجعة 0، والتحكم للمشغل المخوّل حصرًا (session.start
+--   + حيازة المشغل)؛ مالك البئر يراقب ولا يتحكم عن بعد (مساره P7).
+--   مراجعة تصاعدية مستقلة بلا updated_at، والعملية الداخلية ممنوحة
+--   EXECUTE للأدوار المصرح بها وتحمل حراس الهوية والتفويض ودورة
+--   الأمر الكاملة، ولا جلسة ولا تسوية مالية ناتجة عن تغيير الإعداد.
+-- =====================================================================
+do $test_pa$
+declare
+  v_tenant uuid;
+  v_owner uuid;    -- مالك البئر (مراقبة فقط؛ تحكمه عن بعد مؤجل إلى P7)
+  v_op uuid;       -- المشغل المخوّل على البئرين
+  v_mgr uuid;      -- مدير له session.start كنونيًا بلا حيازة مشغل
+  v_outsider uuid; -- بلا تعيين نشط (عليه تعيين مشغل غير نشط فحسب)
+  v_wa uuid;       -- بئر أ
+  v_wb uuid;       -- بئر ب
+  v_wc uuid;       -- بئر ج (لإدراج المالك غير المشروع)
+  v_rows integer;
+  v_err text;
+  v_res jsonb;
+  v_rev0 bigint;
+  v_rev1 bigint;
+  v_rev2 bigint;
+  v_rev3 bigint;
+  v_revb bigint;
+  v_cmd uuid;
+  v_cmd_owner uuid;  -- محاولة المالك المباشرة (المرفوضة)
+  v_cmd_direct uuid; -- أمر الاستدعاء المباشر للمشغل (المقبول المسجَّل)
+  v_cmd_stale uuid;  -- أمر المراجعة القديمة (المتراجع ذريًا)
+begin
+  insert into core.tenants (name) values ('جهة M113-P1-A') returning id into v_tenant;
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+     email_confirmed_at, created_at, updated_at)
+  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated',
+     'authenticated', 'own-pa@test.local', crypt('x', gen_salt('bf')), now(), now(), now())
+  returning id into v_owner;
+  insert into iam.profiles (id, full_name) values (v_owner, 'مالك PA') on conflict (id) do nothing;
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+     email_confirmed_at, created_at, updated_at)
+  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated',
+     'authenticated', 'op-pa@test.local', crypt('x', gen_salt('bf')), now(), now(), now())
+  returning id into v_op;
+  insert into iam.profiles (id, full_name) values (v_op, 'مشغل PA') on conflict (id) do nothing;
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+     email_confirmed_at, created_at, updated_at)
+  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated',
+     'authenticated', 'out-pa@test.local', crypt('x', gen_salt('bf')), now(), now(), now())
+  returning id into v_outsider;
+  insert into iam.profiles (id, full_name) values (v_outsider, 'غريب PA') on conflict (id) do nothing;
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+     email_confirmed_at, created_at, updated_at)
+  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated',
+     'authenticated', 'mgr-pa@test.local', crypt('x', gen_salt('bf')), now(), now(), now())
+  returning id into v_mgr;
+  insert into iam.profiles (id, full_name) values (v_mgr, 'مدير PA') on conflict (id) do nothing;
+
+  insert into core.wells (tenant_id, name) values (v_tenant, 'بئر PA-A') returning id into v_wa;
+  insert into core.wells (tenant_id, name) values (v_tenant, 'بئر PA-B') returning id into v_wb;
+  insert into core.wells (tenant_id, name) values (v_tenant, 'بئر PA-C') returning id into v_wc;
+  insert into core.well_assignments (well_id, profile_id, role, status) values
+    (v_wa, v_owner, 'owner', 'active'), (v_wb, v_owner, 'owner', 'active'),
+    (v_wc, v_owner, 'owner', 'active'),
+    (v_wa, v_op, 'operator', 'active'), (v_wb, v_op, 'operator', 'active'),
+    (v_wa, v_mgr, 'manager', 'active'),
+    (v_wa, v_outsider, 'operator', 'inactive');
+
+  -- PA1: الافتراض OFF بمراجعة 0، وسلسلة JSON null، والتمييز الصريح:
+  --   منفّذ الأتمتة غير جاهز مستقلًا عن الإعداد المحفوظ.
+  perform set_config('request.jwt.claim.sub', v_owner::text, true);
+  execute 'set local role authenticated';
+  v_res := api.get_well_booking_automation(v_wa);
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is false
+     and (v_res ->> 'booking_auto_transition_revision')::bigint = 0
+     and (v_res ->> 'settings_row_exists')::boolean is true
+     and (v_res ->> 'active_chain') is null
+     and (v_res ->> 'automation_executor_ready')::boolean is false
+     and (v_res ->> 'auto_transition_executed')::boolean is false
+     and v_res ->> 'first_session' = 'manual' then
+    raise notice 'PASS PA1: الافتراض OFF بمراجعة 0 وسلسلة JSON null وجاهزية المنفّذ صريحة';
+  else
+    raise notice 'FAIL PA1: قراءة الافتراض غير صحيحة: %', v_res;
+  end if;
+  execute 'reset role';
+
+  -- PA2: منع التحكم البعيد للمالك عبر هذا العقد قبل استكمال ضوابط
+  --   هاتف المشغّل (ق-134 §5) — مساره مؤجل إلى P7، والقيمة لا تتغير.
+  perform set_config('request.jwt.claim.sub', v_owner::text, true);
+  execute 'set local role authenticated';
+  begin
+    perform api.set_well_booking_automation(v_wa, true, 0::bigint, gen_random_uuid());
+    raise notice 'FAIL PA2: المالك تحكم في الإعداد عن بعد';
+  exception when others then
+    if position('P7' in sqlerrm) > 0 then
+      raise notice 'PASS PA2: تحكم المالك عن بعد محجوب حتى P7';
+    else
+      raise notice 'FAIL PA2: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  v_res := api.get_well_booking_automation(v_wa);
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is false
+     and (v_res ->> 'booking_auto_transition_revision')::bigint = 0 then
+    raise notice 'PASS PA2b: رفض المالك بلا أي أثر على القيمة أو المراجعة';
+  else
+    raise notice 'FAIL PA2b: الرفض ترك أثرًا: %', v_res;
+  end if;
+  execute 'reset role';
+
+  -- PA3: المشغل المخوّل يغيّر ON بنجاح، والرد صريح: حفظ بلا تنفيذ.
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  execute 'set local role authenticated';
+  v_rev0 := (api.get_well_booking_automation(v_wa) ->> 'booking_auto_transition_revision')::bigint;
+  v_cmd := gen_random_uuid();
+  v_res := api.set_well_booking_automation(v_wa, true, v_rev0, v_cmd);
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is true
+     and (v_res ->> 'setting_saved')::boolean is true
+     and (v_res ->> 'auto_transition_executed')::boolean is false
+     and (v_res ->> 'booking_auto_transition_revision')::bigint = v_rev0 + 1 then
+    raise notice 'PASS PA3: المشغل المخول حفظ ON بلا ادعاء تنفيذ انتقال';
+  else
+    raise notice 'FAIL PA3: رد تغيير المشغل غير صحيح: %', v_res;
+  end if;
+  v_rev1 := (v_res ->> 'booking_auto_transition_revision')::bigint;
+  execute 'reset role';
+
+  -- PA3b: المالك يراقب: يرى الإعداد ON المحفوظ والمنفّذ غير جاهز.
+  perform set_config('request.jwt.claim.sub', v_owner::text, true);
+  execute 'set local role authenticated';
+  v_res := api.get_well_booking_automation(v_wa);
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is true
+     and (v_res ->> 'automation_executor_ready')::boolean is false
+     and (v_res ->> 'auto_transition_executed')::boolean is false
+     and v_res -> 'active_chain' is not distinct from 'null'::jsonb then
+    raise notice 'PASS PA3b: الإعداد ON محفوظ والمنفّذ غير جاهز — تمييز صريح';
+  else
+    raise notice 'FAIL PA3b: قراءة المراقبة غير صحيحة: %', v_res;
+  end if;
+  execute 'reset role';
+
+  -- PA4: إعادة إرسال الأمر المطابق (نفس المعرف والحمولة) تنجح وتعيد
+  --   الرد المخزَّن بلا تكرار الأثر: المراجعة لا تتقدم مرتين.
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  execute 'set local role authenticated';
+  v_res := api.set_well_booking_automation(v_wa, true, v_rev0, v_cmd);
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is true
+     and (v_res ->> 'booking_auto_transition_revision')::bigint = v_rev1
+     and v_res ? 'setting_saved' then
+    raise notice 'PASS PA4: إعادة الأمر المطابق أعادت الرد المخزَّن دون تكرار أثر';
+  else
+    raise notice 'FAIL PA4: إعادة الأمر لم تعمل كما يجب: %', v_res;
+  end if;
+
+  -- PA5: نفس معرّف الأمر بحمولة مختلفة يُرفض.
+  begin
+    perform api.set_well_booking_automation(v_wa, false, v_rev0, v_cmd);
+    raise notice 'FAIL PA5: معرّف العملية قُبل بمحتوى مختلف';
+  exception when others then
+    if position('مستخدم لمحتوى مختلف' in sqlerrm) > 0 then
+      raise notice 'PASS PA5: معرف الأمر بحمولة مختلفة مرفوض';
+    else
+      raise notice 'FAIL PA5: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- PA6: تعديلان داخل المعاملة نفسها ثم أمر مؤجَّل قديم يحمل مراجعة
+  --   بينية — يجب رفضه (لا updated_at/now() الثابت داخل المعاملة).
+  v_res := api.set_well_booking_automation(v_wa, false, v_rev1, gen_random_uuid());
+  v_rev2 := (v_res ->> 'booking_auto_transition_revision')::bigint;
+  if v_rev2 = v_rev1 + 1 then
+    raise notice 'PASS PA6: التعديل الثاني داخل المعاملة رفع المراجعة (% → %)', v_rev1, v_rev2;
+  else
+    raise notice 'FAIL PA6: المراجعة لم تتقدم داخل المعاملة: %', v_res;
+  end if;
+  begin
+    perform api.set_well_booking_automation(v_wa, true, v_rev1, gen_random_uuid());
+    raise notice 'FAIL PA6b: أمر بمراجعة بينية تجاوز تعديلًا أحدث في المعاملة نفسها';
+  exception when others then
+    if position('نسخة إعداد قديمة' in sqlerrm) > 0 then
+      raise notice 'PASS PA6b: المراجعة البينية القديمة مرفوضة داخل المعاملة نفسها';
+    else
+      raise notice 'FAIL PA6b: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  begin
+    perform api.set_well_booking_automation(v_wa, true, v_rev0, gen_random_uuid());
+    raise notice 'FAIL PA6c: أمر بالمراجعة الابتدائية قُبل بعد تعديلين';
+  exception when others then
+    if position('نسخة إعداد قديمة' in sqlerrm) > 0 then
+      raise notice 'PASS PA6c: المراجعة الابتدائية القديمة مرفوضة أيضًا';
+    else
+      raise notice 'FAIL PA6c: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  v_res := api.get_well_booking_automation(v_wa);
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is false
+     and (v_res ->> 'booking_auto_transition_revision')::bigint = v_rev2 then
+    raise notice 'PASS PA6d: رفض الأوامر القديمة بلا أي أثر على القيمة';
+  else
+    raise notice 'FAIL PA6d: حالة ما بعد الرفض غير صحيحة: %', v_res;
+  end if;
+
+  -- PA7: الصلاحيات — الغريب بتعيين مشغل غير نشط فحسب محجوب كليًا:
+  --   التعيين غير النشط لا يمنح قراءة ولا تغييرًا عبر المسار الكنوني.
+  perform set_config('request.jwt.claim.sub', v_outsider::text, true);
+  begin
+    perform api.get_well_booking_automation(v_wa);
+    raise notice 'FAIL PA7: غريب قرأ إعداد البئر';
+  exception when others then
+    if position('صلاحية' in sqlerrm) > 0 then
+      raise notice 'PASS PA7: الغريب (بتعيين غير نشط) محجوب عن القراءة';
+    else
+      raise notice 'FAIL PA7: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  begin
+    perform api.set_well_booking_automation(v_wa, true, null, gen_random_uuid());
+    raise notice 'FAIL PA7b: غريب غيّر إعداد البئر';
+  exception when others then
+    if position('P7' in sqlerrm) > 0 then
+      raise notice 'PASS PA7b: الغريب (بتعيين غير نشط) محجوب عن التغيير';
+    else
+      raise notice 'FAIL PA7b: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- PA7c/PA7d: المدير يملك session.start كنونيًا ولا يملك حيازة
+  --   المشغل — محجوب عن القراءة (مالك/مشغل فحسب) وعن التغيير (P7).
+  perform set_config('request.jwt.claim.sub', v_mgr::text, true);
+  begin
+    perform api.get_well_booking_automation(v_wa);
+    raise notice 'FAIL PA7c: مدير قرأ إعداد البئر';
+  exception when others then
+    if position('صلاحية' in sqlerrm) > 0 then
+      raise notice 'PASS PA7c: المدير محجوب عن القراءة';
+    else
+      raise notice 'FAIL PA7c: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  begin
+    perform api.set_well_booking_automation(v_wa, true, null, gen_random_uuid());
+    raise notice 'FAIL PA7d: مدير غيّر إعداد البئر';
+  exception when others then
+    if position('P7' in sqlerrm) > 0 then
+      raise notice 'PASS PA7d: المدير محجوب عن التغيير رغم session.start';
+    else
+      raise notice 'FAIL PA7d: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  execute 'reset role';
+
+  -- PA8: الاستدعاء المباشر للعملية الداخلية يطبّق العقد كاملًا: حرس
+  --   التفويض أولًا يرفض المالك (يمرّ session.start بوصفه مالكًا
+  --   ويُوقِعه حرس حيازة المشغل) قبل أي تسجيل أو كتابة.
+  v_cmd_owner := gen_random_uuid();
+  perform set_config('request.jwt.claim.sub', v_owner::text, true);
+  execute 'set local role authenticated';
+  begin
+    perform ops.set_well_booking_automation(v_wa, true, v_rev2, v_owner, v_cmd_owner);
+    raise notice 'FAIL PA8: المالك كتب عبر العملية الداخلية مباشرة';
+  exception when others then
+    if position('P7' in sqlerrm) > 0 then
+      raise notice 'PASS PA8: الاستدعاء المباشر يرفض المالك قبل أي تسجيل';
+    else
+      raise notice 'FAIL PA8: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- PA8b: الاستدعاء المباشر بالمشغل المخوّل ينفّذ دورة الأمر كاملة:
+  --   كتابة محراسة بمراجعة تصاعدية وقبول مسجَّل في المعاملة نفسها.
+  v_cmd_direct := gen_random_uuid();
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  v_res := ops.set_well_booking_automation(v_wa, false, v_rev2, v_op, v_cmd_direct);
+  v_rev3 := (v_res ->> 'booking_auto_transition_revision')::bigint;
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is false
+     and v_rev3 = v_rev2 + 1
+     and (v_res ->> 'setting_saved')::boolean is true
+     and (v_res ->> 'auto_transition_executed')::boolean is false then
+    raise notice 'PASS PA8b: الاستدعاء المباشر كتب بمراجعة تصاعدية صحيحة';
+  else
+    raise notice 'FAIL PA8b: دورة الاستدعاء المباشر غير صحيحة: %', v_res;
+  end if;
+
+  -- PA8e: إعادة الأمر نفسه مباشرةً تعيد الرد المخزَّن بلا كتابة ثانية
+  --   ولو تقدّمت المراجعة.
+  v_res := ops.set_well_booking_automation(v_wa, false, v_rev2, v_op, v_cmd_direct);
+  if (v_res ->> 'booking_auto_transition_revision')::bigint = v_rev3
+     and (api.get_well_booking_automation(v_wa) ->> 'booking_auto_transition_revision')::bigint = v_rev3 then
+    raise notice 'PASS PA8e: إعادة الأمر المباشر أعادت الرد المخزَّن دون تكرار أثر';
+  else
+    raise notice 'FAIL PA8e: تكرار أثر في إعادة الأمر المباشر: %', v_res;
+  end if;
+
+  -- PA8f: نفس معرّف الأمر بحمولة مختلفة (مباشرةً) يُرفض بلا أي أثر.
+  begin
+    perform ops.set_well_booking_automation(v_wa, true, v_rev2, v_op, v_cmd_direct);
+    raise notice 'FAIL PA8f: معرّف العملية قُبل بحمولة مختلفة مباشرةً';
+  exception when others then
+    if position('مستخدم لمحتوى مختلف' in sqlerrm) > 0 then
+      raise notice 'PASS PA8f: معرف الأمر المباشر بحمولة مختلفة مرفوض';
+    else
+      raise notice 'FAIL PA8f: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- PA8g: مراجعة قديمة بالاستدعاء المباشر تُرفض، والتراجع الذري يمحو
+  --   تسجيل الأمر مع فشل الكتابة فلا يبقى أمر معلّق بلا إكمال.
+  v_cmd_stale := gen_random_uuid();
+  begin
+    perform ops.set_well_booking_automation(v_wa, true, v_rev2, v_op, v_cmd_stale);
+    raise notice 'FAIL PA8g: مراجعة قديمة قُبلت بالاستدعاء المباشر';
+  exception when others then
+    if position('نسخة إعداد قديمة' in sqlerrm) > 0 then
+      raise notice 'PASS PA8g: المراجعة القديمة مرفوضة مباشرةً';
+    else
+      raise notice 'FAIL PA8g: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  -- PA8c: لا تعديل مباشر للعمودين المحميين حتى بيد المالك الذي تسمح له
+  --   سياسة 017 بتحديث الصف. لا يُفترض رمي الاستثناء دائمًا: يُفحص عدد
+  --   الصفوف المتغيرة، ثم يُتحقق بقاء القيمة والمراجعة مباشرةً (PA8c2).
+  execute 'reset role';
+  delete from core.well_settings where well_id = v_wc;
+  perform set_config('request.jwt.claim.sub', v_owner::text, true);
+  execute 'set local role authenticated';
+  v_rows := -1;
+  v_err := null;
+  begin
+    update core.well_settings
+      set booking_auto_transition_enabled = true,
+          booking_auto_transition_revision = 999
+      where well_id = v_wa;
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+  exception when others then
+    v_err := sqlerrm;
+  end;
+  if v_err is not null and position('permission denied' in v_err) > 0 then
+    raise notice 'PASS PA8c: تحديث المالك المباشر للعمودين مرفوض امتيازيًا';
+  elsif v_err is null and v_rows = 0 then
+    raise notice 'PASS PA8c: تحديث المالك المباشر حُجب بلا صفوف متغيرة';
+  else
+    raise notice 'FAIL PA8c: تجاوز محتمل للحماية (rows=% خطأ=%)', v_rows, coalesce(v_err, 'لا يوجد');
+  end if;
+
+  -- PA8d: لا إدراج غير مشروع للعمودين المحميين من المالك على بئر بلا
+  --   صف إعدادات، ولا أثر ولو قُبل الإدراج بصمت.
+  v_rows := -1;
+  v_err := null;
+  begin
+    insert into core.well_settings
+      (well_id, booking_auto_transition_enabled, booking_auto_transition_revision)
+      values (v_wc, true, 999);
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+  exception when others then
+    v_err := sqlerrm;
+  end;
+  if v_err is not null and position('permission denied' in v_err) > 0 then
+    raise notice 'PASS PA8d: إدراج المالك للعمودين المحميين مرفوض امتيازيًا';
+  elsif v_err is null and v_rows = 0 then
+    raise notice 'PASS PA8d: إدراج المالك حُجب بلا صفوف';
+  else
+    raise notice 'FAIL PA8d: تجاوز محتمل للحماية (rows=% خطأ=%)', v_rows, coalesce(v_err, 'لا يوجد');
+  end if;
+  execute 'reset role';
+  if exists (select 1 from core.well_settings
+             where well_id = v_wc
+               and (booking_auto_transition_enabled is distinct from false
+                    or booking_auto_transition_revision <> 0))
+     or (select booking_auto_transition_enabled from core.well_settings where well_id = v_wa)
+        is distinct from false
+     or (select booking_auto_transition_revision from core.well_settings where well_id = v_wa)
+        is distinct from v_rev3 then
+    raise notice 'FAIL PA8c2: محاولتا المالك المباشرتان غيّرتا ما لا يجب';
+  else
+    raise notice 'PASS PA8c2: القيمة والمراجعة على حالهما الصحيح رغم محاولتي المالك';
+  end if;
+
+  -- PA8h: دفتر الأوامر — أمر مقبول واحد مسجَّل بردّه الكامل، ولا بقايا
+  --   لأوامر مرفوضة (المالك/المراجعة القديمة) ولا أمر بلا إكمال:
+  --   لا كتابة بلا تسجيل ولا تسجيل بلا إتمام.
+  if (select count(*) from sync.processed_commands
+      where command_id = v_cmd_direct) <> 1
+     or not exists (select 1 from sync.processed_commands
+      where command_id = v_cmd_direct
+        and status = 'accepted'
+        and command_type = 'set_well_booking_automation'
+        and response_payload ->> 'booking_auto_transition_revision' = v_rev3::text)
+     or exists (select 1 from sync.processed_commands
+      where command_id in (v_cmd_owner, v_cmd_stale)) then
+    raise notice 'FAIL PA8h: دفتر الأوامر غير متسق مع دورة الأمر الذرية';
+  else
+    raise notice 'PASS PA8h: أمر مقبول واحد مسجَّل بالرد ولا بقايا لأوامر مرفوضة';
+  end if;
+
+  -- PA9: استقلال بئرين — دورة ON/OFF كاملة على بئر ب لا تمسّ بئر أ.
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  execute 'set local role authenticated';
+  v_revb := (api.get_well_booking_automation(v_wb) ->> 'booking_auto_transition_revision')::bigint;
+  v_res := api.set_well_booking_automation(v_wb, true, v_revb, gen_random_uuid());
+  v_res := api.set_well_booking_automation(v_wb, false, (v_res ->> 'booking_auto_transition_revision')::bigint, gen_random_uuid());
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is false then
+    raise notice 'PASS PA9: دورة ON ثم OFF على بئر ب اكتملت بمراجعته المستقلة';
+  else
+    raise notice 'FAIL PA9: دورة بئر ب غير صحيحة: %', v_res;
+  end if;
+  execute 'reset role';
+  if (select booking_auto_transition_enabled from core.well_settings where well_id = v_wa)
+     is distinct from false
+     or (select booking_auto_transition_enabled from core.well_settings where well_id = v_wb)
+     is distinct from false then
+    raise notice 'FAIL PA9b: القيم المخزنة النهائية غير مستقلة';
+  else
+    raise notice 'PASS PA9b: استقلال البئرين قائم (أ و ب على false بمراجعتين مستقلتين)';
+  end if;
+
+  -- PA10: تغيير الإعداد لا يُنشئ جلسة ولا سلسلة ولا تسوية مالية.
+  if exists (select 1 from ops.irrigation_sessions where well_id in (v_wa, v_wb))
+     or exists (select 1 from ops.booking_transition_chains where well_id in (v_wa, v_wb))
+     or exists (select 1 from billing.session_charges where well_id in (v_wa, v_wb)) then
+    raise notice 'FAIL PA10: أثر جانبي جلسة/سلسلة/مالي من تغيير الإعداد';
+  else
+    raise notice 'PASS PA10: لا جلسة ولا سلسلة ولا تسوية مالية من تغيير الإعداد';
+  end if;
+  if exists (
+    select 1 from sync.processed_commands pc
+    where pc.entity_id in (v_wa, v_wb)
+      and pc.command_type <> 'set_well_booking_automation'
+  ) then
+    raise notice 'FAIL PA10b: سُجّل نوع أمر آخر غير تغيير الإعداد';
+  else
+    raise notice 'PASS PA10b: سجل الأوامر لتغيير الإعداد فقط بلا أي أمر آخر';
+  end if;
+
+  -- PA11: مسار الصف المفقود — أمر بمراجعة 0 يُرفض صراحة، وأول تغيير
+  --   مقبول بنسخة متوقعة null ينشئ الصف بالمراجعة 1، ولا تعود مراجعة
+  --   قديمة (0 أو null) إلى النفاذ بعد الإنشاء.
+  execute 'reset role';
+  delete from core.well_settings where well_id = v_wb;
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  execute 'set local role authenticated';
+  begin
+    perform api.set_well_booking_automation(v_wb, false, 0::bigint, gen_random_uuid());
+    raise notice 'FAIL PA11: أمر بمراجعة 0 على صف مفقود خمّن الإنشاء';
+  exception when others then
+    if position('لا يوجد صف إعدادات' in sqlerrm) > 0 then
+      raise notice 'PASS PA11: أمر بمراجعة 0 على صف مفقود مرفوض صراحة';
+    else
+      raise notice 'FAIL PA11: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  v_res := api.set_well_booking_automation(v_wb, false, null, gen_random_uuid());
+  if (v_res ->> 'booking_auto_transition_enabled')::boolean is false
+     and (v_res ->> 'booking_auto_transition_revision')::bigint = 1 then
+    raise notice 'PASS PA11b: أول تغيير مقبول على صف مفقود أنشأه بالمراجعة 1';
+  else
+    raise notice 'FAIL PA11b: إنشاء الصف المفقود غير صحيح: %', v_res;
+  end if;
+  begin
+    perform api.set_well_booking_automation(v_wb, true, 0::bigint, gen_random_uuid());
+    raise notice 'FAIL PA11c: مراجعة 0 القديمة عادت إلى النفاذ بعد الإنشاء';
+  exception when others then
+    if position('نسخة إعداد قديمة' in sqlerrm) > 0 then
+      raise notice 'PASS PA11c: مراجعة 0 القديمة مرفوضة بعد الإنشاء';
+    else
+      raise notice 'FAIL PA11c: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  begin
+    perform api.set_well_booking_automation(v_wb, true, null, gen_random_uuid());
+    raise notice 'FAIL PA11d: نسخة null قُبلت على صف موجود';
+  exception when others then
+    if position('نسخة إعداد قديمة' in sqlerrm) > 0 then
+      raise notice 'PASS PA11d: null لا تعود إلى النفاذ بعد وجود الصف';
+    else
+      raise notice 'FAIL PA11d: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  execute 'reset role';
+  raise notice '--- انتهى اختبار M113-P1-A: إعداد الانتقال الآلي لكل بئر ---';
+end
+$test_pa$;
+
 rollback;

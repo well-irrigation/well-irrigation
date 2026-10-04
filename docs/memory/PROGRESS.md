@@ -1,6 +1,14 @@
 # سجل التقدم
 
-**آخر تحديث:** 2026-10-03
+**آخر تحديث:** 2026-10-04
+
+## 2026-10-04 — P1-A / ق-134: إعداد الانتقال لكل بئر (محلي)
+
+- **الحالة:** Implemented + Local DB Verified على الفرع `feat/p1a-booking-auto-toggle`؛ Git Commit/Push/PR/CI/Merge لهذا التنفيذ Pending؛ Cloud/Production Pending. P1-A-LOCAL-DB-VERIFIED-2026-10-04.
+- **التنفيذ:** في M113 الحالية، `core.well_settings.booking_auto_transition_enabled` افتراضيًا `false` و`booking_auto_transition_revision` افتراضيًا 0؛ قراءة `api.get_well_booking_automation`، وتغيير `api.set_well_booking_automation` وداخلية `ops.set_well_booking_automation`. المشغل المخوّل وحده يغيّر الوضع، والمالك/المشغل يقرآن؛ مالك البئر لا يغيّر التشغيل عن بعد قبل P7. لا UI أو مجدول أو انتقال فعلي جديد.
+- **الحماية:** `api` من نوع SECURITY INVOKER؛ العملية الداخلية SECURITY DEFINER بحارس سلطة كنونية، سجل أمر ذرّي ومطابقة بصمة، CAS على المراجعة تحت قفل الصف، منع تجاوز الحماية حتى باستدعاء الداخلية مباشرة؛ أعمدة التحكم محجوبة عن DML المباشر للدور authenticated، مع حفظ منح أعمدة التنبيهات القديمة.
+- **إثبات المالك:** `git diff --check` نظيف؛ `npm run c:db`: `db:reset OK`، `db:test OK FILES=52 PASS=1103 FAIL=0 ERROR=0`، `db:index OK columns=891 constraints=544 functions=264 triggers=49`، `RESULT=SUCCESS`. تصحيحان لاحقان كانا تعليقين فقط بلا SQL تنفيذي.
+- **الحدود:** `automation_executor_ready=false` و`auto_transition_executed=false`؛ أول جلسة يدوية، ولا إغلاق أو بدء تلقائي، ولا اختبار تزامن فعلي بجلستي PostgreSQL مستقلتين لـP1-A، ولا Cloud Verified. M113 وPhase B ليستا مغلقتين.
 
 [DOC-RECOVERY-Q133-2026-10-03]
 

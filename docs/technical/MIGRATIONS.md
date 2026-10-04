@@ -1821,3 +1821,12 @@ columns 833 وconstraints 501 وtriggers 44 **بلا تغيير** — قراءة
 pipeline `2869239530` = database success + app success، وmain pipeline
 `2869249068` = database success + app success مع بقاء production يدويًا ولم
 يُشغَّل. لم يحدث أي نشر أو تحقق سحابي؛ سقف السحابة يبقى 102.
+
+## M113 / ق-134 — P1-A: إعداد وضع الانتقال (2026-10-04)
+
+**الحالة:** شريحة Backend منفذة ومتحقق منها محليًا على `feat/p1a-booking-auto-toggle`؛ لا CI/Merge/Cloud/Production مثبت لهذا التعديل. P1-A-LOCAL-DB-VERIFIED-2026-10-04.
+
+- أضيف إلى `core.well_settings` العمودان `booking_auto_transition_enabled boolean NOT NULL DEFAULT false` و`booking_auto_transition_revision bigint NOT NULL DEFAULT 0`؛ لا جدول إعدادات موازٍ ولا تنفيذ انتقال.
+- الدوال: `api.get_well_booking_automation(uuid)` و`api.set_well_booking_automation(uuid,boolean,bigint,uuid)` (INVOKER)، و`ops.set_well_booking_automation(uuid,boolean,bigint,uuid,uuid)` (DEFINER بحراس ذاتية ودورة أمر ذرية). الحماية تشمل التحكم بالمشغل، قارئ المالك/المشغل، سحب الكتابة الجدولية وإعادة منح أعمدة التنبيهات القديمة فقط.
+- الاختبارات داخل `20261001_113_booking_execution_contracts.test.sql` بكتلة PA. تشغيل المالك `c:db`: FILES=52 PASS=1103 FAIL=0 ERROR=0؛ index: columns=891 constraints=544 functions=264 triggers=49، RESULT=SUCCESS.
+- M113 لا تزال Partial/NOT CLOSED؛ الجدولة والإغلاق الآلي الفعلي وOffline/Flutter وسباق اتصالين مستقلين وCloud/Production Pending.

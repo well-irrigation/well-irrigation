@@ -1217,3 +1217,12 @@ fail-closed بـ`28000`/`22023`/`42501`، ترتيب حتمي، ولا كائن
 آلية سلاسل الانتقال في M113 (مدموجة عبر PR #47): قرار `run_now/wait` يُسجَّل بمقارنة-وتبديل تصاعدية على `ops.booking_transition_chains.decision_revision`، وتنفيذ حالة `pending_start` حصرًا عبر `api.execute_pending_booking_start` بعد مطابقة النسخة المتوقعة، ببصمة أمر داخل `sync` تحفظ الإيديمبوتنس — والتفصيل البنيوي في هجرة M113 واختبارها الدائم.
 
 **تصحيح مراجعة PR #47 (2026-10-03):** أصبحت بصمة `sync.begin_adhoc_session_command` تشمل `p_fuel_owner_person_id` إلى جانب المدة والزمن والمحاصيل وبقية الوسائط. `api.start_adhoc_session` يمرر مالك الوقود إلى الحارس قبل التنفيذ دون تغيير توقيع API أو الحمولة القديمة. يُغطي EE11b/EE11c رفض replay بالمعرّف نفسه ومالك مختلف مع بقاء جلسة واحدة. أثبت تشغيل GitHub Actions #33 نجاح `c:db` بنتيجة `1071 PASS` على Commit `aab26436`؛ أُخذ تحديث فهرس الدوال من `db:index` المنفّذ داخل CI. نجح فحص مطابقة الفهرس وجميع GitHub Actions #34 على Commit `2a3d311` بنتيجة قاعدة البيانات `1071 PASS` وFlutter `667 PASS`؛ **والحزمة دُمجت عبر PR #47 بmerge commit `e1d2c689` مع CI #36 على `main` = SUCCESS — Cloud/Production Pending.**
+
+## ق-134 / P1-A — عقد وضع الانتقال لكل بئر (2026-10-04)
+
+**الحالة:** Implemented + Local DB Verified على فرع P1-A غير مدموج؛ Git/CI/Cloud Pending. P1-A-LOCAL-DB-VERIFIED-2026-10-04.
+
+- `api.get_well_booking_automation(well_id)` يقرأ الإعداد والمراجعة وحالة السلسلة المرئية؛ `automation_executor_ready=false` و`auto_transition_executed=false` لا يختلقان تنفيذًا. القراءة للمالك/المشغل ذوي التعيين النشط؛ RLS باقية.
+- `api.set_well_booking_automation(well_id,enabled,expected_revision,command_id)` يتطلب هوية `auth.uid()`، وتعيين مشغّل نشطًا و`session.start`؛ المالك والمدير محجوبان حتى مسار P7. أغلفة `api` جميعها SECURITY INVOKER، وداخليّة `ops.set_well_booking_automation` SECURITY DEFINER محروسة حتى عند الاستدعاء المباشر.
+- منع التكرار: بصمة الحمولة وسجل `sync.processed_commands` وCAS رقمي وقفل صف وتثبيت رد القبول في نفس المعاملة؛ لا كتابة مباشرة لأعمدة إعداد الأتمتة من authenticated. لا تغيير في انتقالات الحجز أو الإغلاق المالي أو Flutter.
+- **الإثبات:** `c:db` المحلي 52 ملفًا / 1103 PASS / صفر FAIL/ERROR؛ الفهرس 891/544/264/49. لم يُثبت CI أو سباق اتصالين مستقلين أو Cloud/Production.
