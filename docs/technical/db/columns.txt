@@ -297,6 +297,8 @@ core.well_settings|long_session_alert_minutes|integer|NOT NULL|360
 core.well_settings|session_ending_alert_minutes|integer|NOT NULL|10
 core.well_settings|created_at|timestamp with time zone|NOT NULL|now()
 core.well_settings|updated_at|timestamp with time zone|NOT NULL|now()
+core.well_settings|booking_auto_transition_enabled|boolean|NOT NULL|false
+core.well_settings|booking_auto_transition_revision|bigint|NOT NULL|0
 core.wells|id|uuid|NOT NULL|gen_random_uuid()
 core.wells|tenant_id|uuid|NOT NULL|-
 core.wells|name|text|NOT NULL|-

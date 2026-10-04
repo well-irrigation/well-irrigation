@@ -3350,4 +3350,424 @@ revoke all on function api.start_adhoc_session(
 grant execute on function api.start_adhoc_session(
   uuid, uuid, uuid, uuid, text, integer, timestamptz, uuid, uuid, text[]
 ) to authenticated, service_role;
+
+-- ---------------------------------------------------------------------
+-- P) P1-A — ق-134 §1/§5: إعداد تشغيل/إيقاف الانتقال الآلي لكل بئر.
+--
+--    نطاق هذا القسم حصرًا: حفظ الإعداد وقراءته وتغييره بعقد API
+--    إيديمبوتنت. لا ينفّذ أي انتقال ولا إغلاقًا محاسبيًا ولا بدء حجز،
+--    ولا يمسّ ops.booking_transition_chains إطلاقًا: إيقاف الوضع وسط
+--    جلسة لا يقطعها (ق-134 §1)، وتفعيله ليس أذنًا بأثر رجعي ولا يعرض
+--    نجاح انتقال لم يُنفَّذ.
+--    الإعداد في core.well_settings القائمة (لا مخزن موازٍ)، وافتراضه
+--    false بمراجعة 0 لكل الآبار القائمة والجديدة — لا تفعيل تلقائي.
+--    الصلاحية (مراجعة المهندس الرئيسي): التحكم للمشغل المخوّل حصرًا —
+--    الصلاحية الحاكمة session.start (سلطة قرارات الانتقال نفسها في
+--    E2-b) + حيازة دور المشغل على البئر في well_assignments. مالك
+--    البئر يراقب ولا يتحكم عن بُعد قبل استكمال ضوابط هاتف المشغّل في
+--    ق-134 §5 — مساره المؤجَّل إلى P7 لا يُفتح هنا. القراءة للمالك
+--    والمشغل (مراقبة) دون تغيير.
+--    الأمان (توفيق عقد 073 مع إغلاق دورة الأمر): أغلفة api SECURITY
+--    INVOKER حصرًا — لا دالة DEFINER داخل api إطلاقًا. العمليات
+--    المميزة داخل عملية داخلية واحدة SECURITY DEFINER ممنوحة EXECUTE،
+--    تنفّذ دورة الأمر كاملة ذريًا: هوية وتفويض (session.start +
+--    حيازة المشغل)، بصمة حمولة، تسجيل الأمر، مقارنة المراجعة تحت قفل
+--    الصف، الكتابة، وإثبات الرد — فشل أي خطوة يتراجع عن التسجيل نفسه.
+--    الاستدعاء المباشر يطبّق العقد كاملًا فلا باب خلفي ولا مسار حجز
+--    معرّفات منفرد، والكتابة بصف مالك الجدول فتنجح للمشغل المخوّل رغم
+--    حجب المنح العمودي على العمودين المحميين.
+--    التزامن: مراجعة تصاعدية مستقلة booking_auto_transition_revision
+--    تُقارن ذريًا تحت قفل الصف وترفع 1 عند كل تغيير مقبول (وأول إنشاء
+--    لصف مفقود يبدأ من 1 لا 0) — لا updated_at/now() كرقم نسخة لأنها
+--    ثابتة داخل المعاملة الواحدة فتسمح لأمر قديم بتجاوز تعديلين وقعا
+--    داخلها؛ updated_at يُحدَّث للعرض عند القبول فقط. الكتابة المباشرة
+--    للعمودين المحميين مغلقة حتى بيد المالك بسحب منح الجدول الكامل
+--    وإعادة منح أعمدة التنبيهات القديمة وحدها (P1-A.0).
+-- ---------------------------------------------------------------------
+
+alter table core.well_settings
+  add column booking_auto_transition_enabled boolean not null default false;
+
+alter table core.well_settings
+  add column booking_auto_transition_revision bigint not null default 0;
+
+comment on column core.well_settings.booking_auto_transition_enabled is
+  'ق-134 §1 / P1-A: وضع الانتقال التلقائي المتتابع لحجوزات البئر. الافتراض false ولا يُفعَّل تلقائيًا. حفظه ليس تنفيذ انتقال: أول جلسة تبدأ يدويًا والتنفيذ عبر منفّذ الانتقال لاحقًا وحده.';
+
+comment on column core.well_settings.booking_auto_transition_revision is
+  'ق-134 / P1-A: مراجعة تصاعدية مستقلة لإعداد الانتقال الآلي — تُقارن ذريًا تحت قفل الصف وترفع 1 عند كل تغيير مقبول (وأول إنشاء لصف مفقود يبدأ من 1)؛ أساس رفض الأوامر المؤجَّلة القديمة حتى لو وقعت التعديلات داخل المعاملة نفسها. لا يُستعمل updated_at رقمًا للنسخة.';
+
+-- P1-A.0) إغلاق الكتابة المباشرة على العمودين المحميين حتى بيد المالك
+--   (مراجعة ثانية): 017 منحت insert, update, delete على كل جداول core
+--   لـauthenticated، وسياسة تحديث المالك فيها تسمح له بتحديث صف إعدادات
+--   بئره — فبقي العمودان مكشوفَين لكتابة مباشرة بتجاوز api. السحب
+--   وإعادة المنح على أعمدة التنبيهات القديمة (وأثرها الزمني) وحدها
+--   يحفظ سلوك تعديل التنبيهات القائم ويجعل العمودين المحميين بلا أي
+--   منح كتابة لأي دور تطبيق — حماية من نظام امتيازات الخادم نفسه لا
+--   يستطيع authenticated تجاوزها، وأغلفة api الجديدة SECURITY INVOKER
+--   والعملية الداخلية الموثوقة في ops SECURITY DEFINER بمالكها فلا
+--   يتأثر مسارها بالسحب.
+revoke insert, update on core.well_settings from authenticated;
+
+grant insert (well_id, long_session_alert_minutes, session_ending_alert_minutes)
+  on core.well_settings to authenticated;
+
+grant update (long_session_alert_minutes, session_ending_alert_minutes, updated_at)
+  on core.well_settings to authenticated;
+
+-- P1-A.1) القراءة: عقد واضح يفصل «الإعداد المحفوظ» عن «حالة التنفيذ»
+--   وعن «جاهزية المنفّذ». SECURITY INVOKER (عقد 073: لا DEFINER داخل
+--   api) بفحص دور صريح مطابق تمامًا لسياسة قراءة well_settings
+--   (مالك/مشغل) — تطابق الحرس مع سياسة RLS يمنع التباس صفٍّ مفقود
+--   مع صفٍّ محجوب فلا false كاذب (ق-113). حالة السلسلة تُقرأ عبر RLS
+--   (booking.read) من ops.booking_transition_chains الفعلية لا من
+--   الإعداد.
+create function api.get_well_booking_automation(
+  p_well_id uuid
+)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = pg_catalog, pg_temp
+as $function$
+declare
+  v_actor uuid := auth.uid();
+  v_enabled boolean;
+  v_revision bigint;
+  v_updated_at timestamptz;
+  v_row_exists boolean;
+  v_chain ops.booking_transition_chains%rowtype;
+begin
+  if v_actor is null then
+    raise exception 'يجب تسجيل الدخول قبل قراءة إعداد الانتقال الآلي';
+  end if;
+  -- حرس القراءة عبر المسار الكنوني: تعيين نشط للمستدعي على البئر
+  --   يقابله في خريطة أدوار التعيين رمز الدور الكنوني tenant_owner
+  --   (المالك) أو operator (المشغل) في iam.roles — نفس نافذة سياسة
+  --   قراءة well_settings دون مصفوفات الأدوار النصية القديمة.
+  if not exists (
+    select 1
+    from core.well_assignments wa
+    join iam.well_assignment_role_map arm
+      on arm.assignment_role = wa.role
+    join iam.roles r
+      on r.id = arm.role_id
+    where wa.well_id = p_well_id
+      and wa.profile_id = v_actor
+      and wa.status = 'active'
+      and r.code in ('tenant_owner', 'operator')
+  ) then
+    raise exception 'لا تملك صلاحية قراءة إعداد الانتقال الآلي على هذا البئر'
+      using errcode = '42501';
+  end if;
+
+  select true,
+         ws.booking_auto_transition_enabled,
+         ws.booking_auto_transition_revision,
+         ws.updated_at
+    into v_row_exists, v_enabled, v_revision, v_updated_at
+  from core.well_settings ws
+  where ws.well_id = p_well_id;
+  if not found then
+    v_row_exists := false;
+    v_enabled := false;
+    v_revision := null;
+  end if;
+
+  select c.* into v_chain
+  from ops.booking_transition_chains c
+  where c.well_id = p_well_id
+    and c.status <> 'ended'
+  limit 1;
+
+  return jsonb_build_object(
+    'contract', 'get_well_booking_automation',
+    'version', 1,
+    'well_id', p_well_id,
+    -- الإعداد المحفوظ ومراجعته: المراجعة وحدها تُرسل مع أمر التغيير.
+    'booking_auto_transition_enabled', v_enabled,
+    'booking_auto_transition_revision', v_revision,
+    'settings_row_exists', v_row_exists,
+    'settings_updated_at', v_updated_at,
+    -- حالة التنفيذ الفعلية من سلسلة البئر (JSON null بلا أي سلسلة).
+    'active_chain', case
+      when v_chain.id is null then null
+      else jsonb_build_object(
+        'chain_id', v_chain.id,
+        'status', v_chain.status,
+        'next_booking_id', v_chain.next_booking_id,
+        'decision_revision', v_chain.decision_revision
+      )
+    end,
+    -- منفّذ الأتمتة غير جاهز حاليًا — ثابت false حتى تنفيذ منفّذ
+    -- الانتقال في جولة لاحقة، مستقل كليًا عن كون الإعداد ON محفوظًا.
+    'automation_executor_ready', false,
+    -- بند 7 صراحةً: حفظ الإعداد بوضع التشغيل ليس نجاح تشغيل آلي.
+    'auto_transition_executed', false,
+    'first_session', 'manual'
+  );
+end;
+$function$;
+
+revoke all on function api.get_well_booking_automation(uuid)
+  from public, anon, authenticated, service_role;
+grant execute on function api.get_well_booking_automation(uuid)
+  to authenticated, service_role;
+
+-- P1-A.2) العملية الداخلية الموثوقة: دورة الأمر كاملة ذريًا داخل دالة
+--   واحدة — حرس الهوية، حرس التفويض، بصمة الحمولة، تسجيل الأمر
+--   (begin_command)، مقارنة المراجعة تحت قفل الصف، الكتابة، ثم إثبات
+--   الرد النهائي (finish_command). الكل في معاملة واحدة: فشل أي خطوة
+--   يتراجع عن التسجيل نفسه، فلا كتابة بلا أمر مقبول مسجَّل، ولا أمر
+--   مسجَّل بلا رد، ولا حجز معرّفات معلّق يفسد أوامر صحيحة لاحقًا.
+--   الاستدعاء المباشر يطبّق هذا العقد كاملًا فلا باب خلفي: لا مسار
+--   تسجيل منفرد يبقى، ولا كتابة تسبق القبول، والرد المخزَّن هو وحده
+--   ما يعاد عند إعادة الأمر المطابق ولو تقدّمت المراجعة.
+create function ops.set_well_booking_automation(
+  p_well_id uuid,
+  p_enabled boolean,
+  p_expected_revision bigint,
+  p_actor uuid,
+  p_command_id uuid
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = pg_catalog, pg_temp
+as $function$
+declare
+  v_actor uuid := auth.uid();
+  v_tenant_id uuid;
+  v_payload jsonb;
+  v_guard jsonb;
+  v_stored_type text;
+  v_stored_payload jsonb;
+  v_status text;
+  v_response jsonb;
+  v_revision bigint;
+  v_result jsonb;
+begin
+  -- حرس الهوية: المستدعي الحقيقي من رمز JWT لا من وسيط.
+  if v_actor is null then
+    raise exception 'يجب تسجيل الدخول قبل تغيير إعداد الانتقال الآلي';
+  end if;
+  if p_actor is distinct from v_actor then
+    raise exception 'معرف المستخدم يجب أن يطابق المسجل حاليًا';
+  end if;
+  if p_enabled is null then
+    raise exception 'قيمة الانتقال الآلي مطلوبة (تشغيل أو إيقاف)';
+  end if;
+  if p_command_id is null then
+    raise exception 'معرّف العملية مطلوب';
+  end if;
+
+  -- حرس التفويض (ق-134 §1/§5): المشغل المخوّل حصرًا — الصلاحية الحاكمة
+  -- لقرارات الانتقال (session.start) عبر السلطة الكنونية، مع تعيين
+  -- نشط للمستدعي يقابله في خريطة أدوار التعيين رمز الدور الكنوني
+  -- operator في iam.roles (المالك برمز tenant_owner والمدير برمز
+  -- well_manager فيحجبان رغم امتلاكهما session.start). مالك البئر
+  -- يراقب ولا يتحكم عن بُعد قبل استكمال ضوابط هاتف المشغّل؛ مساره
+  -- المؤجَّل إلى P7 لا يُفتح هنا.
+  if not iam.has_well_permission(p_well_id, 'session.start')
+     or not exists (
+      select 1
+      from core.well_assignments wa
+      join iam.well_assignment_role_map arm
+        on arm.assignment_role = wa.role
+      join iam.roles r
+        on r.id = arm.role_id
+      where wa.well_id = p_well_id
+        and wa.profile_id = v_actor
+        and wa.status = 'active'
+        and r.code = 'operator'
+    ) then
+    raise exception 'تغيير إعداد الانتقال الآلي قرار المشغل المخول على هاتف التشغيل؛ مسار المالك عن بعد مؤجل إلى P7'
+      using errcode = '42501';
+  end if;
+
+  select w.tenant_id into v_tenant_id
+  from core.wells w
+  where w.id = p_well_id;
+  if v_tenant_id is null then
+    raise exception 'البئر غير موجود';
+  end if;
+
+  -- بصمة الحمولة: كل وسيط مؤثر جزء منها، وإعادة نفس المعرف ونفس
+  -- الحمولة تعيد الرد المخزَّن حرفيًا بلا تنفيذ ثانٍ.
+  v_payload := jsonb_build_object(
+    'well_settings_contract_version', 113,
+    'well_id', p_well_id,
+    'enabled', p_enabled,
+    'expected_revision', p_expected_revision
+  );
+
+  v_guard := sync.begin_command(
+    v_tenant_id,
+    p_command_id,
+    'set_well_booking_automation',
+    v_payload,
+    p_well_id
+  );
+
+  if coalesce((v_guard ->> 'duplicate')::boolean, false) then
+    select pc.command_type, pc.request_payload, pc.status, pc.response_payload
+      into v_stored_type, v_stored_payload, v_status, v_response
+    from sync.processed_commands pc
+    where pc.tenant_id = v_tenant_id
+      and pc.command_id = p_command_id;
+
+    if not found
+       or v_stored_type is distinct from 'set_well_booking_automation'
+       or v_stored_payload is distinct from v_payload then
+      raise exception 'معرّف العملية مستخدم لمحتوى مختلف';
+    end if;
+    if v_status <> 'accepted' then
+      raise exception 'العملية نفسها قيد المعالجة أو تحتاج مراجعة';
+    end if;
+    return v_response;
+  end if;
+
+  -- مقارنة-التبديل تحت قفل الصف: أمر مؤجَّل قديم لا يتجاوز تعديلًا
+  -- أحدث إطلاقًا، ولو وقعت التعديلات داخل المعاملة نفسها. بئر أُنشئ
+  -- قبل 020 بلا صف إعدادات: يُنشأ الآن، والنسخة المتوقعة يجب أن تكون
+  -- null، وأول تغيير مقبول يبدأ المراجعة من 1 لا 0.
+  select ws.booking_auto_transition_revision into v_revision
+  from core.well_settings ws
+  where ws.well_id = p_well_id
+  for update;
+
+  if found then
+    if p_expected_revision is null
+       or p_expected_revision is distinct from v_revision then
+      raise exception 'نسخة إعداد قديمة؛ أُعيد التقييم (المتوقع % الحالي %)',
+        coalesce(p_expected_revision::text, 'null'), v_revision
+        using errcode = '40001';
+    end if;
+    update core.well_settings
+      set booking_auto_transition_enabled = p_enabled,
+          booking_auto_transition_revision = booking_auto_transition_revision + 1,
+          updated_at = now()
+      where well_id = p_well_id
+      returning booking_auto_transition_revision into v_revision;
+  else
+    if p_expected_revision is not null then
+      raise exception 'لا يوجد صف إعدادات للبئر؛ النسخة المتوقعة غير صالحة'
+        using errcode = '22023';
+    end if;
+    insert into core.well_settings
+      (well_id, booking_auto_transition_enabled, booking_auto_transition_revision)
+      values (p_well_id, p_enabled, 1)
+      returning booking_auto_transition_revision into v_revision;
+  end if;
+
+  v_result := jsonb_build_object(
+    'contract', 'set_well_booking_automation',
+    'version', 1,
+    'well_id', p_well_id,
+    'booking_auto_transition_enabled', p_enabled,
+    'booking_auto_transition_revision', v_revision,
+    -- بند 7 صراحةً: الإعداد حُفظ، ولا انتقال نُفِّذ في هذه العملية.
+    'setting_saved', true,
+    'auto_transition_executed', false
+  );
+
+  -- إثبات الرد النهائي في نفس المعاملة: القبول بلا تسجيل مستحيل.
+  perform sync.finish_command(v_tenant_id, p_command_id, 'accepted', v_result);
+
+  return v_result;
+end;
+$function$;
+
+comment on function ops.set_well_booking_automation(
+  uuid, boolean, bigint, uuid, uuid
+) is
+  'ق-134 §1/§5 / P1-A: العملية الداخلية الموثوقة لإعداد الانتقال الآلي — تنفّذ دورة الأمر كاملة ذريًا: هوية وتفويض (المشغل المخول حصرًا، المالك مؤجل إلى P7)، بصمة حمولة، تسجيل ومنع تكرار عبر sync.begin_command، مقارنة-وتبديل على المراجعة التصاعدية تحت قفل الصف، كتابة، ثم إثبات الرد عبر sync.finish_command. SECURITY DEFINER ممنوحة EXECUTE وآمنة عند الاستدعاء المباشر لأن العقد كاملًا داخلها؛ الكتابة بصف مالك الجدول فتنجح رغم حجب المنح العمودي للعمودين.';
+
+revoke all on function ops.set_well_booking_automation(
+  uuid, boolean, bigint, uuid, uuid
+) from public, anon, authenticated, service_role;
+grant execute on function ops.set_well_booking_automation(
+  uuid, boolean, bigint, uuid, uuid
+) to authenticated, service_role;
+
+-- P1-A.3) غلاف api: SECURITY INVOKER (عقد 073) بحرسَي الهوية
+--   والتفويض، يفوّض دورة الأمر كاملةً إلى العملية الداخلية الموثوقة
+--   ويعيد ردها — فلا تعتمد الحماية على الغلاف وحده ولا على الداخلية
+--   وحدها.
+create function api.set_well_booking_automation(
+  p_well_id uuid,
+  p_enabled boolean,
+  p_expected_revision bigint,
+  p_command_id uuid
+)
+returns jsonb
+language plpgsql
+volatile
+security invoker
+set search_path = pg_catalog, pg_temp
+as $function$
+declare
+  v_actor uuid := auth.uid();
+  v_result jsonb;
+begin
+  -- حرس الهوية: المستدعي الحقيقي من رمز JWT لا من وسيط.
+  if v_actor is null then
+    raise exception 'يجب تسجيل الدخول قبل تغيير إعداد الانتقال الآلي';
+  end if;
+  if p_enabled is null then
+    raise exception 'قيمة الانتقال الآلي مطلوبة (تشغيل أو إيقاف)';
+  end if;
+  if p_command_id is null then
+    raise exception 'معرّف العملية مطلوب';
+  end if;
+
+  -- حرس التفويض (ق-134 §1/§5): المشغل المخوّل حصرًا — الصلاحية الحاكمة
+  -- لقرارات الانتقال (session.start) عبر السلطة الكنونية، مع تعيين
+  -- نشط للمستدعي يقابله في خريطة أدوار التعيين رمز الدور الكنوني
+  -- operator في iam.roles (المالك برمز tenant_owner والمدير برمز
+  -- well_manager فيحجبان رغم امتلاكهما session.start). مالك البئر
+  -- يراقب ولا يتحكم عن بُعد قبل استكمال ضوابط هاتف المشغّل؛ مساره
+  -- المؤجَّل إلى P7 لا يُفتح هنا.
+  if not iam.has_well_permission(p_well_id, 'session.start')
+     or not exists (
+      select 1
+      from core.well_assignments wa
+      join iam.well_assignment_role_map arm
+        on arm.assignment_role = wa.role
+      join iam.roles r
+        on r.id = arm.role_id
+      where wa.well_id = p_well_id
+        and wa.profile_id = v_actor
+        and wa.status = 'active'
+        and r.code = 'operator'
+    ) then
+    raise exception 'تغيير إعداد الانتقال الآلي قرار المشغل المخول على هاتف التشغيل؛ مسار المالك عن بعد مؤجل إلى P7'
+      using errcode = '42501';
+  end if;
+
+  v_result := ops.set_well_booking_automation(
+    p_well_id,
+    p_enabled,
+    p_expected_revision,
+    v_actor,
+    p_command_id
+  );
+
+  return v_result;
+end;
+$function$;
+
+comment on function api.set_well_booking_automation(
+  uuid, boolean, bigint, uuid
+) is
+  'ق-134 §1/§5 / P1-A: حفظ وضع الانتقال الآلي لكل بئر — المشغل المخول حصرًا (session.start + حيازة المشغل)؛ مالك البئر يراقب ولا يتحكم عن بعد ومساره مؤجل إلى P7. SECURITY INVOKER (عقد 073) بحرسَي هوية وتفويض يفوّض إلى العملية الداخلية الموثوقة التي تنفّذ دورة الأمر كاملة ذريًا (بصمة، منع تكرار، مقارنة مراجعة، كتابة، إثبات رد). حفظ الإعداد لا ينفّذ أي انتقال ولا يمسّ السلسلة الجارية.';
+
+revoke all on function api.set_well_booking_automation(
+  uuid, boolean, bigint, uuid
+) from public, anon, authenticated, service_role;
+grant execute on function api.set_well_booking_automation(
+  uuid, boolean, bigint, uuid
+) to authenticated, service_role;
 commit;

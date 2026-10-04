@@ -36,6 +36,7 @@ api.get_farmer_selection_status(p_farmer_well_account_id uuid)|jsonb|stable|invo
 api.get_my_operator_cash_custody(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_reports_summary(p_well_id uuid, p_period text, p_start timestamp with time zone, p_end timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_session_detail(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_well_booking_automation(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_day_schedule(p_well_id uuid, p_day date)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_details(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.health()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -81,6 +82,7 @@ api.respond_session_transfer(p_transfer_id uuid, p_accept boolean, p_to_shift_id
 api.resume_irrigation_session(p_session_id uuid, p_resumed_at timestamp with time zone, p_command_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.revoke_well_member(p_well_id uuid, p_role text, p_phone text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.save_well_pump(p_well_id uuid, p_name text, p_pump_id uuid, p_pump_type text, p_power_rating text, p_estimated_water_flow_liters_per_minute numeric, p_estimated_fuel_ml_per_hour bigint, p_status text, p_installed_at date, p_notes text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.set_well_booking_automation(p_well_id uuid, p_enabled boolean, p_expected_revision bigint, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.settle_handover(p_handover_id uuid)|text|volatile|invoker|search_path=pg_catalog, pg_temp
 api.setup_well_full(p_setup_data jsonb)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.start_adhoc_session(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_energy_source text, p_planned_duration_minutes integer, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid, p_command_id uuid, p_crops text[])|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -238,6 +240,7 @@ ops.resolve_farmer_identity(p_well_id uuid, p_original_command_id uuid, p_resolu
 ops.respond_session_transfer(p_transfer_id uuid, p_accept boolean, p_to_shift_id uuid)|text|volatile|definer|search_path=ops, pg_temp
 ops.resume_irrigation_session(p_session_id uuid, p_resumed_at timestamp with time zone)|uuid|volatile|definer|search_path=ops, core, iam, pg_temp
 ops.send_daily_summaries(p_day date)|jsonb|volatile|definer|search_path=ops, reporting, core, iam, auth, pg_temp
+ops.set_well_booking_automation(p_well_id uuid, p_enabled boolean, p_expected_revision bigint, p_actor uuid, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.settle_handover(p_handover_id uuid, p_settled_by uuid)|text|volatile|definer|search_path=ops, pg_temp
 ops.shift_report(p_shift_id uuid)|jsonb|stable|definer|search_path=ops, billing, finance, iam, pg_temp
 ops.solar_window_for_day(p_day date)|tstzrange|stable|definer|search_path=pg_catalog, pg_temp
