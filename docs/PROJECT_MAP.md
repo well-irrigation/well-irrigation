@@ -42,7 +42,7 @@
 
 - **آخر قرار معتمد في النقاش:** ق-134؛ سلوك تشغيل الحجوزات الآلي والتصحيح والتأخير والطوارئ وصلاحيات المالك. المصدر الحاكم `memory/DECISIONS.md`؛ الثوابت 761–768 وملحق `design/UX_UI_SPEC.md`.
 - **ترتيب العمل:** `technical/BOOKING_AUTOMATION_IMPLEMENTATION_PLAN.md` P0–P8؛ خرائط الدليل في `technical/DECISION_IMPLEMENTATION_MATRIX.md`، والفجوات في `memory/OPEN_ISSUES.md`.
-- **حدود الإنجاز:** P0 دُمجت عبر PR #49؛ P1-A (إعداد Backend ON/OFF فقط) Implemented + Local DB Verified + CI Verified على الفرع + Merged عبر PR #51 (`f63e9c2`). نجاح فحوص `main` عقب الدمج بحسب تأكيد المالك؛ Cloud/Production Pending. لا زر Flutter ولا انتقال آلي أو جدولة أو تصحيح مالي جديد. M113 ليست CLOSED وM114 Pending؛ NEXT في `memory/RESUME_POINT.md`. P1-A-MERGED-PR51-2026-10-04.
+- **حدود الإنجاز:** P0 دُمجت عبر PR #49؛ P1-A دُمجت عبر PR #51 (`f63e9c2`) وسجل دمجها مدمج عبر PR #52. P1-B (نواة الانتقال الذرية وإثبات التزامن) Implemented + Local DB Verified (`FILES=52 PASS=1119` وفهرس `891/544/265/49`) + Concurrency Proof Verified باتصالين مستقلين بـ PostgreSQL عبر `scripts/p1b_transition_concurrency_proof.py` (منع التنفيذ المزدوج وidempotency لنفس command_id). النواة غير مفعلة إنتاجيًا ومسحوبة الصلاحيات وبلا API أو مجدول أو Flutter، ولا قرار جديد مطلوب. Cloud/Production Pending؛ M113 ليست CLOSED وM114 Pending؛ NEXT في `memory/RESUME_POINT.md`. P1-B-CONCURRENCY-PROOF-VERIFIED-2026-10-04.
 
 [DOC-RECOVERY-Q133-2026-10-03]
 

@@ -946,4 +946,13 @@ always-online assumptions that contradict ق-89/ق-90.
 
 يمر `api.set_well_booking_automation` إلى `ops.set_well_booking_automation` المحروسة، التي تقرن بصمة الحمولة بمعرف الأمر ضمن `sync.begin_command`، وتتحقق من التطابق عند التكرار، ثم تقارن `booking_auto_transition_revision` تحت `FOR UPDATE` وتثبّت الرد عبر `sync.finish_command` في المعاملة نفسها. إعادة الحمولة نفسها تعيد الرد السابق دون إعادة كتابة؛ تغيير الحمولة بالمعرف نفسه يُرفض؛ مراجعة قديمة تُرفض دون حفظ أمر مقبول. الاختبارات PA دائمة ضمن اختبار M113.
 
-**حدود مهمة:** حفظ ON لا يعني حدوث انتقال ولا جدولة هاتفية/خادمية. `automation_executor_ready=false`، ولا اختبارات سباق PostgreSQL بجلستين مستقلتين لهذه الشريحة؛ لا استعادة فعلية للفائت بعد Offline بعد. `c:db`: 1103 PASS، صفر فشل، محليًا فقط.
+**حدود مهمة:** حفظ ON لا يعني حدوث انتقال ولا جدولة هاتفية/خادمية. `automation_executor_ready=false`. P1-A دُمجت عبر PR #51 وسجل دمجها مدمج عبر PR #52.
+
+## ق-134 / P1-B — دفتر أمر نواة الانتقال الذرية وإثبات التزامن
+
+**الحالة:** Local DB Verified (`FILES=52 PASS=1119` وفهرس `891/544/265/49`) + Concurrency Proof Verified على الفرع `feat/p1b-atomic-transition`؛ لا CI/Cloud/Production مثبت لهذا التعديل. P1-B-CONCURRENCY-PROOF-VERIFIED-2026-10-04.
+
+تنفذ النواة `ops.execute_booking_transition` دورة أمر موحدة عبر `sync.begin_command` و`sync.finish_command` بالنوع `execute_booking_transition` مع حمولة `{booking_execution_contract_version: 113, well_id, expected_revision}`:
+1. **منع التنفيذ المزدوج:** ثبت بالسيناريو أ لـ `scripts/p1b_transition_concurrency_proof.py` (سباق أمرين مختلفين باتصالين مستقلين): حجب الاتصال الثاني على أقفال الأول (`settings → session → chain → booking → pump`)، ثم بعد إيداع الأول يستأنف الثاني ويُرفض رفضًا نظيفًا (`current_not_reached_operational_end`) لأن الحالة تغيرت تحته دون تنفيذ مزدوج أو رسوم مكررة أو جلسة ثانية، وبدفتر أوامر نظيف (أمر واحد مقبول وصفر أسطر للأمر الثاني المرفوض).
+2. **الإيديمبوتنس (Idempotency) لنفس command_id:** ثبت بالسيناريو ب لسكربت التزامن: اتصالان بنفس المعرف، الثاني يتحجب على قيد فريدية سجل الأمر، ثم بعد إيداع الأول يعيد الرد المخزن نفسه حرفيًا وسجل أمر واحد في `sync.processed_commands`.
+3. **الحدود:** النواة غير مفعلة إنتاجيًا ومسحوبة الصلاحيات (`REVOKE ALL FROM public, anon, authenticated, service_role`) وبلا أي كشف في `api`، ولا استدعاء من تطبيق الهاتف أو المجدول بعد. لا يوجد قرار جديد مطلوب (ق-134 كافٍ ومحكم).

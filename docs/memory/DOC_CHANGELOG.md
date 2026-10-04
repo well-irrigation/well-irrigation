@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-10-04 — إغلاق توثيق نواة P1-B وإثبات التزامن
+
+- **الحدث:** توثيق اكتمال نواة الانتقال الذرية P1-B (`ops.execute_booking_transition`) وإثبات تزامنها باتصالين مستقلين بـ PostgreSQL عبر `scripts/p1b_transition_concurrency_proof.py` ونجاح `db:test` السابق محليًا (`FILES=52 PASS=1119 FAIL=0 ERROR=0` وفهرس `891/544/265/49`).
+- **المضمون:** دمج إغلاق الجلسة المحجوزة عند حدها الموثوق (748/762) بتفويض `ops.complete_irrigation_session` وبدء الحجز التالي المستحق بتفويض `ops.start_booking_session_core` في معاملة ذرية واحدة؛ إثبات منع التنفيذ المزدوج بالسيناريو أ بحجب الاتصال الثاني ثم رفضه نظيفًا؛ وإثبات idempotency لنفس command_id بالسيناريو ب بإعادة الرد المخزن وسجل أمر واحد.
+- **حد الحالة:** النواة غير مفعلة إنتاجيًا ومسحوبة الصلاحيات بالكامل (`REVOKE ALL FROM public, anon, authenticated, service_role`) وبلا أي كشف في `api`، ولا يوجد قرار جديد مطلوب (ق-134 كافٍ ومحكم). M113 لا تزال NOT CLOSED، وCloud/Production Pending؛ التالي رفع الفرع `feat/p1b-atomic-transition` لـ PR والتحضير لـ P2.
+- **النطاق:** تحديث توثيقي في `RESUME_POINT.md`، `BOOKING_AUTOMATION_IMPLEMENTATION_PLAN.md`، `OPEN_ISSUES.md`، `PROJECT_MAP.md`، `DECISION_IMPLEMENTATION_MATRIX.md`، `MIGRATIONS.md`، `SYNC_ARCHITECTURE.md`، `API_ARCHITECTURE.md`، `PROGRESS.md` وهذا السجل. دون تعديل على كود `supabase/` أو `scripts/` أو `Flutter` أو الهجرات.
+
 ## 2026-10-04 — تسجيل دمج P1-A عبر PR #51
 
 - **الحدث:** PR #51 دُمج إلى `main` عبر `f63e9c2068d3b2c1065dcbd199194b9e4879b204` بعد Commit `c14bd92`؛ فحوص الفرع `checks` نجحت (DB/فهرس/Flutter)، وأكّد المالك نجاح تشغيل `main` اللاحق دون رقم run مستقل متاح. P1-A-MERGED-PR51-2026-10-04.

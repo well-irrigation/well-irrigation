@@ -3770,4 +3770,311 @@ revoke all on function api.set_well_booking_automation(
 grant execute on function api.set_well_booking_automation(
   uuid, boolean, bigint, uuid
 ) to authenticated, service_role;
+-- ---------------------------------------------------------------------
+-- R) P1-B — ق-134 §1 / الثوابت 748–753 و761–764: نواة الانتقال الذرية
+--    بين جلستين محجوزتين.
+--
+--    نطاق هذه النواة حصرًا: فحص الحالة → حسم أهلية الإغلاق → الإغلاق
+--    المالي مرة واحدة → إعادة التحقق → بدء الحجز التالي مرة واحدة،
+--    في معاملة واحدة. لا تسعير جديد ولا إنشاء جلسة موازٍ: الإغلاق
+--    بتفويض كامل إلى ops.complete_irrigation_session (085) والبدء
+--    بتفويض كامل إلى ops.start_booking_session_core (E2-c2-S).
+--
+--    شروط الإطلاق (A قبل الإغلاق):
+--      • إعداد البئر ON (قفل صف الإعدادات حتى نهاية المعاملة فلا
+--        يقع إيقاف وسط الانتقال).
+--      • السلسلة مسلّحة بحالة 'active' وجلستها الحالية هي الجلسة
+--        المفتوحة المحجوزة (أول بدء يدوي حقيقي — 761).
+--      • زمن التنفيذ الموثوق قد بلغ حده: الثابت 748 — البداية
+--        الفعلية + المدة المحجوزة، لا scheduled_end القديمة.
+--      • الحجز التالي مؤكد غير مستهلك ومستحق (scheduled_start <=
+--        الآن) — تطابق شجرة قرار E2-d transition_ready؛ الحجز
+--        المستقبلي يُرفض فالتمديد/الانتظار/التشغيل الفوري قرارات
+--        عقودها القائمة (763) لا أتمتة.
+--      • الجلسات الحرة/العابرة محجوبة (751) والسلاسل في
+--        waiting/pending_start/decision_required/blocked محجوبة.
+--      • لا كميات ولا أسعار ولا أوقات مُخترعة: الوقود يُمرَّر null
+--        فيتحمل عقد الإكمال وحده إثبات المقاطع وأسعارها وترتيبها
+--        ورفض ما لا يمكن إثباته.
+--
+--    ترتيب الأقفال الموحد (C): settings → session → chain → booking
+--      → pump. شجرة بلا دورات مع كل المسارات المتداخلة: الإكمال
+--      اليدوي (session → chain بالزناد)، البدء اليدوي وقرار
+--      run_now/wait ومنفّذ pending_start (chain → booking → pump).
+--      الجلسة تُقفل قبل السلسلة فلا يُمسك chain بانتظار session
+--      أبدًا، وقرارات الانتقال لا تقفل جلسات أصلًا (قراءة حرة
+--      موثقة في E2-c2-a). السباق لا يُمنع بـEXISTS: كل حكم بعد
+--      قفل الصفوف، ومصالحة الزناد تحدث داخل القفل نفسه.
+--
+--    الهوية والصلاحيات (E): النواة بلا أي منح لأدوار التطبيق —
+--      غير متاحة للعميل وغير مفعّلة إنتاجيًا (حفظ ON في P1-A ليس
+--      كافيًا لتنفيذ انتقال). المستدعي يجب أن يحمل هوية مشغل حقيقية
+--      عبر auth.uid() تمرّ بصدق إلى عقدي الإكمال (session.complete)
+--      والبدء (session.start) — لا يُفترض أن service_role يملك هوية
+--      مشغل، ولا يُتجاوز التفويض لتمكين مجدول مستقبلي: تمكينه قرار
+--      مستقل يحدد كيف يحصل على هوية مصرّح بها.
+--
+--    الإيديمبوتنس: دورة sync القائمة — بصمة الحمولة (version/well_id/
+--      expected_revision)، إعادة الأمر المطابق تعيد الرد المخزَّن بلا
+--      إغلاق ثانٍ ولا رسوم ثانية ولا جلسة ثانية، واختلاف الحمولة
+--      يُرفض، وفشل أي خطوة يتراجع عن التسجيل نفسه ذريًا.
+-- ---------------------------------------------------------------------
+
+create function ops.execute_booking_transition(
+  p_well_id uuid,
+  p_expected_revision bigint,
+  p_command_id uuid
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = pg_catalog, pg_temp
+as $function$
+declare
+  v_actor uuid := auth.uid();
+  v_tenant_id uuid;
+  v_enabled boolean;
+  v_session record;
+  v_open_count integer;
+  v_chain ops.booking_transition_chains%rowtype;
+  v_op_end timestamptz;
+  v_next record;
+  v_close jsonb;
+  v_start jsonb;
+  v_result jsonb;
+  v_guard jsonb;
+  v_stored_type text;
+  v_stored_payload jsonb;
+  v_status text;
+  v_response jsonb;
+  v_payload jsonb;
+begin
+  -- حرس الهوية: هوية مشغل حقيقية تمرّ بصدق للعقدين؛ لا هوية مُختلقة
+  -- للمجدول ولا تجاوز تفويض (تمكين المجدول قرار مستقل لاحق).
+  if v_actor is null then
+    raise exception 'يجب تسجيل الدخول قبل تنفيذ انتقال آلي'
+      using errcode = '28000';
+  end if;
+  if p_well_id is null then
+    raise exception 'معرّف البئر مطلوب';
+  end if;
+  if p_command_id is null then
+    raise exception 'معرّف العملية مطلوب';
+  end if;
+  if p_expected_revision is null then
+    raise exception 'نسخة السلسلة المتوقعة مطلوبة';
+  end if;
+
+  select w.tenant_id into v_tenant_id
+  from core.wells w
+  where w.id = p_well_id;
+  if v_tenant_id is null then
+    raise exception 'البئر غير موجود';
+  end if;
+
+  -- بصمة الحمولة ودورة الإيديمبوتنس: التسجيل هنا ثم الإقفال؛ فشل أي
+  -- خطوة لاحقة يتراجع عن التسجيل نفسه (لا أمر معلّق بلا إكمال).
+  v_payload := jsonb_build_object(
+    'booking_execution_contract_version', 113,
+    'well_id', p_well_id,
+    'expected_revision', p_expected_revision
+  );
+
+  v_guard := sync.begin_command(
+    v_tenant_id,
+    p_command_id,
+    'execute_booking_transition',
+    v_payload,
+    p_well_id
+  );
+
+  if coalesce((v_guard ->> 'duplicate')::boolean, false) then
+    select pc.command_type, pc.request_payload, pc.status, pc.response_payload
+      into v_stored_type, v_stored_payload, v_status, v_response
+    from sync.processed_commands pc
+    where pc.tenant_id = v_tenant_id
+      and pc.command_id = p_command_id;
+
+    if not found
+       or v_stored_type is distinct from 'execute_booking_transition'
+       or v_stored_payload is distinct from v_payload then
+      raise exception 'معرّف العملية مستخدم لمحتوى مختلف';
+    end if;
+    if v_status <> 'accepted' then
+      raise exception 'العملية نفسها قيد المعالجة أو تحتاج مراجعة';
+    end if;
+    return v_response;
+  end if;
+
+  -- [1] قفل الإعدادات: ON شرط إطلاق، والقفل حتى نهاية المعاملة يمنع
+  --     إيقافًا ينزلق وسط الانتقال (761).
+  select ws.booking_auto_transition_enabled into v_enabled
+  from core.well_settings ws
+  where ws.well_id = p_well_id
+  for update;
+  if not found then
+    raise exception 'البئر بلا صف إعدادات ولا يمكن تنفيذ انتقال آلي'
+      using errcode = '22023';
+  end if;
+  if not v_enabled then
+    raise exception 'الانتقال الآلي متوقف على هذا البئر (booking_auto_transition_disabled)'
+      using errcode = '22023';
+  end if;
+
+  -- [2] قفل الجلسات المفتوحة للبئر (قبل السلسلة — ترتيب الأقفال الموحد):
+  --     جلسة واحدة مفتوحة محجوزة حصرًا؛ الحرة/العابرة محجوبة (751).
+  select s.id, s.started_at, s.booking_id, b.expected_duration_minutes
+    into v_session
+  from ops.irrigation_sessions s
+  left join ops.irrigation_bookings b on b.id = s.booking_id
+  where s.well_id = p_well_id
+    and s.status = 'open'
+  order by s.started_at desc
+  for update of s;
+
+  select count(*) into v_open_count
+  from ops.irrigation_sessions s
+  where s.well_id = p_well_id
+    and s.status = 'open';
+
+  if v_open_count = 0 then
+    raise exception 'لا توجد جلسة مفتوحة لإغلاقها آليًا (no_open_session_to_close)'
+      using errcode = '22023';
+  end if;
+  if v_open_count > 1 then
+    raise exception 'توجد جلسات مفتوحة متعددة على البئر ولا يمكن حسمها آليًا (ambiguous_open_sessions)'
+      using errcode = '22023';
+  end if;
+  if v_session.booking_id is null or v_session.expected_duration_minutes is null then
+    raise exception 'الجلسة المفتوحة حرة أو عابرة ولا تُغلق آليًا (transient_or_free_session_blocked)'
+      using errcode = '22023';
+  end if;
+
+  -- [3] قفل السلسلة: مسلّحة وحالة active وجلستها الحالية هي المفتوحة
+  --     المقفولة أعلاه (أول بدء يدوي حقيقي — 761)؛ waiting/pending_start/
+  --     decision_required/blocked قرارات عقودها القائمة لا أتمتة (763).
+  select c.* into v_chain
+  from ops.booking_transition_chains c
+  where c.well_id = p_well_id
+    and c.status <> 'ended'
+  for update;
+  if not found then
+    raise exception 'لا توجد سلسلة مسلّحة على البئر (chain_not_armed)'
+      using errcode = '22023';
+  end if;
+  if v_chain.status <> 'active' then
+    raise exception 'لا انتقال آلي والسلسلة في الحالة % (chain_status_blocked)', v_chain.status
+      using errcode = '22023';
+  end if;
+  if v_chain.current_session_id is distinct from v_session.id then
+    raise exception 'الجلسة المفتوحة ليست الجلسة الحالية للسلسلة (chain_session_mismatch)'
+      using errcode = '22023';
+  end if;
+
+  -- [4] مقارنة-وتبديل على نسخة السلسلة: من رأى حالة أقدم لا ينتقل فوقها.
+  if p_expected_revision is distinct from v_chain.decision_revision then
+    raise exception 'نسخة سلسلة قديمة؛ أُعيد التقييم (المتوقع % الحالي %)',
+      p_expected_revision, v_chain.decision_revision
+      using errcode = '40001';
+  end if;
+
+  -- [5] زمن التنفيذ الموثوق (748/762): البداية الفعلية + المدة المحجوزة.
+  --     بلوغه شرط؛ لم يبلغ فلا إغلاق آلي ولا بدء فوقه (751/758).
+  v_op_end := v_session.started_at
+    + make_interval(mins => v_session.expected_duration_minutes);
+  if now() < v_op_end then
+    raise exception 'الجلسة الحالية لم تبلغ حدها التشغيلي الموثوق (current_not_reached_operational_end)'
+      using errcode = '22023';
+  end if;
+
+  -- [6] الحجز التالي: مؤكد غير مستهلك من البئر نفسه، بأقدم موعد ثم
+  --     الأولوية ثم الرمز — نفس قاعدة اختيار E2-d؛ مستحق فحسب
+  --     (scheduled_start <= الآن) وإلا فالقرار لعقده (753/763).
+  --     يقفل FOR UPDATE فلا سباق مع إعادة جدولة/إلغاء متوازٍ، والقفل
+  --     بنفس ترتيب عقود M113 (chain → booking → pump).
+  select b.id, b.farmer_well_account_id, b.farm_id,
+         b.scheduled_start, b.expected_energy_source
+    into v_next
+  from ops.irrigation_bookings b
+  where b.well_id = p_well_id
+    and b.status = 'confirmed'
+    and not exists (
+      select 1 from ops.irrigation_sessions s where s.booking_id = b.id
+    )
+  order by b.scheduled_start asc, b.priority desc, b.public_code asc
+  limit 1
+  for update;
+
+  if not found then
+    raise exception 'لا يوجد حجز تالٍ مؤكد غير مستهلك (no_confirmed_next_booking)'
+      using errcode = '22023';
+  end if;
+  if v_next.scheduled_start > now() then
+    raise exception 'الحجز التالي غير مستحق بعد؛ التشغيل الفوري أو الانتظار قرار عقده القائمة (current_reached_end_next_future)'
+      using errcode = '22023';
+  end if;
+
+  -- [7] الإغلاق المالي مرة واحدة: تفويض كامل لعقد 085 — إغلاق المقاطع
+  --     عند الحد الموثوق، التسعير من المقاطع المثبتة، تسجيل الرسوم
+  --     والتدقيق. مصالحة السلسلة تجري بالزناد داخل هذا الاستدعاء
+  --     (decision_required) والقفل معنا أصلًا. الوقود null فلا اختلاق.
+  v_close := ops.complete_irrigation_session(
+    v_session.id,
+    v_op_end,
+    null,
+    null,
+    null
+  );
+
+  -- [8] إعادة التحقق ثم البدء مرة واحدة: نواة البدء (E2-c2-S) تعيد
+  --     بنفسها فحص الجاهزية والطاقة والمضخة وعدم وجود جلسة مفتوحة،
+  --     وبوابة تسوية الجلسة السابقة (مغلقة + رسوم مثبتة) وضعتها عقود
+  --     M113 حاجزًا قبل أي بدء. زمن البداية الفعلي من ساعة الخادم
+  --     لا يُختلَق (753: فائت moment لا تُدار هنا والقرار لعقده).
+  v_start := ops.start_booking_session_core(
+    v_next.id,
+    v_actor,
+    clock_timestamp(),
+    null,
+    false
+  );
+
+  v_result := jsonb_build_object(
+    'contract', 'execute_booking_transition',
+    'version', 1,
+    'well_id', p_well_id,
+    -- بند 7 صراحةً: النجاح يعني إغلاقًا وبدءًا تمَّا فعلًا في هذه
+    -- المعاملة، ولا يُدّعى انتقال نُفِّذ جزئيًا.
+    'auto_transition_executed', true,
+    'close_reason', 'auto_schedule_close',
+    'field_confirmation', false,
+    'closed_session_id', v_session.id,
+    'closed_at_operational_end', v_op_end,
+    'settlement', v_close,
+    'started_session_id', (v_start ->> 'session_id')::uuid,
+    'started_booking_id', v_next.id,
+    'started_at', v_start ->> 'started_at',
+    'next_operational_end_at', v_start ->> 'operational_end_at',
+    'chain_decision_revision', v_chain.decision_revision,
+    'executed_by', v_actor,
+    'executed_at', clock_timestamp()
+  );
+
+  perform sync.finish_command(v_tenant_id, p_command_id, 'accepted', v_result);
+
+  return v_result;
+end;
+$function$;
+
+comment on function ops.execute_booking_transition(
+  uuid, bigint, uuid
+) is
+  'ق-134 §1 / P1-B / الثوابت 748–753 و761–764: نواة الانتقال الذرية — إغلاق الجلسة المحجوزة عند حدها الموثوق مرة واحدة بتفويض ops.complete_irrigation_session ثم بدء الحجز التالي المستحق مرة واحدة بتفويض ops.start_booking_session_core في معاملة واحدة؛ حراس: إعداد ON مقفول، سلسلة active مسلّحة، 748 للزمن، الحجز التالي مستحق، CAS على نسخة السلسلة، ودورة sync للإيديمبوتنس. ترتيب الأقفال settings → session → chain → booking → pump بلا دورات. بلا منح لأدوار التطبيق: غير متاحة للعميل وغير مفعّلة إنتاجيًا؛ هوية المستدعي حقيقية تمرّ للعقدين ولا يُفترض للمجدول هوية.';
+
+revoke all on function ops.execute_booking_transition(
+  uuid, bigint, uuid
+) from public, anon, authenticated, service_role;
+-- بلا GRANT إطلاقًا: غير متاحة للعميل وغير مفعّلة إنتاجيًا؛ تُستدعى
+-- بصف مالكها (اختبارات/تشغيل مستقبلي بقرار صريح).
 commit;

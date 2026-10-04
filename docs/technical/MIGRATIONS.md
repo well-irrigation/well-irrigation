@@ -1829,4 +1829,15 @@ pipeline `2869239530` = database success + app success، وmain pipeline
 - أضيف إلى `core.well_settings` العمودان `booking_auto_transition_enabled boolean NOT NULL DEFAULT false` و`booking_auto_transition_revision bigint NOT NULL DEFAULT 0`؛ لا جدول إعدادات موازٍ ولا تنفيذ انتقال.
 - الدوال: `api.get_well_booking_automation(uuid)` و`api.set_well_booking_automation(uuid,boolean,bigint,uuid)` (INVOKER)، و`ops.set_well_booking_automation(uuid,boolean,bigint,uuid,uuid)` (DEFINER بحراس ذاتية ودورة أمر ذرية). الحماية تشمل التحكم بالمشغل، قارئ المالك/المشغل، سحب الكتابة الجدولية وإعادة منح أعمدة التنبيهات القديمة فقط.
 - الاختبارات داخل `20261001_113_booking_execution_contracts.test.sql` بكتلة PA. تشغيل المالك `c:db`: FILES=52 PASS=1103 FAIL=0 ERROR=0؛ index: columns=891 constraints=544 functions=264 triggers=49، RESULT=SUCCESS.
-- M113 لا تزال Partial/NOT CLOSED؛ الجدولة والإغلاق الآلي الفعلي وOffline/Flutter وسباق اتصالين مستقلين وCloud/Production Pending.
+- دمجت عبر PR #51 وسجل دمجها مدمج عبر PR #52.
+
+## M113 / ق-134 — P1-B: نواة الانتقال وإثبات التزامن (2026-10-04)
+
+**الحالة:** شريحة Backend منفذة ومتحقق منها محليًا عبر `db:test` وإثبات التزامن باتصالين مستقلين على الفرع `feat/p1b-atomic-transition`؛ لا CI/Merge/Cloud/Production مثبت لهذا التعديل. P1-B-CONCURRENCY-PROOF-VERIFIED-2026-10-04.
+
+- الدالة: `ops.execute_booking_transition(uuid, bigint, uuid) -> jsonb`. تجمع في معاملة ذرية واحدة: إغلاق الجلسة المحجوزة عند حدها الموثوق (748/762) بتفويض كامل لـ `ops.complete_irrigation_session` وبدء الحجز التالي المستحق بتفويض `ops.start_booking_session_core`.
+- الحراسات: هوية المشغل الحقيقية، إعداد الأتمتة للبئر ON مقفول، سلسلة active مسلّحة، بلوغ حد التشغيل الموثوق (البداية الفعلية + المدة المحجوزة)، الحجز التالي مستحق، مقارنة-وتبديل CAS على نسخة السلسلة، ودورة أمر `sync`. ترتيب الأقفال: `settings` → `session` → `chain` → `booking` → `pump` بلا دورات.
+- الصلاحيات: مسحوبة بالكامل (`REVOKE ALL FROM public, anon, authenticated, service_role`)؛ غير متاحة للعميل وغير مفعلة إنتاجيًا. لا واجهة API جديدة ولا تغيير في عقود `api` السابقة.
+- الاختبارات الدائمة: كتلة PB في `20261001_113_booking_execution_contracts.test.sql` (16 تحققًا من PB0 إلى PB11b). نتيجة `db:test` المحلي: `FILES=52 PASS=1119 FAIL=0 ERROR=0` (منها Test 113 = `227 PASS`). الفهرس المولّد: `columns=891 constraints=544 functions=265 triggers=49` (زيادة دالة واحدة).
+- إثبات التزامن: نجاح `scripts/p1b_transition_concurrency_proof.py` باتصالين مستقلين بـ PostgreSQL: السيناريو أ أثبت منع التنفيذ المزدوج بحجب الاتصال الثاني ثم رفضه نظيفًا (`current_not_reached_operational_end`) وبقاء دفتر أوامر نظيف، والسيناريو ب أثبت الـ idempotency لنفس command_id بإعادة الرد المخزن وسجل أمر واحد.
+- لا يوجد قرار جديد مطلوب؛ السلوك خاضع بالكامل لق-134. بقاء M113 مفتوحة Partial/NOT CLOSED؛ الجدولة (P2) وOffline/Flutter والترحيل والإنتاج باقية Pending.
