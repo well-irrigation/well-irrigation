@@ -1,7 +1,7 @@
 # Booking Scheduler Identity Architecture — دراسة عقد هوية P2
 
-**التاريخ:** 2026-10-05  
-**الحالة:** دراسة مقترحة / Proposed Study؛ توثيق فقط، بلا تنفيذ أو صلاحيات أو Runtime.  
+**التاريخ:** 2026-10-05
+**الحالة:** دراسة مقترحة / Proposed Study؛ توثيق فقط، بلا تنفيذ أو صلاحيات أو Runtime.
 **النطاق:** P2 Scheduler identity contract.
 
 ## 1. الهدف
