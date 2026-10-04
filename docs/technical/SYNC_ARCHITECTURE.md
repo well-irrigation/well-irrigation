@@ -942,7 +942,7 @@ always-online assumptions that contradict ق-89/ق-90.
 
 ## ق-134 / P1-A — دفتر أمر ضبط وضع الانتقال
 
-**الحالة:** Local DB Verified فقط؛ GitHub CI/Cloud/Production Pending. P1-A-LOCAL-DB-VERIFIED-2026-10-04.
+**الحالة:** Local DB Verified + PR CI Verified + Merged عبر PR #51 (`f63e9c2`)؛ نجاح `main` بحسب تأكيد المالك دون run مستقل؛ Cloud/Production Pending. P1-A-MERGED-PR51-2026-10-04.
 
 يمر `api.set_well_booking_automation` إلى `ops.set_well_booking_automation` المحروسة، التي تقرن بصمة الحمولة بمعرف الأمر ضمن `sync.begin_command`، وتتحقق من التطابق عند التكرار، ثم تقارن `booking_auto_transition_revision` تحت `FOR UPDATE` وتثبّت الرد عبر `sync.finish_command` في المعاملة نفسها. إعادة الحمولة نفسها تعيد الرد السابق دون إعادة كتابة؛ تغيير الحمولة بالمعرف نفسه يُرفض؛ مراجعة قديمة تُرفض دون حفظ أمر مقبول. الاختبارات PA دائمة ضمن اختبار M113.
 

@@ -2,6 +2,13 @@
 
 **آخر تحديث:** 2026-10-04
 
+## 2026-10-04 — إغلاق دمج P1-A (PR #51)
+
+- **Git:** دُمجت P1-A إلى `main` عبر PR #51؛ Commit التنفيذ `c14bd9297e74c733259afb99fd8d7445040a6ba2` وCommit الدمج `f63e9c2068d3b2c1065dcbd199194b9e4879b204`. P1-A-MERGED-PR51-2026-10-04.
+- **الفحوص:** `c:db` محليًا 52 ملفًا / 1103 PASS / 0 FAIL / 0 ERROR؛ فهرس 891/544/264/49. GitHub Workflow `checks` لفرع PR #51 انتهى SUCCESS (`c:db` ومطابقة الفهرس و`c:app`). أكّد المالك نجاح فحوص `main` بعد الدمج، لكن رقم تشغيلها/تفاصيلها لم تُسترجع مستقلًا من الموصل.
+- **الحدود:** P1-A = Implemented + Local DB Verified + PR CI Verified + Merged؛ Cloud/Production Pending. لا تنفيذ انتقال فعلي ولا مُشغّل زمني ولا واجهة Flutter، ولا اختبار سباق اتصالين مستقلين؛ M113 NOT CLOSED وM114 Pending. التالي P1-B بعد إغلاق سجل الدمج.
+
+
 ## 2026-10-04 — P1-A / ق-134: إعداد الانتقال لكل بئر (محلي)
 
 - **الحالة:** Implemented + Local DB Verified على الفرع `feat/p1a-booking-auto-toggle`؛ Git Commit/Push/PR/CI/Merge لهذا التنفيذ Pending؛ Cloud/Production Pending. P1-A-LOCAL-DB-VERIFIED-2026-10-04.

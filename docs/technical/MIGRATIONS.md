@@ -1824,7 +1824,7 @@ pipeline `2869239530` = database success + app success، وmain pipeline
 
 ## M113 / ق-134 — P1-A: إعداد وضع الانتقال (2026-10-04)
 
-**الحالة:** شريحة Backend منفذة ومتحقق منها محليًا على `feat/p1a-booking-auto-toggle`؛ لا CI/Merge/Cloud/Production مثبت لهذا التعديل. P1-A-LOCAL-DB-VERIFIED-2026-10-04.
+**الحالة:** شريحة Backend منفذة ومتحقق منها محليًا، واجتازت CI على الفرع ودُمجت إلى `main` عبر PR #51 (`f63e9c2`). نجاح CI على `main` عقب الدمج بحسب تأكيد المالك دون رقم تشغيل مستقل؛ Cloud/Production Pending. P1-A-MERGED-PR51-2026-10-04.
 
 - أضيف إلى `core.well_settings` العمودان `booking_auto_transition_enabled boolean NOT NULL DEFAULT false` و`booking_auto_transition_revision bigint NOT NULL DEFAULT 0`؛ لا جدول إعدادات موازٍ ولا تنفيذ انتقال.
 - الدوال: `api.get_well_booking_automation(uuid)` و`api.set_well_booking_automation(uuid,boolean,bigint,uuid)` (INVOKER)، و`ops.set_well_booking_automation(uuid,boolean,bigint,uuid,uuid)` (DEFINER بحراس ذاتية ودورة أمر ذرية). الحماية تشمل التحكم بالمشغل، قارئ المالك/المشغل، سحب الكتابة الجدولية وإعادة منح أعمدة التنبيهات القديمة فقط.
