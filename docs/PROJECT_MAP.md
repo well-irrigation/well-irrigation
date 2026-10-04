@@ -42,7 +42,7 @@
 
 - **آخر قرار معتمد في النقاش:** ق-134؛ سلوك تشغيل الحجوزات الآلي والتصحيح والتأخير والطوارئ وصلاحيات المالك. المصدر الحاكم `memory/DECISIONS.md`؛ الثوابت 761–768 وملحق `design/UX_UI_SPEC.md`.
 - **ترتيب العمل:** `technical/BOOKING_AUTOMATION_IMPLEMENTATION_PLAN.md` P0–P8؛ خرائط الدليل في `technical/DECISION_IMPLEMENTATION_MATRIX.md`، والفجوات في `memory/OPEN_ISSUES.md`.
-- **حدود الإنجاز:** P0 دُمجت عبر PR #49؛ P1-A (إعداد Backend ON/OFF لكل بئر فقط) Implemented + Local DB Verified، لكنها غير مدموجة وCI/Cloud Pending؛ لا زر Flutter ولا تنفيذ انتقالي أو جدولة أو تصحيح مالي جديد. M113 لم تغلق وM114 Pending؛ NEXT في `memory/RESUME_POINT.md`. P1-A-LOCAL-DB-VERIFIED-2026-10-04.
+- **حدود الإنجاز:** P0 دُمجت عبر PR #49؛ P1-A (إعداد Backend ON/OFF فقط) Implemented + Local DB Verified + CI Verified على الفرع + Merged عبر PR #51 (`f63e9c2`). نجاح فحوص `main` عقب الدمج بحسب تأكيد المالك؛ Cloud/Production Pending. لا زر Flutter ولا انتقال آلي أو جدولة أو تصحيح مالي جديد. M113 ليست CLOSED وM114 Pending؛ NEXT في `memory/RESUME_POINT.md`. P1-A-MERGED-PR51-2026-10-04.
 
 [DOC-RECOVERY-Q133-2026-10-03]
 

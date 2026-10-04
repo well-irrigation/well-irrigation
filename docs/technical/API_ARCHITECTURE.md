@@ -1220,9 +1220,9 @@ fail-closed بـ`28000`/`22023`/`42501`، ترتيب حتمي، ولا كائن
 
 ## ق-134 / P1-A — عقد وضع الانتقال لكل بئر (2026-10-04)
 
-**الحالة:** Implemented + Local DB Verified على فرع P1-A غير مدموج؛ Git/CI/Cloud Pending. P1-A-LOCAL-DB-VERIFIED-2026-10-04.
+**الحالة:** Implemented + Local DB Verified + PR CI Verified + Merged عبر PR #51 (`f63e9c2`)، ونجاح فحوص `main` بعد الدمج بحسب تأكيد المالك؛ Cloud/Production Pending. P1-A-MERGED-PR51-2026-10-04.
 
 - `api.get_well_booking_automation(well_id)` يقرأ الإعداد والمراجعة وحالة السلسلة المرئية؛ `automation_executor_ready=false` و`auto_transition_executed=false` لا يختلقان تنفيذًا. القراءة للمالك/المشغل ذوي التعيين النشط؛ RLS باقية.
 - `api.set_well_booking_automation(well_id,enabled,expected_revision,command_id)` يتطلب هوية `auth.uid()`، وتعيين مشغّل نشطًا و`session.start`؛ المالك والمدير محجوبان حتى مسار P7. أغلفة `api` جميعها SECURITY INVOKER، وداخليّة `ops.set_well_booking_automation` SECURITY DEFINER محروسة حتى عند الاستدعاء المباشر.
 - منع التكرار: بصمة الحمولة وسجل `sync.processed_commands` وCAS رقمي وقفل صف وتثبيت رد القبول في نفس المعاملة؛ لا كتابة مباشرة لأعمدة إعداد الأتمتة من authenticated. لا تغيير في انتقالات الحجز أو الإغلاق المالي أو Flutter.
-- **الإثبات:** `c:db` المحلي 52 ملفًا / 1103 PASS / صفر FAIL/ERROR؛ الفهرس 891/544/264/49. لم يُثبت CI أو سباق اتصالين مستقلين أو Cloud/Production.
+- **الإثبات:** `c:db` المحلي 52 ملفًا / 1103 PASS / صفر FAIL/ERROR؛ الفهرس 891/544/264/49. نجح CI على فرع PR #51 ثم دُمج؛ سباق اتصالين مستقلين وCloud/Production لم يُثبتا.
