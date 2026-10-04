@@ -2,6 +2,16 @@
 
 **آخر تحديث:** 2026-10-04
 
+## 2026-10-04 — P1-B / ق-134: نواة الانتقال الذرية وإثبات التزامن (محلي)
+
+- **الحالة:** Implemented + Local DB Verified (`FILES=52 PASS=1119` وفهرس `891/544/265/49`) + Concurrency Proof Verified على الفرع `feat/p1b-atomic-transition`؛ Git/CI/Merge/Cloud/Production Pending. P1-B-CONCURRENCY-PROOF-VERIFIED-2026-10-04.
+- **التنفيذ:** أُضيفت الدالة `ops.execute_booking_transition(uuid, bigint, uuid) -> jsonb` داخل M113. تجمع في معاملة ذرية واحدة: إغلاق الجلسة المحجوزة عند حدها الموثوق (748/762) بتفويض كامل لـ `ops.complete_irrigation_session` وبدء الحجز التالي المستحق بتفويض `ops.start_booking_session_core`، مع حراس: هوية المشغل الحقيقية، إعداد ON مقفول، سلسلة active مسلّحة، بلوغ حد التشغيل الموثوق (البداية الفعلية + المدة المحجوزة)، الحجز التالي مستحق، CAS على نسخة السلسلة، دورة أمر `sync`، وترتيب أقفال settings → session → chain → booking → pump.
+- **إثبات قاعدة البيانات (`db:test`):** 52 ملفًا / 1119 PASS / 0 FAIL / 0 ERROR (منها 227 PASS لاختبار M113 بـ 16 تحققًا لكتلة PB تغطي كافة حالات القبول والرفض والتراجع الذري)؛ الفهرس: columns=891 constraints=544 functions=265 triggers=49 (زيادة دالة واحدة).
+- **إثبات التزامن باتصالين مستقلين (`scripts/p1b_transition_concurrency_proof.py`):**
+  - **السيناريو أ (سباق أمرين مختلفين):** اتصال ينفّذ فيحمل الأقفال دون إيداع، واتصال ثانٍ ينفّذ بأمر مختلف فيتحجب فعليًا (مُرصد عبر `pg_stat_activity` و`pg_locks`)، ثم بعد إيداع الأول يستأنف الثاني ويُرفض رفضًا نظيفًا (`current_not_reached_operational_end`) لأن الحالة تغيّرت تحته دون تنفيذ مزدوج أو رسوم مكررة أو جلسة ثانية، وبدفتر أوامر نظيف (`charges=1, open_sessions=1, booked_sessions=2, chain_status=active, cmd1_accepted=1, cmd2_rows=0`).
+  - **السيناريو ب (سباق نفس command_id):** اتصالان بنفس المعرف، الثاني يتحجب على قيد فريدية سجل الأمر، ثم بعد إيداع الأول يعيد الرد المخزن نفسه حرفيًا (idempotency) مع تسجيل أمر واحد (`charges=1, open_sessions=1, booked_sessions=2`, 1 command row).
+- **الحدود:** النواة غير مفعلة إنتاجيًا ومسحوبة الصلاحيات بالكامل (`REVOKE ALL FROM public, anon, authenticated, service_role`) وبلا أي كشف في `api`، وبلا مجدول زمني أو واجهة Flutter. لا يوجد أي قرار جديد مطلوب (ق-134 كافٍ ومحكم).
+
 ## 2026-10-04 — إغلاق دمج P1-A (PR #51)
 
 - **Git:** دُمجت P1-A إلى `main` عبر PR #51؛ Commit التنفيذ `c14bd9297e74c733259afb99fd8d7445040a6ba2` وCommit الدمج `f63e9c2068d3b2c1065dcbd199194b9e4879b204`. P1-A-MERGED-PR51-2026-10-04.

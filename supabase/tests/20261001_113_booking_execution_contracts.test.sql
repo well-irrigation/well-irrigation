@@ -6390,4 +6390,407 @@ begin
 end
 $test_pa$;
 
+-- =====================================================================
+-- M113-P1-B — ق-134 §1 / الثوابت 748–753 و761–764: نواة الانتقال
+--   الذرية بين جلستين محجوزتين.
+--   الحراسات: هوية حقيقية، إعداد ON مقفول، سلسلة active مسلّحة،
+--   748 للزمن، الحجز التالي مستحق، CAS على نسخة السلسلة، دورة sync.
+--   الإخراج الذري: فشل أي خطوة يتراجع عن الإغلاق والرسوم والتسجيل
+--   معًا — لا إغلاق بلا بدء ولا بدء بلا تسوية مثبتة.
+--   ملاحظة تنفيذ الاختبار: النواة بلا منح لأدوار التطبيق (غير متاحة
+--   للعميل) فتُستدعى هنا بصف المالك مع ادعاء هوية المشغل عبر
+--   request.jwt.claim.sub — حراس العقود تقرأ الادعاء نفسه.
+-- =====================================================================
+do $test_pb$
+declare
+  v_tenant uuid;
+  v_person uuid;
+  v_fprofile uuid;
+  v_owner uuid;
+  v_op uuid;
+  v_w1 uuid; v_w2 uuid; v_w3 uuid; v_w4 uuid; v_w5 uuid;
+  v_acc1 uuid; v_acc2 uuid; v_acc3 uuid; v_acc4 uuid; v_acc5 uuid;
+  v_farm1 uuid; v_farm2 uuid; v_farm3 uuid; v_farm4 uuid; v_farm5 uuid;
+  v_pump1 uuid; v_pump2 uuid; v_pump3 uuid; v_pump4 uuid; v_pump5 uuid;
+  v_ba1 uuid; v_bb1 uuid;
+  v_ba2 uuid; v_bb2 uuid;
+  v_ba5 uuid; v_bc5 uuid;
+  v_ba4 uuid; v_bb4 uuid;
+  v_s1 uuid; v_s2 uuid; v_s4 uuid; v_s5 uuid;
+  v_chain1 uuid; v_chain2 uuid; v_chain4 uuid; v_chain5 uuid;
+  v_now timestamptz := date_trunc('minute', clock_timestamp());
+  v_op_end1 timestamptz;
+  v_op_end5 timestamptz;
+  v_rev bigint;
+  v_res jsonb;
+  v_close_res jsonb;
+  v_status_txt text;
+  v_ended timestamptz;
+  v_cur uuid;
+  v_cmd1 uuid;
+  v_cmd2 uuid;
+  v_cnt integer;
+begin
+  insert into core.tenants (name) values ('جهة M113-P1-B') returning id into v_tenant;
+  insert into core.persons (tenant_id, full_name, normalized_name)
+  values (v_tenant, 'مزارع PB', 'مزارع PB') returning id into v_person;
+  insert into ops.farmer_profiles (tenant_id, person_id)
+  values (v_tenant, v_person) returning id into v_fprofile;
+
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+     email_confirmed_at, created_at, updated_at)
+  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated',
+     'authenticated', 'own-pb@test.local', crypt('x', gen_salt('bf')), now(), now(), now())
+  returning id into v_owner;
+  insert into iam.profiles (id, full_name) values (v_owner, 'مالك PB') on conflict (id) do nothing;
+  insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+     email_confirmed_at, created_at, updated_at)
+  values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated',
+     'authenticated', 'op-pb@test.local', crypt('x', gen_salt('bf')), now(), now(), now())
+  returning id into v_op;
+  insert into iam.profiles (id, full_name) values (v_op, 'مشغل PB') on conflict (id) do nothing;
+
+  insert into core.wells (tenant_id, name) values (v_tenant, 'بئر PB-1') returning id into v_w1;
+  insert into core.wells (tenant_id, name) values (v_tenant, 'بئر PB-2') returning id into v_w2;
+  insert into core.wells (tenant_id, name) values (v_tenant, 'بئر PB-3') returning id into v_w3;
+  insert into core.wells (tenant_id, name) values (v_tenant, 'بئر PB-4') returning id into v_w4;
+  insert into core.wells (tenant_id, name) values (v_tenant, 'بئر PB-5') returning id into v_w5;
+  insert into core.well_assignments (well_id, profile_id, role, status) values
+    (v_w1, v_owner, 'owner', 'active'), (v_w2, v_owner, 'owner', 'active'),
+    (v_w3, v_owner, 'owner', 'active'), (v_w4, v_owner, 'owner', 'active'),
+    (v_w5, v_owner, 'owner', 'active'),
+    (v_w1, v_op, 'operator', 'active'), (v_w2, v_op, 'operator', 'active'),
+    (v_w3, v_op, 'operator', 'active'), (v_w4, v_op, 'operator', 'active'),
+    (v_w5, v_op, 'operator', 'active');
+
+  insert into ops.farmer_well_accounts (tenant_id, farmer_profile_id, well_id, public_code)
+  values (v_tenant, v_fprofile, v_w1, 'FWA-PB-1') returning id into v_acc1;
+  insert into ops.farmer_well_accounts (tenant_id, farmer_profile_id, well_id, public_code)
+  values (v_tenant, v_fprofile, v_w2, 'FWA-PB-2') returning id into v_acc2;
+  insert into ops.farmer_well_accounts (tenant_id, farmer_profile_id, well_id, public_code)
+  values (v_tenant, v_fprofile, v_w3, 'FWA-PB-3') returning id into v_acc3;
+  insert into ops.farmer_well_accounts (tenant_id, farmer_profile_id, well_id, public_code)
+  values (v_tenant, v_fprofile, v_w4, 'FWA-PB-4') returning id into v_acc4;
+  insert into ops.farmer_well_accounts (tenant_id, farmer_profile_id, well_id, public_code)
+  values (v_tenant, v_fprofile, v_w5, 'FWA-PB-5') returning id into v_acc5;
+  insert into ops.farms (well_id, name, farmer_well_account_id)
+  values (v_w1, 'أرض PB-1', v_acc1) returning id into v_farm1;
+  insert into ops.farms (well_id, name, farmer_well_account_id)
+  values (v_w2, 'أرض PB-2', v_acc2) returning id into v_farm2;
+  insert into ops.farms (well_id, name, farmer_well_account_id)
+  values (v_w3, 'أرض PB-3', v_acc3) returning id into v_farm3;
+  insert into ops.farms (well_id, name, farmer_well_account_id)
+  values (v_w4, 'أرض PB-4', v_acc4) returning id into v_farm4;
+  insert into ops.farms (well_id, name, farmer_well_account_id)
+  values (v_w5, 'أرض PB-5', v_acc5) returning id into v_farm5;
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_w1, 'مضخة PB-1', 'diesel', 'active') returning id into v_pump1;
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_w2, 'مضخة PB-2', 'diesel', 'active') returning id into v_pump2;
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_w3, 'مضخة PB-3', 'diesel', 'active') returning id into v_pump3;
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_w4, 'مضخة PB-4', 'diesel', 'active') returning id into v_pump4;
+  insert into core.pumps (well_id, name, power_source, status)
+  values (v_w5, 'مضخة PB-5', 'diesel', 'active') returning id into v_pump5;
+  insert into billing.well_pricing (well_id, price_per_hour_minor, period_start)
+  values (v_w1, 5000, date '2026-01-01'), (v_w2, 5000, date '2026-01-01'),
+         (v_w3, 5000, date '2026-01-01'), (v_w4, 5000, date '2026-01-01'),
+         (v_w5, 5000, date '2026-01-01');
+
+  insert into ops.irrigation_bookings (
+    tenant_id, public_code, well_id, farmer_well_account_id, farm_id,
+    scheduled_start, scheduled_end, expected_duration_minutes,
+    expected_energy_source, status
+  ) values (v_tenant, 'BKG-PB-A1', v_w1, v_acc1, v_farm1,
+    v_now - interval '150 minutes', v_now - interval '30 minutes', 120,
+    'well_diesel', 'confirmed') returning id into v_ba1;
+  insert into ops.irrigation_bookings (
+    tenant_id, public_code, well_id, farmer_well_account_id, farm_id,
+    scheduled_start, scheduled_end, expected_duration_minutes,
+    expected_energy_source, status
+  ) values (v_tenant, 'BKG-PB-B1', v_w1, v_acc1, v_farm1,
+    v_now - interval '5 minutes', v_now + interval '55 minutes', 60,
+    'well_diesel', 'confirmed') returning id into v_bb1;
+  insert into ops.irrigation_bookings (
+    tenant_id, public_code, well_id, farmer_well_account_id, farm_id,
+    scheduled_start, scheduled_end, expected_duration_minutes,
+    expected_energy_source, status
+  ) values (v_tenant, 'BKG-PB-A2', v_w2, v_acc2, v_farm2,
+    v_now - interval '130 minutes', v_now - interval '10 minutes', 120,
+    'well_diesel', 'confirmed') returning id into v_ba2;
+  insert into ops.irrigation_bookings (
+    tenant_id, public_code, well_id, farmer_well_account_id, farm_id,
+    scheduled_start, scheduled_end, expected_duration_minutes,
+    expected_energy_source, status
+  ) values (v_tenant, 'BKG-PB-B2', v_w2, v_acc2, v_farm2,
+    v_now - interval '5 minutes', v_now + interval '55 minutes', 60,
+    'well_diesel', 'confirmed') returning id into v_bb2;
+  insert into ops.irrigation_bookings (
+    tenant_id, public_code, well_id, farmer_well_account_id, farm_id,
+    scheduled_start, scheduled_end, expected_duration_minutes,
+    expected_energy_source, status
+  ) values (v_tenant, 'BKG-PB-A4', v_w4, v_acc4, v_farm4,
+    v_now - interval '150 minutes', v_now - interval '30 minutes', 120,
+    'well_diesel', 'confirmed') returning id into v_ba4;
+  insert into ops.irrigation_bookings (
+    tenant_id, public_code, well_id, farmer_well_account_id, farm_id,
+    scheduled_start, scheduled_end, expected_duration_minutes,
+    expected_energy_source, status
+  ) values (v_tenant, 'BKG-PB-B4', v_w4, v_acc4, v_farm4,
+    v_now - interval '5 minutes', v_now + interval '55 minutes', 60,
+    'well_diesel', 'confirmed') returning id into v_bb4;
+  insert into ops.irrigation_bookings (
+    tenant_id, public_code, well_id, farmer_well_account_id, farm_id,
+    scheduled_start, scheduled_end, expected_duration_minutes,
+    expected_energy_source, status
+  ) values (v_tenant, 'BKG-PB-A5', v_w5, v_acc5, v_farm5,
+    v_now - interval '80 minutes', v_now - interval '20 minutes', 60,
+    'well_diesel', 'confirmed') returning id into v_ba5;
+  insert into ops.irrigation_bookings (
+    tenant_id, public_code, well_id, farmer_well_account_id, farm_id,
+    scheduled_start, scheduled_end, expected_duration_minutes,
+    expected_energy_source, status
+  ) values (v_tenant, 'BKG-PB-C5', v_w5, v_acc5, v_farm5,
+    v_now + interval '2 hours', v_now + interval '3 hours', 60,
+    'well_diesel', 'confirmed') returning id into v_bc5;
+
+  -- تفعيل ON بيد المشغل المخول عبر عقد P1-A (w2 تبقى OFF لاختبار
+  --   الحارس) — تغيير الإعداد قرار المشغل المخول لا المالك عن بعد.
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  v_res := api.set_well_booking_automation(v_w1, true, 0::bigint, gen_random_uuid());
+  v_res := api.set_well_booking_automation(v_w3, true, 0::bigint, gen_random_uuid());
+  v_res := api.set_well_booking_automation(v_w4, true, 0::bigint, gen_random_uuid());
+  v_res := api.set_well_booking_automation(v_w5, true, 0::bigint, gen_random_uuid());
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+
+  -- PB0: بلا هوية حقيقية لا انتقال — لا هوية مختلقة للمجدول ولا تجاوز.
+  perform set_config('request.jwt.claim.sub', '', true);
+  begin
+    perform ops.execute_booking_transition(v_w1, 0::bigint, gen_random_uuid());
+    raise notice 'FAIL PB0: انتقال آلي بلا هوية مستدعٍ';
+  exception when others then
+    if position('تسجيل الدخول' in sqlerrm) > 0 then
+      raise notice 'PASS PB0: النواة ترفض الافتقار لهوية حقيقية';
+    else
+      raise notice 'FAIL PB0: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+
+  -- w1 — النجاح الكامل وعائلة الإيديمبوتنس. بدء S1 بزمن ماضٍ فعلي:
+  --   الحد التشغيلي (748) = البداية الفعلية + 120د = v_now - 10د.
+  v_res := ops.start_booking_session_core(v_ba1, v_op, v_now - interval '130 minutes');
+  v_s1 := (v_res ->> 'session_id')::uuid;
+  v_op_end1 := (v_res ->> 'operational_end_at')::timestamptz;
+  select c.id into v_chain1 from ops.booking_transition_chains c where c.well_id = v_w1;
+
+  v_cmd1 := gen_random_uuid();
+  v_res := ops.execute_booking_transition(v_w1, 0::bigint, v_cmd1);
+  if (v_res ->> 'auto_transition_executed')::boolean is true
+     and v_res ->> 'close_reason' = 'auto_schedule_close'
+     and (v_res ->> 'field_confirmation')::boolean is false
+     and (v_res ->> 'closed_session_id')::uuid = v_s1
+     and (v_res ->> 'closed_at_operational_end')::timestamptz = v_op_end1
+     and (v_res -> 'settlement' ->> 'session_charge_id') is not null
+     and (v_res ->> 'started_booking_id')::uuid = v_bb1
+     and (v_res ->> 'started_session_id') is not null then
+    raise notice 'PASS PB1: الانتقال الذري اكتمل إغلاقًا وبدءًا بسببه الآلي الصريح';
+  else
+    raise notice 'FAIL PB1: رد الانتقال غير صحيح: %', v_res;
+  end if;
+  select s.status, s.ended_at into v_status_txt, v_ended
+  from ops.irrigation_sessions s where s.id = v_s1;
+  select count(*) into v_cnt from billing.session_charges sc where sc.session_id = v_s1;
+  if v_status_txt = 'closed' and v_ended = v_op_end1 and v_cnt = 1 then
+    raise notice 'PASS PB1b: الجلسة أُغلقت عند الحد الموثوق حرفيًا برسوم واحدة';
+  else
+    raise notice 'FAIL PB1b: إغلاق الجلسة أو رسومها غير صحيح: % / % / %', v_status_txt, v_ended, v_cnt;
+  end if;
+  select c.status, c.current_session_id, c.decision_revision
+    into v_status_txt, v_cur, v_rev
+  from ops.booking_transition_chains c where c.id = v_chain1;
+  select s.id into v_s2 from ops.irrigation_sessions s where s.booking_id = v_bb1;
+  if v_status_txt = 'active' and v_cur = v_s2 and v_rev = 0
+     and v_s2 is not null
+     and exists (select 1 from ops.irrigation_sessions where id = v_s2 and status = 'open') then
+    raise notice 'PASS PB1c: السلسلة عادت active بجلسة تالية جديدة وبلا تحريك النسخة';
+  else
+    raise notice 'FAIL PB1c: حالة السلسلة بعد الانتقال غير صحيحة: % / % / %', v_status_txt, v_rev, v_s2;
+  end if;
+
+  -- PB2: إعادة الأمر المطابق تعيد الرد المخزَّن: لا إغلاق ثانٍ ولا
+  --   رسوم مكررة ولا جلسة ثانية (تكرار الأمر).
+  v_res := ops.execute_booking_transition(v_w1, 0::bigint, v_cmd1);
+  select count(*) into v_cnt from billing.session_charges sc where sc.session_id = v_s1;
+  if (v_res ->> 'started_session_id')::uuid = v_s2
+     and (v_res ->> 'auto_transition_executed')::boolean is true
+     and v_cnt = 1
+     and (select count(*) from ops.irrigation_sessions where booking_id = v_bb1) = 1
+     and (select status from ops.irrigation_sessions where id = v_s2) = 'open' then
+    raise notice 'PASS PB2: إعادة الأمر أعادت الرد المخزَّن بلا رسوم أو جلسة مكررة';
+  else
+    raise notice 'FAIL PB2: تكرار أثر عند إعادة الأمر: %', v_res;
+  end if;
+
+  -- PB3: نفس معرّف الأمر بحمولة مختلفة يُرفض (اختلاف البصمة).
+  begin
+    perform ops.execute_booking_transition(v_w1, 1::bigint, v_cmd1);
+    raise notice 'FAIL PB3: معرّف العملية قُبل ببصمة مختلفة';
+  exception when others then
+    if position('مستخدم لمحتوى مختلف' in sqlerrm) > 0 then
+      raise notice 'PASS PB3: إعادة استخدام المعرف ببصمة مختلفة مرفوضة';
+    else
+      raise notice 'FAIL PB3: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- PB4: نسخة سلسلة قديمة تُرفض، والتراجع الذري يمحو تسجيل الأمر.
+  v_cmd2 := gen_random_uuid();
+  begin
+    perform ops.execute_booking_transition(v_w1, 5::bigint, v_cmd2);
+    raise notice 'FAIL PB4: نسخة قديمة قُبلت';
+  exception when others then
+    if position('نسخة سلسلة قديمة' in sqlerrm) > 0 then
+      raise notice 'PASS PB4: النسخة القديمة مرفوضة بمقارنة-وتبديل';
+    else
+      raise notice 'FAIL PB4: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  if not exists (select 1 from sync.processed_commands where command_id = v_cmd2) then
+    raise notice 'PASS PB4b: فشل الأمر ترك دفتر الأوامر نظيفًا بلا تسجيل معلّق';
+  else
+    raise notice 'FAIL PB4b: بقي أمر مسجَّل بلا إكمال بعد الفشل';
+  end if;
+
+  -- PB5: منع الجلسة الثانية على الحجز المستهلك عبر العقد اليدوي أيضًا.
+  begin
+    perform api.start_irrigation_session_from_booking(v_bb1, v_now, gen_random_uuid(), null);
+    raise notice 'FAIL PB5: بُدئت جلسة ثانية على الحجز المستهلك';
+  exception when others then
+    if position('مرتبط بجلسة سابقة' in sqlerrm) > 0 then
+      raise notice 'PASS PB5: الحجز المستهلك محجوب عن جلسة ثانية';
+    else
+      raise notice 'FAIL PB5: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+
+  -- w2 — حراسات الإعداد والزمن والسلسلة.
+  -- PB6: الإعداد OFF يحجب الانتقال قبل أي شيء — حفظ ON في P1-A شرط
+  --   لا كفاية، والOFF يحجب حتى بلا جلسة مفتوحة.
+  begin
+    perform ops.execute_booking_transition(v_w2, 0::bigint, gen_random_uuid());
+    raise notice 'FAIL PB6: انتقال آلي والإعداد OFF';
+  exception when others then
+    if position('booking_auto_transition_disabled' in sqlerrm) > 0 then
+      raise notice 'PASS PB6: الإعداد OFF يحجب الانتقال';
+    else
+      raise notice 'FAIL PB6: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  v_res := api.set_well_booking_automation(v_w2, true, 0::bigint, gen_random_uuid());
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+
+  v_res := ops.start_booking_session_core(v_ba2, v_op, v_now);
+  v_s2 := (v_res ->> 'session_id')::uuid;
+  select c.id into v_chain2 from ops.booking_transition_chains c where c.well_id = v_w2;
+
+  -- PB7: الجلسة لم تبلغ حدها التشغيلي الموثوق (748) — لا إغلاق آلي
+  --   ولا بدء فوقها (751/758).
+  begin
+    perform ops.execute_booking_transition(v_w2, 0::bigint, gen_random_uuid());
+    raise notice 'FAIL PB7: إغلاق آلي لجلسة لم تبلغ حدها';
+  exception when others then
+    if position('current_not_reached_operational_end' in sqlerrm) > 0 then
+      raise notice 'PASS PB7: الجلسة دون الحد الموثوق محجوبة عن الإغلاق';
+    else
+      raise notice 'FAIL PB7: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- PB8: غياب البداية اليدوية (لا سلسلة مسلّحة) يحجب الانتقال (761).
+  delete from ops.booking_transition_chains where id = v_chain2;
+  begin
+    perform ops.execute_booking_transition(v_w2, 0::bigint, gen_random_uuid());
+    raise notice 'FAIL PB8: انتقال بلا سلسلة مسلّحة';
+  exception when others then
+    if position('chain_not_armed' in sqlerrm) > 0 then
+      raise notice 'PASS PB8: غياب السلسلة المسلّحة يحجب الانتقال';
+    else
+      raise notice 'FAIL PB8: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- w3 — الجلسة الحرة/العابرة (751): بلا أي حجز على البئر فبدء حرّ
+  --   بلا مدة ممكن، والحارس يحجب الإغلاق الآلي قبل فحص السلسلة.
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  -- الدالة تعيد uuid فتُستبق النتيجة: لا حاجة لمعرفها لاحقًا.
+  perform api.start_adhoc_session(
+    v_w3, v_pump3, v_farm3, v_acc3, 'well_diesel', null, v_now, null, null, null
+  );
+  begin
+    perform ops.execute_booking_transition(v_w3, 0::bigint, gen_random_uuid());
+    raise notice 'FAIL PB9: إغلاق آلي لجلسة حرة/عابرة';
+  exception when others then
+    if position('transient_or_free_session_blocked' in sqlerrm) > 0 then
+      raise notice 'PASS PB9: الجلسة الحرة/العابرة محجوبة عن الإغلاق الآلي';
+    else
+      raise notice 'FAIL PB9: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- w5 — انتظار غير محسوم (763): قرار wait محفوظ يعلّق الانتقال الآلي
+  --   حتى يُحسم بقراره القائم.
+  v_res := ops.start_booking_session_core(v_ba5, v_op, v_now - interval '70 minutes');
+  v_s5 := (v_res ->> 'session_id')::uuid;
+  v_op_end5 := (v_res ->> 'operational_end_at')::timestamptz;
+  select c.id into v_chain5 from ops.booking_transition_chains c where c.well_id = v_w5;
+  v_close_res := api.complete_booking_session(v_s5, v_op_end5, gen_random_uuid());
+  v_res := api.record_booking_transition_decision(
+    v_chain5, v_s5, v_bc5, 'wait', 0::bigint, gen_random_uuid()
+  );
+  begin
+    perform ops.execute_booking_transition(v_w5, 1::bigint, gen_random_uuid());
+    raise notice 'FAIL PB10: انتقال آلي وقرار انتظار غير محسوم';
+  exception when others then
+    if position('no_open_session_to_close' in sqlerrm) > 0 then
+      raise notice 'PASS PB10: الانتظار غير المحسوم يعلّق الانتقال الآلي';
+    else
+      raise notice 'FAIL PB10: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+
+  -- w4 — عدم الجاهزية: المضخة الفعالة مفقودة فلا بدء، والتراجع الذري
+  --   يمحو الإغلاق والرسوم والتسجيل معًا فلا حالة جزئية إطلاقًا.
+  perform set_config('request.jwt.claim.sub', v_op::text, true);
+  v_res := ops.start_booking_session_core(v_ba4, v_op, v_now - interval '130 minutes');
+  v_s4 := (v_res ->> 'session_id')::uuid;
+  select c.id into v_chain4 from ops.booking_transition_chains c where c.well_id = v_w4;
+  update core.pumps set status = 'inactive' where well_id = v_w4;
+  v_cmd2 := gen_random_uuid();
+  begin
+    perform ops.execute_booking_transition(v_w4, 0::bigint, v_cmd2);
+    raise notice 'FAIL PB11: انتقال نجح بلا مضخة فعالة للتالي';
+  exception when others then
+    if position('غير جاهز للتنفيذ' in sqlerrm) > 0 then
+      raise notice 'PASS PB11: عدم الجاهزية يمنع بدء التالي';
+    else
+      raise notice 'FAIL PB11: رفض غير متوقع: %', sqlerrm;
+    end if;
+  end;
+  if exists (select 1 from ops.irrigation_sessions where id = v_s4 and status = 'open')
+     and not exists (select 1 from billing.session_charges where session_id = v_s4)
+     and not exists (select 1 from ops.irrigation_sessions where booking_id = v_bb4)
+     and not exists (select 1 from sync.processed_commands where command_id = v_cmd2) then
+    raise notice 'PASS PB11b: التراجع الذري أعاد الحالة: الجلسة مفتوحة بلا رسوم ولا بدء ولا أمر';
+  else
+    raise notice 'FAIL PB11b: بقي أثر جزئي بعد فشل الانتقال';
+  end if;
+  update core.pumps set status = 'active' where well_id = v_w4;
+  raise notice '--- انتهى اختبار M113-P1-B: نواة الانتقال الذرية ---';
+end
+$test_pb$;
+
 rollback;

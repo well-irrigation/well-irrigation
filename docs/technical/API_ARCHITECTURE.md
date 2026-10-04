@@ -1225,4 +1225,13 @@ fail-closed بـ`28000`/`22023`/`42501`، ترتيب حتمي، ولا كائن
 - `api.get_well_booking_automation(well_id)` يقرأ الإعداد والمراجعة وحالة السلسلة المرئية؛ `automation_executor_ready=false` و`auto_transition_executed=false` لا يختلقان تنفيذًا. القراءة للمالك/المشغل ذوي التعيين النشط؛ RLS باقية.
 - `api.set_well_booking_automation(well_id,enabled,expected_revision,command_id)` يتطلب هوية `auth.uid()`، وتعيين مشغّل نشطًا و`session.start`؛ المالك والمدير محجوبان حتى مسار P7. أغلفة `api` جميعها SECURITY INVOKER، وداخليّة `ops.set_well_booking_automation` SECURITY DEFINER محروسة حتى عند الاستدعاء المباشر.
 - منع التكرار: بصمة الحمولة وسجل `sync.processed_commands` وCAS رقمي وقفل صف وتثبيت رد القبول في نفس المعاملة؛ لا كتابة مباشرة لأعمدة إعداد الأتمتة من authenticated. لا تغيير في انتقالات الحجز أو الإغلاق المالي أو Flutter.
-- **الإثبات:** `c:db` المحلي 52 ملفًا / 1103 PASS / صفر FAIL/ERROR؛ الفهرس 891/544/264/49. نجح CI على فرع PR #51 ثم دُمج؛ سباق اتصالين مستقلين وCloud/Production لم يُثبتا.
+- **الإثبات:** `c:db` المحلي 52 ملفًا / 1103 PASS / صفر FAIL/ERROR؛ الفهرس 891/544/264/49. نجح CI على فرع PR #51 ثم دُمج وسجل دمجها مدمج عبر PR #52.
+
+## ق-134 / P1-B — عزل نواة الانتقال في ops وصفر كشف في api
+
+**الحالة:** Implemented + Local DB Verified (`FILES=52 PASS=1119` وفهرس `891/544/265/49`) + Concurrency Proof Verified على الفرع `feat/p1b-atomic-transition`؛ لا CI/Cloud/Production مثبت لهذا التعديل. P1-B-CONCURRENCY-PROOF-VERIFIED-2026-10-04.
+
+- أُضيفت الدالة `ops.execute_booking_transition(uuid, bigint, uuid) -> jsonb` داخل المخطط الداخلي `ops`، وهي **محجوبة تمامًا عن العميل** ومسحوبة الصلاحيات بالكامل (`REVOKE ALL FROM public, anon, authenticated, service_role`).
+- لا توجد دالة مغلفة لها في `api`، التزامًا بالثابت 699 وق-78 (أن `api` هو السطح المكشوف وحده ولا يُكشف فيه إجراء غير مخصص للعميل).
+- استدعاء النواة محصور في بيئة الخادم الداخلية أو الاختبارات الدائمة، وتتطلب هوية حقيقية تمررها إلى عقدي `ops.complete_irrigation_session` و`ops.start_booking_session_core`، دون اختلاق هوية للمستدعي.
+- لا يوجد قرار جديد مطلوب؛ عقود السلوك متوافقة تمامًا مع ق-134.

@@ -216,6 +216,7 @@ ops.enforce_adhoc_duration_vs_next_booking()|trigger|volatile|definer|search_pat
 ops.enforce_booking_transition_chain_consistency()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
 ops.enforce_farm_assignment_consistency()|trigger|volatile|invoker|search_path=ops, pg_temp
 ops.evaluate_booking_execution_readiness(p_well_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_expected_energy_source text, p_alternative_energy_source text)|jsonb|stable|definer|search_path=ops, core, pg_temp
+ops.execute_booking_transition(p_well_id uuid, p_expected_revision bigint, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.execute_pending_booking_start(p_chain_id uuid, p_expected_revision bigint, p_actor uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.flag_approaching_long_sessions()|SETOF uuid|volatile|definer|search_path=ops, core, iam, pg_temp
 ops.flag_long_running_sessions()|SETOF uuid|volatile|definer|search_path=ops, core, iam, pg_temp
