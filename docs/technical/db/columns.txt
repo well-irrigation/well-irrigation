@@ -15,6 +15,32 @@ audit.audit_logs|client_timestamp|timestamp with time zone|null|-
 audit.audit_logs|server_timestamp|timestamp with time zone|NOT NULL|now()
 audit.audit_logs|ip_address|inet|null|-
 audit.audit_logs|app_version|text|null|-
+audit.booking_automation_attempts|id|uuid|NOT NULL|gen_random_uuid()
+audit.booking_automation_attempts|actor_kind|text|NOT NULL|-
+audit.booking_automation_attempts|actor_ref|text|NOT NULL|-
+audit.booking_automation_attempts|executor_id|text|NOT NULL|-
+audit.booking_automation_attempts|credential_ref|text|NOT NULL|-
+audit.booking_automation_attempts|authorization_source|text|null|-
+audit.booking_automation_attempts|tenant_id|uuid|null|-
+audit.booking_automation_attempts|well_id|uuid|null|-
+audit.booking_automation_attempts|chain_id|uuid|null|-
+audit.booking_automation_attempts|operator_profile_id|uuid|null|-
+audit.booking_automation_attempts|operator_assignment_id|uuid|null|-
+audit.booking_automation_attempts|current_session_id|uuid|null|-
+audit.booking_automation_attempts|next_booking_id|uuid|null|-
+audit.booking_automation_attempts|command_id|uuid|NOT NULL|-
+audit.booking_automation_attempts|attempt_id|uuid|NOT NULL|-
+audit.booking_automation_attempts|runtime_run_id|uuid|NOT NULL|-
+audit.booking_automation_attempts|decision_revision|bigint|null|-
+audit.booking_automation_attempts|automation_revision|bigint|null|-
+audit.booking_automation_attempts|authorization_revision|bigint|null|-
+audit.booking_automation_attempts|policy_version|bigint|null|-
+audit.booking_automation_attempts|observed_at|timestamp with time zone|NOT NULL|-
+audit.booking_automation_attempts|attempted_at|timestamp with time zone|NOT NULL|-
+audit.booking_automation_attempts|decided_at|timestamp with time zone|NOT NULL|-
+audit.booking_automation_attempts|result|text|NOT NULL|-
+audit.booking_automation_attempts|failure_reason|text|null|-
+audit.booking_automation_attempts|business_receipt|jsonb|null|-
 billing.invoice_lines|id|uuid|NOT NULL|gen_random_uuid()
 billing.invoice_lines|tenant_id|uuid|NOT NULL|-
 billing.invoice_lines|invoice_id|uuid|NOT NULL|-
@@ -246,6 +272,7 @@ core.well_assignments|role|text|NOT NULL|-
 core.well_assignments|status|text|NOT NULL|'active'::text
 core.well_assignments|created_at|timestamp with time zone|NOT NULL|now()
 core.well_assignments|updated_at|timestamp with time zone|NOT NULL|now()
+core.well_assignments|authorization_revision|bigint|NOT NULL|1
 core.well_invitations|id|uuid|NOT NULL|gen_random_uuid()
 core.well_invitations|tenant_id|uuid|NOT NULL|-
 core.well_invitations|well_id|uuid|NOT NULL|-
@@ -299,6 +326,8 @@ core.well_settings|created_at|timestamp with time zone|NOT NULL|now()
 core.well_settings|updated_at|timestamp with time zone|NOT NULL|now()
 core.well_settings|booking_auto_transition_enabled|boolean|NOT NULL|false
 core.well_settings|booking_auto_transition_revision|bigint|NOT NULL|0
+core.well_settings|booking_auto_transition_operator_assignment_id|uuid|null|-
+core.well_settings|booking_auto_transition_authorization_revision|bigint|null|-
 core.wells|id|uuid|NOT NULL|gen_random_uuid()
 core.wells|tenant_id|uuid|NOT NULL|-
 core.wells|name|text|NOT NULL|-
@@ -596,6 +625,27 @@ inventory.fuel_transactions|status|text|NOT NULL|'posted'::text
 inventory.fuel_transactions|notes|text|null|-
 inventory.fuel_transactions|created_at|timestamp with time zone|NOT NULL|now()
 inventory.fuel_transactions|created_by|uuid|null|-
+ops.booking_automation_control|control_key|text|NOT NULL|-
+ops.booking_automation_control|execution_enabled|boolean|NOT NULL|false
+ops.booking_automation_control|policy_version|bigint|NOT NULL|1
+ops.booking_automation_control|updated_at|timestamp with time zone|NOT NULL|clock_timestamp()
+ops.booking_automation_execution_contexts|context_id|uuid|NOT NULL|gen_random_uuid()
+ops.booking_automation_execution_contexts|transaction_id|bigint|NOT NULL|-
+ops.booking_automation_execution_contexts|backend_pid|integer|NOT NULL|-
+ops.booking_automation_execution_contexts|tenant_id|uuid|NOT NULL|-
+ops.booking_automation_execution_contexts|well_id|uuid|NOT NULL|-
+ops.booking_automation_execution_contexts|chain_id|uuid|NOT NULL|-
+ops.booking_automation_execution_contexts|current_session_id|uuid|NOT NULL|-
+ops.booking_automation_execution_contexts|next_booking_id|uuid|NOT NULL|-
+ops.booking_automation_execution_contexts|decision_revision|bigint|NOT NULL|-
+ops.booking_automation_execution_contexts|automation_revision|bigint|NOT NULL|-
+ops.booking_automation_execution_contexts|policy_version|bigint|NOT NULL|-
+ops.booking_automation_execution_contexts|operator_profile_id|uuid|NOT NULL|-
+ops.booking_automation_execution_contexts|operator_assignment_id|uuid|NOT NULL|-
+ops.booking_automation_execution_contexts|authorization_revision|bigint|NOT NULL|-
+ops.booking_automation_execution_contexts|intent_fingerprint|jsonb|NOT NULL|-
+ops.booking_automation_execution_contexts|command_replayed|boolean|NOT NULL|false
+ops.booking_automation_execution_contexts|created_at|timestamp with time zone|NOT NULL|clock_timestamp()
 ops.booking_status_history|id|uuid|NOT NULL|gen_random_uuid()
 ops.booking_status_history|tenant_id|uuid|NOT NULL|-
 ops.booking_status_history|booking_id|uuid|NOT NULL|-
@@ -875,6 +925,7 @@ sync.processed_commands|status|text|NOT NULL|-
 sync.processed_commands|request_payload|jsonb|null|-
 sync.processed_commands|response_payload|jsonb|null|-
 sync.processed_commands|processed_at|timestamp with time zone|NOT NULL|now()
+sync.processed_commands|intent_fingerprint|jsonb|null|-
 sync.sync_conflicts|id|uuid|NOT NULL|gen_random_uuid()
 sync.sync_conflicts|tenant_id|uuid|NOT NULL|-
 sync.sync_conflicts|well_id|uuid|null|-
