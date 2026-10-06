@@ -4,6 +4,12 @@ audit.audit_logs|audit_logs_pkey|p|PRIMARY KEY (id)
 audit.audit_logs|audit_logs_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id) ON DELETE CASCADE
 audit.audit_logs|audit_logs_user_id_fkey|f|FOREIGN KEY (user_id) REFERENCES iam.profiles(id)
 audit.audit_logs|audit_logs_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
+audit.booking_automation_attempts|booking_automation_attempts_actor_kind_check|c|CHECK ((actor_kind = 'system'::text))
+audit.booking_automation_attempts|booking_automation_attempts_actor_ref_check|c|CHECK ((actor_ref = 'booking_automation_system'::text))
+audit.booking_automation_attempts|booking_automation_attempts_attempt_id_key|u|UNIQUE (attempt_id)
+audit.booking_automation_attempts|booking_automation_attempts_check|c|CHECK (((result = 'rejected'::text) = (failure_reason IS NOT NULL)))
+audit.booking_automation_attempts|booking_automation_attempts_pkey|p|PRIMARY KEY (id)
+audit.booking_automation_attempts|booking_automation_attempts_result_check|c|CHECK ((result = ANY (ARRAY['accepted'::text, 'replayed'::text, 'rejected'::text])))
 billing.invoice_lines|invoice_lines_invoice_id_fkey|f|FOREIGN KEY (invoice_id) REFERENCES billing.invoices(id)
 billing.invoice_lines|invoice_lines_invoice_id_line_number_key|u|UNIQUE (invoice_id, line_number)
 billing.invoice_lines|invoice_lines_line_number_check|c|CHECK ((line_number > 0))
@@ -369,6 +375,10 @@ inventory.fuel_transactions|fuel_transactions_tenant_id_fkey|f|FOREIGN KEY (tena
 inventory.fuel_transactions|fuel_transactions_transaction_type_check|c|CHECK ((transaction_type = ANY (ARRAY['purchase'::text, 'farmer_deposit'::text, 'session_consumption'::text, 'farmer_return'::text, 'adjustment_in'::text, 'adjustment_out'::text, 'leakage'::text, 'loss'::text, 'opening_balance'::text, 'physical_count'::text])))
 inventory.fuel_transactions|fuel_transactions_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
 inventory.fuel_transactions|fuel_transactions_well_id_public_code_key|u|UNIQUE (well_id, public_code)
+ops.booking_automation_control|booking_automation_control_control_key_check|c|CHECK ((control_key = 'global'::text))
+ops.booking_automation_control|booking_automation_control_pkey|p|PRIMARY KEY (control_key)
+ops.booking_automation_control|booking_automation_control_policy_version_check|c|CHECK ((policy_version > 0))
+ops.booking_automation_execution_contexts|booking_automation_execution_contexts_pkey|p|PRIMARY KEY (context_id)
 ops.booking_status_history|booking_status_history_booking_id_fkey|f|FOREIGN KEY (booking_id) REFERENCES ops.irrigation_bookings(id)
 ops.booking_status_history|booking_status_history_changed_by_fkey|f|FOREIGN KEY (changed_by) REFERENCES iam.profiles(id)
 ops.booking_status_history|booking_status_history_pkey|p|PRIMARY KEY (id)

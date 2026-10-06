@@ -1,6 +1,7 @@
 # schema.table|trigger|definition
 # مولَّد آليًا بـ scripts/db_index.sh — لا يُحرَّر يدويًا
 audit.audit_logs|audit_logs_append_only|CREATE TRIGGER audit_logs_append_only BEFORE DELETE OR UPDATE ON audit.audit_logs FOR EACH ROW EXECUTE FUNCTION audit.prevent_audit_modification()
+audit.booking_automation_attempts|booking_automation_attempts_append_only|CREATE TRIGGER booking_automation_attempts_append_only BEFORE DELETE OR UPDATE ON audit.booking_automation_attempts FOR EACH ROW EXECUTE FUNCTION audit.prevent_audit_modification()
 billing.invoices|invoices_journalize|CREATE TRIGGER invoices_journalize AFTER INSERT OR UPDATE OF status ON billing.invoices FOR EACH ROW EXECUTE FUNCTION billing.journalize_invoice()
 billing.payments|payments_fill_context|CREATE TRIGGER payments_fill_context BEFORE INSERT ON billing.payments FOR EACH ROW EXECUTE FUNCTION billing.fill_payment_context()
 billing.payments|payments_journalize|CREATE TRIGGER payments_journalize AFTER INSERT OR UPDATE OF status ON billing.payments FOR EACH ROW EXECUTE FUNCTION billing.journalize_payment()
@@ -12,7 +13,9 @@ core.partner_irrigation_policies|track_partner_policies|CREATE TRIGGER track_par
 core.pumps|trg_prepare_pump_identity_076|CREATE TRIGGER trg_prepare_pump_identity_076 BEFORE INSERT OR UPDATE OF well_id, tenant_id, public_code ON core.pumps FOR EACH ROW EXECUTE FUNCTION core.prepare_pump_identity_076()
 core.pumps|trg_touch_pump_updated_at_076|CREATE TRIGGER trg_touch_pump_updated_at_076 BEFORE UPDATE ON core.pumps FOR EACH ROW EXECUTE FUNCTION core.touch_pump_updated_at_076()
 core.tenants|tenants_seed_expense_categories|CREATE TRIGGER tenants_seed_expense_categories AFTER INSERT ON core.tenants FOR EACH ROW EXECUTE FUNCTION finance.seed_expense_categories()
+core.well_assignments|well_assignments_authorization_revision|CREATE TRIGGER well_assignments_authorization_revision BEFORE UPDATE ON core.well_assignments FOR EACH ROW EXECUTE FUNCTION core.bump_well_assignment_authorization_revision()
 core.well_partners|track_partners|CREATE TRIGGER track_partners AFTER INSERT OR DELETE OR UPDATE ON core.well_partners FOR EACH ROW EXECUTE FUNCTION audit.track_changes()
+core.well_settings|well_settings_bind_booking_automation_operator|CREATE TRIGGER well_settings_bind_booking_automation_operator BEFORE INSERT OR UPDATE OF booking_auto_transition_enabled, booking_auto_transition_revision ON core.well_settings FOR EACH ROW EXECUTE FUNCTION core.bind_booking_automation_to_human_operator()
 core.wells|on_well_created|CREATE TRIGGER on_well_created AFTER INSERT ON core.wells FOR EACH ROW EXECUTE FUNCTION core.handle_new_well()
 core.wells|wells_create_default_fuel_tank|CREATE TRIGGER wells_create_default_fuel_tank AFTER INSERT ON core.wells FOR EACH ROW EXECUTE FUNCTION inventory.create_default_fuel_tank()
 core.wells|wells_create_distribution_settings|CREATE TRIGGER wells_create_distribution_settings AFTER INSERT ON core.wells FOR EACH ROW EXECUTE FUNCTION finance.create_distribution_settings()
