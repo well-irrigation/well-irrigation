@@ -55,4 +55,4 @@
 
 ## د. حالة الاستئناف التنفيذية
 
-**NEXT:** إكمال قبول P2 على الهاتف قبل P3. الجولة الحالية `feat/p2-mobile-booking-integration` Online-first فقط وتعيد استخدام عقود M113 القائمة بلا Migration: `api.get_well_day_schedule`، `api.get_well_booking_automation`، `api.set_well_booking_automation`، و`api.start_irrigation_session_from_booking`. بعدها جولة Offline/notifications/readiness ثم Android field acceptance، ثم مراجعة q-137. لا P3 ولا Production activation قبل ذلك.
+**NEXT:** إكمال قبول P2 على الهاتف قبل P3. Online-first دُمجت عبر PR #59. جولة Offline المحلية أضافت cache وربط جلسة الخادم ونية انتقال، وعقد `api.get_booking_transition_reconciliation` للقراءة فقط؛ not_found/rejected/conflict تعني مراجعة ولا تنفيذ. `BLOCKED_CONTRACT_GAP` يبقى للانتقال التجاري Offline عبر P1-B وإعادة فحص ق-136 الذري. تبقى الإشعارات/الجاهزية والقبول على Android، ثم مراجعة q-137. لا P3 ولا Production activation.

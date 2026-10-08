@@ -68,6 +68,9 @@ void main() {
     CurrentBookingSession? currentSession,
     ValueChanged<bool>? onToggle,
     Future<void> Function(BookingDayItem booking)? onStart,
+    bool awaitingReconciliation = false,
+    bool reconciliationComplete = false,
+    bool requiresReview = false,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -80,6 +83,9 @@ void main() {
             isUpdatingAutomation: false,
             canManageAutomation: canManage,
             hasLocalActiveSession: false,
+            awaitingReconciliation: awaitingReconciliation,
+            reconciliationComplete: reconciliationComplete,
+            requiresReview: requiresReview,
             onRefresh: () {},
             onToggleAutomation: onToggle ?? (_) {},
             onStartBooking: onStart ?? (_) async {},
@@ -89,67 +95,70 @@ void main() {
     );
   }
 
-  testWidgets('shows server schedule, authoritative next booking, and manual start', (
+  testWidgets(
+    'shows server schedule, authoritative next booking, and manual start',
+    (tester) async {
+      String? startedBooking;
+      await tester.pumpWidget(
+        subject(
+          canManage: true,
+          onStart: (booking) async {
+            startedBooking = booking.id;
+          },
+        ),
+      );
+
+      expect(find.text('حجوزات اليوم'), findsOneWidget);
+      expect(find.text('أحمد'), findsOneWidget);
+      expect(find.text('محمد'), findsOneWidget);
+      expect(find.text('التالي'), findsOneWidget);
+      expect(
+        find.text(
+          'أول حجز يبدأ يدويًا. هذا المفتاح يحفظ إعداد البئر، ولا يعني تفعيل التشغيل الإنتاجي الدائم.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('start-booking-booking-1')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('start-booking-booking-1')));
+      await tester.pump();
+      expect(startedBooking, 'booking-1');
+    },
+  );
+
+  testWidgets(
+    'operator can toggle automation but owner/read-only view cannot',
+    (tester) async {
+      bool? requested;
+      await tester.pumpWidget(
+        subject(canManage: true, onToggle: (value) => requested = value),
+      );
+
+      await tester.tap(find.byKey(const Key('booking-automation-switch')));
+      await tester.pump();
+      expect(requested, isTrue);
+
+      requested = null;
+      await tester.pumpWidget(
+        subject(canManage: false, onToggle: (value) => requested = value),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('booking-automation-switch')));
+      await tester.pump();
+      expect(requested, isNull);
+      expect(
+        find.text(
+          'يمكنك مشاهدة الإعداد. تغييره متاح للمشغّل المخوّل على هاتف التشغيل فقط.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('open server session removes manual start actions', (
     tester,
   ) async {
-    String? startedBooking;
-    await tester.pumpWidget(
-      subject(
-        canManage: true,
-        onStart: (booking) async {
-          startedBooking = booking.id;
-        },
-      ),
-    );
-
-    expect(find.text('حجوزات اليوم'), findsOneWidget);
-    expect(find.text('أحمد'), findsOneWidget);
-    expect(find.text('محمد'), findsOneWidget);
-    expect(find.text('التالي'), findsOneWidget);
-    expect(find.text('أول حجز يبدأ يدويًا. هذا المفتاح يحفظ إعداد البئر، ولا يعني تفعيل التشغيل الإنتاجي الدائم.'), findsOneWidget);
-    expect(find.byKey(const Key('start-booking-booking-1')), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('start-booking-booking-1')));
-    await tester.pump();
-    expect(startedBooking, 'booking-1');
-  });
-
-  testWidgets('operator can toggle automation but owner/read-only view cannot', (
-    tester,
-  ) async {
-    bool? requested;
-    await tester.pumpWidget(
-      subject(
-        canManage: true,
-        onToggle: (value) => requested = value,
-      ),
-    );
-
-    await tester.tap(find.byKey(const Key('booking-automation-switch')));
-    await tester.pump();
-    expect(requested, isTrue);
-
-    requested = null;
-    await tester.pumpWidget(
-      subject(
-        canManage: false,
-        onToggle: (value) => requested = value,
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.byKey(const Key('booking-automation-switch')));
-    await tester.pump();
-    expect(requested, isNull);
-    expect(
-      find.text(
-        'يمكنك مشاهدة الإعداد. تغييره متاح للمشغّل المخوّل على هاتف التشغيل فقط.',
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('open server session removes manual start actions', (tester) async {
     await tester.pumpWidget(
       subject(
         canManage: true,
@@ -164,9 +173,59 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('الجلسة الجارية من الحجز B-001'), findsOneWidget);
+    expect(
+      find.textContaining('الجلسة الجارية من الحجز B-001'),
+      findsOneWidget,
+    );
     expect(find.text('الجاري'), findsOneWidget);
     expect(find.byType(FilledButton), findsNothing);
+  });
+
+  testWidgets('cached schedule is labelled and cannot start a booking', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TodayBookingsPanel(
+            schedule: schedule(),
+            automation: automation,
+            isLoadingSchedule: false,
+            isLoadingAutomation: false,
+            isUpdatingAutomation: false,
+            canManageAutomation: true,
+            hasLocalActiveSession: false,
+            isCachedSchedule: true,
+            lastSyncedAt: DateTime.utc(2026, 10, 8, 5),
+            onRefresh: () {},
+            onToggleAutomation: (_) {},
+            onStartBooking: (_) async {},
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('booking-cache-indicator')), findsOneWidget);
+    expect(find.byKey(const Key('start-booking-booking-1')), findsNothing);
+  });
+
+  testWidgets('shows reconciliation state without claiming transition success', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        canManage: true,
+        awaitingReconciliation: true,
+        requiresReview: true,
+      ),
+    );
+    expect(find.text('بانتظار المصالحة مع الخادم'), findsOneWidget);
+    expect(find.text('يوجد تعارض أو موعد فائت يحتاج مراجعة'), findsOneWidget);
+    expect(find.text('تم الانتقال'), findsNothing);
+
+    await tester.pumpWidget(
+      subject(canManage: true, reconciliationComplete: true),
+    );
+    expect(find.text('تمت المصالحة مع الخادم'), findsOneWidget);
   });
 
   testWidgets('loading and error states are explicit', (tester) async {
