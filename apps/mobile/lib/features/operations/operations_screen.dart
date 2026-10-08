@@ -657,10 +657,20 @@ class _OperationsScreenState extends State<OperationsScreen>
         _activeSessionId = null;
         _resetCropSelection();
         _resetFarmerStatus();
+        _daySchedule = null;
+        _bookingAutomation = null;
+        _dayScheduleError = null;
+        _bookingAutomationError = null;
+        _pendingAutomationCommandId = null;
+        _pendingAutomationTarget = null;
+        _pendingAutomationRevision = null;
+        _pendingStartCommandIds.clear();
+        _startingBookingId = null;
       });
       _loadPumps();
       _loadPriceSchedule();
       _recoverActiveSession();
+      _loadBookingOverview();
     }
   }
 
