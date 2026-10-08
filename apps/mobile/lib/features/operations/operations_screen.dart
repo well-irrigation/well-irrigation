@@ -1301,6 +1301,12 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<void> _startSession() async {
+    if (_daySchedule?.currentSession != null) {
+      _showActionFailure(
+        'توجد جلسة محجوزة جارية على الخادم؛ لا يمكن بدء جلسة أخرى.',
+      );
+      return;
+    }
     if (!_isFormComplete) {
       _showActionFailure(_missingFieldGuidance ?? 'يرجى إكمال الحقول المطلوبة');
       return;
@@ -1934,6 +1940,10 @@ class _OperationsScreenState extends State<OperationsScreen>
   @override
   Widget build(BuildContext context) {
     final activeSession = _activeSession;
+    final serverCurrentSession = _daySchedule?.currentSession;
+    final hasServerOnlySession =
+        !_isSessionActive && serverCurrentSession != null;
+    final hasAnyActiveSession = _isSessionActive || hasServerOnlySession;
     final liveTotals = activeSession == null
         ? null
         : summarize(activeSession.segments, _now());
@@ -2044,7 +2054,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: _isSessionActive
+                    color: hasAnyActiveSession
                         ? (_isPaused
                               ? AppColors.warning
                               : AppColors.agriculturalGreen)
@@ -2077,7 +2087,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                               height: 10,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: _isSessionActive
+                                color: hasAnyActiveSession
                                     ? (_isPaused
                                           ? AppColors.warning
                                           : AppColors.agriculturalGreen)
@@ -2089,11 +2099,13 @@ class _OperationsScreenState extends State<OperationsScreen>
                                   ? (_isPaused
                                         ? SessionStateText.paused
                                         : SessionStateText.running)
+                                  : hasServerOnlySession
+                                  ? 'توجد جلسة محجوزة جارية على الخادم'
                                   : 'لا توجد جلسة سقي نشطة',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: _isSessionActive
+                                color: hasAnyActiveSession
                                     ? (_isPaused
                                           ? AppColors.warning
                                           : AppColors.agriculturalGreen)
@@ -2183,7 +2195,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
                     // عداد الوقت المباشر
                     Text(
-                      '$hours:$minutes:$seconds',
+                      hasServerOnlySession ? '--:--:--' : '$hours:$minutes:$seconds',
                       style: TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
@@ -2278,7 +2290,18 @@ class _OperationsScreenState extends State<OperationsScreen>
 
                     // تفصيل أوقات المصادر التراكمية للجلسة الجارية (ق-129 / C2)
                     if (_isSessionActive && sourceSummaries.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                      if (hasServerOnlySession) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'هذه الجلسة بدأت من حجز عبر الخادم. التحكم الميداني المحلي بها سيُربط في جولة Offline التالية.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -2378,7 +2401,7 @@ class _OperationsScreenState extends State<OperationsScreen>
               const SizedBox(height: 20),
 
               // 2. نموذج الإدخال قبل الجلسة (A) أو التفاصيل للقراءة فقط أثناء الجلسة (B1)
-              if (!_isSessionActive)
+              if (!hasAnyActiveSession)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -2702,6 +2725,25 @@ class _OperationsScreenState extends State<OperationsScreen>
                     ],
                   ),
                 )
+              else if (hasServerOnlySession)
+                Container(
+                  key: const Key('server-booking-session-notice'),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.agriculturalGreen.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.agriculturalGreen.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: const Text(
+                    'يوجد حجز جارٍ مثبت على الخادم، لذلك حُجب بدء أي جلسة أخرى. تفاصيل التحكم المحلي ستُستكمل في جولة Offline التالية.',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
               else
                 // تفاصيل الجلسة الحالية للقراءة فقط (B1)
                 Container(
@@ -2762,7 +2804,16 @@ class _OperationsScreenState extends State<OperationsScreen>
               const SizedBox(height: 24),
 
               // 3. أزرار التحكم الرئيسية بالجلسة
-              if (!_isSessionActive) ...[
+              if (hasServerOnlySession)
+                const Text(
+                  'لا يمكن بدء جلسة جديدة أو إرسال أوامر محلية حتى تتم مصالحة الجلسة الجارية مع الهاتف.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.w700,
+                  ),
+                )
+              else if (!_isSessionActive) ...[
                 // إرشاد الحقل الناقص (A8)
                 if (!_isFormComplete && _missingFieldGuidance != null)
                   Padding(
