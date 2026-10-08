@@ -46,6 +46,45 @@ void main() {
       expect(schedule.currentSession, isNull);
     });
 
+    test('keeps an incomplete draft visible but not startable', () {
+      final schedule = WellDaySchedule.fromContract({
+        'status': 'ok',
+        'well_id': 'well-1',
+        'requested_day': '2026-10-08',
+        'timezone': 'Asia/Aden',
+        'day_start': '2026-10-07T21:00:00Z',
+        'day_end': '2026-10-08T21:00:00Z',
+        'well_timezone': 'Asia/Aden',
+        'current_session': null,
+        'count': 1,
+        'bookings': [
+          {
+            'id': 'booking-draft',
+            'public_code': 'B-DRAFT',
+            'well_id': 'well-1',
+            'farmer_well_account_id': 'farmer-1',
+            'farmer_name': 'مزارع الاختبار',
+            'farm_id': null,
+            'farm_name': null,
+            'scheduled_start': '2026-10-08T05:00:00Z',
+            'scheduled_end': '2026-10-08T06:00:00Z',
+            'scheduled_day': '2026-10-08',
+            'expected_duration_minutes': 60,
+            'expected_energy_source': null,
+            'alternative_energy_source': null,
+            'status': 'draft',
+            'priority': 0,
+            'status_group': 'draft',
+            'notes': null,
+            'session': null,
+          },
+        ],
+      });
+
+      expect(schedule.bookings.single.farmId, isNull);
+      expect(schedule.bookings.single.canStartManually, isFalse);
+    });
+
     test('fails closed when schedule payload is incomplete', () {
       expect(
         () => WellDaySchedule.fromContract({
