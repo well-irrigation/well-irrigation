@@ -1,12 +1,17 @@
 import 'dart:convert';
 
+import '../session/time_integrity.dart';
 import '../sync/sqlite_outbox_store.dart';
 import 'booking_repository.dart';
 
 class CachedBookingSchedule {
-  const CachedBookingSchedule(this.schedule, this.fetchedAt);
+  const CachedBookingSchedule(this.schedule, this.fetchedAt, {this.timeAnchor});
   final WellDaySchedule schedule;
   final DateTime fetchedAt;
+
+  /// مرساة الزمن الخادمية الملتقطة لحظة الجلب نفسه. `null` لكل لقطة
+  /// قديمة سبقت جسر الزمن: تُعرض القراءة ولا يُسلَّح عليها انتقال آلي.
+  final SessionTimeAnchor? timeAnchor;
 
   /// اللقطة قراءة فقط، وليست إيصال أثر أعمال أو تفويضًا مستمرًا.
   bool get isCanonicalBusinessReceipt => false;
@@ -47,6 +52,96 @@ class ServerBookingSessionLink {
       startedAt: DateTime.parse(json['started_at'] as String),
     );
   }
+}
+
+/// جلسة تشغيلية محلية مؤقتة. ليست جلسة خادم ولا تحمل أي أثر مالي.
+class LocalProvisionalBookingSession {
+  const LocalProvisionalBookingSession({
+    required this.localSessionId,
+    required this.wellId,
+    required this.chainId,
+    required this.serverSessionId,
+    required this.nextBookingId,
+    required this.commandId,
+    required this.transitionKey,
+    required this.closedLocallyAt,
+    required this.startedLocallyAt,
+    required this.decisionRevision,
+    required this.automationRevision,
+    this.reconciliationState = 'awaiting_reconciliation',
+  });
+
+  final String localSessionId;
+  final String wellId;
+  final String chainId;
+  final String serverSessionId;
+  final String nextBookingId;
+  final String commandId;
+  final String transitionKey;
+  final DateTime closedLocallyAt;
+  final DateTime startedLocallyAt;
+  final int decisionRevision;
+  final int automationRevision;
+  final String reconciliationState;
+
+  String get provenance => 'local_offline_provisional';
+
+  Map<String, Object?> toJson() => {
+    'local_session_id': localSessionId,
+    'well_id': wellId,
+    'chain_id': chainId,
+    'server_session_id': serverSessionId,
+    'next_booking_id': nextBookingId,
+    'command_id': commandId,
+    'transition_key': transitionKey,
+    'closed_locally_at': closedLocallyAt.toUtc().toIso8601String(),
+    'started_locally_at': startedLocallyAt.toUtc().toIso8601String(),
+    'decision_revision': decisionRevision,
+    'automation_revision': automationRevision,
+    'provenance': provenance,
+    'reconciliation_state': reconciliationState,
+  };
+
+  factory LocalProvisionalBookingSession.fromJson(Map<String, dynamic> json) {
+    if (json['provenance'] != 'local_offline_provisional' ||
+        !{
+          'awaiting_reconciliation',
+          'reconciled',
+          'requires_review',
+        }.contains(json['reconciliation_state'])) {
+      throw StateError('جلسة تشغيل محلية غير موثوقة');
+    }
+    return LocalProvisionalBookingSession(
+      localSessionId: json['local_session_id'] as String,
+      wellId: json['well_id'] as String,
+      chainId: json['chain_id'] as String,
+      serverSessionId: json['server_session_id'] as String,
+      nextBookingId: json['next_booking_id'] as String,
+      commandId: json['command_id'] as String,
+      transitionKey: json['transition_key'] as String,
+      closedLocallyAt: DateTime.parse(json['closed_locally_at'] as String),
+      startedLocallyAt: DateTime.parse(json['started_locally_at'] as String),
+      decisionRevision: json['decision_revision'] as int,
+      automationRevision: json['automation_revision'] as int,
+      reconciliationState: json['reconciliation_state'] as String,
+    );
+  }
+
+  LocalProvisionalBookingSession withReconciliationState(String state) =>
+      LocalProvisionalBookingSession(
+        localSessionId: localSessionId,
+        wellId: wellId,
+        chainId: chainId,
+        serverSessionId: serverSessionId,
+        nextBookingId: nextBookingId,
+        commandId: commandId,
+        transitionKey: transitionKey,
+        closedLocallyAt: closedLocallyAt,
+        startedLocallyAt: startedLocallyAt,
+        decisionRevision: decisionRevision,
+        automationRevision: automationRevision,
+        reconciliationState: state,
+      );
 }
 
 enum BookingIntentState {
@@ -202,6 +297,8 @@ class BookingLocalLedger {
   String _latestKey(String wellId) => 'booking.latest.$wellId';
   String _intentKey(String wellId, String key) => 'booking.intent.$wellId.$key';
   String _sessionKey(String wellId) => 'booking.server_session.$wellId';
+  String _provisionalSessionKey(String wellId, String transitionKey) =>
+      'booking.provisional_session.$wellId.$transitionKey';
   String _automationKey(String wellId) => 'booking.automation.$wellId';
 
   Future<void> saveAutomation({
@@ -281,14 +378,211 @@ class BookingLocalLedger {
     }
   }
 
+  /// يقدّم رابط جلسة الخادم فقط مع إيصال مصالحة يتحقق من إغلاق الرابط
+  /// السابق. يبقى الرابط السابق محفوظًا في الدليل المحلي المؤقت للانتقال.
+  Future<ServerBookingSessionLink> advanceServerSessionFromReceipt({
+    required String accountId,
+    required String wellId,
+    required String closedSessionId,
+    required String startedSessionId,
+    required String startedBookingId,
+    required DateTime startedAt,
+  }) async {
+    final prior = await loadServerSession(accountId, wellId);
+    if (prior != null && prior.sessionId != closedSessionId) {
+      throw StateError('إيصال الخادم لا يطابق الجلسة المحلية المرتبطة');
+    }
+    final next = ServerBookingSessionLink(
+      sessionId: startedSessionId,
+      bookingId: startedBookingId,
+      wellId: wellId,
+      startedAt: startedAt,
+    );
+    await store.writeLocalValue(
+      accountId,
+      _sessionKey(wellId),
+      jsonEncode(next.toJson()),
+    );
+    return next;
+  }
+
+  Future<LocalProvisionalBookingSession?> loadProvisionalSession(
+    String accountId,
+    String wellId,
+    String transitionKey,
+  ) async {
+    final raw = await store.readLocalValue(
+      accountId,
+      _provisionalSessionKey(wellId, transitionKey),
+    );
+    if (raw == null) return null;
+    try {
+      final session = LocalProvisionalBookingSession.fromJson(
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
+      return session.wellId == wellId ? session : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<LocalProvisionalBookingSession>> loadProvisionalSessions(
+    String accountId,
+    String wellId,
+  ) async {
+    final values = await store.readLocalValuesByPrefix(
+      accountId,
+      'booking.provisional_session.$wellId.',
+    );
+    final sessions = <LocalProvisionalBookingSession>[];
+    for (final value in values) {
+      try {
+        final session = LocalProvisionalBookingSession.fromJson(
+          jsonDecode(value) as Map<String, dynamic>,
+        );
+        if (session.wellId == wellId) sessions.add(session);
+      } catch (_) {
+        // الدليل الفاسد لا يصبح جلسة تشغيلية قابلة للعرض أو الاستمرار.
+      }
+    }
+    sessions.sort((a, b) => b.startedLocallyAt.compareTo(a.startedLocallyAt));
+    return List.unmodifiable(sessions);
+  }
+
+  Future<(BookingTransitionIntent, LocalProvisionalBookingSession)>
+  recordOperationalTransition({
+    required String accountId,
+    required BookingTransitionIntent intent,
+    required String localSessionId,
+    required DateTime occurredAt,
+    bool Function()? isCurrent,
+  }) async {
+    final pair = await store.writeLocalPairOnce(
+      accountId: accountId,
+      primaryKey: _intentKey(intent.wellId, intent.transitionKey),
+      primaryValue: jsonEncode(intent.toJson()),
+      secondaryKey: _provisionalSessionKey(intent.wellId, intent.transitionKey),
+      isCurrent: isCurrent,
+      secondaryValue: (raw) {
+        final stored = BookingTransitionIntent.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
+        if (stored.state != BookingIntentState.awaitingReconciliation ||
+            stored.wellId != intent.wellId ||
+            stored.chainId != intent.chainId ||
+            stored.currentSessionId != intent.currentSessionId ||
+            stored.nextBookingId != intent.nextBookingId ||
+            stored.decisionRevision != intent.decisionRevision ||
+            stored.automationRevision != intent.automationRevision) {
+          throw StateError('تعارض نية محفوظة');
+        }
+        return jsonEncode(
+          LocalProvisionalBookingSession(
+            localSessionId: localSessionId,
+            wellId: stored.wellId,
+            chainId: stored.chainId,
+            serverSessionId: stored.currentSessionId,
+            nextBookingId: stored.nextBookingId,
+            commandId: stored.commandId,
+            transitionKey: stored.transitionKey,
+            closedLocallyAt: occurredAt,
+            startedLocallyAt: occurredAt,
+            decisionRevision: stored.decisionRevision,
+            automationRevision: stored.automationRevision,
+          ).toJson(),
+        );
+      },
+    );
+    return (
+      BookingTransitionIntent.fromJson(
+        jsonDecode(pair.$1) as Map<String, dynamic>,
+      ),
+      LocalProvisionalBookingSession.fromJson(
+        jsonDecode(pair.$2) as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  Future<LocalProvisionalBookingSession> recordProvisionalSession({
+    required String accountId,
+    required BookingTransitionIntent intent,
+    required String localSessionId,
+    required DateTime occurredAt,
+  }) async {
+    if (localSessionId.isEmpty ||
+        intent.state != BookingIntentState.awaitingReconciliation) {
+      throw StateError('جلسة انتقال محلية غير صالحة');
+    }
+    final proposed = LocalProvisionalBookingSession(
+      localSessionId: localSessionId,
+      wellId: intent.wellId,
+      chainId: intent.chainId,
+      serverSessionId: intent.currentSessionId,
+      nextBookingId: intent.nextBookingId,
+      commandId: intent.commandId,
+      transitionKey: intent.transitionKey,
+      closedLocallyAt: occurredAt,
+      startedLocallyAt: occurredAt,
+      decisionRevision: intent.decisionRevision,
+      automationRevision: intent.automationRevision,
+    );
+    final persisted = await store.writeLocalValueOnce(
+      accountId,
+      _provisionalSessionKey(intent.wellId, intent.transitionKey),
+      jsonEncode(proposed.toJson()),
+    );
+    final existing = LocalProvisionalBookingSession.fromJson(
+      jsonDecode(persisted) as Map<String, dynamic>,
+    );
+    if (existing.wellId != intent.wellId ||
+        existing.transitionKey != intent.transitionKey ||
+        existing.commandId != intent.commandId ||
+        existing.serverSessionId != intent.currentSessionId ||
+        existing.nextBookingId != intent.nextBookingId) {
+      throw StateError('جلسة انتقال محلية تختلف عن الدليل المحفوظ');
+    }
+    return existing;
+  }
+
+  Future<void> _setProvisionalReconciliationState({
+    required String accountId,
+    required BookingTransitionIntent intent,
+    required String state,
+  }) async {
+    final session = await loadProvisionalSession(
+      accountId,
+      intent.wellId,
+      intent.transitionKey,
+    );
+    if (session == null ||
+        session.transitionKey != intent.transitionKey ||
+        session.commandId != intent.commandId) {
+      return;
+    }
+    await store.writeLocalValue(
+      accountId,
+      _provisionalSessionKey(intent.wellId, intent.transitionKey),
+      jsonEncode(session.withReconciliationState(state).toJson()),
+    );
+  }
+
+  /// يحفظ الجدول والمرساة الزمنية في payload واحد ذري: ما يُقرأ لاحقًا
+  /// هو زوج (schedule, anchor) لا يمكن أن يتزاوج فيه جدول جديد بمرساة
+  /// قديمة. المرساة nullable: غيابها = لقطة بلا انتقال آلي موثوق.
   Future<void> saveSchedule({
     required String accountId,
     required String wellId,
     required Object? response,
     required DateTime fetchedAt,
+    SessionTimeAnchor? timeAnchor,
   }) async {
     final schedule = WellDaySchedule.fromContract(response);
     if (schedule.wellId != wellId) throw StateError('جدول بئر مختلف');
+    if (timeAnchor != null &&
+        (timeAnchor.serverTime == null ||
+            timeAnchor.serverTime != schedule.serverTime)) {
+      throw StateError('مرساة لا تطابق لقطة الخادم');
+    }
     final day = _day(schedule.requestedDay);
     if (schedule.bookings.any(
           (booking) => booking.wellId != wellId || booking.scheduledDay != day,
@@ -300,9 +594,49 @@ class BookingLocalLedger {
     final payload = jsonEncode({
       'fetched_at': fetchedAt.toUtc().toIso8601String(),
       'response': response,
+      if (timeAnchor != null) 'time_anchor': _encodeAnchor(timeAnchor),
     });
     await store.writeLocalValue(accountId, _scheduleKey(wellId, day), payload);
     await store.writeLocalValue(accountId, _latestKey(wellId), day);
+  }
+
+  /// المرساة تُسافر داخل نفس payload الجدول فلا تتزاوج مرساة قديمة
+  /// برد جديد. غياب المفتاح (cache من PR #60) يقرأ بنجاح بـanchor
+  /// فارغة، والفساد يُقرأ كغياب لا كـcrash.
+  Map<String, Object?> _encodeAnchor(SessionTimeAnchor anchor) => {
+    'server_time': anchor.serverTime?.toUtc().toIso8601String(),
+    'wall_clock': anchor.wallClock.toUtc().toIso8601String(),
+    'monotonic_ms': anchor.monotonic.inMilliseconds,
+    'boot_id': anchor.bootId,
+  };
+
+  SessionTimeAnchor? _decodeAnchor(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map) return null;
+    try {
+      final json = Map<String, dynamic>.from(raw);
+      final serverTime = json['server_time'];
+      final wallClock = DateTime.parse(json['wall_clock'] as String);
+      final monotonic = json['monotonic_ms'];
+      final bootId = json['boot_id'];
+      if (wallClock.toUtc().year < 2000 ||
+          monotonic is! num ||
+          monotonic < 0 ||
+          bootId is! String ||
+          bootId.isEmpty) {
+        return null;
+      }
+      return SessionTimeAnchor(
+        serverTime: serverTime == null
+            ? null
+            : DateTime.parse(serverTime as String),
+        wallClock: wallClock,
+        monotonic: Duration(milliseconds: monotonic as int),
+        bootId: bootId,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<CachedBookingSchedule?> loadSchedule(
@@ -328,9 +662,14 @@ class BookingLocalLedger {
               schedule.currentSession!.wellId != wellId)) {
         return null;
       }
+      final decodedAnchor = _decodeAnchor(json['time_anchor']);
+      final anchor = decodedAnchor?.serverTime == schedule.serverTime
+          ? decodedAnchor
+          : null;
       return CachedBookingSchedule(
         schedule,
         DateTime.parse(json['fetched_at'] as String),
+        timeAnchor: anchor,
       );
     } catch (_) {
       return null;
@@ -485,6 +824,13 @@ class BookingLocalLedger {
       _intentKey(existing.wellId, existing.transitionKey),
       jsonEncode(next.toJson()),
     );
+    await _setProvisionalReconciliationState(
+      accountId: accountId,
+      intent: existing,
+      state: next.state == BookingIntentState.reconciled
+          ? 'reconciled'
+          : 'requires_review',
+    );
     return next;
   }
 
@@ -509,7 +855,8 @@ class BookingLocalLedger {
       return existing;
     }
 
-    final requestMatches = result.requestedCommandId == existing.commandId &&
+    final requestMatches =
+        result.requestedCommandId == existing.commandId &&
         result.wellId == existing.wellId &&
         result.chainId == existing.chainId &&
         result.currentSessionId == existing.currentSessionId &&
@@ -517,7 +864,8 @@ class BookingLocalLedger {
         result.decisionRevision == existing.decisionRevision &&
         result.automationRevision == existing.automationRevision;
     final receipt = result.receipt;
-    final receiptMatches = receipt != null &&
+    final receiptMatches =
+        receipt != null &&
         receipt.closedSessionId == existing.currentSessionId &&
         receipt.startedBookingId == existing.nextBookingId &&
         receipt.startedSessionId.isNotEmpty;
@@ -525,11 +873,12 @@ class BookingLocalLedger {
     BookingTransitionIntent next;
     if (requestMatches && result.isCanonicalMatch && receiptMatches) {
       try {
-        await importServerSession(
+        await advanceServerSessionFromReceipt(
           accountId: accountId,
           wellId: existing.wellId,
-          sessionId: receipt.startedSessionId,
-          bookingId: receipt.startedBookingId,
+          closedSessionId: receipt.closedSessionId,
+          startedSessionId: receipt.startedSessionId,
+          startedBookingId: receipt.startedBookingId,
           startedAt: receipt.startedAt,
         );
         next = existing._withState(
@@ -558,6 +907,13 @@ class BookingLocalLedger {
       _intentKey(existing.wellId, existing.transitionKey),
       jsonEncode(next.toJson()),
     );
+    await _setProvisionalReconciliationState(
+      accountId: accountId,
+      intent: existing,
+      state: next.state == BookingIntentState.reconciled
+          ? 'reconciled'
+          : 'requires_review',
+    );
     return next;
   }
 
@@ -582,6 +938,11 @@ class BookingLocalLedger {
       accountId,
       _intentKey(existing.wellId, existing.transitionKey),
       jsonEncode(missed.toJson()),
+    );
+    await _setProvisionalReconciliationState(
+      accountId: accountId,
+      intent: existing,
+      state: 'requires_review',
     );
     return missed;
   }

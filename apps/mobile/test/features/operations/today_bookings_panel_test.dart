@@ -71,6 +71,9 @@ void main() {
     bool awaitingReconciliation = false,
     bool reconciliationComplete = false,
     bool requiresReview = false,
+    bool hasProvisionalLocalTransition = false,
+    bool missedTransitionRequiresReview = false,
+    bool timeIntegrityRequiresReview = false,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -86,6 +89,9 @@ void main() {
             awaitingReconciliation: awaitingReconciliation,
             reconciliationComplete: reconciliationComplete,
             requiresReview: requiresReview,
+            hasProvisionalLocalTransition: hasProvisionalLocalTransition,
+            missedTransitionRequiresReview: missedTransitionRequiresReview,
+            timeIntegrityRequiresReview: timeIntegrityRequiresReview,
             onRefresh: () {},
             onToggleAutomation: onToggle ?? (_) {},
             onStartBooking: onStart ?? (_) async {},
@@ -216,16 +222,40 @@ void main() {
         canManage: true,
         awaitingReconciliation: true,
         requiresReview: true,
+        hasProvisionalLocalTransition: true,
       ),
     );
-    expect(find.text('بانتظار المصالحة مع الخادم'), findsOneWidget);
-    expect(find.text('يوجد تعارض أو موعد فائت يحتاج مراجعة'), findsOneWidget);
-    expect(find.text('تم الانتقال'), findsNothing);
+    expect(find.text('تشغيل محلي دون اتصال'), findsOneWidget);
+    expect(
+      find.text('تم الانتقال على هذا الهاتف — بانتظار التحقق من الخادم'),
+      findsOneWidget,
+    );
+    expect(find.text('تعارض مع حالة الخادم — يحتاج مراجعة'), findsOneWidget);
+    expect(find.text('تم الانتقال بنجاح'), findsNothing);
 
     await tester.pumpWidget(
       subject(canManage: true, reconciliationComplete: true),
     );
     expect(find.text('تمت المصالحة مع الخادم'), findsOneWidget);
+
+    await tester.pumpWidget(
+      subject(
+        canManage: true,
+        requiresReview: true,
+        missedTransitionRequiresReview: true,
+      ),
+    );
+    expect(find.text('فات موعد الانتقال — يحتاج مراجعة'), findsOneWidget);
+
+    await tester.pumpWidget(
+      subject(canManage: true, timeIntegrityRequiresReview: true),
+    );
+    expect(
+      find.text('تعذر التحقق من توقيت الانتقال — يحتاج مراجعة'),
+      findsOneWidget,
+      reason: 'انقطاع الدليل الزمني ليس إثباتًا أن الموعد فات',
+    );
+    expect(find.text('فات موعد الانتقال — يحتاج مراجعة'), findsNothing);
   });
 
   testWidgets('loading and error states are explicit', (tester) async {
