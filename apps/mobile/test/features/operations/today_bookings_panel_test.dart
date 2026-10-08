@@ -193,6 +193,6 @@ void main() {
 
     expect(find.text('تعذر تحميل حجوزات اليوم.'), findsOneWidget);
     expect(find.text('تعذر قراءة الإعداد.'), findsOneWidget);
-    expect(find.text('إعادة المحاولة'), findsOneWidget);
+    expect(find.text('إعادة تحميل الحجوزات'), findsOneWidget);
   });
 }
