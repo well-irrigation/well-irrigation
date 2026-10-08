@@ -430,7 +430,7 @@ class _ErrorState extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: onRetry,
           icon: const Icon(Icons.refresh),
-          label: const Text('إعادة المحاولة'),
+          label: const Text('إعادة تحميل الحجوزات'),
         ),
       ],
     );
