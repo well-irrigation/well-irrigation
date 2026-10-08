@@ -38,11 +38,12 @@
 8. بقية الملفات التاريخية مثل `PROGRESS.md` و`DOC_CHANGELOG.md`
    تحفظ تاريخ ما كان صحيحًا في لحظته ولا تتغلب على الحالة الحالية.
 
-### ق-136 وق-135 وق-134 — المرجع السلوكي وعقود الجدولة والهوية (2026-10-06)
+### ق-136 وق-135 وق-134 — المرجع السلوكي وعقود الجدولة والهوية (محدّث 2026-10-08)
 
-- **آخر القرارات المعتمدة:** ق-136 (عقد هوية وتفويض Scheduler P2 ودورة حياة التفويض) و ق-135 (فصل طبقات الجدولة وتأجيل تقنية Runtime) معتمدان معماريًا وحوكميًا بقرار المالك بتاريخ 2026-10-06 (Adopted Architecture & Governance، كلاهما Not Implemented / Not Verified / Not Production)؛ وق-134 المرجع السلوكي والتنفيذي. المصدر الحاكم `memory/DECISIONS.md`.
-- **ترتيب العمل:** `technical/BOOKING_AUTOMATION_IMPLEMENTATION_PLAN.md` P0–P8؛ خرائط الدليل في `technical/DECISION_IMPLEMENTATION_MATRIX.md`، والفجوات في `memory/OPEN_ISSUES.md`.
-- **حدود الإنجاز:** P0 دُمجت عبر PR #49؛ P1-A دُمجت عبر PR #51 (`f63e9c2`) وسجل دمجها مدمج عبر PR #52. P1-B (نواة الانتقال الذرية وإثبات التزامن) Implemented + Local DB Verified (`FILES=52 PASS=1119` وفهرس `891/544/265/49`) + Concurrency Proof Verified باتصالين مستقلين بـ PostgreSQL عبر `scripts/p1b_transition_concurrency_proof.py` (منع التنفيذ المزدوج وidempotency لنفس command_id). النواة غير مفعلة إنتاجيًا ومسحوبة الصلاحيات وبلا API أو مجدول أو Flutter. عقود P2 معتمدة معماريًا (ق-135/ق-136)، وRuntime لم يُختر بعد وق-137 غير موجود بعد؛ والخطوة التالية Cloud Capability Proof. Cloud/Production Pending؛ M113 ليست CLOSED وM114 Pending؛ NEXT في `memory/RESUME_POINT.md`. P1-B-CONCURRENCY-PROOF-VERIFIED-2026-10-04.
+- **القرارات الحاكمة:** ق-134 سلوكيًا، وق-135/ق-136 معماريًا وحوكميًا. آخر قرار معتمد يبقى ق-136؛ **q-137 = NOT ADOPTED**.
+- **P2 Phase 2B:** دُمجت عبر PR #58 إلى `main` (merge `0dc6e3dac6f1307cc83bd2420e0ddc5222127f7d`). أثبتت Candidate A سحابيًا من حيث الجدولة، الهوية التقنية، التنفيذ المأذون، التزامن، إعادة المحاولة، الإيقاف، المراقبة والتنظيف. الدليل الحاكم: `audit/P2_AUTOMATED_EXECUTION_PHASE2_CLOUD_PROOF.md`. الحالة: **Candidate A = READY FOR Q-137 REVIEW**، بلا Production activation وبلا Cron دائم.
+- **الهاتف:** أساس Outbox/WorkManager والجلسة المحلية موجود من ق-115..ق-117، لكن ربط حجوزات P2 بالهاتف كان ناقصًا. الجولة الحالية `feat/p2-mobile-booking-integration` تضيف Online-first: جدول اليوم، حالة ON/OFF، تحكم المشغّل، وبدء أول حجز يدويًا. Offline booking cache/local transition والمراجعة عند فوات اللحظة والإشعارات/Device Readiness والقبول الميداني تأتي بعدها وقبل P3.
+- **NEXT الحاكم:** إكمال قبول P2 على الهاتف ثم مراجعة ق-137؛ لا انتقال إلى P3 قبل تجربة السيناريوهات الفعلية المتفق عليها. M114 وم-28 وم-45 تبقى وفق متتبعاتها ولا يغلقها PR #58 وحده.
 
 [DOC-RECOVERY-Q133-2026-10-03]
 
