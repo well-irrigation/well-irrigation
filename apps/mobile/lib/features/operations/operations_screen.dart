@@ -14,6 +14,7 @@ import '../../core/session/active_session_record.dart';
 import '../../core/session/offline_session_coordinator.dart';
 import '../../core/session/session_business_state.dart';
 import '../../core/session/session_segment.dart';
+import '../../core/session/time_integrity.dart';
 import '../../core/sync/command_envelope.dart';
 import '../../core/sync/farmer_identity_review.dart';
 import '../../core/theme/app_colors.dart';
@@ -37,6 +38,7 @@ class OperationsScreen extends StatefulWidget {
     this.bookingRepository,
     this.priceRepository,
     this.clock,
+    this.timeIntegritySource,
     this.onWellChanged,
     this.onLogout,
     super.key,
@@ -51,6 +53,9 @@ class OperationsScreen extends StatefulWidget {
   /// مستودع قراءة جدول التسعير الساري.
   final WellManagementRepository? priceRepository;
   final DateTime Function()? clock;
+
+  /// جسر الزمن المُحقن (اختبارات تستعمل fake بلا منصة).
+  final TimeIntegritySource? timeIntegritySource;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
 
@@ -64,6 +69,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   late BookingRepository _bookingRepo;
   late OfflineSessionCoordinator _coordinator;
   late WellManagementRepository _priceRepo;
+  late TimeIntegritySource _timeIntegritySource;
 
   late WellSummary _activeWell;
 
@@ -95,6 +101,9 @@ class _OperationsScreenState extends State<OperationsScreen>
   bool _farmerStatusAwaitingSync = false;
   int _farmerStatusGeneration = 0;
 
+  /// مصدر قراءة الزمن للحسم المحلي في الشاشة (تسليح المؤقت). قابل
+  /// للحقن للاختبارات: الافتراضي جسر أندرويد عبر المنصة.
+
   /// رمز مصدر الطاقة: يبدأ فارغًا (null) قبل كل جلسة جديدة وفق ق-129
   /// (لا اختيار افتراضي تلقائي ذو أثر تشغيلي أو مالي).
   String? _energySourceCode;
@@ -109,10 +118,20 @@ class _OperationsScreenState extends State<OperationsScreen>
   WellDaySchedule? _daySchedule;
   bool _dayScheduleCached = false;
   DateTime? _dayScheduleFetchedAt;
+
+  /// المرساة المخزنة ذريًّا مع اللقطة المعروضة: `null` للقطة قديمة
+  /// أو جسر فشل — والانتقال الآلي لا يُسلَّح إلا بها.
+  SessionTimeAnchor? _dayScheduleTimeAnchor;
   ServerBookingSessionLink? _serverBookingLink;
+  LocalProvisionalBookingSession? _provisionalBookingSession;
   bool _bookingRequiresReview = false;
   bool _bookingAwaitingReconciliation = false;
   bool _bookingReconciliationComplete = false;
+  bool _bookingMissedTransition = false;
+
+  /// تعذر إثبات توقيت الانتقال (لا مرساة/مرساة فاسدة/إقلاع مختلف/فشل
+  /// جسر). ليس إثباتًا أن الموعد فات — نصّه منفصل عن «فات موعد الانتقال».
+  bool _bookingTimeIntegrityRequiresReview = false;
   bool _bookingAutomationCached = false;
   BookingAutomationState? _bookingAutomation;
   bool _isLoadingDaySchedule = false;
@@ -140,6 +159,9 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   // حالة الجلسة المباشرة
   Timer? _timer;
+  Timer? _bookingTransitionTimer;
+  int _bookingTransitionGeneration = 0;
+  bool _bookingTransitionForeground = true;
   StreamSubscription<ActiveSessionRecord?>? _activeSessionSubscription;
   ActiveSessionRecord? _activeSession;
   bool _isSessionActive = false;
@@ -176,6 +198,8 @@ class _OperationsScreenState extends State<OperationsScreen>
     _coordinator = widget.coordinator ?? OfflineSessionCoordinator.instance;
     _bookingRepo = widget.bookingRepository ?? BookingRepository();
     _priceRepo = widget.priceRepository ?? WellManagementRepository();
+    _timeIntegritySource =
+        widget.timeIntegritySource ?? AndroidTimeIntegritySource();
 
     final repository = widget.repository;
     if (repository != null) {
@@ -198,11 +222,20 @@ class _OperationsScreenState extends State<OperationsScreen>
     _checkActiveWellReviews();
     _loadBookingOverview();
     _restoreServerBookingLink();
+    _restoreProvisionalBookingSession();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _bookingTransitionForeground = false;
+      _invalidateBookingTransitionTimer();
+      return;
+    }
     if (state == AppLifecycleState.resumed && _activeWellId.isNotEmpty) {
+      _bookingTransitionForeground = true;
       _recoverActiveSession();
       _loadBookingOverview();
     }
@@ -211,6 +244,200 @@ class _OperationsScreenState extends State<OperationsScreen>
   Future<void> _loadBookingOverview() async {
     await Future.wait([_loadDaySchedule(), _loadBookingAutomation()]);
     await _reconcilePendingBookingIntents();
+    await _restoreProvisionalBookingSession();
+    _scheduleCachedBookingTransitionCheck();
+  }
+
+  Future<void> _restoreProvisionalBookingSession() async {
+    final wellId = _activeWellId;
+    final session = await _coordinator.restoreProvisionalBookingSession(
+      accountId: _accountId,
+      wellId: wellId,
+    );
+    if (!mounted || wellId != _activeWellId) return;
+    setState(() {
+      _provisionalBookingSession = session;
+      if (session?.reconciliationState == 'awaiting_reconciliation') {
+        _bookingAwaitingReconciliation = true;
+      }
+      if (session?.reconciliationState == 'requires_review') {
+        _bookingRequiresReview = true;
+      }
+      if (session?.reconciliationState == 'reconciled') {
+        _bookingReconciliationComplete = true;
+      }
+    });
+  }
+
+  void _scheduleCachedBookingTransitionCheck() {
+    _invalidateBookingTransitionTimer();
+    if (!_dayScheduleCached ||
+        !_bookingAutomationCached ||
+        _bookingRequiresReview ||
+        _bookingTimeIntegrityRequiresReview ||
+        _provisionalBookingSession != null) {
+      return;
+    }
+    final schedule = _daySchedule;
+    final automation = _bookingAutomation;
+    final current = schedule?.currentSession;
+    final nextId = automation?.activeChainNextBookingId;
+    if (schedule == null ||
+        automation == null ||
+        current == null ||
+        nextId == null ||
+        automation.firstSession != 'manual') {
+      return;
+    }
+    // المرساة شرط التسليح: لقطة بلا مرساة (cache من قبل جسر الزمن) تُعرض
+    // ولا يُسلَّح عليها مؤقت — الانتقال الآلي يبقى محتاج مراجعة.
+    final cached = _cachedScheduleForUi;
+    if (cached?.timeAnchor == null) {
+      setState(() => _bookingTimeIntegrityRequiresReview = true);
+      return;
+    }
+    final dueAt = OfflineSessionCoordinator.dueAtFor(
+      schedule: schedule,
+      currentBookingId: current.bookingId!,
+      nextBookingId: nextId,
+    );
+    if (dueAt == null) {
+      return;
+    }
+    _armBookingTransitionTimer(dueAt: dueAt, scheduledCallback: false);
+  }
+
+  /// يحسم «الآن» الخادمي من مرساة اللقطة والجسر الحالي، ويسلّح المؤقت
+  /// بالزمن الخادمي لا بساعة الحائط. غير الموثوق = مراجعة بلا مؤقت.
+  Future<void> _armBookingTransitionTimer({
+    required DateTime dueAt,
+    required bool scheduledCallback,
+  }) async {
+    final cached = _cachedScheduleForUi;
+    if (cached == null) return;
+    final generation = _bookingTransitionGeneration;
+    final wellId = _activeWellId;
+    final accountId = _accountId;
+    bool isCurrent() =>
+        mounted &&
+        _bookingTransitionForeground &&
+        generation == _bookingTransitionGeneration &&
+        wellId == _activeWellId &&
+        accountId == _accountId;
+    final ServerAlignedNow resolved;
+    try {
+      final reading = await _timeIntegritySource.read();
+      resolved = resolveServerAlignedNow(
+        anchor: cached.timeAnchor!,
+        reading: reading,
+      );
+    } catch (_) {
+      if (!isCurrent()) return;
+      setState(() => _bookingTimeIntegrityRequiresReview = true);
+      return;
+    }
+    if (!isCurrent()) return;
+    if (!resolved.trustedForAutomaticTransition) {
+      setState(() => _bookingTimeIntegrityRequiresReview = true);
+      return;
+    }
+    final now = resolved.at;
+    if (!now.isBefore(dueAt)) {
+      // استعادة حالة: الموعد وصل والانتقال لم يُسلَّح موثوقًا سابقًا
+      // => مراجعة، لا catch-up.
+      await _runCachedBookingTransition(scheduledCallback: scheduledCallback);
+      return;
+    }
+    _bookingTransitionTimer = Timer(dueAt.difference(now), () {
+      if (!mounted ||
+          !_bookingTransitionForeground ||
+          generation != _bookingTransitionGeneration ||
+          wellId != _activeWellId ||
+          accountId != _accountId) {
+        return;
+      }
+      _runCachedBookingTransition(
+        scheduledCallback: true,
+        expectedGeneration: generation,
+      );
+    });
+  }
+
+  void _invalidateBookingTransitionTimer() {
+    _bookingTransitionGeneration++;
+    _bookingTransitionTimer?.cancel();
+    _bookingTransitionTimer = null;
+  }
+
+  Future<void> _runCachedBookingTransition({
+    required bool scheduledCallback,
+    int? expectedGeneration,
+  }) async {
+    final wellId = _activeWellId;
+    final accountId = _accountId;
+    if (!mounted ||
+        !_bookingTransitionForeground ||
+        (expectedGeneration != null &&
+            expectedGeneration != _bookingTransitionGeneration)) {
+      return;
+    }
+    final generation = _bookingTransitionGeneration;
+    bool isCurrent() =>
+        mounted &&
+        _bookingTransitionForeground &&
+        generation == _bookingTransitionGeneration &&
+        accountId == _accountId &&
+        wellId == _activeWellId;
+    // إعادة فحص الزمن داخل الـcallback قبل أي كتابة: المنسّق يحسم
+    // «الآن» الخادمي بنفسه من المرساة والجسر، ولا يستقبل executedAt
+    // مشتقًا من ساعة الحائط. غير الموثوق هنا = مراجعة زمنية.
+    final result = await _coordinator.runCachedDueBookingTransition(
+      accountId: accountId,
+      wellId: wellId,
+      cachedSchedule: _dayScheduleCached ? _cachedScheduleForUi : null,
+      automation: _bookingAutomationCached ? _bookingAutomation : null,
+      commandId: _bookingRepo.newCommandId(),
+      localSessionId: _bookingRepo.newCommandId(),
+      scheduledCallback: scheduledCallback,
+      isCurrent: isCurrent,
+    );
+    if (!mounted ||
+        !_bookingTransitionForeground ||
+        wellId != _activeWellId ||
+        accountId != _accountId ||
+        (expectedGeneration != null &&
+            expectedGeneration != _bookingTransitionGeneration)) {
+      return;
+    }
+    setState(() {
+      if (result.transitioned) {
+        _provisionalBookingSession = result.session;
+        _bookingAwaitingReconciliation = true;
+      }
+      if (result.outcome ==
+          LocalBookingTransitionOutcome.missedRequiresReview) {
+        _bookingMissedTransition = true;
+        _bookingRequiresReview = true;
+        _bookingAwaitingReconciliation = false;
+      }
+      if (result.outcome ==
+          LocalBookingTransitionOutcome.timeIntegrityRequiresReview) {
+        _bookingTimeIntegrityRequiresReview = true;
+        _bookingAwaitingReconciliation = false;
+      }
+      if (result.outcome == LocalBookingTransitionOutcome.blocked &&
+          result.reason == 'missing_provisional_evidence') {
+        _bookingRequiresReview = true;
+      }
+    });
+  }
+
+  CachedBookingSchedule? get _cachedScheduleForUi {
+    final schedule = _daySchedule;
+    final fetchedAt = _dayScheduleFetchedAt;
+    final anchor = _dayScheduleTimeAnchor;
+    if (schedule == null || fetchedAt == null) return null;
+    return CachedBookingSchedule(schedule, fetchedAt, timeAnchor: anchor);
   }
 
   Future<void> _reconcilePendingBookingIntents() async {
@@ -250,6 +477,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<void> _loadDaySchedule() async {
+    _invalidateBookingTransitionTimer();
     final requestedWellId = _activeWellId;
     final generation = ++_dayScheduleGeneration;
     if (mounted) {
@@ -273,6 +501,10 @@ class _OperationsScreenState extends State<OperationsScreen>
         _daySchedule = view.schedule;
         _dayScheduleCached = view.isCached;
         _dayScheduleFetchedAt = view.fetchedAt;
+        _dayScheduleTimeAnchor = view.timeAnchor;
+        if (!view.isCached && view.timeAnchor != null) {
+          _bookingTimeIntegrityRequiresReview = false;
+        }
         _isLoadingDaySchedule = false;
       });
       if (!view.isCached) {
@@ -337,6 +569,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<void> _loadBookingAutomation() async {
+    _invalidateBookingTransitionTimer();
     final requestedWellId = _activeWellId;
     final generation = ++_bookingAutomationGeneration;
     if (mounted) {
@@ -746,7 +979,8 @@ class _OperationsScreenState extends State<OperationsScreen>
   void didUpdateWidget(covariant OperationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     final incoming = widget.identity.activeWell;
-    if (incoming.id != oldWidget.identity.activeWell.id) {
+    if (incoming.id != oldWidget.identity.activeWell.id ||
+        widget.identity.accountId != oldWidget.identity.accountId) {
       setState(() {
         _activeWell = incoming;
         _selectedFarmer = null;
@@ -762,10 +996,14 @@ class _OperationsScreenState extends State<OperationsScreen>
         _daySchedule = null;
         _dayScheduleCached = false;
         _dayScheduleFetchedAt = null;
+        _dayScheduleTimeAnchor = null;
         _serverBookingLink = null;
+        _provisionalBookingSession = null;
         _bookingRequiresReview = false;
         _bookingAwaitingReconciliation = false;
         _bookingReconciliationComplete = false;
+        _bookingMissedTransition = false;
+        _bookingTimeIntegrityRequiresReview = false;
         _bookingAutomationCached = false;
         _bookingAutomation = null;
         _dayScheduleError = null;
@@ -776,6 +1014,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         _pendingStartCommandIds.clear();
         _startingBookingId = null;
       });
+      _invalidateBookingTransitionTimer();
       _loadPumps();
       _loadPriceSchedule();
       _recoverActiveSession();
@@ -787,6 +1026,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   @override
   void dispose() {
     _timer?.cancel();
+    _invalidateBookingTransitionTimer();
     _activeSessionSubscription?.cancel();
     _newCropController.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -2114,10 +2354,14 @@ class _OperationsScreenState extends State<OperationsScreen>
               _daySchedule = null;
               _dayScheduleCached = false;
               _dayScheduleFetchedAt = null;
+              _dayScheduleTimeAnchor = null;
               _serverBookingLink = null;
+              _provisionalBookingSession = null;
               _bookingRequiresReview = false;
               _bookingAwaitingReconciliation = false;
               _bookingReconciliationComplete = false;
+              _bookingMissedTransition = false;
+              _bookingTimeIntegrityRequiresReview = false;
               _bookingAutomationCached = false;
               _bookingAutomation = null;
               _dayScheduleError = null;
@@ -2128,6 +2372,7 @@ class _OperationsScreenState extends State<OperationsScreen>
               _pendingStartCommandIds.clear();
               _startingBookingId = null;
             });
+            _invalidateBookingTransitionTimer();
             _loadPumps();
             _loadPriceSchedule();
             _recoverActiveSession();
@@ -3036,10 +3281,19 @@ class _OperationsScreenState extends State<OperationsScreen>
                     !_bookingAutomationCached &&
                     !_dayScheduleCached,
                 hasLocalActiveSession:
-                    _isSessionActive || _serverBookingLink != null,
+                    _isSessionActive ||
+                    _serverBookingLink != null ||
+                    _provisionalBookingSession != null,
                 requiresReview: _bookingRequiresReview,
                 awaitingReconciliation: _bookingAwaitingReconciliation,
                 reconciliationComplete: _bookingReconciliationComplete,
+                hasProvisionalLocalTransition:
+                    _provisionalBookingSession != null &&
+                    _provisionalBookingSession!.reconciliationState ==
+                        'awaiting_reconciliation',
+                missedTransitionRequiresReview: _bookingMissedTransition,
+                timeIntegrityRequiresReview:
+                    _bookingTimeIntegrityRequiresReview,
                 scheduleError: _dayScheduleError,
                 automationError: _bookingAutomationError,
                 startingBookingId: _startingBookingId,

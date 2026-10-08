@@ -21,6 +21,9 @@ class TodayBookingsPanel extends StatelessWidget {
     this.requiresReview = false,
     this.awaitingReconciliation = false,
     this.reconciliationComplete = false,
+    this.hasProvisionalLocalTransition = false,
+    this.missedTransitionRequiresReview = false,
+    this.timeIntegrityRequiresReview = false,
     this.scheduleError,
     this.automationError,
     this.startingBookingId,
@@ -42,6 +45,12 @@ class TodayBookingsPanel extends StatelessWidget {
   final bool requiresReview;
   final bool awaitingReconciliation;
   final bool reconciliationComplete;
+  final bool hasProvisionalLocalTransition;
+  final bool missedTransitionRequiresReview;
+
+  /// تعذر إثبات توقيت الانتقال (لا مرساة/إقلاع مختلف/فشل جسر). ليس
+  /// إثباتًا أن الموعد فات — له نص منفصل واضح.
+  final bool timeIntegrityRequiresReview;
   final VoidCallback onRefresh;
   final ValueChanged<bool> onToggleAutomation;
   final Future<void> Function(BookingDayItem booking) onStartBooking;
@@ -96,11 +105,23 @@ class TodayBookingsPanel extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-          if (awaitingReconciliation) const Text('بانتظار المصالحة مع الخادم'),
+          if (hasProvisionalLocalTransition)
+            const Text('تشغيل محلي دون اتصال'),
+          if (awaitingReconciliation)
+            const Text('تم الانتقال على هذا الهاتف — بانتظار التحقق من الخادم'),
           if (reconciliationComplete)
             const Text('تمت المصالحة مع الخادم'),
           if (requiresReview)
-            const Text('يوجد تعارض أو موعد فائت يحتاج مراجعة'),
+            Text(
+              missedTransitionRequiresReview
+                  ? 'فات موعد الانتقال — يحتاج مراجعة'
+                  : 'تعارض مع حالة الخادم — يحتاج مراجعة',
+            ),
+          if (timeIntegrityRequiresReview)
+            const Text(
+              'تعذر التحقق من توقيت الانتقال — يحتاج مراجعة',
+              key: Key('booking-time-integrity-review'),
+            ),
           Material(
             color: Colors.transparent,
             child: _AutomationTile(

@@ -22,6 +22,51 @@ import '../sync/sync_status.dart';
 import 'active_session_projector.dart';
 import 'active_session_record.dart';
 import 'session_crop_snapshot.dart';
+import 'time_integrity.dart';
+
+/// نتيجة فحص أو تسجيل انتقال تشغيلي محلي مؤقت.
+///
+/// هذه النتيجة لا تمثل إيصال أعمال خادمي ولا تضيف أي أمر إلى الـoutbox.
+class LocalBookingTransitionResult {
+  const LocalBookingTransitionResult({
+    required this.outcome,
+    required this.reason,
+    this.intent,
+    this.session,
+  });
+
+  final LocalBookingTransitionOutcome outcome;
+  final String reason;
+  final BookingTransitionIntent? intent;
+  final LocalProvisionalBookingSession? session;
+
+  bool get transitioned =>
+      outcome == LocalBookingTransitionOutcome.transitioned ||
+      outcome == LocalBookingTransitionOutcome.alreadyRecorded;
+}
+
+enum LocalBookingTransitionOutcome {
+  transitioned,
+  alreadyRecorded,
+  blocked,
+  missedRequiresReview,
+  timeIntegrityRequiresReview,
+}
+
+/// زمن تنفيذ موثوق للانتقال الآلي، ينتج عن resolver مركزي فقط.
+///
+/// النوع الخاص يمنع إنشائه من `DateTime.now` أو ساعة الحائط: الطريق
+/// الوحيد إليه عبر [OfflineSessionCoordinator] الذي يتحقق من المرساة
+/// والجسر بنفسه قبل منحه.
+class TrustedTransitionTime {
+  const TrustedTransitionTime._(this.at);
+
+  final DateTime at;
+
+  /// يُبنى فقط من نتيجة resolver موثوقة — لا مسار عام ينشئه من wall clock.
+  static TrustedTransitionTime fromResolved(ServerAlignedNow resolved) =>
+      TrustedTransitionTime._(resolved.at);
+}
 
 /// منسق جلسات السقي والعمل دون اتصال والمزامنة المتينة (ق-89 / ق-90 / ق-114)
 ///
@@ -37,6 +82,7 @@ class OfflineSessionCoordinator {
     PricingResolver? pricingResolver,
     Future<bool> Function(String accountId)? commandQueuedScheduler,
     BookingLocalLedger? bookingLedger,
+    TimeIntegritySource? timeIntegritySource,
   }) : _store = store ?? SqliteOutboxStore(),
        _commandQueuedScheduler = commandQueuedScheduler,
        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
@@ -46,6 +92,7 @@ class OfflineSessionCoordinator {
     _bookingLedger =
         bookingLedger ??
         (_store is SqliteOutboxStore ? BookingLocalLedger(_store) : null);
+    _timeIntegritySource = timeIntegritySource ?? AndroidTimeIntegritySource();
     _outbox = OutboxRepository(store: _store);
     _projector = ActiveSessionProjector(
       store: _store,
@@ -77,6 +124,9 @@ class OfflineSessionCoordinator {
 
   final OutboxStore _store;
   BookingLocalLedger? _bookingLedger;
+
+  /// جسر قراءة الزمن المحلي. `null` = لا انتقال آلي موثوق أبدًا.
+  TimeIntegritySource? _timeIntegritySource;
   ServerBookingSessionLink? _serverBookingSession;
   ServerBookingSessionLink? get serverBookingSession => _serverBookingSession;
 
@@ -89,6 +139,25 @@ class OfflineSessionCoordinator {
       wellId,
     );
     return _serverBookingSession;
+  }
+
+  /// يسترجع أحدث جلسة تشغيلية محلية معلقة لهذا البئر من الدليل المتين.
+  /// لا يحولها إلى جلسة خادم ولا يغير حالتها.
+  Future<LocalProvisionalBookingSession?> restoreProvisionalBookingSession({
+    required String accountId,
+    required String wellId,
+  }) async {
+    final sessions = await _bookingLedger?.loadProvisionalSessions(
+      accountId,
+      wellId,
+    );
+    if (sessions == null) return null;
+    for (final session in sessions) {
+      if (session.reconciliationState == 'awaiting_reconciliation') {
+        return session;
+      }
+    }
+    return sessions.isEmpty ? null : sessions.first;
   }
 
   Future<ServerBookingSessionLink?> reconcileServerBookingSession({
@@ -126,6 +195,338 @@ class OfflineSessionCoordinator {
     );
     return _serverBookingSession;
   }
+
+  /// يفحص الزمن قبل أي قرار أو كتابة: يقرأ جسر الزمن مرة واحدة ويحسم
+  /// «الآن» الخادمي من مرساة اللقطة المخزنة ذريًّا معها. يعيد `null`
+  /// عند كل سبب يجعل الانتقال الآلي غير موثوق — والشاشة تعرض حالة
+  /// مراجعة، ولا catch-up ولا حسم من ساعة حائط.
+  Future<ServerAlignedNow?> _resolveTrustedTransitionNow(
+    CachedBookingSchedule cachedSchedule,
+  ) async {
+    final anchor = cachedSchedule.timeAnchor;
+    if (anchor == null ||
+        anchor.serverTime == null ||
+        anchor.serverTime != cachedSchedule.schedule.serverTime) {
+      return null;
+    }
+    final source = _timeIntegritySource;
+    if (source == null) return null;
+    final TimeReading reading;
+    try {
+      reading = await source.read();
+    } catch (_) {
+      return null;
+    }
+    final resolved = resolveServerAlignedNow(anchor: anchor, reading: reading);
+    return resolved.trustedForAutomaticTransition ? resolved : null;
+  }
+
+  /// يسجل استمرارًا تشغيليًا محليًا بعد موعد انتقال محفوظ من الخادم.
+  ///
+  /// لا يستدعي هذا المسار الـoutbox أو أي عقد كتابة. زمن التنفيذ الحاكم
+  /// هو «الآن» الخادمي المحسوب من المرساة والعدّاد التصاعدي داخل نفس
+  /// الإقلاع ([ServerAlignedNow]) — لا ساعة الحائط أبدًا. تتحقق
+  /// الطبقة نفسها من الزمن مرة أخيرة قبل أي كتابة متينة (§10/ب).
+  ///
+  /// النتيجة [LocalBookingTransitionOutcome.timeIntegrityRequiresReview]
+  /// تعني: تعذر إثبات التوقيت (مرساة غائبة/فاسدة، إقلاع مختلف، عدّاد
+  /// رجع، فشل جسر) — وهو لا يثبت فوات الموعد ولا يُعدّل الأثر بصمت.
+  Future<LocalBookingTransitionResult> runCachedDueBookingTransition({
+    required String accountId,
+    required String wellId,
+    required CachedBookingSchedule? cachedSchedule,
+    required BookingAutomationState? automation,
+    required String commandId,
+    required String localSessionId,
+    required bool scheduledCallback,
+    bool Function()? isCurrent,
+  }) async {
+    final ledger = _bookingLedger;
+    if (ledger == null) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'durable_ledger_unavailable',
+      );
+    }
+    if (cachedSchedule == null) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'no_cached_schedule',
+      );
+    }
+
+    final schedule = cachedSchedule.schedule;
+    if (!_isStructurallyValidCachedSchedule(schedule, wellId)) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'invalid_cached_schedule',
+      );
+    }
+
+    // حسم الزمن قبل أي فحص آخر لأسباب الأعمال: بلا زمن موثوق لا قرار.
+    // الإقلاع المختلف أو العدّاد الرجعي أو المرساة الفاسدة كلها مراجعة
+    // زمنية — لا إثباتًا أن الموعد فات.
+    final resolved = await _resolveTrustedTransitionNow(cachedSchedule);
+    if (resolved == null) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.timeIntegrityRequiresReview,
+        reason: 'time_integrity_requires_review',
+      );
+    }
+    var executedAt = resolved.at;
+    if (executedAt.isBefore(schedule.dayStart) ||
+        !executedAt.isBefore(schedule.dayEnd)) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'wrong_well_day',
+      );
+    }
+    if (automation == null ||
+        automation.wellId != wellId ||
+        !automation.enabled ||
+        !automation.settingsRowExists ||
+        automation.firstSession != 'manual' ||
+        automation.activeChainStatus != 'active' ||
+        automation.activeChainId == null ||
+        automation.activeChainNextBookingId == null ||
+        automation.activeChainDecisionRevision == null ||
+        automation.revision == null) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'automation_not_eligible',
+      );
+    }
+
+    final current = schedule.currentSession;
+    final linked = await restoreServerBookingSession(
+      accountId: accountId,
+      wellId: wellId,
+    );
+    if (current == null ||
+        linked == null ||
+        current.status != 'open' ||
+        current.wellId != wellId ||
+        current.bookingId == null ||
+        linked.sessionId != current.sessionId ||
+        linked.bookingId != current.bookingId ||
+        linked.wellId != wellId) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'no_server_linked_current_session',
+      );
+    }
+
+    final currentIndex = schedule.bookings.indexWhere(
+      (booking) => booking.id == current.bookingId,
+    );
+    final nextIndex = schedule.bookings.indexWhere(
+      (booking) => booking.id == automation.activeChainNextBookingId,
+    );
+    if (currentIndex < 0 || nextIndex <= 0 || nextIndex <= currentIndex) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'ambiguous_booking_chain',
+      );
+    }
+    final currentBooking = schedule.bookings[currentIndex];
+    final nextBooking = schedule.bookings[nextIndex];
+    if (currentBooking.wellId != wellId ||
+        nextBooking.wellId != wellId ||
+        !nextBooking.canStartManually) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'next_booking_not_executable',
+      );
+    }
+
+    final transitionKey = _bookingTransitionKey(
+      chainId: automation.activeChainId!,
+      currentSessionId: current.sessionId,
+      nextBookingId: nextBooking.id,
+      decisionRevision: automation.activeChainDecisionRevision!,
+      automationRevision: automation.revision!,
+    );
+    final pendingProvisional = await ledger.loadProvisionalSessions(
+      accountId,
+      wellId,
+    );
+    if (pendingProvisional.any(
+      (session) =>
+          session.reconciliationState == 'awaiting_reconciliation' &&
+          session.transitionKey != transitionKey,
+    )) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'local_conflict',
+      );
+    }
+    final existing = await ledger.loadIntent(accountId, wellId, transitionKey);
+    if (existing != null) {
+      if (existing.state != BookingIntentState.awaitingReconciliation) {
+        return LocalBookingTransitionResult(
+          outcome: LocalBookingTransitionOutcome.blocked,
+          reason: 'existing_intent_requires_review',
+          intent: existing,
+        );
+      }
+      final priorSession = await ledger.loadProvisionalSession(
+        accountId,
+        wellId,
+        transitionKey,
+      );
+      if (priorSession == null) {
+        return LocalBookingTransitionResult(
+          outcome: LocalBookingTransitionOutcome.blocked,
+          reason: 'missing_provisional_evidence',
+          intent: existing,
+        );
+      }
+      return LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.alreadyRecorded,
+        reason: 'already_recorded',
+        intent: existing,
+        session: priorSession,
+      );
+    }
+
+    final dueAt =
+        currentBooking.scheduledEnd.isAfter(nextBooking.scheduledStart)
+        ? currentBooking.scheduledEnd
+        : nextBooking.scheduledStart;
+    if (executedAt.isBefore(dueAt)) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'not_due',
+      );
+    }
+
+    final finalTime = await _resolveTrustedTransitionNow(cachedSchedule);
+    if (isCurrent != null && !isCurrent()) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'stale_runtime',
+      );
+    }
+    if (finalTime == null || finalTime.at.isBefore(resolved.at)) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.timeIntegrityRequiresReview,
+        reason: 'time_integrity_requires_review',
+      );
+    }
+    executedAt = finalTime.at;
+    if (executedAt.isBefore(dueAt) || !executedAt.isBefore(schedule.dayEnd)) {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'not_due',
+      );
+    }
+    final proposed = BookingTransitionIntent(
+      wellId: wellId,
+      transitionKey: transitionKey,
+      commandId: commandId,
+      chainId: automation.activeChainId!,
+      currentSessionId: current.sessionId,
+      nextBookingId: nextBooking.id,
+      decisionRevision: automation.activeChainDecisionRevision!,
+      automationRevision: automation.revision!,
+      state: BookingIntentState.awaitingReconciliation,
+    );
+    if (!scheduledCallback) {
+      final intent = await ledger.recordIntent(
+        accountId: accountId,
+        wellId: wellId,
+        transitionKey: transitionKey,
+        commandId: commandId,
+        chainId: proposed.chainId,
+        currentSessionId: current.sessionId,
+        nextBookingId: nextBooking.id,
+        decisionRevision: proposed.decisionRevision,
+        automationRevision: proposed.automationRevision,
+      );
+      final missed = await ledger.markMissedStart(accountId, intent);
+      return LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.missedRequiresReview,
+        reason: 'missed_start_requires_review',
+        intent: missed,
+      );
+    }
+    final (BookingTransitionIntent, LocalProvisionalBookingSession) pair;
+    try {
+      pair = await ledger.recordOperationalTransition(
+        accountId: accountId,
+        intent: proposed,
+        localSessionId: localSessionId,
+        occurredAt: executedAt,
+        isCurrent: isCurrent,
+      );
+    } on StateError {
+      return const LocalBookingTransitionResult(
+        outcome: LocalBookingTransitionOutcome.blocked,
+        reason: 'stale_or_conflicting_runtime',
+      );
+    }
+    final intent = pair.$1;
+    final session = pair.$2;
+    return LocalBookingTransitionResult(
+      outcome: LocalBookingTransitionOutcome.transitioned,
+      reason: 'local_offline_provisional',
+      intent: intent,
+      session: session,
+    );
+  }
+
+  bool _isStructurallyValidCachedSchedule(
+    WellDaySchedule schedule,
+    String wellId,
+  ) {
+    if (schedule.wellId != wellId ||
+        !schedule.dayStart.isBefore(schedule.dayEnd) ||
+        schedule.wellTimezone.isEmpty ||
+        schedule.bookings.isEmpty) {
+      return false;
+    }
+    return schedule.bookings.every(
+      (booking) =>
+          booking.wellId == wellId &&
+          !booking.scheduledStart.isBefore(schedule.dayStart) &&
+          !booking.scheduledEnd.isAfter(schedule.dayEnd) &&
+          booking.scheduledStart.isBefore(booking.scheduledEnd),
+    );
+  }
+
+  /// موعد الانتقال الحاكم لسلسلة (current → next) من لقطة محفوظة،
+  /// أو `null` إن لم تُبنَ السلسلة من اللقطة. تشاركه الشاشة في تسليح
+  /// المؤقت والمنسّق في الحسم — حساب واحد لا نسختان تختلفتان.
+  static DateTime? dueAtFor({
+    required WellDaySchedule schedule,
+    required String currentBookingId,
+    required String nextBookingId,
+  }) {
+    final currentIndex = schedule.bookings.indexWhere(
+      (booking) => booking.id == currentBookingId,
+    );
+    final nextIndex = schedule.bookings.indexWhere(
+      (booking) => booking.id == nextBookingId,
+    );
+    if (currentIndex < 0 || nextIndex <= 0 || nextIndex <= currentIndex) {
+      return null;
+    }
+    final currentBooking = schedule.bookings[currentIndex];
+    final nextBooking = schedule.bookings[nextIndex];
+    return currentBooking.scheduledEnd.isAfter(nextBooking.scheduledStart)
+        ? currentBooking.scheduledEnd
+        : nextBooking.scheduledStart;
+  }
+
+  String _bookingTransitionKey({
+    required String chainId,
+    required String currentSessionId,
+    required String nextBookingId,
+    required int decisionRevision,
+    required int automationRevision,
+  }) =>
+      '$chainId:$currentSessionId:$nextBookingId:'
+      '$decisionRevision:$automationRevision';
 
   late final OutboxRepository _outbox;
   late ActiveSessionProjector _projector;

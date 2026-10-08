@@ -194,6 +194,56 @@ class SqliteOutboxStore implements OutboxStore {
     });
   }
 
+  /// يحفظ النية ودليلها معًا؛ إبطال دورة الشاشة يرد المعاملة كلها.
+  Future<(String, String)> writeLocalPairOnce({
+    required String accountId,
+    required String primaryKey,
+    required String primaryValue,
+    required String secondaryKey,
+    required String Function(String) secondaryValue,
+    bool Function()? isCurrent,
+  }) async {
+    await initialize();
+    return _db.transaction((txn) async {
+      void guard() {
+        if (isCurrent != null && !isCurrent()) {
+          throw StateError('stale_runtime');
+        }
+      }
+
+      guard();
+      await txn.insert(metaTable, {
+        'account_id': accountId,
+        'key': primaryKey,
+        'value': primaryValue,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      final primary =
+          (await txn.query(
+                metaTable,
+                columns: ['value'],
+                where: 'account_id = ? and key = ?',
+                whereArgs: [accountId, primaryKey],
+              )).single['value']
+              as String;
+      guard();
+      await txn.insert(metaTable, {
+        'account_id': accountId,
+        'key': secondaryKey,
+        'value': secondaryValue(primary),
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      final secondary =
+          (await txn.query(
+                metaTable,
+                columns: ['value'],
+                where: 'account_id = ? and key = ?',
+                whereArgs: [accountId, secondaryKey],
+              )).single['value']
+              as String;
+      guard();
+      return (primary, secondary);
+    });
+  }
+
   /// قراءة مفاتيح المجال المحلي فقط ضمن الحساب نفسه. تستخدم المصالحة
   /// مفاتيح دفتر الحجوزات ولا تخلطها بصفوف طابور الأوامر.
   Future<List<String>> readLocalValuesByPrefix(

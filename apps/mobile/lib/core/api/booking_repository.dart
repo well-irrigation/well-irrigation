@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'booking_local_ledger.dart';
+import '../session/time_integrity.dart';
 import '../sync/command_id_generator.dart';
 import '../sync/sqlite_outbox_store.dart';
 
@@ -211,6 +212,7 @@ class WellDaySchedule {
   const WellDaySchedule({
     required this.wellId,
     required this.requestedDay,
+    this.serverTime,
     required this.timezone,
     required this.dayStart,
     required this.dayEnd,
@@ -236,10 +238,14 @@ class WellDaySchedule {
     if (requestedDay == null) {
       throw StateError('عقد جدول اليوم أعاد requested_day غير صالح');
     }
+    final serverTime = json['server_time'] == null
+        ? null
+        : _requiredTime(json, 'server_time');
 
     return WellDaySchedule(
       wellId: _requiredString(json, 'well_id'),
       requestedDay: requestedDay,
+      serverTime: serverTime,
       timezone: _requiredString(json, 'timezone'),
       dayStart: _requiredTime(json, 'day_start'),
       dayEnd: _requiredTime(json, 'day_end'),
@@ -260,6 +266,7 @@ class WellDaySchedule {
 
   final String wellId;
   final DateTime requestedDay;
+  final DateTime? serverTime;
   final String timezone;
   final DateTime dayStart;
   final DateTime dayEnd;
@@ -274,10 +281,15 @@ class BookingScheduleView {
     required this.schedule,
     required this.isCached,
     required this.fetchedAt,
+    this.timeAnchor,
   });
   final WellDaySchedule schedule;
   final bool isCached;
   final DateTime fetchedAt;
+
+  /// المرساة الملتقطة مع هذه اللقطة تحديدًا: من الردّ الطازج أو من
+  /// payload الكاش. لا تتزاوج مرساة قديمة بردّ جديد أبدًا.
+  final SessionTimeAnchor? timeAnchor;
 }
 
 class BookingAutomationState {
@@ -550,12 +562,50 @@ class BookingRepository {
     this._client,
     IdGenerator? idGenerator,
     BookingLocalLedger? localLedger,
+    TimeIntegritySource? timeIntegritySource,
   ]) : _ids = idGenerator ?? SecureIdGenerator(),
-       _localLedger = localLedger ?? BookingLocalLedger(SqliteOutboxStore());
+       _localLedger = localLedger ?? BookingLocalLedger(SqliteOutboxStore()),
+       _timeIntegritySource =
+           timeIntegritySource ?? AndroidTimeIntegritySource();
 
   final SupabaseClient? _client;
   final IdGenerator _ids;
   final BookingLocalLedger _localLedger;
+
+  /// مصدر قراءة الزمن المحلي. في الإنتاج أندرويدي عبر MethodChannel،
+  /// وفي الاختبارات fake. `null` = لا مرساة تُبنى، فالجدول يُعرض ولا
+  /// يُسلَّح انتقال آلي — وهذا قرار صريح لا فشل صامت.
+  final TimeIntegritySource? _timeIntegritySource;
+
+  /// يلتقط مرساة زمن فور نجاح قراءة الجدول: زمن الخادم من الردّ نفسه،
+  /// وقراءة الجسر المحلي مرة واحدة لحظة الاستلام. فشل الجسر أو غياب
+  /// server_time لا يفشل قراءة الجدول للعرض — يعيدها بلا مرساة موثوقة،
+  /// فلا انتقال آلي (ق-113: لا نجاح كاذب).
+  Future<SessionTimeAnchor?> _captureTimeAnchor(
+    WellDaySchedule schedule,
+  ) async {
+    final source = _timeIntegritySource;
+    if (source == null) return null;
+    final serverTime = schedule.serverTime;
+    if (serverTime == null) return null;
+    try {
+      final reading = await source.read();
+      final anchor = SessionTimeAnchor(
+        serverTime: serverTime,
+        wallClock: reading.wallClock,
+        monotonic: reading.monotonic,
+        bootId: reading.bootId,
+      );
+      return resolveServerAlignedNow(
+            anchor: anchor,
+            reading: reading,
+          ).trustedForAutomaticTransition
+          ? anchor
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<BookingScheduleView> fetchScheduleView({
     required String accountId,
@@ -564,18 +614,21 @@ class BookingRepository {
     try {
       final schedule = await fetchTodaySchedule(wellId);
       final fetchedAt = DateTime.now().toUtc();
+      final anchor = await _captureTimeAnchor(schedule);
       if (schedule.sourceResponse != null) {
         await _localLedger.saveSchedule(
           accountId: accountId,
           wellId: wellId,
           response: schedule.sourceResponse!,
           fetchedAt: fetchedAt,
+          timeAnchor: anchor,
         );
       }
       return BookingScheduleView(
         schedule: schedule,
         isCached: false,
         fetchedAt: fetchedAt,
+        timeAnchor: anchor,
       );
     } catch (_) {
       final cached = await _localLedger.loadLatestSchedule(accountId, wellId);
@@ -584,6 +637,7 @@ class BookingRepository {
         schedule: cached.schedule,
         isCached: true,
         fetchedAt: cached.fetchedAt,
+        timeAnchor: cached.timeAnchor,
       );
     }
   }
@@ -650,8 +704,7 @@ class BookingRepository {
     return state;
   }
 
-  Future<BookingTransitionReconciliation>
-  getBookingTransitionReconciliation({
+  Future<BookingTransitionReconciliation> getBookingTransitionReconciliation({
     required String wellId,
     required String chainId,
     required String currentSessionId,
@@ -664,18 +717,20 @@ class BookingRepository {
     if (client == null) {
       throw StateError('Supabase client is unavailable');
     }
-    final response = await client.schema('api').rpc(
-      'get_booking_transition_reconciliation',
-      params: {
-        'p_well_id': wellId,
-        'p_chain_id': chainId,
-        'p_current_session_id': currentSessionId,
-        'p_next_booking_id': nextBookingId,
-        'p_decision_revision': decisionRevision,
-        'p_automation_revision': automationRevision,
-        'p_command_id': commandId,
-      },
-    );
+    final response = await client
+        .schema('api')
+        .rpc(
+          'get_booking_transition_reconciliation',
+          params: {
+            'p_well_id': wellId,
+            'p_chain_id': chainId,
+            'p_current_session_id': currentSessionId,
+            'p_next_booking_id': nextBookingId,
+            'p_decision_revision': decisionRevision,
+            'p_automation_revision': automationRevision,
+            'p_command_id': commandId,
+          },
+        );
     final result = BookingTransitionReconciliation.fromContract(response);
     if (result.requestedCommandId != commandId ||
         result.wellId != wellId ||
