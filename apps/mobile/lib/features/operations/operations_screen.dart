@@ -2036,27 +2036,6 @@ class _OperationsScreenState extends State<OperationsScreen>
                 _buildFarmerReviewBanner(),
                 const SizedBox(height: 16),
               ],
-              TodayBookingsPanel(
-                schedule: _daySchedule,
-                automation: _bookingAutomation,
-                isLoadingSchedule: _isLoadingDaySchedule,
-                isLoadingAutomation: _isLoadingBookingAutomation,
-                isUpdatingAutomation: _isUpdatingBookingAutomation,
-                canManageAutomation: _activeWell.isOperator,
-                hasLocalActiveSession: _isSessionActive,
-                scheduleError: _dayScheduleError,
-                automationError: _bookingAutomationError,
-                startingBookingId: _startingBookingId,
-                onRefresh: () {
-                  _loadBookingOverview();
-                },
-                onToggleAutomation: (enabled) {
-                  _toggleBookingAutomation(enabled);
-                },
-                onStartBooking: _startBookingFromSchedule,
-              ),
-              const SizedBox(height: 16),
-
               // 1. كرت حالة الجلسة والعداد المباشر (استجابة مرنة بدون تجاوز ق-129 / B6)
               Container(
                 padding: const EdgeInsets.all(20),
@@ -2917,6 +2896,26 @@ class _OperationsScreenState extends State<OperationsScreen>
                     ),
                   ],
                 ),
+              const SizedBox(height: 24),
+              TodayBookingsPanel(
+                schedule: _daySchedule,
+                automation: _bookingAutomation,
+                isLoadingSchedule: _isLoadingDaySchedule,
+                isLoadingAutomation: _isLoadingBookingAutomation,
+                isUpdatingAutomation: _isUpdatingBookingAutomation,
+                canManageAutomation: _activeWell.isOperator,
+                hasLocalActiveSession: _isSessionActive,
+                scheduleError: _dayScheduleError,
+                automationError: _bookingAutomationError,
+                startingBookingId: _startingBookingId,
+                onRefresh: () {
+                  _loadBookingOverview();
+                },
+                onToggleAutomation: (enabled) {
+                  _toggleBookingAutomation(enabled);
+                },
+                onStartBooking: _startBookingFromSchedule,
+              ),
             ],
           ),
         ),
