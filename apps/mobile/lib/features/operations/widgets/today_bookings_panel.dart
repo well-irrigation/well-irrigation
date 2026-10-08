@@ -75,13 +75,16 @@ class TodayBookingsPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          _AutomationTile(
-            state: automationState,
-            isLoading: isLoadingAutomation,
-            isUpdating: isUpdatingAutomation,
-            canManage: canManageAutomation,
-            error: automationError,
-            onChanged: onToggleAutomation,
+          Material(
+            color: Colors.transparent,
+            child: _AutomationTile(
+              state: automationState,
+              isLoading: isLoadingAutomation,
+              isUpdating: isUpdatingAutomation,
+              canManage: canManageAutomation,
+              error: automationError,
+              onChanged: onToggleAutomation,
+            ),
           ),
           const Divider(height: 24),
           if (isLoadingSchedule && data == null)
