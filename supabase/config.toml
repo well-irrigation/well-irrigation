@@ -390,6 +390,9 @@ verify_jwt = false
 [functions.member-finalization]
 verify_jwt = false
 
+[functions.p2-automation-proof]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
