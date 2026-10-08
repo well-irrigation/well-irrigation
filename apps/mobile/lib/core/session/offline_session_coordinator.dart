@@ -5,6 +5,8 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../api/operations_repository.dart';
+import '../api/booking_local_ledger.dart';
+import '../api/booking_repository.dart';
 import '../sync/command_envelope.dart';
 import '../sync/command_reference.dart';
 import '../sync/command_transport.dart';
@@ -34,12 +36,16 @@ class OfflineSessionCoordinator {
     CommandTransport? commandTransport,
     PricingResolver? pricingResolver,
     Future<bool> Function(String accountId)? commandQueuedScheduler,
+    BookingLocalLedger? bookingLedger,
   }) : _store = store ?? SqliteOutboxStore(),
        _commandQueuedScheduler = commandQueuedScheduler,
        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
        // `api.get_active_price_schedule` عبر `updatePricing`. حتى تُغذّى،
        // كل مقطع محتسب «بانتظار المزامنة» ولا يُسعَّر بصفر (القرار 341).
        _pricingResolver = pricingResolver ?? const PricingResolver.none() {
+    _bookingLedger =
+        bookingLedger ??
+        (_store is SqliteOutboxStore ? BookingLocalLedger(_store) : null);
     _outbox = OutboxRepository(store: _store);
     _projector = ActiveSessionProjector(
       store: _store,
@@ -70,6 +76,57 @@ class OfflineSessionCoordinator {
       OfflineSessionCoordinator(supabaseClient: _foregroundSupabaseClient);
 
   final OutboxStore _store;
+  BookingLocalLedger? _bookingLedger;
+  ServerBookingSessionLink? _serverBookingSession;
+  ServerBookingSessionLink? get serverBookingSession => _serverBookingSession;
+
+  Future<ServerBookingSessionLink?> restoreServerBookingSession({
+    required String accountId,
+    required String wellId,
+  }) async {
+    _serverBookingSession = await _bookingLedger?.loadServerSession(
+      accountId,
+      wellId,
+    );
+    return _serverBookingSession;
+  }
+
+  Future<ServerBookingSessionLink?> reconcileServerBookingSession({
+    required String accountId,
+    required String wellId,
+    required CurrentBookingSession? current,
+  }) async {
+    final ledger = _bookingLedger;
+    if (ledger == null) throw StateError('لا يوجد تخزين متين لربط الجلسة');
+    if (current == null) {
+      final prior = await ledger.loadServerSession(accountId, wellId);
+      if (prior != null) {
+        throw StateError('جلسة الخادم غابت عن القراءة؛ تحتاج مراجعة');
+      }
+      _serverBookingSession = null;
+      return null;
+    }
+    if (current.wellId != wellId ||
+        current.bookingId == null ||
+        current.status != 'open') {
+      throw StateError('جلسة خادم غير قابلة للمصالحة');
+    }
+    final local = currentActiveSession;
+    if (local != null &&
+        local.wellId == wellId &&
+        local.serverSessionId != current.sessionId) {
+      throw StateError('جلسة الخادم تختلف عن الجلسة المحلية');
+    }
+    _serverBookingSession = await ledger.importServerSession(
+      accountId: accountId,
+      wellId: wellId,
+      sessionId: current.sessionId,
+      bookingId: current.bookingId!,
+      startedAt: current.startedAt,
+    );
+    return _serverBookingSession;
+  }
+
   late final OutboxRepository _outbox;
   late ActiveSessionProjector _projector;
   SyncEngine? _syncEngine;

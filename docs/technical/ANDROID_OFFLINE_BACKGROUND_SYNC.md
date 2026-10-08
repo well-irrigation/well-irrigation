@@ -831,3 +831,9 @@ Process Death على جهاز Android.
 
 الإثبات المحلي: 381 Flutter PASS وanalyze بلا ملاحظات.
 إثبات الجهاز الحقيقي ما زال مطلوبًا في Device Acceptance.
+
+## تحديث 2026-10-08 — حدود حجوزات P2 على الهاتف
+
+أضيف cache حجوزات داخل `well_irrigation_outbox.db`، منفصلًا عن حالة الجلسة المحلية، مع `fetched_at` ويوم البئر والمنطقة الزمنية الخادمية. عند فشل الشبكة يعرض الهاتف آخر لقطة بوسم واضح ويمنع استخدامها لتفعيل بدء أو انتقال جديد. الربط الخادمي للجلسة يحفظ `session_id` و`booking_id` و`well_id` و`started_at` بلا وقت جهاز بديل.
+
+`WorkManagerSyncScheduler` القائم يستخدم `registerOneOffTask` مع `NetworkType.connected` وبداية قابلة للتأخير. هذا يرسل Outbox بأفضل جهد عند توفر الشبكة؛ لا يوقظ انتقال حجز بدقة دون شبكة أو بعد Force Stop. لم تُضف وسيلة إيقاظ جديدة. عقد المصالحة `api.get_booking_transition_reconciliation` قراءة فقط؛ not_found/rejected/conflict لا ترسل تنفيذًا من الهاتف. `BLOCKED_CONTRACT_GAP` يبقى لتنفيذ النية عبر P1-B وحد مراجعة اللحظة الفائتة. لا قبول جهاز في هذه الجولة.

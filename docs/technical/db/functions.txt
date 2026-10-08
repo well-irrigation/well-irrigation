@@ -31,6 +31,7 @@ api.execute_pending_booking_start(p_chain_id uuid, p_expected_revision bigint, p
 api.get_active_price_schedule(p_well_id uuid, p_at timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_advance_allocation_proposal(p_payment_id uuid, p_invoice_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_booking_detail(p_booking_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_booking_transition_reconciliation(p_well_id uuid, p_chain_id uuid, p_current_session_id uuid, p_next_booking_id uuid, p_decision_revision bigint, p_automation_revision bigint, p_command_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_farmer_account(p_farmer_well_account_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_farmer_selection_status(p_farmer_well_account_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_my_operator_cash_custody(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -269,4 +270,5 @@ sync.begin_well_command(p_well_id uuid, p_command_id uuid, p_command_type text, 
 sync.finish_command(p_tenant_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=sync, pg_temp
 sync.finish_session_command(p_session_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=pg_catalog, pg_temp
 sync.finish_well_command(p_well_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=pg_catalog, pg_temp
+sync.get_booking_transition_reconciliation_read(p_well_id uuid, p_chain_id uuid, p_current_session_id uuid, p_next_booking_id uuid, p_decision_revision bigint, p_automation_revision bigint, p_command_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 sync.verify_booking_command_replay(p_well_id uuid, p_command_id uuid, p_command_type text, p_m113_payload jsonb, p_m112_payload jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp

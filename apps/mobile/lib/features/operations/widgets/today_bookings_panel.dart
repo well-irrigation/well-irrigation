@@ -16,6 +16,11 @@ class TodayBookingsPanel extends StatelessWidget {
     required this.onRefresh,
     required this.onToggleAutomation,
     required this.onStartBooking,
+    this.isCachedSchedule = false,
+    this.lastSyncedAt,
+    this.requiresReview = false,
+    this.awaitingReconciliation = false,
+    this.reconciliationComplete = false,
     this.scheduleError,
     this.automationError,
     this.startingBookingId,
@@ -32,6 +37,11 @@ class TodayBookingsPanel extends StatelessWidget {
   final String? scheduleError;
   final String? automationError;
   final String? startingBookingId;
+  final bool isCachedSchedule;
+  final DateTime? lastSyncedAt;
+  final bool requiresReview;
+  final bool awaitingReconciliation;
+  final bool reconciliationComplete;
   final VoidCallback onRefresh;
   final ValueChanged<bool> onToggleAutomation;
   final Future<void> Function(BookingDayItem booking) onStartBooking;
@@ -75,13 +85,29 @@ class TodayBookingsPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
+          if (data != null)
+            Text(
+              isCachedSchedule
+                  ? 'بيانات محفوظة محليًا — آخر مزامنة: ${lastSyncedAt?.toUtc().toIso8601String() ?? 'غير معروف'}؛ يلزم التحقق من الخادم قبل البدء.'
+                  : 'بيانات محدثة من الخادم',
+              key: const Key('booking-cache-indicator'),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          if (awaitingReconciliation) const Text('بانتظار المصالحة مع الخادم'),
+          if (reconciliationComplete)
+            const Text('تمت المصالحة مع الخادم'),
+          if (requiresReview)
+            const Text('يوجد تعارض أو موعد فائت يحتاج مراجعة'),
           Material(
             color: Colors.transparent,
             child: _AutomationTile(
               state: automationState,
               isLoading: isLoadingAutomation,
               isUpdating: isUpdatingAutomation,
-              canManage: canManageAutomation,
+              canManage: canManageAutomation && !isCachedSchedule,
               error: automationError,
               onChanged: onToggleAutomation,
             ),
@@ -95,20 +121,14 @@ class TodayBookingsPanel extends StatelessWidget {
               ),
             )
           else if (scheduleError != null && data == null)
-            _ErrorState(
-              message: scheduleError!,
-              onRetry: onRefresh,
-            )
+            _ErrorState(message: scheduleError!, onRetry: onRefresh)
           else if (data != null) ...[
             _ScheduleHeader(schedule: data),
             if (scheduleError != null) ...[
               const SizedBox(height: 8),
               Text(
                 scheduleError!,
-                style: const TextStyle(
-                  color: AppColors.error,
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: AppColors.error, fontSize: 12),
               ),
             ],
             const SizedBox(height: 12),
@@ -133,7 +153,10 @@ class TodayBookingsPanel extends StatelessWidget {
                     isNext:
                         automationState?.activeChainNextBookingId == booking.id,
                     canStart:
-                        !hasAnyOpenSession && booking.canStartManually,
+                        !isCachedSchedule &&
+                        !requiresReview &&
+                        !hasAnyOpenSession &&
+                        booking.canStartManually,
                     isStarting: startingBookingId == booking.id,
                     onStart: () => onStartBooking(booking),
                   ),
@@ -194,8 +217,9 @@ class _AutomationTile extends StatelessWidget {
                 : 'يمكنك مشاهدة الإعداد. تغييره متاح للمشغّل المخوّل على هاتف التشغيل فقط.',
           ),
           value: value,
-          onChanged:
-              state == null || isUpdating || !canManage ? null : onChanged,
+          onChanged: state == null || isUpdating || !canManage
+              ? null
+              : onChanged,
           secondary: isUpdating
               ? const SizedBox(
                   width: 20,
@@ -437,8 +461,7 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-DateTime _asAden(DateTime value) =>
-    value.toUtc().add(const Duration(hours: 3));
+DateTime _asAden(DateTime value) => value.toUtc().add(const Duration(hours: 3));
 
 String _formatAdenTime(DateTime value) {
   final local = _asAden(value);

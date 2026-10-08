@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-08 — حالة جولة P2 Mobile Offline المحلية
+
+- PR #59 دُمجت عند `0dc16fd5843e6dc1fa48889b48f7bee3089af4ef`. أضيف في الفرع المحلي cache عرض الحجوزات وربط جلسة الخادم ونية انتقال محفوظة؛ التحقق محلي فقط، دون commit أو دمج أو قبول Android.
+- أضيفت هجرة دعم P2 `20261008135536_booking_transition_reconciliation_read_contract.sql`: عقد `api.get_booking_transition_reconciliation` للقراءة فقط، بحارس `auth.uid()` و`booking.read`، يطابق الإيصال الحاكم أو يعيد مراجعة. لا يمنح `service_role` صفة actor أو executor للأعمال.
+- بقي `BLOCKED_CONTRACT_GAP` لتنفيذ انتقال أعمال Offline نفسه عبر P1-B. `WorkManager` الحالي مزامنة مشروطة بالشبكة بأفضل جهد وليس إيقاظًا دقيقًا. q-137 غير معتمد، ولم تُعدّل Cloud أو Production.
+
 
 ## 2026-10-08 — إغلاق P2 Phase 2B وبدء قبول الهاتف
 

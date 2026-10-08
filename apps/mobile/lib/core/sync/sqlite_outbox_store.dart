@@ -147,6 +147,70 @@ class SqliteOutboxStore implements OutboxStore {
     );
   }
 
+  /// مساحة بيانات محلية مرتبطة بالحساب داخل ملف الطابور نفسه.
+  Future<String?> readLocalValue(String accountId, String key) async {
+    await initialize();
+    final rows = await _db.query(
+      metaTable,
+      columns: ['value'],
+      where: 'account_id = ? and key = ?',
+      whereArgs: [accountId, key],
+    );
+    return rows.isEmpty ? null : rows.single['value'] as String;
+  }
+
+  Future<void> writeLocalValue(
+    String accountId,
+    String key,
+    String value,
+  ) async {
+    await initialize();
+    await _db.insert(metaTable, {
+      'account_id': accountId,
+      'key': key,
+      'value': value,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<String> writeLocalValueOnce(
+    String accountId,
+    String key,
+    String value,
+  ) async {
+    await initialize();
+    return _db.transaction((txn) async {
+      await txn.insert(metaTable, {
+        'account_id': accountId,
+        'key': key,
+        'value': value,
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      final rows = await txn.query(
+        metaTable,
+        columns: ['value'],
+        where: 'account_id = ? and key = ?',
+        whereArgs: [accountId, key],
+      );
+      return rows.single['value'] as String;
+    });
+  }
+
+  /// قراءة مفاتيح المجال المحلي فقط ضمن الحساب نفسه. تستخدم المصالحة
+  /// مفاتيح دفتر الحجوزات ولا تخلطها بصفوف طابور الأوامر.
+  Future<List<String>> readLocalValuesByPrefix(
+    String accountId,
+    String prefix,
+  ) async {
+    await initialize();
+    final rows = await _db.query(
+      metaTable,
+      columns: ['value'],
+      where: 'account_id = ? and key like ?',
+      whereArgs: [accountId, '$prefix%'],
+      orderBy: 'key asc',
+    );
+    return rows.map((row) => row['value'] as String).toList(growable: false);
+  }
+
   @override
   Future<CommandEnvelope> insert(CommandEnvelope envelope) async {
     try {

@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'booking_local_ledger.dart';
 import '../sync/command_id_generator.dart';
+import '../sync/sqlite_outbox_store.dart';
 
 Map<String, dynamic> _requiredMap(Object? value, String label) {
   if (value is! Map) {
@@ -161,10 +163,7 @@ class BookingDayItem {
       scheduledStart: _requiredTime(json, 'scheduled_start'),
       scheduledEnd: _requiredTime(json, 'scheduled_end'),
       scheduledDay: _requiredString(json, 'scheduled_day'),
-      expectedDurationMinutes: _requiredInt(
-        json,
-        'expected_duration_minutes',
-      ),
+      expectedDurationMinutes: _requiredInt(json, 'expected_duration_minutes'),
       expectedEnergySource: _optionalString(json, 'expected_energy_source'),
       alternativeEnergySource: _optionalString(
         json,
@@ -218,6 +217,7 @@ class WellDaySchedule {
     required this.wellTimezone,
     required this.bookings,
     this.currentSession,
+    this.sourceResponse,
   });
 
   factory WellDaySchedule.fromContract(Object? response) {
@@ -251,11 +251,10 @@ class WellDaySchedule {
             ),
       bookings: rawBookings
           .map(
-            (item) => BookingDayItem.fromJson(
-              _requiredMap(item, 'عنصر حجز'),
-            ),
+            (item) => BookingDayItem.fromJson(_requiredMap(item, 'عنصر حجز')),
           )
           .toList(growable: false),
+      sourceResponse: json,
     );
   }
 
@@ -267,6 +266,18 @@ class WellDaySchedule {
   final String wellTimezone;
   final CurrentBookingSession? currentSession;
   final List<BookingDayItem> bookings;
+  final Map<String, dynamic>? sourceResponse;
+}
+
+class BookingScheduleView {
+  const BookingScheduleView({
+    required this.schedule,
+    required this.isCached,
+    required this.fetchedAt,
+  });
+  final WellDaySchedule schedule;
+  final bool isCached;
+  final DateTime fetchedAt;
 }
 
 class BookingAutomationState {
@@ -279,6 +290,8 @@ class BookingAutomationState {
     this.activeChainId,
     this.activeChainStatus,
     this.activeChainNextBookingId,
+    this.activeChainDecisionRevision,
+    this.sourceResponse,
   });
 
   factory BookingAutomationState.fromContract(Object? response) {
@@ -291,11 +304,13 @@ class BookingAutomationState {
     String? chainId;
     String? chainStatus;
     String? nextBookingId;
+    int? chainDecisionRevision;
     if (rawChain != null) {
       final chain = _requiredMap(rawChain, 'سلسلة الانتقال');
       chainId = _requiredString(chain, 'chain_id');
       chainStatus = _requiredString(chain, 'status');
       nextBookingId = _optionalString(chain, 'next_booking_id');
+      chainDecisionRevision = _optionalInt(chain, 'decision_revision');
     }
 
     final firstSession = _requiredString(json, 'first_session');
@@ -312,6 +327,8 @@ class BookingAutomationState {
       activeChainId: chainId,
       activeChainStatus: chainStatus,
       activeChainNextBookingId: nextBookingId,
+      activeChainDecisionRevision: chainDecisionRevision,
+      sourceResponse: json,
     );
   }
 
@@ -323,6 +340,8 @@ class BookingAutomationState {
   final String? activeChainId;
   final String? activeChainStatus;
   final String? activeChainNextBookingId;
+  final int? activeChainDecisionRevision;
+  final Map<String, dynamic>? sourceResponse;
 
   BookingAutomationState applyUpdate(BookingAutomationUpdate update) {
     if (update.wellId != wellId) {
@@ -337,6 +356,8 @@ class BookingAutomationState {
       activeChainId: activeChainId,
       activeChainStatus: activeChainStatus,
       activeChainNextBookingId: activeChainNextBookingId,
+      activeChainDecisionRevision: activeChainDecisionRevision,
+      sourceResponse: null,
     );
   }
 }
@@ -397,12 +418,196 @@ class BookingStartResult {
   final DateTime operationalEndAt;
 }
 
+class BookingReconciliationReceipt {
+  const BookingReconciliationReceipt({
+    required this.closedSessionId,
+    required this.closedAt,
+    required this.startedSessionId,
+    required this.startedBookingId,
+    required this.startedAt,
+  });
+
+  factory BookingReconciliationReceipt.fromJson(Map<String, dynamic> json) {
+    final closed = _requiredMap(json['closed_session'], 'الجلسة المغلقة');
+    final started = _requiredMap(json['started_session'], 'الجلسة المفتوحة');
+    return BookingReconciliationReceipt(
+      closedSessionId: _requiredString(closed, 'id'),
+      closedAt: _requiredTime(closed, 'ended_at'),
+      startedSessionId: _requiredString(started, 'id'),
+      startedBookingId: _requiredString(started, 'booking_id'),
+      startedAt: _requiredTime(started, 'started_at'),
+    );
+  }
+
+  final String closedSessionId;
+  final DateTime closedAt;
+  final String startedSessionId;
+  final String startedBookingId;
+  final DateTime startedAt;
+
+  Map<String, Object?> toJson() => {
+    'closed_session': {
+      'id': closedSessionId,
+      'ended_at': closedAt.toUtc().toIso8601String(),
+    },
+    'started_session': {
+      'id': startedSessionId,
+      'booking_id': startedBookingId,
+      'started_at': startedAt.toUtc().toIso8601String(),
+    },
+  };
+}
+
+class BookingTransitionReconciliation {
+  const BookingTransitionReconciliation({
+    required this.status,
+    required this.requestedCommandId,
+    required this.wellId,
+    required this.chainId,
+    required this.currentSessionId,
+    required this.nextBookingId,
+    required this.decisionRevision,
+    required this.automationRevision,
+    required this.matchKind,
+    required this.canonicalCommandId,
+    required this.canonicalResult,
+    required this.receipt,
+    required this.reviewReason,
+  });
+
+  factory BookingTransitionReconciliation.fromContract(Object? response) {
+    final json = _requiredMap(response, 'استجابة مصالحة انتقال الحجز');
+    if (json['contract'] != 'get_booking_transition_reconciliation' ||
+        json['version'] != 1) {
+      throw StateError('إصدار عقد مصالحة الحجز غير متوافق');
+    }
+    final status = _requiredString(json, 'status');
+    if (!{'found', 'not_found', 'conflict', 'rejected'}.contains(status)) {
+      throw StateError('حالة مصالحة الحجز غير معروفة');
+    }
+    final matchKind = _optionalString(json, 'match_kind');
+    if (matchKind != null &&
+        matchKind != 'exact_command' &&
+        matchKind != 'logical_intent') {
+      throw StateError('نوع مطابقة الحجز غير صالح');
+    }
+    final canonicalResult = _optionalString(json, 'canonical_result');
+    if (canonicalResult != null &&
+        !{'accepted', 'replayed', 'rejected'}.contains(canonicalResult)) {
+      throw StateError('نتيجة خادم الحجز غير صالحة');
+    }
+    final rawReceipt = json['business_receipt'];
+    final receipt = rawReceipt == null
+        ? null
+        : BookingReconciliationReceipt.fromJson(
+            _requiredMap(rawReceipt, 'إيصال المصالحة'),
+          );
+    final result = BookingTransitionReconciliation(
+      status: status,
+      requestedCommandId: _requiredString(json, 'requested_command_id'),
+      canonicalCommandId: _optionalString(json, 'canonical_command_id'),
+      wellId: _requiredString(json, 'well_id'),
+      chainId: _requiredString(json, 'chain_id'),
+      currentSessionId: _requiredString(json, 'current_session_id'),
+      nextBookingId: _requiredString(json, 'next_booking_id'),
+      decisionRevision: _requiredInt(json, 'decision_revision'),
+      automationRevision: _requiredInt(json, 'automation_revision'),
+      matchKind: matchKind,
+      canonicalResult: canonicalResult,
+      receipt: receipt,
+      reviewReason: _optionalString(json, 'review_reason'),
+    );
+    if (result.isCanonicalMatch &&
+        (result.canonicalCommandId == null ||
+            result.receipt == null ||
+            result.matchKind == null)) {
+      throw StateError('إيصال مصالحة كنوني ناقص');
+    }
+    return result;
+  }
+
+  final String status;
+  final String requestedCommandId;
+  final String wellId;
+  final String chainId;
+  final String currentSessionId;
+  final String nextBookingId;
+  final int decisionRevision;
+  final int automationRevision;
+  final String? matchKind;
+  final String? canonicalCommandId;
+  final String? canonicalResult;
+  final BookingReconciliationReceipt? receipt;
+  final String? reviewReason;
+
+  bool get isCanonicalMatch =>
+      status == 'found' &&
+      (canonicalResult == 'accepted' || canonicalResult == 'replayed');
+}
+
 class BookingRepository {
-  BookingRepository([this._client, IdGenerator? idGenerator])
-    : _ids = idGenerator ?? SecureIdGenerator();
+  BookingRepository([
+    this._client,
+    IdGenerator? idGenerator,
+    BookingLocalLedger? localLedger,
+  ]) : _ids = idGenerator ?? SecureIdGenerator(),
+       _localLedger = localLedger ?? BookingLocalLedger(SqliteOutboxStore());
 
   final SupabaseClient? _client;
   final IdGenerator _ids;
+  final BookingLocalLedger _localLedger;
+
+  Future<BookingScheduleView> fetchScheduleView({
+    required String accountId,
+    required String wellId,
+  }) async {
+    try {
+      final schedule = await fetchTodaySchedule(wellId);
+      final fetchedAt = DateTime.now().toUtc();
+      if (schedule.sourceResponse != null) {
+        await _localLedger.saveSchedule(
+          accountId: accountId,
+          wellId: wellId,
+          response: schedule.sourceResponse!,
+          fetchedAt: fetchedAt,
+        );
+      }
+      return BookingScheduleView(
+        schedule: schedule,
+        isCached: false,
+        fetchedAt: fetchedAt,
+      );
+    } catch (_) {
+      final cached = await _localLedger.loadLatestSchedule(accountId, wellId);
+      if (cached == null) rethrow;
+      return BookingScheduleView(
+        schedule: cached.schedule,
+        isCached: true,
+        fetchedAt: cached.fetchedAt,
+      );
+    }
+  }
+
+  Future<(BookingAutomationState, bool)> fetchAutomationView({
+    required String accountId,
+    required String wellId,
+  }) async {
+    try {
+      final state = await fetchAutomation(wellId);
+      if (state.sourceResponse != null) {
+        await _localLedger.saveAutomation(
+          accountId: accountId,
+          wellId: wellId,
+          response: state.sourceResponse!,
+        );
+      }
+      return (state, false);
+    } catch (_) {
+      final cached = await _localLedger.loadAutomation(accountId, wellId);
+      if (cached == null) rethrow;
+      return (cached, true);
+    }
+  }
 
   SupabaseClient? get _effectiveClient {
     if (_client != null) return _client;
@@ -437,15 +642,76 @@ class BookingRepository {
     }
     final response = await client
         .schema('api')
-        .rpc(
-          'get_well_booking_automation',
-          params: {'p_well_id': wellId},
-        );
+        .rpc('get_well_booking_automation', params: {'p_well_id': wellId});
     final state = BookingAutomationState.fromContract(response);
     if (state.wellId != wellId) {
       throw StateError('إعداد الانتقال التلقائي عاد لبئر مختلف');
     }
     return state;
+  }
+
+  Future<BookingTransitionReconciliation>
+  getBookingTransitionReconciliation({
+    required String wellId,
+    required String chainId,
+    required String currentSessionId,
+    required String nextBookingId,
+    required int decisionRevision,
+    required int automationRevision,
+    required String commandId,
+  }) async {
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+    final response = await client.schema('api').rpc(
+      'get_booking_transition_reconciliation',
+      params: {
+        'p_well_id': wellId,
+        'p_chain_id': chainId,
+        'p_current_session_id': currentSessionId,
+        'p_next_booking_id': nextBookingId,
+        'p_decision_revision': decisionRevision,
+        'p_automation_revision': automationRevision,
+        'p_command_id': commandId,
+      },
+    );
+    final result = BookingTransitionReconciliation.fromContract(response);
+    if (result.requestedCommandId != commandId ||
+        result.wellId != wellId ||
+        result.chainId != chainId ||
+        result.currentSessionId != currentSessionId ||
+        result.nextBookingId != nextBookingId ||
+        result.decisionRevision != decisionRevision ||
+        result.automationRevision != automationRevision) {
+      throw StateError('عقد المصالحة أعاد نية مختلفة');
+    }
+    return result;
+  }
+
+  /// يعيد محاولة القراءة فقط. فشل الشبكة يُرفع بلا تغيير للنية المحلية؛
+  /// لا توجد هنا إعادة إرسال أو تنفيذ أعمال.
+  Future<List<BookingTransitionIntent>> reconcilePendingLocalIntents({
+    required String accountId,
+    required String wellId,
+  }) async {
+    final pending = await _localLedger.loadAwaitingIntents(accountId, wellId);
+    final reconciled = <BookingTransitionIntent>[];
+    for (final intent in pending) {
+      final result = await getBookingTransitionReconciliation(
+        wellId: intent.wellId,
+        chainId: intent.chainId,
+        currentSessionId: intent.currentSessionId,
+        nextBookingId: intent.nextBookingId,
+        decisionRevision: intent.decisionRevision,
+        automationRevision: intent.automationRevision,
+        commandId: intent.commandId,
+      );
+      reconciled.add(
+        await _localLedger.reconcileReadResult(accountId, intent, result),
+      );
+    }
+    return reconciled;
   }
 
   Future<BookingAutomationUpdate> setAutomation({
