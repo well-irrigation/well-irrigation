@@ -132,7 +132,7 @@ class BookingDayItem {
     required this.publicCode,
     required this.wellId,
     required this.farmerWellAccountId,
-    required this.farmId,
+    this.farmId,
     required this.scheduledStart,
     required this.scheduledEnd,
     required this.scheduledDay,
@@ -156,7 +156,7 @@ class BookingDayItem {
       wellId: _requiredString(json, 'well_id'),
       farmerWellAccountId: _requiredString(json, 'farmer_well_account_id'),
       farmerName: _optionalString(json, 'farmer_name'),
-      farmId: _requiredString(json, 'farm_id'),
+      farmId: _optionalString(json, 'farm_id'),
       farmName: _optionalString(json, 'farm_name'),
       scheduledStart: _requiredTime(json, 'scheduled_start'),
       scheduledEnd: _requiredTime(json, 'scheduled_end'),
@@ -187,7 +187,7 @@ class BookingDayItem {
   final String wellId;
   final String farmerWellAccountId;
   final String? farmerName;
-  final String farmId;
+  final String? farmId;
   final String? farmName;
   final DateTime scheduledStart;
   final DateTime scheduledEnd;
@@ -201,7 +201,11 @@ class BookingDayItem {
   final String? notes;
   final BookingSessionSummary? session;
 
-  bool get canStartManually => status == 'confirmed' && session == null;
+  bool get canStartManually =>
+      status == 'confirmed' &&
+      session == null &&
+      farmId != null &&
+      expectedEnergySource != null;
 }
 
 class WellDaySchedule {
