@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/api/booking_repository.dart';
 import '../../../core/api/operations_repository.dart';
+import '../../../core/booking/booking_presentation.dart';
+import '../../../core/booking/booking_reactivity.dart';
 import '../../../core/theme/app_colors.dart';
 
 class TodayBookingsPanel extends StatelessWidget {
@@ -16,6 +18,8 @@ class TodayBookingsPanel extends StatelessWidget {
     required this.onRefresh,
     required this.onToggleAutomation,
     required this.onStartBooking,
+    this.scope,
+    this.isAutomationCached = false,
     this.isCachedSchedule = false,
     this.lastSyncedAt,
     this.requiresReview = false,
@@ -30,6 +34,8 @@ class TodayBookingsPanel extends StatelessWidget {
     super.key,
   });
 
+  final BookingScope? scope;
+  final bool isAutomationCached;
   final WellDaySchedule? schedule;
   final BookingAutomationState? automation;
   final bool isLoadingSchedule;
@@ -59,8 +65,93 @@ class TodayBookingsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = schedule;
     final automationState = automation;
+    final canonicalCurrent = data?.currentSession;
+    final currentClosed =
+        canonicalCurrent != null &&
+        ((scope?.closedSessionIds.contains(canonicalCurrent.sessionId) ??
+                false) ||
+            scope?.sessions[canonicalCurrent.bookingId]?.completedAt != null);
+    final localCurrent = scope?.sessions.values
+        .where((s) => s.businessState.isActive)
+        .firstOrNull;
+    final canonicalClosed =
+        canonicalCurrent != null &&
+        (data?.bookings.any(
+              (b) =>
+                  b.id == canonicalCurrent.bookingId &&
+                  b.session?.status == 'closed',
+            ) ??
+            false);
+    final current = localCurrent != null
+        ? CurrentBookingSession(
+            sessionId: localCurrent.localId,
+            status: 'open',
+            startedAt: localCurrent.startedAt,
+            wellId: data?.wellId ?? '',
+            bookingId: localCurrent.bookingId,
+            bookingPublicCode: data?.bookings
+                .where((b) => b.id == localCurrent.bookingId)
+                .firstOrNull
+                ?.publicCode,
+          )
+        : currentClosed || canonicalClosed
+        ? null
+        : canonicalCurrent;
+    BookingPresentation presentation(BookingDayItem b) => presentBooking(
+      id: b.id,
+      status: b.status,
+      session: b.session,
+      scope: scope,
+      currentBookingId: current?.bookingId,
+      nextBookingId: armedNextBookingId(automationState),
+    );
+    final primary = (data?.bookings ?? const <BookingDayItem>[])
+        .where((b) => !presentation(b).isTerminal)
+        .toList();
+    final history = (data?.bookings ?? const <BookingDayItem>[])
+        .where((b) => presentation(b).isTerminal)
+        .toList();
+    primary.sort(
+      (a, b) => compareBookingPresentation(
+        a: presentation(a),
+        b: presentation(b),
+        aStart: a.scheduledStart,
+        bStart: b.scheduledStart,
+        aPriority: a.priority,
+        bPriority: b.priority,
+        aCode: a.publicCode,
+        bCode: b.publicCode,
+      ),
+    );
+    history.sort(
+      (a, b) => compareBookingHistory(
+        presentation(a),
+        presentation(b),
+        a.scheduledStart,
+        b.scheduledStart,
+        a.publicCode,
+        b.publicCode,
+      ),
+    );
     final hasAnyOpenSession =
-        hasLocalActiveSession || data?.currentSession != null;
+        hasLocalActiveSession ||
+        current != null ||
+        primary.any((b) => presentation(b).isCurrent);
+    Widget card(BookingDayItem booking) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _BookingCard(
+        booking: booking,
+        presentation: presentation(booking),
+        canStart:
+            !isCachedSchedule &&
+            !requiresReview &&
+            !hasAnyOpenSession &&
+            presentation(booking).canStart &&
+            booking.canStartManually,
+        isStarting: startingBookingId == booking.id,
+        onStart: () => onStartBooking(booking),
+      ),
+    );
 
     return Container(
       key: const Key('today-bookings-panel'),
@@ -105,12 +196,10 @@ class TodayBookingsPanel extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-          if (hasProvisionalLocalTransition)
-            const Text('تشغيل محلي دون اتصال'),
+          if (hasProvisionalLocalTransition) const Text('تشغيل محلي دون اتصال'),
           if (awaitingReconciliation)
             const Text('تم الانتقال على هذا الهاتف — بانتظار التحقق من الخادم'),
-          if (reconciliationComplete)
-            const Text('تمت المصالحة مع الخادم'),
+          if (reconciliationComplete) const Text('تمت المصالحة مع الخادم'),
           if (requiresReview)
             Text(
               missedTransitionRequiresReview
@@ -126,6 +215,7 @@ class TodayBookingsPanel extends StatelessWidget {
             color: Colors.transparent,
             child: _AutomationTile(
               state: automationState,
+              isOffline: isCachedSchedule || isAutomationCached,
               isLoading: isLoadingAutomation,
               isUpdating: isUpdatingAutomation,
               canManage: canManageAutomation && !isCachedSchedule,
@@ -144,7 +234,7 @@ class TodayBookingsPanel extends StatelessWidget {
           else if (scheduleError != null && data == null)
             _ErrorState(message: scheduleError!, onRetry: onRefresh)
           else if (data != null) ...[
-            _ScheduleHeader(schedule: data),
+            _ScheduleHeader(schedule: data, current: current),
             if (scheduleError != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -163,24 +253,13 @@ class TodayBookingsPanel extends StatelessWidget {
                 ),
               )
             else
-              ...data.bookings.map(
-                (booking) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _BookingCard(
-                    booking: booking,
-                    isCurrent:
-                        data.currentSession?.bookingId == booking.id ||
-                        booking.session?.status == 'open',
-                    isNext:
-                        automationState?.activeChainNextBookingId == booking.id,
-                    canStart:
-                        !isCachedSchedule &&
-                        !requiresReview &&
-                        !hasAnyOpenSession &&
-                        booking.canStartManually,
-                    isStarting: startingBookingId == booking.id,
-                    onStart: () => onStartBooking(booking),
-                  ),
+              ...primary.map(card),
+            if (history.isNotEmpty)
+              Material(
+                child: ExpansionTile(
+                  key: ValueKey('booking-history-${data.requestedDay}'),
+                  title: Text('السجل المنتهي لليوم (${history.length})'),
+                  children: history.map(card).toList(),
                 ),
               ),
           ],
@@ -193,6 +272,7 @@ class TodayBookingsPanel extends StatelessWidget {
 class _AutomationTile extends StatelessWidget {
   const _AutomationTile({
     required this.state,
+    required this.isOffline,
     required this.isLoading,
     required this.isUpdating,
     required this.canManage,
@@ -201,6 +281,7 @@ class _AutomationTile extends StatelessWidget {
   });
 
   final BookingAutomationState? state;
+  final bool isOffline;
   final bool isLoading;
   final bool isUpdating;
   final bool canManage;
@@ -233,7 +314,9 @@ class _AutomationTile extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
           subtitle: Text(
-            canManage
+            isOffline && state != null
+                ? '${value ? 'مفعّل' : 'غير مفعّل'} — محفوظ على الجهاز. يتطلب اتصالًا لتغيير الإعداد.'
+                : canManage
                 ? 'أول حجز يبدأ يدويًا. هذا المفتاح يحفظ إعداد البئر، ولا يعني تفعيل التشغيل الإنتاجي الدائم.'
                 : 'يمكنك مشاهدة الإعداد. تغييره متاح للمشغّل المخوّل على هاتف التشغيل فقط.',
           ),
@@ -266,13 +349,14 @@ class _AutomationTile extends StatelessWidget {
 }
 
 class _ScheduleHeader extends StatelessWidget {
-  const _ScheduleHeader({required this.schedule});
+  const _ScheduleHeader({required this.schedule, required this.current});
 
   final WellDaySchedule schedule;
+  final CurrentBookingSession? current;
 
   @override
   Widget build(BuildContext context) {
-    final current = schedule.currentSession;
+    final current = this.current;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -313,22 +397,22 @@ class _ScheduleHeader extends StatelessWidget {
 class _BookingCard extends StatelessWidget {
   const _BookingCard({
     required this.booking,
-    required this.isCurrent,
-    required this.isNext,
+    required this.presentation,
     required this.canStart,
     required this.isStarting,
     required this.onStart,
   });
 
   final BookingDayItem booking;
-  final bool isCurrent;
-  final bool isNext;
+  final BookingPresentation presentation;
   final bool canStart;
   final bool isStarting;
   final VoidCallback onStart;
 
   @override
   Widget build(BuildContext context) {
+    final isCurrent = presentation.isCurrent;
+    final isNext = presentation.isNext;
     final borderColor = isCurrent
         ? AppColors.agriculturalGreen
         : isNext
@@ -369,17 +453,18 @@ class _BookingCard extends StatelessWidget {
               Wrap(
                 spacing: 6,
                 children: [
-                  if (isCurrent)
-                    const _Tag(
-                      text: 'الجاري',
-                      color: AppColors.agriculturalGreen,
-                    ),
-                  if (isNext)
-                    const _Tag(text: 'التالي', color: AppColors.deepBlue),
                   _Tag(
-                    text: _statusLabel(booking.status),
-                    color: AppColors.textSecondary,
+                    text: presentation.label,
+                    color: presentation.color,
+                    icon: presentation.icon,
                   ),
+                  if (presentation.isNext)
+                    const _Tag(text: 'مؤكد', color: AppColors.waterBlue),
+                  if (presentation.syncLabel != null)
+                    _Tag(
+                      text: presentation.syncLabel!,
+                      color: AppColors.textSecondary,
+                    ),
                 ],
               ),
             ],
@@ -405,6 +490,8 @@ class _BookingCard extends StatelessWidget {
             'مصدر الطاقة: ${energySourceLabel(booking.expectedEnergySource)}',
             style: const TextStyle(color: AppColors.textSecondary),
           ),
+          if (presentation.endedAt != null)
+            Text(bookingEndedText(presentation.endedAt!)),
           if (canStart) ...[
             const SizedBox(height: 10),
             FilledButton.icon(
@@ -430,10 +517,11 @@ class _BookingCard extends StatelessWidget {
 }
 
 class _Tag extends StatelessWidget {
-  const _Tag({required this.text, required this.color});
+  const _Tag({required this.text, required this.color, this.icon});
 
   final String text;
   final Color color;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -444,13 +532,19 @@ class _Tag extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) Icon(icon, color: color, size: 14),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -494,17 +588,3 @@ String _formatDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-'
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
-
-String _statusLabel(String status) => switch (status) {
-  'confirmed' => 'مؤكد',
-  'pending' => 'قيد التأكيد',
-  'waiting' => 'بانتظار الموعد',
-  'ready' => 'جاهز',
-  'started' => 'بدأ',
-  'completed' => 'مكتمل',
-  'postponed' => 'مؤجل',
-  'cancelled' => 'ملغى',
-  'no_show' => 'لم يحضر',
-  'draft' => 'مسودة',
-  _ => status,
-};

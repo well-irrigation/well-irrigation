@@ -144,13 +144,17 @@ void main() {
       final conflictJson = {
         'status': 'requires_resolution',
         'conflict_type': 'duplicate_candidate',
-        'message': 'توجد أرض أخرى بنفس الاسم والمزارع وتتطلب تحديد الصفة المميزة',
+        'message':
+            'توجد أرض أخرى بنفس الاسم والمزارع وتتطلب تحديد الصفة المميزة',
         'candidate_farm_id': '00000000-0000-0000-0000-000000000001',
         'name': 'الكوثة',
         'distinguishing_label': null,
       };
 
-      final result = normalizeAcceptedResponse(CommandType.createFarm, conflictJson);
+      final result = normalizeAcceptedResponse(
+        CommandType.createFarm,
+        conflictJson,
+      );
 
       expect(result, isA<DispatchFailed>());
       final failed = result as DispatchFailed;
@@ -165,12 +169,16 @@ void main() {
       final disambiguateJson = {
         'status': 'requires_disambiguation',
         'conflict_type': 'missing_distinguishing_label',
-        'message': 'توجد أرض بنفس الاسم الأساسي ويجب توفير صفة مميزة لإنشاء أرض جديدة',
+        'message':
+            'توجد أرض بنفس الاسم الأساسي ويجب توفير صفة مميزة لإنشاء أرض جديدة',
         'existing_farm_id': '00000000-0000-0000-0000-000000000001',
         'name': 'الكوثة',
       };
 
-      final result = normalizeAcceptedResponse(CommandType.createFarm, disambiguateJson);
+      final result = normalizeAcceptedResponse(
+        CommandType.createFarm,
+        disambiguateJson,
+      );
 
       expect(result, isA<DispatchFailed>());
       final failed = result as DispatchFailed;
@@ -182,12 +190,12 @@ void main() {
     });
 
     test('ردّ خالٍ من المفتاح الإلزامي يتحول إلى DispatchFailed(review) ولا يقبل بـ entityId=null', () {
-      final incompleteJson = {
-        'status': 'something_unexpected',
-        'other': 123,
-      };
+      final incompleteJson = {'status': 'something_unexpected', 'other': 123};
 
-      final result = normalizeAcceptedResponse(CommandType.createFarm, incompleteJson);
+      final result = normalizeAcceptedResponse(
+        CommandType.createFarm,
+        incompleteJson,
+      );
 
       expect(result, isA<DispatchFailed>());
       final failed = result as DispatchFailed;
@@ -202,15 +210,23 @@ void main() {
       for (final type in CommandType.values) {
         expect(
           type.scopeArgument,
-          type.scope == CommandScope.session ? 'p_session_id' : 'p_well_id',
+          type == CommandType.startBookingSession
+              ? 'p_booking_id'
+              : type.scope == CommandScope.session
+              ? 'p_session_id'
+              : 'p_well_id',
           reason: type.rpcName,
         );
       }
     });
 
-    test('كل ردّ jsonb له مفتاح، وكل ردّ uuid بلا مفتاح', () {
+    test('ردّ jsonb لكيان له مفتاح، وإنهاء السلسلة لا ينتج كيانًا', () {
       for (final type in CommandType.values) {
-        expect(type.resultKey != null, type.returnsJson, reason: type.rpcName);
+        expect(
+          type.resultKey != null,
+          type.returnsJson && type != CommandType.endBookingTransitionChain,
+          reason: type.rpcName,
+        );
       }
     });
 
@@ -219,10 +235,7 @@ void main() {
         CommandType.startIrrigationSession.eventTimeArgument,
         'p_started_at',
       );
-      expect(
-        CommandType.startAdhocSession.eventTimeArgument,
-        'p_started_at',
-      );
+      expect(CommandType.startAdhocSession.eventTimeArgument, 'p_started_at');
       expect(
         CommandType.pauseIrrigationSession.eventTimeArgument,
         'p_paused_at',
@@ -253,6 +266,7 @@ void main() {
         CommandType.createFarm: EntityKind.farm,
         CommandType.startIrrigationSession: EntityKind.session,
         CommandType.startAdhocSession: EntityKind.session,
+        CommandType.startBookingSession: EntityKind.session,
         CommandType.recordPayment: EntityKind.payment,
         CommandType.completeIrrigationSession: EntityKind.sessionCharge,
       });

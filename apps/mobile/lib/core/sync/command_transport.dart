@@ -139,23 +139,43 @@ DispatchResult normalizeAcceptedResponse(
   );
 
   final status = response['status']?.toString();
-  if (status == 'requires_resolution' || status == 'requires_disambiguation') {
-    final message = response['message']?.toString() ??
+  if (status == 'requires_resolution' ||
+      status == 'requires_disambiguation' ||
+      ((type == CommandType.startBookingSession ||
+              type == CommandType.endBookingTransitionChain) &&
+          const {'conflict', 'rejected', 'requires_review'}.contains(status))) {
+    final message =
+        response['message']?.toString() ??
         'العملية تتطلب مراجعة أو فض نزاع ($status)';
     return DispatchFailed(
       disposition: FailureDisposition.review,
       message: message,
-      code: response['conflict_type']?.toString() ?? status,
+      code:
+          response['reason_code']?.toString() ??
+          response['conflict_type']?.toString() ??
+          status,
       serverResponse: response,
     );
   }
 
   final resultKey = type.resultKey;
+  if (type == CommandType.endBookingTransitionChain &&
+      (response['contract'] != 'end_booking_transition_chain' ||
+          response['version'] != 1 ||
+          status != 'ended')) {
+    return DispatchFailed(
+      disposition: FailureDisposition.review,
+      message: 'رد إنهاء سلسلة الحجوزات غير مؤكد',
+      code: 'invalid_end_chain_response',
+      serverResponse: response,
+    );
+  }
   final entityId = resultKey == null ? null : response[resultKey]?.toString();
 
   // أي أمر يتوقع معرّف كيان ولكنه يعود فارغاً يحوّل للمراجعة ولا يقبل بـ entityId=null
   if (resultKey != null && (entityId == null || entityId.isEmpty)) {
-    final message = response['message']?.toString() ??
+    final message =
+        response['message']?.toString() ??
         'ردّ ${type.rpcName} خلا من المعرّف المتوقَّع $resultKey';
     return DispatchFailed(
       disposition: FailureDisposition.review,

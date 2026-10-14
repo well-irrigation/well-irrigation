@@ -38,7 +38,7 @@ class SqliteOutboxStore implements OutboxStore {
 
   final DatabaseFactory? _factory;
 
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
   static const String commandsTable = 'outbox_commands';
   static const String mappingsTable = 'id_mappings';
   static const String metaTable = 'sync_meta';
@@ -96,6 +96,19 @@ class SqliteOutboxStore implements OutboxStore {
         version: schemaVersion,
         singleInstance: singleInstance,
         onConfigure: (db) => db.execute('pragma foreign_keys = on'),
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute(
+              "alter table $commandsTable add column prerequisites text not null default '[]'",
+            );
+            await db.execute(
+              "alter table $commandsTable add column local_context text not null default '{}'",
+            );
+            await db.execute(
+              'create index ${commandsTable}_well_idx on $commandsTable (account_id, well_id, sequence)',
+            );
+          }
+        },
         onCreate: (db, version) async {
           await db.execute('''
             create table $commandsTable (
@@ -109,6 +122,8 @@ class SqliteOutboxStore implements OutboxStore {
               occurred_at        text not null,
               created_local_at   text not null,
               payload            text not null,
+              prerequisites      text not null default '[]',
+              local_context      text not null default '{}',
               status             text not null,
               retry_count        integer not null default 0,
               last_error         text,
@@ -121,6 +136,10 @@ class SqliteOutboxStore implements OutboxStore {
             create index ${commandsTable}_dispatch_idx
               on $commandsTable (account_id, status, sequence)
           ''');
+
+          await db.execute(
+            'create index ${commandsTable}_well_idx on $commandsTable (account_id, well_id, sequence)',
+          );
 
           await db.execute('''
             create table $mappingsTable (
@@ -157,6 +176,15 @@ class SqliteOutboxStore implements OutboxStore {
       whereArgs: [accountId, key],
     );
     return rows.isEmpty ? null : rows.single['value'] as String;
+  }
+
+  Future<void> deleteLocalValue(String accountId, String key) async {
+    await initialize();
+    await _db.delete(
+      metaTable,
+      where: 'account_id = ? and key = ?',
+      whereArgs: [accountId, key],
+    );
   }
 
   Future<void> writeLocalValue(
@@ -262,6 +290,52 @@ class SqliteOutboxStore implements OutboxStore {
   }
 
   @override
+  Future<String?> readBundle(String accountId, String key) =>
+      readLocalValue(accountId, key);
+
+  @override
+  Future<String> insertBundle({
+    required String accountId,
+    required String key,
+    required String value,
+    required List<CommandEnvelope> commands,
+    Map<String, String> localValues = const {},
+    bool Function()? isCurrent,
+  }) async {
+    await initialize();
+    return _db.transaction((txn) async {
+      final existing = await txn.query(
+        metaTable,
+        columns: ['value'],
+        where: 'account_id = ? and key = ?',
+        whereArgs: [accountId, key],
+      );
+      if (existing.isNotEmpty) return existing.single['value'] as String;
+      if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
+      for (final command in commands) {
+        if (command.accountId != accountId) {
+          throw StateError('bundle_account_mismatch');
+        }
+        await txn.insert(commandsTable, _toRow(command));
+      }
+      await txn.insert(metaTable, {
+        'account_id': accountId,
+        'key': key,
+        'value': value,
+      });
+      for (final entry in localValues.entries) {
+        await txn.insert(metaTable, {
+          'account_id': accountId,
+          'key': entry.key,
+          'value': entry.value,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
+      return value;
+    });
+  }
+
+  @override
   Future<CommandEnvelope> insert(CommandEnvelope envelope) async {
     try {
       await _db.insert(commandsTable, _toRow(envelope));
@@ -337,6 +411,21 @@ class SqliteOutboxStore implements OutboxStore {
       orderBy: 'sequence asc',
     );
 
+    return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<List<CommandEnvelope>> commandsForWell(
+    String accountId,
+    String wellId,
+  ) async {
+    // صفوف الإصدارات القديمة بلا well_id تبقى قابلة للاستعادة من حمولة البدء.
+    final rows = await _db.query(
+      commandsTable,
+      where: 'account_id = ? and (well_id = ? or well_id is null)',
+      whereArgs: [accountId, wellId],
+      orderBy: 'sequence asc',
+    );
     return rows.map(_fromRow).toList();
   }
 
@@ -508,6 +597,8 @@ class SqliteOutboxStore implements OutboxStore {
     'occurred_at': _encodeTime(envelope.occurredAt),
     'created_local_at': _encodeTime(envelope.createdLocalAt),
     'payload': jsonEncode(envelope.payload),
+    'prerequisites': jsonEncode(envelope.prerequisites),
+    'local_context': jsonEncode(envelope.localContext),
     'status': envelope.status.storageValue,
     'retry_count': envelope.retryCount,
     'last_error': envelope.lastError,
@@ -534,6 +625,10 @@ class SqliteOutboxStore implements OutboxStore {
       occurredAt: _decodeTime(row['occurred_at']! as String),
       createdLocalAt: _decodeTime(row['created_local_at']! as String),
       payload: (jsonDecode(row['payload']! as String) as Map<String, Object?>),
+      prerequisites: (jsonDecode(row['prerequisites']! as String) as List)
+          .cast<String>(),
+      localContext:
+          (jsonDecode(row['local_context']! as String) as Map<String, Object?>),
       status: CommandStatus.fromStorage(row['status']! as String),
       retryCount: row['retry_count']! as int,
       lastError: row['last_error'] as String?,

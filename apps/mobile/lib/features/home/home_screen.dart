@@ -20,6 +20,7 @@ class HomeScreen extends StatefulWidget {
     required this.identity,
     this.onWellChanged,
     this.onNavigateToOperations,
+    this.onNavigateToBookings,
     this.onNavigateToHistory,
     this.onNavigateToFarmers,
     this.onNavigateToExpenses,
@@ -36,6 +37,7 @@ class HomeScreen extends StatefulWidget {
   final AppIdentity identity;
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onNavigateToOperations;
+  final VoidCallback? onNavigateToBookings;
   final VoidCallback? onNavigateToHistory;
   final VoidCallback? onNavigateToFarmers;
   final VoidCallback? onNavigateToExpenses;
@@ -258,6 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _ServicesGrid3x3(
                   isOwner: widget.identity.isOwner,
                   onNavigateToOperations: widget.onNavigateToOperations,
+                  onNavigateToBookings: widget.onNavigateToBookings,
                   onNavigateToHistory: widget.onNavigateToHistory,
                   onNavigateToFarmers: widget.onNavigateToFarmers,
                   onNavigateToExpenses: widget.onNavigateToExpenses,
@@ -571,6 +574,7 @@ class _ServicesGrid3x3 extends StatelessWidget {
   const _ServicesGrid3x3({
     required this.isOwner,
     this.onNavigateToOperations,
+    this.onNavigateToBookings,
     this.onNavigateToHistory,
     this.onNavigateToFarmers,
     this.onNavigateToExpenses,
@@ -584,6 +588,7 @@ class _ServicesGrid3x3 extends StatelessWidget {
 
   final bool isOwner;
   final VoidCallback? onNavigateToOperations;
+  final VoidCallback? onNavigateToBookings;
   final VoidCallback? onNavigateToHistory;
   final VoidCallback? onNavigateToFarmers;
   final VoidCallback? onNavigateToExpenses;
@@ -596,220 +601,171 @@ class _ServicesGrid3x3 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!isOwner) {
-      return Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _ServiceCardTile(
-                  icon: Icons.water_drop_outlined,
-                  title: 'العمليات',
-                  color: AppColors.waterBlue,
-                  onTap: onNavigateToOperations,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ServiceCardTile(
-                  icon: Icons.history_rounded,
-                  title: 'سجل الجلسات',
-                  color: AppColors.deepBlueLight,
-                  onTap: onNavigateToHistory,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ServiceCardTile(
-                  icon: Icons.people_alt_rounded,
-                  title: 'المزارعون والأراضي',
-                  color: AppColors.agriculturalGreen,
-                  onTap: onNavigateToFarmers,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _ServiceCardTile(
-                  icon: Icons.receipt_long_rounded,
-                  title: 'المصروفات',
-                  color: AppColors.deepBlue,
-                  onTap: onNavigateToExpenses,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ServiceCardTile(
-                  icon: Icons.local_gas_station_outlined,
-                  title: 'مخزون الوقود',
-                  color: Colors.deepOrange,
-                  onTap: onNavigateToFuelInventory,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _ServiceCardTile(
-                  icon: Icons.apps_rounded,
-                  title: 'الإعدادات والمزيد',
-                  color: AppColors.textSecondary,
-                  onTap: onNavigateToMoreSettings,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // حيازة النقد: بطاقة المشغل وحده (ق-131 البند 18).
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _ServiceCardTile(
-                  icon: Icons.account_balance_wallet_rounded,
-                  title: 'حيازة النقد',
-                  color: AppColors.waterBlueDark,
-                  onTap: onNavigateToCashCustody,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Expanded(child: SizedBox()),
-              const SizedBox(width: 10),
-              const Expanded(child: SizedBox()),
-            ],
-          ),
-        ],
-      );
+    final rows = isOwner ? _ownerRows() : _operatorRows();
+    final children = <Widget>[];
+    for (var i = 0; i < rows.length; i++) {
+      if (i > 0) children.add(const SizedBox(height: 10));
+      children.add(rows[i]);
     }
-
-    return Column(
-      children: [
-        // الصف الأول
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.history_rounded,
-                title: 'سجل الجلسات',
-                color: AppColors.deepBlueLight,
-                onTap: onNavigateToHistory,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.people_alt_rounded,
-                title: 'المزارعون والأراضي',
-                color: AppColors.agriculturalGreen,
-                onTap: onNavigateToFarmers,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.account_balance_wallet_rounded,
-                title: 'كشوفات الحساب',
-                color: AppColors.waterBlueDark,
-                onTap: onNavigateToFarmers,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        // الصف الثاني
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.receipt_long_rounded,
-                title: 'المصروفات',
-                color: AppColors.deepBlue,
-                onTap: onNavigateToExpenses,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.handshake_rounded,
-                title: 'الشركاء والأرباح',
-                color: AppColors.greenDeep,
-                onTap: onNavigateToPartners,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.settings_suggest_rounded,
-                title: 'البئر والمعدات',
-                color: AppColors.waterBlue,
-                onTap: onNavigateToWellManagement,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        // الصف الثالث
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.analytics_outlined,
-                title: 'التقارير والمؤشرات',
-                color: AppColors.deepBlueLight,
-                onTap: onNavigateToReports,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.price_change_outlined,
-                title: 'أسعار التعرفة',
-                color: AppColors.agriculturalGreen,
-                onTap: onNavigateToWellManagement,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.apps_rounded,
-                title: 'الإعدادات والمزيد',
-                color: AppColors.textSecondary,
-                onTap: onNavigateToMoreSettings,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        // ترحيلات النقد: تأكيدات المالك لحيازة المشغلين (ق-131 البند 18).
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _ServiceCardTile(
-                icon: Icons.account_balance_wallet_rounded,
-                title: 'ترحيلات النقد',
-                color: AppColors.waterBlueDark,
-                onTap: onNavigateToCashCustody,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(child: SizedBox()),
-            const SizedBox(width: 10),
-            const Expanded(child: SizedBox()),
-          ],
-        ),
-      ],
-    );
+    return Column(children: children);
   }
+
+  Widget _cell(IconData icon, String title, Color color, VoidCallback? onTap) =>
+      Expanded(
+        child: _ServiceCardTile(
+          icon: icon,
+          title: title,
+          color: color,
+          onTap: onTap,
+        ),
+      );
+
+  Widget _row(List<Widget> cells) {
+    final kids = <Widget>[];
+    for (var i = 0; i < cells.length; i++) {
+      if (i > 0) kids.add(const SizedBox(width: 10));
+      kids.add(cells[i]);
+    }
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: kids);
+  }
+
+  static const Widget _blank = Expanded(child: SizedBox());
+
+  List<Widget> _operatorRows() => [
+    _row([
+      _cell(
+        Icons.event_available_rounded,
+        'الحجوزات',
+        AppColors.waterBlue,
+        onNavigateToBookings,
+      ),
+      _cell(
+        Icons.water_drop_outlined,
+        'العمليات',
+        AppColors.waterBlue,
+        onNavigateToOperations,
+      ),
+      _cell(
+        Icons.history_rounded,
+        'سجل الجلسات',
+        AppColors.deepBlueLight,
+        onNavigateToHistory,
+      ),
+    ]),
+    _row([
+      _cell(
+        Icons.people_alt_rounded,
+        'المزارعون والأراضي',
+        AppColors.agriculturalGreen,
+        onNavigateToFarmers,
+      ),
+      _cell(
+        Icons.receipt_long_rounded,
+        'المصروفات',
+        AppColors.deepBlue,
+        onNavigateToExpenses,
+      ),
+      _cell(
+        Icons.local_gas_station_outlined,
+        'مخزون الوقود',
+        Colors.deepOrange,
+        onNavigateToFuelInventory,
+      ),
+    ]),
+    _row([
+      _cell(
+        Icons.account_balance_wallet_rounded,
+        'حيازة النقد',
+        AppColors.waterBlueDark,
+        onNavigateToCashCustody,
+      ),
+      _cell(
+        Icons.apps_rounded,
+        'الإعدادات والمزيد',
+        AppColors.textSecondary,
+        onNavigateToMoreSettings,
+      ),
+      _blank,
+    ]),
+  ];
+
+  List<Widget> _ownerRows() => [
+    _row([
+      _cell(
+        Icons.event_available_rounded,
+        'الحجوزات',
+        AppColors.waterBlue,
+        onNavigateToBookings,
+      ),
+      _cell(
+        Icons.history_rounded,
+        'سجل الجلسات',
+        AppColors.deepBlueLight,
+        onNavigateToHistory,
+      ),
+      _cell(
+        Icons.people_alt_rounded,
+        'المزارعون والأراضي',
+        AppColors.agriculturalGreen,
+        onNavigateToFarmers,
+      ),
+    ]),
+    _row([
+      _cell(
+        Icons.account_balance_wallet_rounded,
+        'كشوفات الحساب',
+        AppColors.waterBlueDark,
+        onNavigateToFarmers,
+      ),
+      _cell(
+        Icons.receipt_long_rounded,
+        'المصروفات',
+        AppColors.deepBlue,
+        onNavigateToExpenses,
+      ),
+      _cell(
+        Icons.handshake_rounded,
+        'الشركاء والأرباح',
+        AppColors.greenDeep,
+        onNavigateToPartners,
+      ),
+    ]),
+    _row([
+      _cell(
+        Icons.settings_suggest_rounded,
+        'البئر والمعدات',
+        AppColors.waterBlue,
+        onNavigateToWellManagement,
+      ),
+      _cell(
+        Icons.analytics_outlined,
+        'التقارير والمؤشرات',
+        AppColors.deepBlueLight,
+        onNavigateToReports,
+      ),
+      _cell(
+        Icons.price_change_outlined,
+        'أسعار التعرفة',
+        AppColors.agriculturalGreen,
+        onNavigateToWellManagement,
+      ),
+    ]),
+    _row([
+      _cell(
+        Icons.account_balance_wallet_rounded,
+        'ترحيلات النقد',
+        AppColors.waterBlueDark,
+        onNavigateToCashCustody,
+      ),
+      _cell(
+        Icons.apps_rounded,
+        'الإعدادات والمزيد',
+        AppColors.textSecondary,
+        onNavigateToMoreSettings,
+      ),
+      _blank,
+    ]),
+  ];
 }
 
 /// بلاطة خدمة ناعمة مطابقة لبلاطات تطبيق جيب

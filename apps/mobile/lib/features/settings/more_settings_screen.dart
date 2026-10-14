@@ -19,6 +19,7 @@ class MoreSettingsScreen extends StatefulWidget {
     this.onWellChanged,
     this.onLogout,
     this.repository,
+    this.isTrustedOfflineBootstrap = false,
     super.key,
   });
 
@@ -26,6 +27,11 @@ class MoreSettingsScreen extends StatefulWidget {
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
   final AccountRepository? repository;
+
+  /// دُخِلت الشاشة ضمن غلاف بدء بارد موثوق دون اتصال. تبقى الشاشة نفسها
+  /// صالحة (الخروج، التفضيلات المحلية، الجهاز والمزامنة)، ويُحجب فقط الدخول
+  /// إلى إعدادات الحساب والأمان التي تتطلب اتصالًا بالخادم.
+  final bool isTrustedOfflineBootstrap;
 
   @override
   State<MoreSettingsScreen> createState() => _MoreSettingsScreenState();
@@ -269,6 +275,20 @@ class _MoreSettingsScreenState extends State<MoreSettingsScreen> {
                   title: 'حسابي والملف الشخصي',
                   subtitle: 'تعديل الاسم، إدارة الهاتف المعتمد، والأمان',
                   onTap: () {
+                    // حارس fail-closed صريح: إعدادات الحساب والأمان تطلق
+                    // كتابات خادمية (الاسم/كلمة المرور) تتطلب اتصالًا، فيُحجب
+                    // الدخول أثناء البدء البارد الموثوق دون اتصال — دون
+                    // الاعتماد وحده على _profile==null.
+                    if (widget.isTrustedOfflineBootstrap) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'إعدادات الحساب والأمان تحتاج اتصالًا بالخادم.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
                     final profile = _profile;
                     if (profile == null) {
                       ScaffoldMessenger.of(context).showSnackBar(

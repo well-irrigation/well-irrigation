@@ -44,6 +44,18 @@ abstract interface class OutboxStore {
   /// التخزين لا في الكود، فلا يمكن أن يحمل صفّان نفس المعرّف.
   Future<CommandEnvelope> insert(CommandEnvelope envelope);
 
+  /// يحفظ مجموعة أوامر وسجلها في معاملة واحدة؛ المفتاح يمنع تكرار المجموعة.
+  Future<String> insertBundle({
+    required String accountId,
+    required String key,
+    required String value,
+    required List<CommandEnvelope> commands,
+    Map<String, String> localValues = const {},
+    bool Function()? isCurrent,
+  });
+
+  Future<String?> readBundle(String accountId, String key);
+
   /// يُعيد رقم التسلسل التالي لهذا الحساب.
   ///
   /// تصاعدي ولا يتراجع بعد إعادة تشغيل التطبيق.
@@ -57,6 +69,12 @@ abstract interface class OutboxStore {
 
   /// كل الأوامر — للعرض والتشخيص.
   Future<List<CommandEnvelope>> allCommands(String accountId);
+
+  /// قراءة بئر واحدة للإسقاط التشغيلي، دون قراءة طابور الآبار الأخرى.
+  Future<List<CommandEnvelope>> commandsForWell(
+    String accountId,
+    String wellId,
+  );
 
   /// يحجز الأمر لمحاولة إرسال.
   ///

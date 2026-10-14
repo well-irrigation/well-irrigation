@@ -42,7 +42,29 @@ class OutboxRepository {
     String? wellId,
     String? aggregateLocalId,
   }) async {
-    final envelope = CommandEnvelope(
+    final envelope = await prepare(
+      accountId: accountId,
+      type: type,
+      payload: payload,
+      occurredAt: occurredAt,
+      wellId: wellId,
+      aggregateLocalId: aggregateLocalId,
+    );
+    return _store.insert(envelope);
+  }
+
+  /// يبني أمرًا لمعاملة جماعية؛ لا يعلن حفظه ولا يرسله.
+  Future<CommandEnvelope> prepare({
+    required String accountId,
+    required CommandType type,
+    required Map<String, Object?> payload,
+    required DateTime occurredAt,
+    String? wellId,
+    String? aggregateLocalId,
+    List<String> prerequisites = const [],
+    Map<String, Object?> localContext = const {},
+  }) async {
+    return CommandEnvelope(
       localId: _ids.newId(),
       commandId: _ids.newId(),
       type: type,
@@ -53,9 +75,9 @@ class OutboxRepository {
       payload: payload,
       wellId: wellId,
       aggregateLocalId: aggregateLocalId,
+      prerequisites: prerequisites,
+      localContext: localContext,
     );
-
-    return _store.insert(envelope);
   }
 
   /// يبني مرجعًا إلى كيان سيُنتجه أمرٌ مسجَّل ولم يُرسل بعد.

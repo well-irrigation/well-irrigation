@@ -220,7 +220,7 @@ void main() {
     Future<String> writeLegacyRow(String databasePath) async {
       final raw = await databaseFactoryFfi.openDatabase(
         databasePath,
-        options: OpenDatabaseOptions(version: 1),
+        options: OpenDatabaseOptions(version: SqliteOutboxStore.schemaVersion),
       );
       await raw.insert('outbox_commands', {
         'local_id': 'legacy-local-1',
@@ -323,7 +323,8 @@ void main() {
         const DispatchFailed(
           disposition: FailureDisposition.review,
           code: '23514',
-          message: '23514: بدء السقي الحر يتطلّب مدة مخطّطة لوجود حجز مؤكّد '
+          message:
+              '23514: بدء السقي الحر يتطلّب مدة مخطّطة لوجود حجز مؤكّد '
               'قادم على البئر',
         ),
       );
@@ -339,19 +340,12 @@ void main() {
       await engine.run(accountA);
       await engine.run(accountA);
 
-      final command = await store.commandByLocalId(
-        accountA,
-        envelope.localId,
-      );
+      final command = await store.commandByLocalId(accountA, envelope.localId);
       expect(command!.status, CommandStatus.review);
       expect(command.lastError, contains('23514'));
       expect(command.lastError, contains('مدة مخطّطة'));
       expect(
-        await store.mapping(
-          accountA,
-          envelope.localId,
-          EntityKind.session,
-        ),
+        await store.mapping(accountA, envelope.localId, EntityKind.session),
         isNull,
       );
       expect(
@@ -412,10 +406,7 @@ void main() {
       // مرجع الجلسة حُلّ إلى المعرّف الخادمي لأمر البدء، لا إلى المحلي.
       final startResult =
           transport.executed[start.commandId] as DispatchAccepted;
-      expect(
-        completion.arguments['p_session_id'],
-        startResult.entityId,
-      );
+      expect(completion.arguments['p_session_id'], startResult.entityId);
     });
   });
 
@@ -425,9 +416,8 @@ void main() {
 
       final start = await startWithDuration(coordinator, minutes: 60);
 
-      final projected = await ActiveSessionProjector(
-        store: store,
-      ).unresolvedSessions(accountA, now: DateTime.utc(2026, 10, 3, 6, 5));
+      final projected = await ActiveSessionProjector(store: store)
+          .unresolvedSessions(accountA, now: DateTime.utc(2026, 10, 3, 6, 5));
 
       expect(projected, hasLength(1));
       expect(projected.single.localId, start.localId);

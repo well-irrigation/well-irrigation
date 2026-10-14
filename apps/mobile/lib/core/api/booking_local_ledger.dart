@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import '../session/time_integrity.dart';
 import '../sync/sqlite_outbox_store.dart';
+import '../sync/outbox_store.dart';
+import '../sync/command_type.dart';
+import '../sync/sync_status.dart';
 import 'booking_repository.dart';
 
 class CachedBookingSchedule {
@@ -288,7 +291,169 @@ class BookingTransitionIntent {
 }
 
 /// لقطات قراءة ونوايا بلا أي إرسال لأمر أعمال.
+/// سجل جديد مستقل تمامًا عن الأدلة المؤقتة القديمة.
+/// الأوامر هي مصدر حالة المصالحة الدائم؛ لا يحمل هوية خادم افتراضية.
+class PhoneOwnedBookingTransition {
+  const PhoneOwnedBookingTransition({
+    required this.intent,
+    required this.occurredAt,
+    required this.completeLocalId,
+    required this.completeCommandId,
+    required this.startLocalId,
+    required this.startCommandId,
+    required this.bookingSnapshot,
+    this.reconciliationState = 'pending',
+  });
+  final BookingTransitionIntent intent;
+  final DateTime occurredAt;
+  final String completeLocalId;
+  final String completeCommandId;
+  final String startLocalId;
+  final String startCommandId;
+  final Map<String, Object?> bookingSnapshot;
+  final String reconciliationState;
+  String get provenance => 'phone_owned_live_transition';
+  static String storageKey(String wellId, String transitionKey) {
+    // النسخ والتالي تُحفظ في السجل، لكن لا تُنشئ حدًا ثانيًا للجلسة السابقة.
+    final parts = transitionKey.split(':');
+    if (parts.length != 5) throw StateError('invalid_transition_key');
+    return 'booking.phone_live.v1.$wellId.${parts[0]}:${parts[1]}';
+  }
+
+  Map<String, Object?> toJson() => {
+    'version': 1,
+    'provenance': provenance,
+    'intent': intent.toJson(),
+    'occurred_at': occurredAt.toUtc().toIso8601String(),
+    'complete_local_id': completeLocalId,
+    'complete_command_id': completeCommandId,
+    'start_local_id': startLocalId,
+    'start_command_id': startCommandId,
+    'booking_snapshot': bookingSnapshot,
+    'reconciliation_state': reconciliationState,
+  };
+  factory PhoneOwnedBookingTransition.fromJson(
+    Map<String, dynamic> json, {
+    String? state,
+  }) {
+    if (json['version'] != 1 ||
+        json['provenance'] != 'phone_owned_live_transition') {
+      throw StateError('invalid_phone_transition');
+    }
+    return PhoneOwnedBookingTransition(
+      intent: BookingTransitionIntent.fromJson(
+        Map<String, dynamic>.from(json['intent'] as Map),
+      ),
+      occurredAt: DateTime.parse(json['occurred_at'] as String).toUtc(),
+      completeLocalId: json['complete_local_id'] as String,
+      completeCommandId: json['complete_command_id'] as String,
+      startLocalId: json['start_local_id'] as String,
+      startCommandId: json['start_command_id'] as String,
+      bookingSnapshot: Map<String, Object?>.from(
+        json['booking_snapshot'] as Map,
+      ),
+      reconciliationState: state ?? json['reconciliation_state'] as String,
+    );
+  }
+  static Future<PhoneOwnedBookingTransition?> load(
+    OutboxStore store,
+    String accountId,
+    String wellId,
+    String transitionKey,
+  ) async {
+    final raw = await store.readBundle(
+      accountId,
+      storageKey(wellId, transitionKey),
+    );
+    if (raw == null) return null;
+    final json = jsonDecode(raw) as Map<String, dynamic>;
+    final record = PhoneOwnedBookingTransition.fromJson(json);
+    final complete = await store.commandByLocalId(
+      accountId,
+      record.completeLocalId,
+    );
+    final start = await store.commandByLocalId(accountId, record.startLocalId);
+    final mapping = await store.mapping(
+      accountId,
+      record.startLocalId,
+      EntityKind.session,
+    );
+    final invalid =
+        record.intent.wellId != wellId ||
+        complete == null ||
+        start == null ||
+        complete.type != CommandType.completeIrrigationSession ||
+        start.type != CommandType.startBookingSession ||
+        complete.occurredAt != record.occurredAt ||
+        start.occurredAt != record.occurredAt ||
+        start.prerequisites.length != 1 ||
+        start.prerequisites.single != record.completeLocalId ||
+        start.payload['p_booking_id'] != record.intent.nextBookingId ||
+        (start.status == CommandStatus.confirmed &&
+            (mapping == null ||
+                mapping.serverId != start.serverResponse?['session_id'])) ||
+        complete.commandId != record.completeCommandId ||
+        start.commandId != record.startCommandId ||
+        complete.status == CommandStatus.review ||
+        start.status == CommandStatus.review;
+    return PhoneOwnedBookingTransition.fromJson(
+      json,
+      state: invalid
+          ? 'requires_review'
+          : start.status == CommandStatus.confirmed
+          ? 'server_linked'
+          : 'pending',
+    );
+  }
+}
+
 class BookingLocalLedger {
+  static String bookedLifecycleKey(String wellId) =>
+      'booking.lifecycle.v1.$wellId';
+
+  /// مؤشر بئر واحد؛ سجل الحدث والأوامر يُحفظان ذريًا في OutboxStore.
+  static Future<Map<String, dynamic>?> loadBookedLifecycle(
+    OutboxStore store,
+    String accountId,
+    String wellId,
+  ) async {
+    final raw = await store.readBundle(accountId, bookedLifecycleKey(wellId));
+    if (raw == null) return null;
+    final value = jsonDecode(raw) as Map<String, dynamic>;
+    if (value['version'] != 1 ||
+        value['provenance'] != 'phone_owned_booked_lifecycle' ||
+        value['well_id'] != wellId) {
+      throw StateError('invalid_booked_lifecycle');
+    }
+    final endId = value['end_chain_local_id'];
+    if (endId != null) {
+      final command = await store.commandByLocalId(accountId, endId as String);
+      if (command == null ||
+          command.type != CommandType.endBookingTransitionChain ||
+          command.wellId != wellId ||
+          command.commandId != value['end_chain_command_id']) {
+        throw StateError('missing_or_corrupt_end_chain_command');
+      }
+      if (command.status == CommandStatus.confirmed &&
+          (command.serverResponse?['contract'] !=
+                  'end_booking_transition_chain' ||
+              command.serverResponse?['version'] != 1 ||
+              command.serverResponse?['status'] != 'ended')) {
+        throw StateError('invalid_end_chain_confirmation');
+      }
+      value['server_chain_state'] = command.status == CommandStatus.confirmed
+          ? 'ended'
+          : 'pending';
+      if (command.status == CommandStatus.review) {
+        value['state'] = 'requires_review';
+        value['server_chain_state'] = 'requires_review';
+        value['review_reason'] =
+            command.serverResponse?['reason_code'] ?? command.lastError;
+      }
+    }
+    return value;
+  }
+
   BookingLocalLedger(this.store);
   final SqliteOutboxStore store;
 
@@ -361,6 +526,10 @@ class BookingLocalLedger {
     }
     return existing;
   }
+
+  /// يحذف رابط التوافق فقط بعد قراءة خادم حديثة تثبت غياب الجلسة.
+  Future<void> clearServerSession(String accountId, String wellId) =>
+      store.deleteLocalValue(accountId, _sessionKey(wellId));
 
   Future<ServerBookingSessionLink?> loadServerSession(
     String accountId,

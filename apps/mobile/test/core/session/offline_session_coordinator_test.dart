@@ -30,6 +30,36 @@ class _ControlledDelayOutboxStore implements OutboxStore {
       _inner.insert(envelope);
 
   @override
+  Future<String?> readBundle(String accountId, String key) =>
+      _inner.readBundle(accountId, key);
+
+  @override
+  Future<String> insertBundle({
+    required String accountId,
+    required String key,
+    required String value,
+    required List<CommandEnvelope> commands,
+    Map<String, String> localValues = const {},
+    bool Function()? isCurrent,
+  }) => _inner.insertBundle(
+    accountId: accountId,
+    key: key,
+    value: value,
+    commands: commands,
+    localValues: localValues,
+    isCurrent: isCurrent,
+  );
+
+  @override
+  Future<List<CommandEnvelope>> commandsForWell(
+    String accountId,
+    String wellId,
+  ) async {
+    await allCommands(accountId);
+    return _inner.commandsForWell(accountId, wellId);
+  }
+
+  @override
   Future<int> nextSequence(String accountId) => _inner.nextSequence(accountId);
 
   @override
@@ -761,77 +791,74 @@ void main() {
       expect(wired.currentActiveSession?.wellId, 'well-02');
     });
 
-    test(
-      'إسقاط جديد قديم بدأ أولاً لا يكتب على إسقاط أحدث بدأ لاحقاً واكتمل قبله (Goal 3 — Stale Projection Ordering)',
-      () async {
-        final innerStore = InMemoryOutboxStore();
-        final controlledStore = _ControlledDelayOutboxStore(innerStore);
-        final coord = OfflineSessionCoordinator(store: controlledStore);
-        await coord.initialize();
-        addTearDown(coord.dispose);
+    test('إسقاط جديد قديم بدأ أولاً لا يكتب على إسقاط أحدث بدأ لاحقاً واكتمل قبله (Goal 3 — Stale Projection Ordering)', () async {
+      final innerStore = InMemoryOutboxStore();
+      final controlledStore = _ControlledDelayOutboxStore(innerStore);
+      final coord = OfflineSessionCoordinator(store: controlledStore);
+      await coord.initialize();
+      addTearDown(coord.dispose);
 
-        // نبدأ جلسة على البئر الأول
-        final s1 = await coord.startSession(
-          accountId: 'acc-01',
-          wellId: 'well-01',
-          pumpId: 'pump-01',
-          farmId: 'farm-01',
-          farmerAccountId: 'farmer-01',
-          energySource: 'solar',
-        );
-        expect(coord.currentActiveSession?.localId, s1.localId);
+      // نبدأ جلسة على البئر الأول
+      final s1 = await coord.startSession(
+        accountId: 'acc-01',
+        wellId: 'well-01',
+        pumpId: 'pump-01',
+        farmId: 'farm-01',
+        farmerAccountId: 'farmer-01',
+        energySource: 'solar',
+      );
+      expect(coord.currentActiveSession?.localId, s1.localId);
 
-        // نراقب ما يُبث عبر activeSessionStream
-        final emitted = <ActiveSessionRecord?>[];
-        final sub = coord.activeSessionStream.listen(emitted.add);
-        addTearDown(sub.cancel);
+      // نراقب ما يُبث عبر activeSessionStream
+      final emitted = <ActiveSessionRecord?>[];
+      final sub = coord.activeSessionStream.listen(emitted.add);
+      addTearDown(sub.cancel);
 
-        // نجهز تأخير الاستدعاء التالي لـ allCommands
-        final delayFirst = Completer<void>();
-        controlledStore.delayNextAllCommands = delayFirst;
+      // نجهز تأخير الاستدعاء التالي لـ allCommands
+      final delayFirst = Completer<void>();
+      controlledStore.delayNextAllCommands = delayFirst;
 
-        // 1. نبدأ الإسقاط القديم (جيل 1)
-        final futureOld = coord.freshProjectActiveSession(
-          accountId: 'acc-01',
-          wellId: 'well-01',
-        );
+      // 1. نبدأ الإسقاط القديم (جيل 1)
+      final futureOld = coord.freshProjectActiveSession(
+        accountId: 'acc-01',
+        wellId: 'well-01',
+      );
 
-        // 2. نبدأ جلسة على البئر الثاني
-        final s2 = await coord.startSession(
-          accountId: 'acc-01',
-          wellId: 'well-02',
-          pumpId: 'pump-02',
-          farmId: 'farm-02',
-          farmerAccountId: 'farmer-02',
-          energySource: 'diesel',
-        );
+      // 2. نبدأ جلسة على البئر الثاني
+      final s2 = await coord.startSession(
+        accountId: 'acc-01',
+        wellId: 'well-02',
+        pumpId: 'pump-02',
+        farmId: 'farm-02',
+        farmerAccountId: 'farmer-02',
+        energySource: 'diesel',
+      );
 
-        // 3. نشغل إسقاطاً جديداً للبئر الثاني (جيل 2)
-        // لن يتأخر لأن allCommandsCalls صار 2
-        final recent = await coord.freshProjectActiveSession(
-          accountId: 'acc-01',
-          wellId: 'well-02',
-        );
-        await Future<void>.delayed(Duration.zero);
+      // 3. نشغل إسقاطاً جديداً للبئر الثاني (جيل 2)
+      // لن يتأخر لأن allCommandsCalls صار 2
+      final recent = await coord.freshProjectActiveSession(
+        accountId: 'acc-01',
+        wellId: 'well-02',
+      );
+      await Future<void>.delayed(Duration.zero);
 
-        expect(recent?.localId, s2.localId);
-        expect(coord.currentActiveSession?.localId, s2.localId);
-        final emittedCountAfterNew = emitted.length;
-        expect(emitted.last?.localId, s2.localId);
+      expect(recent?.localId, s2.localId);
+      expect(coord.currentActiveSession?.localId, s2.localId);
+      final emittedCountAfterNew = emitted.length;
+      expect(emitted.last?.localId, s2.localId);
 
-        // 4. الآن نسمح للإسقاط القديم (جيل 1) بالاكتمال
-        delayFirst.complete();
-        final oldResult = await futureOld;
-        await Future<void>.delayed(Duration.zero);
+      // 4. الآن نسمح للإسقاط القديم (جيل 1) بالاكتمال
+      delayFirst.complete();
+      final oldResult = await futureOld;
+      await Future<void>.delayed(Duration.zero);
 
-        // النتيجة المعادة من الدالة القديمة هي الحالة الأحدث،
-        // ولم تكتب s1 على s2، ولم تبث s1 في الـ stream!
-        expect(oldResult?.localId, s2.localId);
-        expect(coord.currentActiveSession?.localId, s2.localId);
-        expect(emitted.length, emittedCountAfterNew);
-        expect(emitted.last?.localId, s2.localId);
-      },
-    );
+      // النتيجة المعادة من الدالة القديمة هي الحالة الأحدث،
+      // ولم تكتب s1 على s2، ولم تبث s1 في الـ stream!
+      expect(oldResult?.localId, s2.localId);
+      expect(coord.currentActiveSession?.localId, s2.localId);
+      expect(emitted.length, emittedCountAfterNew);
+      expect(emitted.last?.localId, s2.localId);
+    });
 
     group('حل تعارض وترشيح الجلسات النشطة (Goal 7 — ق-129)', () {
       test('صفر مرشحين (zero candidates) ⟹ null', () async {
@@ -862,47 +889,44 @@ void main() {
         expect(coordinator.currentActiveSession?.localId, s1.localId);
       });
 
-      test(
-        'مرشحان اثنان لنفس البئر (two candidates) ⟹ null ولا يُختار أي منهما ضمنياً',
-        () async {
-          await coordinator.startSession(
+      test('مرشحان اثنان لنفس البئر (two candidates) ⟹ null ولا يُختار أي منهما ضمنياً', () async {
+        await coordinator.startSession(
+          accountId: 'acc-01',
+          wellId: 'well-01',
+          pumpId: 'pump-01',
+          farmId: 'farm-01',
+          farmerAccountId: 'farmer-01',
+          energySource: 'solar',
+        );
+        // ندخل أمراً ثانياً على نفس البئر
+        await store.insert(
+          CommandEnvelope(
+            commandId: 'cmd-dup-start',
             accountId: 'acc-01',
+            type: CommandType.startIrrigationSession,
             wellId: 'well-01',
-            pumpId: 'pump-01',
-            farmId: 'farm-01',
-            farmerAccountId: 'farmer-01',
-            energySource: 'solar',
-          );
-          // ندخل أمراً ثانياً على نفس البئر
-          await store.insert(
-            CommandEnvelope(
-              commandId: 'cmd-dup-start',
-              accountId: 'acc-01',
-              type: CommandType.startIrrigationSession,
-              wellId: 'well-01',
-              localId: 'local-dup-start',
-              occurredAt: DateTime.now().add(const Duration(seconds: 1)),
-              createdLocalAt: DateTime.now().add(const Duration(seconds: 1)),
-              sequence: 99,
-              payload: {
-                'p_well_id': 'well-01',
-                'p_pump_id': 'pump-01',
-                'p_farm_id': 'farm-01',
-                'p_farmer_well_account_id': 'farmer-01',
-                'p_energy_source': 'solar',
-              },
-            ),
-          );
+            localId: 'local-dup-start',
+            occurredAt: DateTime.now().add(const Duration(seconds: 1)),
+            createdLocalAt: DateTime.now().add(const Duration(seconds: 1)),
+            sequence: 99,
+            payload: {
+              'p_well_id': 'well-01',
+              'p_pump_id': 'pump-01',
+              'p_farm_id': 'farm-01',
+              'p_farmer_well_account_id': 'farmer-01',
+              'p_energy_source': 'solar',
+            },
+          ),
+        );
 
-          final res = await coordinator.projectActiveSession(
-            accountId: 'acc-01',
-            wellId: 'well-01',
-          );
-          // لا اختيار عشوائي أو ضمني لأحدهما عند الغموض
-          expect(res, isNull);
-          expect(coordinator.currentActiveSession, isNull);
-        },
-      );
+        final res = await coordinator.projectActiveSession(
+          accountId: 'acc-01',
+          wellId: 'well-01',
+        );
+        // لا اختيار عشوائي أو ضمني لأحدهما عند الغموض
+        expect(res, isNull);
+        expect(coordinator.currentActiveSession, isNull);
+      });
 
       test(
         'مرشحان لبئرين مختلفين وبحث عام بلا wellId ⟹ null لغموض الطلب',

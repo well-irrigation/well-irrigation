@@ -30,6 +30,7 @@ class LocalPayment {
   });
 
   final String localId;
+
   final int amountMinor;
   final DateTime paidAt;
   final CommandStatus status;
@@ -85,11 +86,17 @@ class ActiveSessionRecord {
     required this.payments,
     required this.timeIntegrityFlags,
     required this.pendingCommandCount,
+    this.phoneOwned = false,
+    this.bookingId,
+    this.bookingContext = const {},
+    this.farmerName,
+    this.farmName,
     this.serverSessionId,
     this.wellId,
     this.farmReference,
     this.farmerReference,
     this.pumpId,
+    this.pumpName,
     this.crops = const [],
     this.completedAt,
     this.lastSuccessfulSyncAt,
@@ -100,6 +107,11 @@ class ActiveSessionRecord {
   final String localId;
 
   /// الحساب المالك (ق-101). جلسة حساب لا تظهر لحساب آخر.
+  final bool phoneOwned;
+  final String? bookingId;
+  final Map<String, Object?> bookingContext;
+  final String? farmerName;
+  final String? farmName;
   final String accountId;
 
   /// معرّف الجلسة على الخادم، أو `null` إن لم يُحسم بعد.
@@ -115,9 +127,19 @@ class ActiveSessionRecord {
 
   final String? farmerReference;
   final String? pumpId;
+  final String? pumpName;
 
   /// لقطة المحاصيل المختارة عند بدء الجلسة، لا حالة الأرض الحالية.
   final List<String> crops;
+
+  int? get bookedDurationMinutes {
+    final value = bookingContext['expected_duration_minutes'];
+    return phoneOwned && value is int && value > 0 ? value : null;
+  }
+
+  DateTime? get bookedOperationalEnd => bookedDurationMinutes == null
+      ? null
+      : startedAt.add(Duration(minutes: bookedDurationMinutes!));
 
   final DateTime startedAt;
   final DateTime? completedAt;
