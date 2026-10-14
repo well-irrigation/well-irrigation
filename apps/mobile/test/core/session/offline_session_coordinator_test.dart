@@ -82,6 +82,34 @@ class _ControlledDelayOutboxStore implements OutboxStore {
   }
 
   @override
+  Future<SessionOutboxSnapshot?> sessionSnapshot({
+    required String accountId,
+    required String wellId,
+    String? localSessionId,
+    String? serverSessionId,
+  }) => _inner.sessionSnapshot(
+    accountId: accountId,
+    wellId: wellId,
+    localSessionId: localSessionId,
+    serverSessionId: serverSessionId,
+  );
+  @override
+  Future<void> saveSessionPaymentRead({
+    required String accountId,
+    required String wellId,
+    required String localSessionId,
+    required Map<String, Object?> value,
+  }) => _inner.saveSessionPaymentRead(
+    accountId: accountId,
+    wellId: wellId,
+    localSessionId: localSessionId,
+    value: value,
+  );
+  @override
+  Future<CommandEnvelope> insertSessionPayment(CommandEnvelope command) =>
+      _inner.insertSessionPayment(command);
+
+  @override
   Future<bool> claim(
     String accountId,
     String localId, {

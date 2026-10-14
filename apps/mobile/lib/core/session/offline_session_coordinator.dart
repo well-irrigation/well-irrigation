@@ -27,6 +27,60 @@ import 'active_session_record.dart';
 import 'session_crop_snapshot.dart';
 import 'time_integrity.dart';
 
+/// نتيجة قراءة فقط من الطابور وقراءة مالية خادمية محفوظة فيه.
+/// إصدار الدفعات يمنع رفع قراءة بدأت قبل الإقرار إلى حقيقة سارية بعده.
+class CompletedSessionPaymentState {
+  CompletedSessionPaymentState({
+    required this.record,
+    required this.revision,
+    Map<String, Object?>? paymentRead,
+  }) : storedRead = paymentRead,
+       paymentRead = paymentRead?['revision'] == revision ? paymentRead : null;
+  final ActiveSessionRecord record;
+  final String revision;
+  final Map<String, Object?>? paymentRead;
+  final Map<String, Object?>? storedRead;
+  SessionDetailData? get cachedDetail {
+    final raw = storedRead?['detail'];
+    if (raw is! Map) return null;
+    final value = Map<String, dynamic>.from(raw);
+    return SessionDetailData(
+      session: SessionHistoryItem.fromContract(
+        Map<String, dynamic>.from(value['session'] as Map),
+      ),
+      segments: [
+        for (final segment in value['segments'] as List)
+          SessionSegmentItem.fromContract(
+            Map<String, dynamic>.from(segment as Map),
+          ),
+      ],
+      crops: List<String>.from(value['crops'] as List),
+      paymentMethod: value['payment_method'] as String?,
+      paymentReference: value['payment_reference'] as String?,
+      paidAt: value['paid_at'] == null
+          ? null
+          : DateTime.parse(value['paid_at'] as String),
+    );
+  }
+
+  bool get hasPendingPayment => record.payments.any((p) => !p.isPosted);
+  bool get needsReview =>
+      record.payments.any((p) => p.status == CommandStatus.review);
+  bool get needsCanonicalRead =>
+      record.payments.any((p) => p.isPosted) && paymentRead == null;
+  String? get paymentStatus => paymentRead?['payment_status'] as String?;
+  bool get canRecordPayment =>
+      record.completedAt != null &&
+      record.completionCommandLocalId != null &&
+      !hasPendingPayment &&
+      !needsCanonicalRead &&
+      (paymentRead?['has_charge'] != true ||
+          (paymentRead?['remaining_amount_minor'] as int? ?? 0) > 0) &&
+      paymentStatus != 'settled' &&
+      (paymentStatus == null ||
+          const ['unpaid', 'partial', 'not_billed'].contains(paymentStatus));
+}
+
 /// نتيجة فحص أو تسجيل انتقال تشغيلي محلي مؤقت.
 ///
 /// لا تمثل إيصال خادم؛ liveTransition يحمل دليل الأوامر الحقيقية المتينة.
@@ -1437,6 +1491,39 @@ class OfflineSessionCoordinator {
 
   bool _initialized = false;
   Timer? _tickerTimer;
+  // نتائج الإكمال من الإسقاط الموجود؛ لا مؤقت ولا مخزن عرض موازٍ.
+  final _completionController =
+      StreamController<ActiveSessionRecord>.broadcast();
+  Stream<ActiveSessionRecord> get completionResultStream =>
+      _completionController.stream;
+
+  final _completionDetailViews = <(String, String, String), int>{};
+
+  /// تسجيل قارئ تفاصيل مركب فقط؛ لا يخزن حقائق مالية ولا يجلب شبكة.
+  Stream<ActiveSessionRecord> watchCompletionResult({
+    required String accountId,
+    required String wellId,
+    required String serverSessionId,
+  }) async* {
+    final key = (accountId, wellId, serverSessionId);
+    _completionDetailViews[key] = (_completionDetailViews[key] ?? 0) + 1;
+    try {
+      yield* completionResultStream.where(
+        (r) =>
+            r.accountId == accountId &&
+            r.wellId == wellId &&
+            r.serverSessionId == serverSessionId,
+      );
+    } finally {
+      final remaining = (_completionDetailViews[key] ?? 1) - 1;
+      if (remaining == 0) {
+        _completionDetailViews.remove(key);
+      } else {
+        _completionDetailViews[key] = remaining;
+      }
+    }
+  }
+
   final _sessionController = StreamController<ActiveSessionRecord?>.broadcast();
 
   Stream<ActiveSessionRecord?> get activeSessionStream =>
@@ -1513,6 +1600,36 @@ class OfflineSessionCoordinator {
         accountId,
         well,
       );
+      final completed = records
+          .where((r) => r.wellId == well && r.completedAt != null)
+          .fold<ActiveSessionRecord?>(
+            null,
+            (latest, r) =>
+                latest == null ||
+                    r.completedAt!.isAfter(latest.completedAt!) ||
+                    (r.completedAt == latest.completedAt &&
+                        r.localId.compareTo(latest.localId) > 0)
+                ? r
+                : latest,
+          );
+      if (completed != null && !_completionController.isClosed) {
+        _completionController.add(completed);
+        // الأقدم يُنشر فقط إن كانت تفاصيله مركبة؛ لا أحداث لكل السجل.
+        for (final record in records.where(
+          (r) =>
+              r.wellId == well &&
+              r.completedAt != null &&
+              r.localId != completed.localId &&
+              r.serverSessionId != null &&
+              _completionDetailViews.containsKey((
+                accountId,
+                well,
+                r.serverSessionId!,
+              )),
+        )) {
+          _completionController.add(record);
+        }
+      }
       final scope = BookingReactivity.instance.scope(accountId, well);
       (_presentationScopes[accountId] ??= {})[well] = scope;
       scope.project(
@@ -2104,6 +2221,9 @@ class OfflineSessionCoordinator {
     EntityReference? farmerReference,
     DateTime? startedAt,
     int? plannedDurationMinutes,
+    String? farmerName,
+    String? farmName,
+    String? pumpName,
   }) async {
     await initialize();
 
@@ -2127,13 +2247,18 @@ class OfflineSessionCoordinator {
               ? farmerAccountId
               : throw ArgumentError('معرف حساب المزارع مطلوب'));
 
-    final envelope = await _outbox.enqueue(
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: wellId,
       type: plannedDurationMinutes == null
           ? CommandType.startIrrigationSession
           : CommandType.startAdhocSession,
       occurredAt: eventTime,
+      localContext: {
+        'farmer_name': ?farmerName,
+        'farm_name': ?farmName,
+        'pump_name': ?pumpName,
+      },
       payload: {
         'p_well_id': wellId,
         'p_pump_id': pumpId,
@@ -2144,6 +2269,8 @@ class OfflineSessionCoordinator {
         'p_crops': normalizeCropSnapshot(crops),
       },
     );
+
+    final envelope = await _store.insert(prepared);
 
     await projectActiveSession(accountId: accountId, wellId: wellId);
     await _triggerSync(
@@ -2261,8 +2388,232 @@ class OfflineSessionCoordinator {
     return envelope;
   }
 
+  static Map<String, Object?> _cacheDetail(SessionDetailData data) {
+    final s = data.session;
+    return {
+      'session': {
+        'id': s.id,
+        'well_id': s.wellId,
+        'farmer_name': s.farmerName,
+        'farmer_public_code': s.farmerCode,
+        'farmer_well_account_id': s.farmerAccountId,
+        'farm_name': s.farmName,
+        'pump_name': s.pumpName,
+        'operator_name': s.operatorName,
+        'started_at': s.startedAt.toIso8601String(),
+        'ended_at': s.endedAt?.toIso8601String(),
+        'status': s.status,
+        'energy_source': s.energySourceCode,
+        'actual_seconds': s.actualSeconds,
+        'billable_seconds': s.billableSeconds,
+        'total_amount_minor': s.totalAmountYER,
+        'paid_amount_minor': s.paidAmountYER,
+        'payment_status': s.paymentStatus,
+        'has_charge': s.hasCharge,
+        'has_invoice': s.hasInvoice,
+      },
+      'segments': [
+        for (final seg in data.segments)
+          {
+            'sequence_number': seg.sequenceNumber,
+            'segment_type': seg.segmentType,
+            'is_stop': seg.isStop,
+            'is_billable': seg.isBillable,
+            'energy_source': seg.energySourceCode,
+            'started_at': seg.startedAt.toIso8601String(),
+            'ended_at': seg.endedAt?.toIso8601String(),
+            'actual_seconds': seg.actualSeconds,
+            'billable_seconds': seg.billableSeconds,
+            'applied_rate_minor': seg.appliedRateYER,
+            'time_charge_minor': seg.timeChargeYER,
+            'fuel_charge_minor': seg.fuelChargeYER,
+            'total_charge_minor': seg.totalChargeYER,
+            'notes': seg.notes,
+          },
+      ],
+      'crops': data.crops,
+      'payment_method': data.paymentMethod,
+      'payment_reference': data.paymentReference,
+      'paid_at': data.paidAt?.toIso8601String(),
+    };
+  }
+
+  // قفل قصير لكل حساب/بئر/جلسة، ولا يحتفظ بحقيقة مالية بعد انتهاء العمل.
+  final _paymentSections = <(String, String, String), Future<void>>{};
+  Future<T> _withSessionPaymentSection<T>(
+    (String, String, String) key,
+    Future<T> Function() action,
+  ) async {
+    final previous = _paymentSections[key];
+    final release = Completer<void>();
+    _paymentSections[key] = release.future;
+    try {
+      if (previous != null) await previous;
+      return await action();
+    } finally {
+      release.complete();
+      if (identical(_paymentSections[key], release.future)) {
+        _paymentSections.remove(key);
+      }
+    }
+  }
+
+  Future<CompletedSessionPaymentState?> _restoreSessionPayment({
+    required String accountId,
+    required String wellId,
+    String? localSessionId,
+    String? serverSessionId,
+  }) async {
+    await initialize();
+    final snapshot = await _store.sessionSnapshot(
+      accountId: accountId,
+      wellId: wellId,
+      localSessionId: localSessionId,
+      serverSessionId: serverSessionId,
+    );
+    if (snapshot == null) return null;
+    final record = _projector.projectCompletedSnapshot(
+      snapshot,
+      now: DateTime.now(),
+    );
+    if (record == null) return null;
+    final mappedIds = {
+      for (final m in snapshot.mappings) m.localId: m.serverId,
+    };
+    final revision = jsonEncode([
+      for (final c in snapshot.commands.where(
+        (c) =>
+            c.type == CommandType.completeIrrigationSession ||
+            c.type == CommandType.recordPayment,
+      ))
+        [
+          c.localId,
+          c.status.storageValue,
+          c.serverResponse,
+          mappedIds[c.localId],
+        ],
+    ]);
+    return CompletedSessionPaymentState(
+      record: record,
+      revision: revision,
+      paymentRead: snapshot.paymentRead,
+    );
+  }
+
+  /// استعادة عند الدخول، بلا انتظار حدث أو تشغيل إسقاط البئر/المزامنة.
+  Future<CompletedSessionPaymentState?> restoreCompletedSession({
+    required String accountId,
+    required String wellId,
+    required String serverSessionId,
+  }) => _restoreSessionPayment(
+    accountId: accountId,
+    wellId: wellId,
+    serverSessionId: serverSessionId,
+  );
+
+  /// يحفظ حقائق القراءة كما أعادها الخادم؛ لا يحسب السداد من مبالغ الطلبات.
+  Future<void> rememberSessionPaymentRead({
+    required String accountId,
+    required String wellId,
+    required SessionDetailData detail,
+    required String revision,
+  }) async {
+    final initial = await restoreCompletedSession(
+      accountId: accountId,
+      wellId: wellId,
+      serverSessionId: detail.session.id,
+    );
+    if (initial == null) return;
+    await _withSessionPaymentSection(
+      (accountId, wellId, initial.record.localId),
+      () async {
+        final current = await _restoreSessionPayment(
+          accountId: accountId,
+          wellId: wellId,
+          localSessionId: initial.record.localId,
+        );
+        final s = detail.session;
+        if (current == null ||
+            current.revision != revision ||
+            s.wellId != wellId ||
+            current.record.serverSessionId != s.id) {
+          return;
+        }
+        await _store.saveSessionPaymentRead(
+          accountId: accountId,
+          wellId: wellId,
+          localSessionId: current.record.localId,
+          value: {
+            'revision': revision,
+            'payment_status': s.paymentStatus,
+            'has_charge': s.hasCharge,
+            'has_invoice': s.hasInvoice,
+            'total_amount_minor': s.totalAmountYER,
+            'paid_amount_minor': s.paidAmountYER,
+            'remaining_amount_minor': s.remainingAmountYER,
+            'detail': _cacheDetail(detail),
+          },
+        );
+      },
+    );
+  }
+
   /// 6. تسجيل دفعة مالية وسند قبض (UX-10 / ق-91)
   Future<CommandEnvelope> recordPayment({
+    required String accountId,
+    required String wellId,
+    required String farmerAccountId,
+    required int amountMinor,
+    required String paymentMethod,
+    String? note,
+    String? sessionLocalId,
+    String? sessionCompletionLocalId,
+    DateTime? paidAt,
+  }) async {
+    if (sessionLocalId == null) {
+      return _savePayment(
+        accountId: accountId,
+        wellId: wellId,
+        farmerAccountId: farmerAccountId,
+        amountMinor: amountMinor,
+        paymentMethod: paymentMethod,
+        note: note,
+        sessionCompletionLocalId: sessionCompletionLocalId,
+        paidAt: paidAt,
+      );
+    }
+    return _withSessionPaymentSection(
+      (accountId, wellId, sessionLocalId),
+      () async {
+        final state = await _restoreSessionPayment(
+          accountId: accountId,
+          wellId: wellId,
+          localSessionId: sessionLocalId,
+        );
+        if (state == null ||
+            !state.canRecordPayment ||
+            state.record.farmerReference != farmerAccountId ||
+            state.record.completionCommandLocalId != sessionCompletionLocalId) {
+          throw StateError(
+            'لا يمكن إنشاء دفعة أخرى قبل حسم الحالة الحالية للجلسة',
+          );
+        }
+        return _savePayment(
+          accountId: accountId,
+          wellId: wellId,
+          farmerAccountId: farmerAccountId,
+          amountMinor: amountMinor,
+          paymentMethod: paymentMethod,
+          note: note,
+          sessionLocalId: sessionLocalId,
+          sessionCompletionLocalId: sessionCompletionLocalId,
+          paidAt: paidAt,
+        );
+      },
+    );
+  }
+
+  Future<CommandEnvelope> _savePayment({
     required String accountId,
     required String wellId,
     required String farmerAccountId,
@@ -2282,7 +2633,7 @@ class OfflineSessionCoordinator {
         throw StateError('ربط تكلفة الجلسة يتطلب مرجع الجلسة المحلية');
       }
       final start = await _sessionStart(accountId, sessionLocalId);
-      if (start.wellId != wellId) {
+      if ((start.wellId ?? start.payload['p_well_id']) != wellId) {
         throw StateError('بئر الدفعة لا يطابق بئر الجلسة');
       }
       final completion = await _outbox.byLocalId(
@@ -2298,7 +2649,7 @@ class OfflineSessionCoordinator {
     } else if (sessionLocalId != null) {
       throw StateError('دفعة الجلسة تتطلب مرجع أمر الإنهاء');
     }
-    final envelope = await _outbox.enqueue(
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: wellId,
       aggregateLocalId: sessionLocalId,
@@ -2314,8 +2665,18 @@ class OfflineSessionCoordinator {
       },
     );
 
+    final envelope = sessionLocalId == null
+        ? await _store.insert(prepared)
+        : await _store.insertSessionPayment(prepared);
     if (sessionLocalId != null) {
-      await _projectExactSession(accountId, sessionLocalId);
+      final updated = await _restoreSessionPayment(
+        accountId: accountId,
+        wellId: wellId,
+        localSessionId: sessionLocalId,
+      );
+      if (updated != null && !_completionController.isClosed) {
+        _completionController.add(updated.record);
+      }
     } else {
       await projectActiveSession(accountId: accountId, wellId: wellId);
     }
@@ -2323,6 +2684,7 @@ class OfflineSessionCoordinator {
       accountId,
       sessionLocalId: sessionLocalId,
       wellId: wellId,
+      paymentOnly: sessionLocalId != null,
     );
     return envelope;
   }
@@ -2364,9 +2726,9 @@ class OfflineSessionCoordinator {
       _observePhoneClosures(accountId, records);
       await _publishBookingPresentation(accountId, records, wellId);
     }
-    _currentProjectedSession = record?.businessState.isActive == true
-        ? record
-        : null;
+    // تحديث مالية جلسة منتهية لا يمحو الجلسة التالية الجارية.
+    final active = records.where((r) => r.businessState.isActive).toList();
+    _currentProjectedSession = active.length == 1 ? active.single : null;
     _sessionController.add(_currentProjectedSession);
     return record;
   }
@@ -2375,6 +2737,7 @@ class OfflineSessionCoordinator {
     String accountId, {
     String? sessionLocalId,
     String? wellId,
+    bool paymentOnly = false,
   }) async {
     try {
       await _commandQueuedScheduler?.call(accountId);
@@ -2386,8 +2749,20 @@ class OfflineSessionCoordinator {
     _syncEngine!
         .run(accountId)
         .then((_) async {
-          if (projectionGeneration != _syncProjectionGeneration) return;
-          if (sessionLocalId != null) {
+          if (!paymentOnly &&
+              projectionGeneration != _syncProjectionGeneration) {
+            return;
+          }
+          if (paymentOnly && sessionLocalId != null && wellId != null) {
+            final updated = await _restoreSessionPayment(
+              accountId: accountId,
+              wellId: wellId,
+              localSessionId: sessionLocalId,
+            );
+            if (updated != null && !_completionController.isClosed) {
+              _completionController.add(updated.record);
+            }
+          } else if (sessionLocalId != null) {
             await _projectExactSession(accountId, sessionLocalId);
           } else {
             await projectActiveSession(accountId: accountId, wellId: wellId);
@@ -2571,6 +2946,7 @@ class OfflineSessionCoordinator {
     _initialized = false;
     if (!_sessionController.isClosed) {
       _sessionController.close();
+      _completionController.close();
     }
     _instance = null;
   }

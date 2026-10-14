@@ -34,6 +34,18 @@ class IdMapping {
   final bool matchedExisting;
 }
 
+/// صفوف جلسة واحدة وروابطها؛ لا لقطة مالية محسوبة ولا مسح لسجل البئر.
+class SessionOutboxSnapshot {
+  const SessionOutboxSnapshot({
+    required this.commands,
+    required this.mappings,
+    this.paymentRead,
+  });
+  final List<CommandEnvelope> commands;
+  final List<IdMapping> mappings;
+  final Map<String, Object?>? paymentRead;
+}
+
 abstract interface class OutboxStore {
   /// يهيّئ التخزين. يجب أن يُنادى قبل أي عملية أخرى.
   Future<void> initialize();
@@ -75,6 +87,25 @@ abstract interface class OutboxStore {
     String accountId,
     String wellId,
   );
+
+  /// يلزم تحديد أحد معرفي الجلسة فقط؛ الغياب أو اختلاف النطاق يعيد null.
+  Future<SessionOutboxSnapshot?> sessionSnapshot({
+    required String accountId,
+    required String wellId,
+    String? localSessionId,
+    String? serverSessionId,
+  });
+
+  /// قراءة خادم محفوظة في مساحة الطابور نفسها، وموسومة بإصدار الدفعات.
+  Future<void> saveSessionPaymentRead({
+    required String accountId,
+    required String wellId,
+    required String localSessionId,
+    required Map<String, Object?> value,
+  });
+
+  /// الحفظ مع رفض دفعة جلسة أخرى غير محسومة، في معاملة محلية واحدة.
+  Future<CommandEnvelope> insertSessionPayment(CommandEnvelope command);
 
   /// يحجز الأمر لمحاولة إرسال.
   ///

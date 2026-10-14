@@ -762,12 +762,20 @@ void main() {
         await tester.tap(find.text('تأكيد الإنهاء'));
         await tester.pumpAndSettle();
 
-        // 34. ظهور ملخص ما بعد الإنهاء منفصلاً عن السداد
-        expect(find.text('ملخص الجلسة'), findsOneWidget);
-        expect(find.text('منتهي'), findsOneWidget);
-        expect(find.text('المحاصيل: قات'), findsOneWidget);
+        // 34. تذكير صغير؛ الملخص لا يظهر إلا بطلب المستخدم.
+        expect(find.text('دفعة مؤجلة'), findsOneWidget);
+        expect(find.text('انتهت الجلسة'), findsNothing);
+        expect(find.text('تسجيل دفعة'), findsNothing);
+        await tester.ensureVisible(find.text('دفعة مؤجلة'));
+        await tester.tap(find.text('دفعة مؤجلة'));
+        await tester.pumpAndSettle();
+        expect(find.text('انتهت الجلسة'), findsOneWidget);
+        expect(find.byType(Dialog), findsNothing);
+        expect(find.text('المبلغ التقديري'), findsOneWidget);
+        expect(find.text('منتهي'), findsNothing);
+        expect(find.text('المحاصيل: قات'), findsNothing);
         expect(find.text('تسجيل دفعة'), findsOneWidget);
-        expect(find.text('إغلاق'), findsOneWidget);
+        expect(find.text('لاحقًا'), findsNothing);
         expect(
           (await store.allCommands(accountId)).where(
             (command) => command.type == CommandType.completeIrrigationSession,
@@ -776,6 +784,12 @@ void main() {
         );
 
         // 35-36. إغلاق الملخص لا يفتح دفعاً، والنقر على تسجيل دفعة يفتح سند القبض
+        if (find.text('تسجيل دفعة').evaluate().isEmpty) {
+          await tester.ensureVisible(find.text('دفعة مؤجلة'));
+          await tester.tap(find.text('دفعة مؤجلة'));
+          await tester.pumpAndSettle();
+        }
+        await tester.ensureVisible(find.text('تسجيل دفعة'));
         await tester.tap(find.text('تسجيل دفعة'));
         await tester.pumpAndSettle();
         expect(find.byType(PaymentReceiptDialog), findsOneWidget);
@@ -800,6 +814,36 @@ void main() {
           findsOneWidget,
         ); // الطاقة مفرغة
         expect(find.text('المضخة 1'), findsOneWidget); // المضخة الوحيدة محفوظة
+        final completion = (await store.allCommands(
+          accountId,
+        )).singleWhere((c) => c.type == CommandType.completeIrrigationSession);
+        await store.markConfirmed(
+          accountId,
+          completion.localId,
+          serverResponse: {
+            'session_charge_id': 'charge-1',
+            'amount_minor': 2600,
+          },
+          attemptedAt: t0,
+        );
+        await coordinator.freshProjectActiveSession(
+          accountId: accountId,
+          wellId: 'well-1',
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('دفعة مؤجلة'));
+        await tester.tap(find.text('دفعة مؤجلة'));
+        await tester.pumpAndSettle();
+        expect(find.text('المبلغ المعتمد'), findsOneWidget);
+        expect(find.text('المبلغ التقديري'), findsNothing);
+        await tester.tap(find.byTooltip('إغلاق'));
+        await tester.pumpAndSettle();
+        expect(find.byType(PaymentReceiptDialog), findsNothing);
+        expect(
+          (await store.allCommands(accountId))
+              .where((c) => c.type == CommandType.recordPayment),
+          isEmpty,
+        );
       },
     );
 
@@ -937,9 +981,11 @@ void main() {
         await tester.tap(find.text('تأكيد الإنهاء'));
         await tester.pumpAndSettle();
 
-        // في الملخص أيضاً
+        // لا مبلغ معلوم قابل للدفع: تستعيد العمليات المساحة بلا تذكير.
         expect(find.textContaining('0 ريال'), findsNothing);
-        expect(find.text(SessionStateText.pricingPending), findsWidgets);
+        expect(find.text('دفعة مؤجلة'), findsNothing);
+        expect(find.text('تسجيل دفعة'), findsNothing);
+        expect(find.text('انتهت الجلسة'), findsNothing);
       },
     );
 
@@ -1035,12 +1081,18 @@ void main() {
         await tester.tap(find.text('تأكيد الإنهاء'));
         await tester.pumpAndSettle();
 
-        rebuildHost(() => activeWell = secondWell);
-        await tester.pump();
+        if (find.text('تسجيل دفعة').evaluate().isEmpty) {
+          await tester.ensureVisible(find.text('دفعة مؤجلة'));
+          await tester.tap(find.text('دفعة مؤجلة'));
+          await tester.pumpAndSettle();
+        }
+        await tester.ensureVisible(find.text('تسجيل دفعة'));
         await tester.tap(find.text('تسجيل دفعة'));
         await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('حفظ واعتماد'));
-        await tester.tap(find.text('حفظ واعتماد'));
+        rebuildHost(() => activeWell = secondWell);
+        await tester.pump();
+        await tester.ensureVisible(find.text('حفظ طلب الدفعة'));
+        await tester.tap(find.text('حفظ طلب الدفعة'));
         await tester.pumpAndSettle();
 
         final payment = (await store.allCommands(
@@ -1202,6 +1254,12 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.text('3,493'), findsWidgets);
 
+        if (find.text('تسجيل دفعة').evaluate().isEmpty) {
+          await tester.ensureVisible(find.text('دفعة مؤجلة'));
+          await tester.tap(find.text('دفعة مؤجلة'));
+          await tester.pumpAndSettle();
+        }
+        await tester.ensureVisible(find.text('تسجيل دفعة'));
         await tester.tap(find.text('تسجيل دفعة'));
         await tester.pumpAndSettle();
         expect(find.byType(PaymentReceiptDialog), findsOneWidget);

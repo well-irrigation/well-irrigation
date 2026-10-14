@@ -19,6 +19,9 @@ class InMemoryOutboxStore implements OutboxStore {
   final Map<String, String> _bundles = {};
   final Map<String, CommandEnvelope> _byLocalId = {};
   final Map<String, Set<String>> _byWell = {};
+  final _bySession = <(String, String), Set<String>>{};
+  final _byServerSession = <(String, String), Set<String>>{};
+  final _paymentReads = <(String, String, String), Map<String, Object?>>{};
   bool _closed = false;
 
   @override
@@ -39,6 +42,7 @@ class InMemoryOutboxStore implements OutboxStore {
     _commands.putIfAbsent(envelope.accountId, () => []).add(envelope);
     _byLocalId[envelope.localId] = envelope;
     _indexWell(envelope);
+    _indexSession(envelope);
 
     return envelope;
   }
@@ -79,6 +83,7 @@ class InMemoryOutboxStore implements OutboxStore {
       _commands.putIfAbsent(accountId, () => []).add(command);
       _byLocalId[command.localId] = command;
       _indexWell(command);
+      _indexSession(command);
     }
     _bundles[bundleKey] = value;
     for (final entry in localValues.entries) {
@@ -157,6 +162,98 @@ class InMemoryOutboxStore implements OutboxStore {
     ];
     rows.sort((a, b) => a.sequence.compareTo(b.sequence));
     return rows;
+  }
+
+  void _indexSession(CommandEnvelope command) => _bySession
+      .putIfAbsent((
+        command.accountId,
+        command.effectiveAggregateId,
+      ), () => <String>{})
+      .add(command.localId);
+
+  @override
+  Future<SessionOutboxSnapshot?> sessionSnapshot({
+    required String accountId,
+    required String wellId,
+    String? localSessionId,
+    String? serverSessionId,
+  }) async {
+    _assertOpen();
+    if ((localSessionId == null) == (serverSessionId == null)) {
+      throw ArgumentError('يلزم معرف جلسة واحد');
+    }
+    final candidates = localSessionId == null
+        ? (_byServerSession[(accountId, serverSessionId!)] ?? <String>{})
+        : {localSessionId};
+    final roots = [
+      for (final id in candidates)
+        if (_byLocalId[id]?.accountId == accountId &&
+            (_byLocalId[id]!.wellId ?? _byLocalId[id]!.payload['p_well_id']) ==
+                wellId)
+          _byLocalId[id]!,
+    ];
+    if (roots.length != 1) return null;
+    final root = roots.single;
+    if (root.type != CommandType.startIrrigationSession &&
+        root.type != CommandType.startAdhocSession &&
+        root.type != CommandType.startBookingSession) {
+      return null;
+    }
+    final commands = [
+      for (final id in _bySession[(accountId, root.localId)] ?? <String>{})
+        if (_byLocalId[id]!.wellId == null || _byLocalId[id]!.wellId == wellId)
+          _byLocalId[id]!,
+    ]..sort((a, b) => a.sequence.compareTo(b.sequence));
+    return SessionOutboxSnapshot(
+      commands: commands,
+      mappings: [
+        for (final c in commands)
+          ?_mappings[accountId]?[_mappingKey(
+            c.localId,
+            c.localId == root.localId ? EntityKind.session : EntityKind.payment,
+          )],
+      ],
+      paymentRead: _paymentReads[(accountId, wellId, root.localId)],
+    );
+  }
+
+  @override
+  Future<void> saveSessionPaymentRead({
+    required String accountId,
+    required String wellId,
+    required String localSessionId,
+    required Map<String, Object?> value,
+  }) async {
+    _assertOpen();
+    _paymentReads[(accountId, wellId, localSessionId)] = Map.unmodifiable(
+      value,
+    );
+  }
+
+  @override
+  Future<CommandEnvelope> insertSessionPayment(CommandEnvelope command) async {
+    _assertOpen();
+    if (command.type != CommandType.recordPayment ||
+        command.aggregateLocalId == null ||
+        command.wellId == null) {
+      throw ArgumentError('دفعة جلسة مطلوبة');
+    }
+    for (final id
+        in _bySession[(command.accountId, command.aggregateLocalId!)] ??
+            <String>{}) {
+      final row = _byLocalId[id]!;
+      if (row.type == CommandType.recordPayment &&
+          (row.status != CommandStatus.confirmed ||
+              _mappings[command.accountId]?[_mappingKey(
+                    id,
+                    EntityKind.payment,
+                  )] ==
+                  null)) {
+        throw StateError('توجد دفعة محفوظة أو تحتاج مراجعة لهذه الجلسة');
+      }
+    }
+    // insert لا يتنازل عن التنفيذ قبل تحديث الفهارس، فيطابق المعاملة المحلية.
+    return insert(command);
   }
 
   @override
@@ -250,6 +347,16 @@ class InMemoryOutboxStore implements OutboxStore {
   Future<void> putMapping(String accountId, IdMapping mapping) async {
     _assertOpen();
 
+    if (mapping.kind == EntityKind.session) {
+      final old =
+          _mappings[accountId]?[_mappingKey(mapping.localId, mapping.kind)];
+      if (old != null) {
+        _byServerSession[(accountId, old.serverId)]?.remove(mapping.localId);
+      }
+      _byServerSession
+          .putIfAbsent((accountId, mapping.serverId), () => <String>{})
+          .add(mapping.localId);
+    }
     _mappings.putIfAbsent(
       accountId,
       () => {},

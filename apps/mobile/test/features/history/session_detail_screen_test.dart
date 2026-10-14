@@ -118,16 +118,13 @@ void main() {
       expect(find.text('المضخة الرئيسية 1'), findsOneWidget);
       expect(find.text('خالد النجحي'), findsOneWidget);
       expect(find.text('المحاصيل: قات، قمح'), findsOneWidget);
-      expect(
-        find.text('الخط الزمني وتغيرات الطاقة (Timeline)'),
-        findsOneWidget,
-      );
+      expect(find.text('الخط الزمني وتغيرات الطاقة'), findsOneWidget);
       expect(find.text('تشغيل عبر طاقة شمسية'), findsOneWidget);
       expect(find.text('إيقاف من المشغل'), findsOneWidget);
       expect(find.text('تشغيل عبر ديزل البئر'), findsOneWidget);
-      expect(find.text('تفاصيل السداد وسند القبض'), findsOneWidget);
-      expect(find.text('طباعة الفاتورة'), findsOneWidget);
-      expect(find.text('مشاركة الإيصال'), findsOneWidget);
+      expect(find.text('تفاصيل السداد'), findsOneWidget);
+      expect(find.text('عرض ملخص الجلسة'), findsOneWidget);
+      expect(find.text('مشاركة الملخص'), findsOneWidget);
     });
 
     testWidgets(
@@ -163,11 +160,14 @@ void main() {
       await tester.pumpWidget(_wrap());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('طباعة الفاتورة'));
+      await tester.tap(find.text('عرض ملخص الجلسة'));
       await tester.pumpAndSettle();
 
-      expect(find.text('معاينة الفاتورة الحرارية (58mm)'), findsOneWidget);
-      expect(find.text('إرسال للطابعة'), findsOneWidget);
+      expect(find.text('ملخص الجلسة'), findsOneWidget);
+      expect(find.text('الطباعة غير متاحة حاليًا'), findsOneWidget);
+      await tester.tap(find.text('الطباعة غير متاحة حاليًا'));
+      await tester.pump();
+      expect(find.textContaining('تم إرسال أمر الطباعة'), findsNothing);
     });
 
     testWidgets(
@@ -180,17 +180,18 @@ void main() {
         await tester.pumpWidget(_wrap());
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('طباعة الفاتورة'));
+        await tester.tap(find.text('عرض ملخص الجلسة'));
         await tester.pumpAndSettle();
 
         // سطر الفعلي أساسي، وسطر المفوتر مستقل مميز — لا يظهر أحدهما
         // بوصفه الآخر. والتسعيرة والمبلغ يبقيان من المفوتر المخزَّن.
         // (الخلية خلف النافذة والإيصال داخلها يشتركان في بعض النصوص.)
         expect(find.textContaining('مدة التنفيذ الفعلية'), findsWidgets);
-        expect(find.textContaining('1 ساعة و 30 دقيقة'), findsOneWidget);
-        expect(find.textContaining('الوقت المفوتر'), findsOneWidget);
-        expect(find.textContaining('1 ساعة و 20 دقيقة'), findsOneWidget);
-        expect(find.textContaining('سعر الساعة'), findsOneWidget);
+        expect(find.textContaining('1 س و 30 د و 0 ث'), findsWidgets);
+        expect(find.textContaining('الوقت المفوتر'), findsWidgets);
+        expect(find.textContaining('1 س و 20 د و 0 ث'), findsOneWidget);
+        expect(find.textContaining('سعر الساعة'), findsNothing);
+        expect(find.textContaining('ليس فاتورة أو سند قبض'), findsOneWidget);
         expect(find.textContaining('2,917 ريال'), findsWidgets);
       },
     );
@@ -205,16 +206,19 @@ void main() {
       await tester.pumpWidget(_wrap(billed: false));
       await tester.pumpAndSettle();
 
-      expect(find.text('غير مفوترة بعد'), findsOneWidget);
-      expect(find.text('لم تُفوتر بعد'), findsOneWidget);
+      expect(find.text('الحالة المالية لم تُعتمد بعد'), findsOneWidget);
+      expect(find.text('لم تُعتمد التكلفة بعد'), findsOneWidget);
       expect(find.textContaining('فقط '), findsNothing);
       expect(find.text('طريقة السداد: غير مسجلة'), findsOneWidget);
 
-      await tester.tap(find.text('طباعة الفاتورة'));
+      await tester.tap(find.text('عرض ملخص الجلسة'));
       await tester.pumpAndSettle();
 
-      expect(find.text('معاينة الفاتورة الحرارية (58mm)'), findsNothing);
-      expect(find.textContaining('هذه الجلسة غير مفوترة بعد'), findsOneWidget);
+      expect(find.text('ملخص الجلسة'), findsNothing);
+      expect(
+        find.textContaining('التكلفة المالية لهذه الجلسة لم تُعتمد بعد'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('5. فشل العقد يظهر خطأً صريحًا مع إعادة المحاولة', (

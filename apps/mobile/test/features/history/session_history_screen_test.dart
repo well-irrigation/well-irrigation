@@ -177,7 +177,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('عبدالله مسعد القادري'), findsOneWidget);
-      expect(find.text('غير مفوترة بعد'), findsOneWidget);
+      expect(find.text('الحالة المالية لم تُعتمد بعد'), findsOneWidget);
       expect(find.text('آجل / غير مدفوع 🔴'), findsNothing);
     });
 

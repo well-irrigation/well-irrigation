@@ -54,30 +54,33 @@ void main() {
         expect(find.text('اعتماد الجلسة وسند السداد'), findsNothing);
         expect(find.text('المزارع: محمد عبدالله الشامي'), findsOneWidget);
         expect(find.text('سبعة آلاف ريال'), findsWidgets);
-        expect(find.text('خالص بالكامل ✅'), findsOneWidget);
+        expect(
+          find.text('طلب دفعة مطابق للمبلغ المعروض — لم يُعتمد بعد'),
+          findsOneWidget,
+        );
         expect(find.textContaining('ريال يمني'), findsNothing);
         expect(find.textContaining('ثلاثة آلاف وخمسمائة ريال'), findsOneWidget);
 
         // معاينة الإيصال الحراري
-        final previewFinder = find.text('معاينة قالب الإيصال الحراري (58mm)');
+        final previewFinder = find.text('معاينة ملخص طلب الدفعة');
         expect(previewFinder, findsOneWidget);
         await tester.ensureVisible(previewFinder);
         await tester.tap(previewFinder);
         await tester.pumpAndSettle();
 
-        expect(find.text('إخفاء معاينة الإيصال'), findsOneWidget);
+        expect(find.text('إخفاء ملخص طلب الدفعة'), findsOneWidget);
         expect(find.textContaining('ريال يمني'), findsNothing);
         expect(
-          find.textContaining('سعر الساعة كتابة: ثلاثة آلاف وخمسمائة ريال'),
+          find.textContaining('ملخص طلب دفعة — ليس سند قبض'),
           findsOneWidget,
         );
         expect(
-          find.textContaining('المدفوع كتابة: سبعة آلاف ريال'),
+          find.textContaining('المبلغ المطلوب تسجيله: 7,000 ريال'),
           findsOneWidget,
         );
 
-        // اختبار النقر على حفظ واعتماد
-        final saveFinder = find.text('حفظ واعتماد');
+        // اختبار النقر على حفظ طلب الدفعة
+        final saveFinder = find.text('حفظ طلب الدفعة');
         await tester.ensureVisible(saveFinder);
         await tester.tap(saveFinder);
         await tester.pumpAndSettle();
@@ -124,17 +127,20 @@ void main() {
       final input = find.byType(TextFormField);
       await tester.enterText(input, '5000');
       await tester.pump();
-      expect(find.text('المتبقي (دين على المزارع):'), findsOneWidget);
+      expect(find.text('الفرق عن المبلغ المعروض (تقديري):'), findsOneWidget);
       expect(find.textContaining('2,000'), findsOneWidget);
       expect(find.textContaining('ألفان ريال'), findsOneWidget);
 
       await tester.enterText(input, '7000');
       await tester.pump();
-      expect(find.text('خالص بالكامل ✅'), findsOneWidget);
+      expect(
+        find.text('طلب دفعة مطابق للمبلغ المعروض — لم يُعتمد بعد'),
+        findsOneWidget,
+      );
 
       await tester.enterText(input, '8000');
       await tester.pump();
-      expect(find.text('رصيد مقدم:'), findsOneWidget);
+      expect(find.text('زيادة مقترحة — يحددها الخادم:'), findsOneWidget);
       expect(find.textContaining('1,000'), findsOneWidget);
       expect(find.textContaining('ألف ريال'), findsOneWidget);
     });
@@ -178,7 +184,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final save = find.text('حفظ واعتماد');
+      final save = find.text('حفظ طلب الدفعة');
       await tester.ensureVisible(save);
       await tester.tap(save);
       await tester.pump();
@@ -236,17 +242,17 @@ void main() {
         expect(find.textContaining('مدة السقي الفعلية'), findsNothing);
 
         // معاينة الإيصال الحراري تحمل التمييز نفسه.
-        final previewFinder = find.text('معاينة قالب الإيصال الحراري (58mm)');
+        final previewFinder = find.text('معاينة ملخص طلب الدفعة');
         await tester.ensureVisible(previewFinder);
         await tester.tap(previewFinder);
         await tester.pumpAndSettle();
 
         expect(
-          find.textContaining('- مدة التنفيذ الفعلية: 1 ساعة و 0 دقيقة'),
+          find.textContaining('ملخص طلب دفعة — ليس سند قبض'),
           findsOneWidget,
         );
         expect(
-          find.textContaining('- الوقت المفوتر: 0 ساعة و 50 دقيقة'),
+          find.textContaining('لا يثبت السداد أو التخصيص قبل قبول الخادم'),
           findsOneWidget,
         );
         expect(find.textContaining('- المدة:'), findsNothing);
@@ -321,7 +327,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final printFinder = find.text('طباعة حرارية (غير متاحة)');
+        final printFinder = find.byTooltip('طباعة حرارية (غير متاحة)');
         expect(printFinder, findsOneWidget);
         await tester.ensureVisible(printFinder);
         await tester.tap(printFinder);

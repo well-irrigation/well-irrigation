@@ -226,7 +226,7 @@ void main() {
     expect(await rows(SqliteOutboxStore.commandsTable), beforeCommands);
     expect(await rows(SqliteOutboxStore.mappingsTable), beforeMappings);
     expect(await rows(SqliteOutboxStore.metaTable), expectedMeta);
-    expect(await db.getVersion(), 2);
+    expect(await db.getVersion(), 3);
     coordinator.dispose();
     await store.close();
     await open();
@@ -255,7 +255,7 @@ void main() {
     final reopened = await databaseFactoryFfi.openDatabase(
       '${dir.path}/outbox.db',
     );
-    expect(await reopened.getVersion(), 2);
+    expect(await reopened.getVersion(), 3);
     expect(
       await reopened.query(SqliteOutboxStore.commandsTable, orderBy: 'rowid'),
       beforeCommands,
