@@ -80,8 +80,25 @@ class BootstrapData {
   });
 
   factory BootstrapData.fromJson(Map<String, dynamic> json) {
-    final profileJson = json['profile'] as Map<String, dynamic>? ?? {};
-    final wellsJson = json['wells'] as List<dynamic>? ?? [];
+    final profileJson = json['profile'];
+    final wellsJson = json['wells'];
+    if (profileJson is! Map<String, dynamic> ||
+        profileJson['id'] is! String ||
+        (profileJson['id'] as String).isEmpty ||
+        profileJson['is_platform_admin'] is! bool ||
+        wellsJson is! List ||
+        wellsJson.any(
+          (w) =>
+              w is! Map<String, dynamic> ||
+              w['id'] is! String ||
+              w['tenant_id'] is! String ||
+              w['name'] is! String ||
+              w['status'] is! String ||
+              w['roles'] is! List ||
+              (w['roles'] as List).any((r) => r is! String || r.isEmpty),
+        )) {
+      throw const FormatException('bootstrap_payload_invalid');
+    }
 
     return BootstrapData(
       profile: UserProfile.fromJson(profileJson),

@@ -1,16 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../core/auth/local_auth_account.dart';
+export '../../core/auth/local_auth_account.dart';
+
 import '../../core/session/active_session_record.dart';
 import '../../core/session/offline_session_coordinator.dart';
 import '../../core/session/session_business_state.dart';
-
-/// مفتاح عزل محلي فقط؛ لا يحمل بئرًا أو دورًا أو تفويضًا خادميًا.
-class LocalAuthAccount {
-  const LocalAuthAccount(this.id, {required this.isExpired});
-
-  final String id;
-  final bool isExpired;
-}
 
 /// شاشة الجلسات المحفوظة على هذا الجهاز حين تعجز قراءة الهوية بسبب الشبكة.
 class OfflineSessionRecoveryScreen extends StatefulWidget {

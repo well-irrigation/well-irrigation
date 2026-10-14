@@ -52,8 +52,9 @@ void main() {
       recoveryCoordinator: coordinator,
       localAuthAccount: () => account,
       authChanges: authEvents.stream,
-      builder: (_, identity, _) =>
-          Scaffold(body: Text('حقيقي: ${identity.accountId}')),
+      builder:
+          (_, identity, _, {bool isTrustedOfflineBootstrap = false}) =>
+              Scaffold(body: Text('حقيقي: ${identity.accountId}')),
     ),
   );
 

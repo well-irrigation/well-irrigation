@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/api/app_bootstrap_repository.dart';
+import '../core/api/bootstrap_identity_cache.dart';
 import '../core/api/team_repository.dart';
 import '../core/diagnostics/q129_recovery_diagnostic.dart';
 import '../core/identity/app_identity.dart';
@@ -20,8 +21,8 @@ import '../features/operations/offline_session_recovery_screen.dart';
 /// حقيقية، والحالات الأخرى تُقال كما هي: تحميل، أو تعذُّر مع إعادة محاولة،
 /// أو حساب بلا بئر مرتبط.
 ///
-/// لا تخزين محلي للهوية للعمل دون اتصال: ذلك عمل مؤجَّل بقرار بوابة
-/// التثبيت (ق-120)، وافتراضه هنا يفتح بابًا ممنوعًا.
+/// لقطة bootstrap الأخيرة تفتح قراءة محلية محدودة فقط، ولا تمر إلى
+/// builder الغلاف المعتاد ولا تمنح أي تفويض أعمال بعد انقطاع الاتصال.
 class IdentityGate extends StatefulWidget {
   const IdentityGate({
     required this.loadBootstrap,
@@ -32,6 +33,8 @@ class IdentityGate extends StatefulWidget {
     this.recoveryCoordinator,
     this.localAuthAccount,
     this.authChanges,
+    this.bootstrapCache,
+    this.connectivityRestored,
     super.key,
   });
 
@@ -39,11 +42,16 @@ class IdentityGate extends StatefulWidget {
   final Future<BootstrapData> Function() loadBootstrap;
 
   /// يُبنى المحتوى بهوية حقيقية فقط — لا يُنادى في أي حالة أخرى.
+  ///
+  /// [isTrustedOfflineBootstrap] يعني فقط أن هذا الغلاف المصدَّق دُخِل عبر
+  /// لقطة bootstrap موثوقة مخبّأة لتعذّر القراءة الحيّة عند الإقلاع. لا يصف
+  /// حالة اتصال حيّة، ولا يعطّل العمليات الميدانية المصرَّح بها دون اتصال.
   final Widget Function(
     BuildContext context,
     AppIdentity identity,
-    ValueChanged<WellSummary> onWellChanged,
-  )
+    ValueChanged<WellSummary> onWellChanged, {
+    bool isTrustedOfflineBootstrap,
+  })
   builder;
 
   final VoidCallback? onCreateWellRequested;
@@ -55,12 +63,18 @@ class IdentityGate extends StatefulWidget {
   final OfflineSessionCoordinator? recoveryCoordinator;
   final LocalAuthAccount? Function()? localAuthAccount;
   final Stream<void>? authChanges;
+  final BootstrapIdentityCache? bootstrapCache;
+  final Stream<void>? connectivityRestored;
 
   @override
   State<IdentityGate> createState() => IdentityGateState();
 }
 
-class IdentityGateState extends State<IdentityGate> {
+class IdentityGateState extends State<IdentityGate>
+    with WidgetsBindingObserver {
+  CachedBootstrapIdentity? _offlineSnapshot;
+  StreamSubscription<void>? _connectivitySubscription;
+  Timer? _authExpiryTimer;
   IdentityResolution? _resolution;
   List<ActiveSessionRecord>? _recoverySessions;
   String? _recoveryAccountId;
@@ -71,6 +85,10 @@ class IdentityGateState extends State<IdentityGate> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _connectivitySubscription = widget.connectivityRestored?.listen((_) {
+      if (_offlineSnapshot != null || _connectivityUnavailable) reload();
+    });
     _authSubscription = widget.authChanges?.listen(
       (_) => _checkRecoveryAccount(),
       onError: (Object _, StackTrace _) => _checkRecoveryAccount(),
@@ -82,10 +100,42 @@ class IdentityGateState extends State<IdentityGate> {
   void dispose() {
     _reloadGeneration++;
     _authSubscription?.cancel();
+    _connectivitySubscription?.cancel();
+    _authExpiryTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        (_offlineSnapshot != null || _connectivityUnavailable)) {
+      reload();
+    }
+  }
+
+  bool _offlineScopeIsCurrent(CachedBootstrapIdentity snapshot) {
+    final auth = widget.localAuthAccount?.call();
+    return auth != null &&
+        auth.canUseOfflineIdentity &&
+        auth.id == snapshot.data.profile.id &&
+        auth.sessionId == snapshot.sessionId;
+  }
+
   void _checkRecoveryAccount() {
+    if (!mounted) return;
+    final offline = _offlineSnapshot;
+    if (offline != null) {
+      if (!_offlineScopeIsCurrent(offline)) {
+        _reloadGeneration++;
+        _authExpiryTimer?.cancel();
+        setState(() {
+          _offlineSnapshot = null;
+          _resolution = const IdentityUnavailable('');
+        });
+      }
+      return;
+    }
     if (!mounted || _recoveryAccountId == null) return;
     final current = widget.localAuthAccount?.call();
     if (current?.id != _recoveryAccountId) {
@@ -103,8 +153,11 @@ class IdentityGateState extends State<IdentityGate> {
   /// إعادة القراءة: من زر إعادة المحاولة، ومن الأعلى بعد إنشاء بئر جديد.
   Future<void> reload() async {
     final generation = ++_reloadGeneration;
+    final initialAuth = widget.localAuthAccount?.call();
+    _authExpiryTimer?.cancel();
     setState(() {
       _resolution = null;
+      _offlineSnapshot = null;
       _recoverySessions = null;
       _recoveryAccountId = null;
       _connectivityUnavailable = false;
@@ -114,8 +167,29 @@ class IdentityGateState extends State<IdentityGate> {
     List<ActiveSessionRecord>? recovered;
     String? recoveryAccountId;
     var connectivityUnavailable = false;
+    CachedBootstrapIdentity? offlineSnapshot;
     try {
-      next = resolveIdentity(await widget.loadBootstrap());
+      final data = await widget.loadBootstrap();
+      final auth = widget.localAuthAccount?.call();
+      if (widget.localAuthAccount != null &&
+          (auth == null ||
+              auth.isExpired ||
+              auth.id != data.profile.id ||
+              initialAuth?.id != auth.id ||
+              initialAuth?.sessionId != auth.sessionId)) {
+        throw const FormatException('bootstrap_auth_changed');
+      }
+      if (!mounted || generation != _reloadGeneration) return;
+      next = resolveIdentity(data);
+      if (auth != null &&
+          auth.canUseOfflineIdentity &&
+          widget.bootstrapCache != null) {
+        try {
+          await widget.bootstrapCache!.save(auth, data);
+        } catch (_) {
+          /* فشل حفظ اللقطة لا يحول الرد الخادمي إلى بيانات مخترعة. */
+        }
+      }
     } catch (error) {
       connectivityUnavailable = isBootstrapConnectivityFailure(error);
       logQ129Diagnostic(
@@ -126,7 +200,35 @@ class IdentityGateState extends State<IdentityGate> {
         ),
       );
       next = const IdentityUnavailable('');
+      final auth = widget.localAuthAccount?.call();
       if (connectivityUnavailable &&
+          auth != null &&
+          auth.canUseOfflineIdentity &&
+          initialAuth?.id == auth.id &&
+          initialAuth?.sessionId == auth.sessionId) {
+        try {
+          final snapshot = await widget.bootstrapCache?.load(auth);
+          if (snapshot != null &&
+              snapshot.data.wells.isNotEmpty &&
+              _offlineScopeIsCurrent(snapshot)) {
+            offlineSnapshot = snapshot;
+            // اللقطة الموثوقة تُشتق منها هوية حقيقية بنفس resolveIdentity
+            // المستعمل للمسار الحيّ: الغلاف الحقيقي يُدخَل ببوابة أهلية لا
+            // غلافًا مصغّرًا. اشتقاق غير صالح يبقى IdentityUnavailable فيُحجب.
+            next = resolveIdentity(snapshot.data);
+          }
+        } catch (_) {
+          /* فشل cache يبقى حجبًا، ولا يفتح الغلاف المعتاد. */
+        }
+      } else if (!connectivityUnavailable && auth != null) {
+        try {
+          await widget.bootstrapCache?.invalidate(auth.id);
+        } catch (_) {
+          /* لا يُستعمل cache كرد بديل لرفض الخادم. */
+        }
+      }
+      if (offlineSnapshot == null &&
+          connectivityUnavailable &&
           widget.recoveryCoordinator != null &&
           widget.localAuthAccount != null) {
         try {
@@ -155,12 +257,32 @@ class IdentityGateState extends State<IdentityGate> {
     }
 
     if (!mounted || generation != _reloadGeneration) return;
+    final currentAuth = widget.localAuthAccount?.call();
+    if (widget.localAuthAccount != null &&
+        (currentAuth?.id != initialAuth?.id ||
+            currentAuth?.sessionId != initialAuth?.sessionId)) {
+      next = const IdentityUnavailable('');
+      recovered = null;
+      recoveryAccountId = null;
+      offlineSnapshot = null;
+    }
     setState(() {
       _resolution = next;
+      _offlineSnapshot = offlineSnapshot;
       _recoverySessions = recovered;
       _recoveryAccountId = recoveryAccountId;
       _connectivityUnavailable = connectivityUnavailable;
     });
+    if (offlineSnapshot != null) {
+      final expiry = widget.localAuthAccount?.call()?.expiresAt;
+      if (expiry != null) {
+        final delay = expiry.difference(DateTime.now());
+        _authExpiryTimer = Timer(
+          delay.isNegative ? Duration.zero : delay,
+          _checkRecoveryAccount,
+        );
+      }
+    }
   }
 
   void _selectWell(WellSummary well) {
@@ -223,6 +345,29 @@ class IdentityGateState extends State<IdentityGate> {
   @override
   Widget build(BuildContext context) {
     final resolution = _resolution;
+    final offline = _offlineSnapshot;
+    if (offline != null && _offlineScopeIsCurrent(offline)) {
+      // البدء البارد الموثوق دون اتصال يدخل الغلاف الحقيقي نفسه، لا غلافًا
+      // مصغّرًا منفصلًا (CAPABILITY-GATED TRUSTED OFFLINE COLD START). الهوية
+      // بُنيت في reload من لقطة bootstrap الموثوقة عبر resolveIdentity، فإن
+      // تعذّر اشتقاق هوية صالحة فشلنا مغلقًا ولم ندخل الغلاف.
+      if (resolution is IdentityReady) {
+        return widget.builder(
+          context,
+          resolution.identity,
+          _selectWell,
+          isTrustedOfflineBootstrap: true,
+        );
+      }
+      return AppNoticeView(
+        icon: Icons.cloud_off_outlined,
+        title: 'تعذر تحميل بيانات حسابك',
+        message:
+            'تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت ثم أعد المحاولة.',
+        onRetry: reload,
+        onSignOut: widget.onSignOutRequested,
+      );
+    }
     final recoverySessions = _recoverySessions;
     final recoveryAccountId = _recoveryAccountId;
     if (recoverySessions != null &&
@@ -243,6 +388,7 @@ class IdentityGateState extends State<IdentityGate> {
         context,
         identity,
         _selectWell,
+        isTrustedOfflineBootstrap: false,
       ),
       IdentityWithoutWell() => AppNoticeView(
         icon: Icons.water_drop_outlined,

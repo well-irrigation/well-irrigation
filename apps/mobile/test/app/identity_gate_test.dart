@@ -25,7 +25,13 @@ void main() {
       locale: const Locale('ar'),
       home: IdentityGate(
         loadBootstrap: load,
-        builder: (context, identity, onWellChanged) {
+        builder:
+            (
+              context,
+              identity,
+              onWellChanged, {
+              bool isTrustedOfflineBootstrap = false,
+            }) {
           onBuilt?.call(identity);
           exposeWellChanged?.call(onWellChanged);
           return Scaffold(

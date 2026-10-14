@@ -103,9 +103,11 @@ class SessionTimeContext {
 class ActiveSessionProjector {
   const ActiveSessionProjector({
     required this.store,
+    this.bookedTimeSource,
     this.pricing = const PricingResolver.none(),
   });
 
+  final TimeIntegritySource? bookedTimeSource;
   final OutboxStore store;
   final PricingResolver pricing;
 
@@ -162,8 +164,11 @@ class ActiveSessionProjector {
     required DateTime now,
     SessionTimeContext? timeContext,
   }) async {
+    final root = await store.commandByLocalId(accountId, startCommandLocalId);
+    if (root == null) return null;
     final all = await projectAll(
       accountId,
+      wellId: root.wellId ?? root.payload['p_well_id'] as String?,
       now: now,
       timeContexts: timeContext == null
           ? const {}
@@ -179,10 +184,25 @@ class ActiveSessionProjector {
   Future<List<ActiveSessionRecord>> projectAll(
     String accountId, {
     required DateTime now,
+    String? wellId,
     Map<String, SessionTimeContext> timeContexts = const {},
   }) async {
-    final commands = await store.allCommands(accountId);
-    final mappings = await store.mappings(accountId);
+    final commands = wellId == null
+        ? await store.allCommands(accountId)
+        : await store.commandsForWell(accountId, wellId);
+    final mappings = wellId == null
+        ? await store.mappings(accountId)
+        : (await Future.wait(
+            commands
+                .where(
+                  (c) =>
+                      _isSessionStartType(c.type) ||
+                      c.type == CommandType.recordPayment,
+                )
+                .map(
+                  (c) => store.mapping(accountId, c.localId, c.type.produces!),
+                ),
+          )).whereType<IdMapping>().toList();
     final lastSync = await store.lastSuccessfulSyncAt(accountId);
 
     final serverIdByLocalId = <String, IdMapping>{
@@ -208,6 +228,7 @@ class ActiveSessionProjector {
     }
 
     final sessions = <ActiveSessionRecord>[];
+    TimeReading? bookedReading;
 
     for (final entry in byAggregate.entries) {
       final start = entry.value
@@ -220,22 +241,70 @@ class ActiveSessionProjector {
         continue;
       }
 
+      var timeContext = timeContexts[start.localId];
+      final rawAnchor = start.localContext['trusted_time_anchor'];
+      if (timeContext == null &&
+          start.type == CommandType.startBookingSession &&
+          rawAnchor is Map &&
+          bookedTimeSource != null) {
+        try {
+          bookedReading ??= await bookedTimeSource!.read();
+          timeContext = SessionTimeContext(
+            anchor: SessionTimeAnchor(
+              serverTime: DateTime.parse(rawAnchor['server_time'] as String),
+              wallClock: DateTime.parse(rawAnchor['wall_clock'] as String),
+              monotonic: Duration(
+                microseconds: rawAnchor['monotonic_us'] as int,
+              ),
+              bootId: rawAnchor['boot_id'] as String,
+            ),
+            reading: bookedReading,
+          );
+        } catch (_) {
+          // تعذر القراءة لا يمحو الوقائع المحلية؛ التنفيذ الآلي يفشل مغلقًا.
+        }
+      }
       sessions.add(
         _project(
           accountId: accountId,
           start: start,
           events: entry.value,
           now: now,
-          timeContext: timeContexts[start.localId],
+          timeContext: timeContext,
           serverIdByLocalId: serverIdByLocalId,
           lastSync: lastSync,
+          prerequisiteRequiresReview: await _prerequisiteRequiresReview(
+            accountId,
+            start,
+          ),
         ),
       );
     }
 
     sessions.sort((a, b) => a.startedAt.compareTo(b.startedAt));
 
-    return sessions;
+    return wellId == null
+        ? sessions
+        : sessions.where((s) => s.wellId == wellId).toList();
+  }
+
+  Future<bool> _prerequisiteRequiresReview(
+    String accountId,
+    CommandEnvelope start,
+  ) async {
+    for (final id in start.prerequisites) {
+      try {
+        final prior = await store.commandByLocalId(accountId, id);
+        if (prior == null ||
+            prior.status == CommandStatus.review ||
+            prior.sequence >= start.sequence) {
+          return true;
+        }
+      } on Object {
+        return true;
+      }
+    }
+    return false;
   }
 
   ActiveSessionRecord _project({
@@ -246,6 +315,7 @@ class ActiveSessionProjector {
     required SessionTimeContext? timeContext,
     required Map<String, IdMapping> serverIdByLocalId,
     required DateTime? lastSync,
+    required bool prerequisiteRequiresReview,
   }) {
     final ordered = [...events]
       ..sort((a, b) => a.sequence.compareTo(b.sequence));
@@ -272,7 +342,10 @@ class ActiveSessionProjector {
     final payments = <LocalPayment>[];
 
     DateTime? completedAt;
-    var energySource = start.payload['p_energy_source'] as String?;
+    final context = start.type == CommandType.startBookingSession
+        ? start.localContext
+        : start.payload;
+    var energySource = context['p_energy_source'] as String?;
 
     void openSegment(SegmentKind kind, DateTime at, {String? pauseReason}) {
       segments.add(
@@ -315,6 +388,7 @@ class ActiveSessionProjector {
       switch (command.type) {
         case CommandType.startIrrigationSession:
         case CommandType.startAdhocSession:
+        case CommandType.startBookingSession:
           openSegment(SegmentKind.running, at);
 
         case CommandType.pauseIrrigationSession:
@@ -365,6 +439,7 @@ class ActiveSessionProjector {
         case CommandType.createFarmer:
         case CommandType.createFarm:
         case CommandType.resolveFarmerIdentity:
+        case CommandType.endBookingTransitionChain:
           // كيانات مرجعية، ليست أحداث جلسة. لا تُنشئ مقطعًا.
           break;
       }
@@ -376,14 +451,22 @@ class ActiveSessionProjector {
 
     return ActiveSessionRecord(
       localId: start.localId,
+      phoneOwned: start.type == CommandType.startBookingSession,
+      bookingId: start.payload['p_booking_id'] as String?,
+      bookingContext: start.type == CommandType.startBookingSession
+          ? start.localContext
+          : const {},
+      farmerName: context['farmer_name'] as String?,
+      farmName: context['farm_name'] as String?,
       accountId: accountId,
       serverSessionId: serverIdByLocalId[start.localId]?.serverId,
       wellId: start.wellId ?? start.payload['p_well_id'] as String?,
-      farmReference: _referenceOrId(start.payload['p_farm_id']),
-      farmerReference: _referenceOrId(
-        start.payload['p_farmer_well_account_id'],
-      ),
-      pumpId: _referenceOrId(start.payload['p_pump_id']),
+      farmReference: _referenceOrId(context['p_farm_id']),
+      farmerReference: _referenceOrId(context['p_farmer_well_account_id']),
+      pumpId:
+          _referenceOrId(context['p_pump_id']) ??
+          _referenceOrId(start.serverResponse?['pump_id']),
+      pumpName: start.localContext['pump_name'] as String?,
       crops: _cropSnapshot(start.payload['p_crops']),
       startedAt: start.occurredAt.toUtc(),
       completedAt: completedAt,
@@ -391,10 +474,9 @@ class ActiveSessionProjector {
         segments,
         completed: completedAt != null,
       ),
-      syncState: _syncStateOf(
-        ordered,
-        serverIdByLocalId[start.localId]?.serverId,
-      ),
+      syncState: prerequisiteRequiresReview
+          ? SessionSyncState.conflict
+          : _syncStateOf(ordered, serverIdByLocalId[start.localId]?.serverId),
       segments: List.unmodifiable(segments),
       totals: summarize(segments, effectiveNow),
       payments: List.unmodifiable(payments),
@@ -421,7 +503,8 @@ class ActiveSessionProjector {
   /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
   static bool _isSessionStartType(CommandType type) =>
       type == CommandType.startIrrigationSession ||
-      type == CommandType.startAdhocSession;
+      type == CommandType.startAdhocSession ||
+      type == CommandType.startBookingSession;
 
   /// أعلى حالة مزامنة في أوامر الجلسة، بأولوية القسم 32.
   ///

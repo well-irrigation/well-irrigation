@@ -102,7 +102,7 @@ void main() {
   }
 
   testWidgets(
-    'shows server schedule, authoritative next booking, and manual start',
+    'disabled automation shows confirmed bookings without an armed next badge',
     (tester) async {
       String? startedBooking;
       await tester.pumpWidget(
@@ -117,7 +117,7 @@ void main() {
       expect(find.text('حجوزات اليوم'), findsOneWidget);
       expect(find.text('أحمد'), findsOneWidget);
       expect(find.text('محمد'), findsOneWidget);
-      expect(find.text('التالي'), findsOneWidget);
+      expect(find.text('التالي'), findsNothing);
       expect(
         find.text(
           'أول حجز يبدأ يدويًا. هذا المفتاح يحفظ إعداد البئر، ولا يعني تفعيل التشغيل الإنتاجي الدائم.',
@@ -183,7 +183,7 @@ void main() {
       find.textContaining('الجلسة الجارية من الحجز B-001'),
       findsOneWidget,
     );
-    expect(find.text('الجاري'), findsOneWidget);
+    expect(find.text('جاري'), findsOneWidget);
     expect(find.byType(FilledButton), findsNothing);
   });
 
@@ -214,49 +214,50 @@ void main() {
     expect(find.byKey(const Key('start-booking-booking-1')), findsNothing);
   });
 
-  testWidgets('shows reconciliation state without claiming transition success', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      subject(
-        canManage: true,
-        awaitingReconciliation: true,
-        requiresReview: true,
-        hasProvisionalLocalTransition: true,
-      ),
-    );
-    expect(find.text('تشغيل محلي دون اتصال'), findsOneWidget);
-    expect(
-      find.text('تم الانتقال على هذا الهاتف — بانتظار التحقق من الخادم'),
-      findsOneWidget,
-    );
-    expect(find.text('تعارض مع حالة الخادم — يحتاج مراجعة'), findsOneWidget);
-    expect(find.text('تم الانتقال بنجاح'), findsNothing);
+  testWidgets(
+    'shows reconciliation state without claiming transition success',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          canManage: true,
+          awaitingReconciliation: true,
+          requiresReview: true,
+          hasProvisionalLocalTransition: true,
+        ),
+      );
+      expect(find.text('تشغيل محلي دون اتصال'), findsOneWidget);
+      expect(
+        find.text('تم الانتقال على هذا الهاتف — بانتظار التحقق من الخادم'),
+        findsOneWidget,
+      );
+      expect(find.text('تعارض مع حالة الخادم — يحتاج مراجعة'), findsOneWidget);
+      expect(find.text('تم الانتقال بنجاح'), findsNothing);
 
-    await tester.pumpWidget(
-      subject(canManage: true, reconciliationComplete: true),
-    );
-    expect(find.text('تمت المصالحة مع الخادم'), findsOneWidget);
+      await tester.pumpWidget(
+        subject(canManage: true, reconciliationComplete: true),
+      );
+      expect(find.text('تمت المصالحة مع الخادم'), findsOneWidget);
 
-    await tester.pumpWidget(
-      subject(
-        canManage: true,
-        requiresReview: true,
-        missedTransitionRequiresReview: true,
-      ),
-    );
-    expect(find.text('فات موعد الانتقال — يحتاج مراجعة'), findsOneWidget);
+      await tester.pumpWidget(
+        subject(
+          canManage: true,
+          requiresReview: true,
+          missedTransitionRequiresReview: true,
+        ),
+      );
+      expect(find.text('فات موعد الانتقال — يحتاج مراجعة'), findsOneWidget);
 
-    await tester.pumpWidget(
-      subject(canManage: true, timeIntegrityRequiresReview: true),
-    );
-    expect(
-      find.text('تعذر التحقق من توقيت الانتقال — يحتاج مراجعة'),
-      findsOneWidget,
-      reason: 'انقطاع الدليل الزمني ليس إثباتًا أن الموعد فات',
-    );
-    expect(find.text('فات موعد الانتقال — يحتاج مراجعة'), findsNothing);
-  });
+      await tester.pumpWidget(
+        subject(canManage: true, timeIntegrityRequiresReview: true),
+      );
+      expect(
+        find.text('تعذر التحقق من توقيت الانتقال — يحتاج مراجعة'),
+        findsOneWidget,
+        reason: 'انقطاع الدليل الزمني ليس إثباتًا أن الموعد فات',
+      );
+      expect(find.text('فات موعد الانتقال — يحتاج مراجعة'), findsNothing);
+    },
+  );
 
   testWidgets('loading and error states are explicit', (tester) async {
     await tester.pumpWidget(

@@ -26,6 +26,7 @@ api.decide_expense(p_expense_id uuid, p_approve boolean, p_note text)|text|volat
 api.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uuid, p_to_description text, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.declare_my_operator_cash_remittance(p_well_id uuid, p_amount_minor bigint, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.declare_operator_cash_remittance(p_shift_id uuid, p_amount_minor bigint, p_note text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.end_booking_transition_chain(p_session_id uuid, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.evaluate_well_booking_transition(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.execute_pending_booking_start(p_chain_id uuid, p_expected_revision bigint, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.get_active_price_schedule(p_well_id uuid, p_at timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -218,6 +219,7 @@ ops.current_execution_operator()|uuid|stable|definer|search_path=pg_catalog, pg_
 ops.declare_handover(p_shift_id uuid, p_amount_minor bigint, p_to_profile_id uuid, p_to_description text, p_note text)|uuid|volatile|definer|search_path=ops, pg_temp
 ops.declare_operator_cash_remittance(p_shift_id uuid, p_amount_minor bigint, p_note text)|uuid|volatile|definer|search_path=ops, core, finance, pg_temp
 ops.declare_operator_cash_remittance_for_well(p_well_id uuid, p_operator_profile_id uuid, p_amount_minor bigint, p_note text)|uuid|volatile|definer|search_path=ops, core, finance, pg_temp
+ops.end_booking_transition_chain(p_session_id uuid, p_actor uuid, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.enforce_adhoc_duration_vs_next_booking()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 ops.enforce_booking_transition_chain_consistency()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
 ops.enforce_farm_assignment_consistency()|trigger|volatile|invoker|search_path=ops, pg_temp
@@ -267,6 +269,7 @@ sync.begin_booking_transition_decision_command(p_chain_id uuid, p_prev_session_i
 sync.begin_command(p_tenant_id uuid, p_command_id uuid, p_command_type text, p_payload jsonb, p_entity_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.begin_session_command(p_session_id uuid, p_command_id uuid, p_command_type text, p_payload jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.begin_well_command(p_well_id uuid, p_command_id uuid, p_command_type text, p_payload jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+sync.end_booking_transition_chain_command(p_session_id uuid, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.finish_command(p_tenant_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=sync, pg_temp
 sync.finish_session_command(p_session_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=pg_catalog, pg_temp
 sync.finish_well_command(p_well_id uuid, p_command_id uuid, p_status text, p_response jsonb)|void|volatile|definer|search_path=pg_catalog, pg_temp

@@ -111,10 +111,10 @@ class SyncEngine {
   /// وإلا لأرسلت حلقة ثانية نفس الأمر بالتوازي.
   final Duration staleClaimTimeout;
 
-  Future<SyncRunReport>? _inFlight;
+  final Map<String, Future<SyncRunReport>> _inFlight = {};
 
   /// هل هناك تشغيل جارٍ الآن؟
-  bool get isRunning => _inFlight != null;
+  bool get isRunning => _inFlight.isNotEmpty;
 
   /// يشغّل الحلقة مرة واحدة لهذا الحساب.
   ///
@@ -122,16 +122,16 @@ class SyncEngine {
   /// بـ`alreadyRunning`. الحماية الحقيقية من الإرسال المزدوج هي الحجز
   /// الشرطي في التخزين، وهذا مجرد توفير عمل.
   Future<SyncRunReport> run(String accountId) {
-    final running = _inFlight;
+    final running = _inFlight[accountId];
 
     if (running != null) {
       return Future.value(const SyncRunReport(alreadyRunning: true));
     }
 
     final started = _run(accountId);
-    _inFlight = started;
+    _inFlight[accountId] = started;
 
-    return started.whenComplete(() => _inFlight = null);
+    return started.whenComplete(() => _inFlight.remove(accountId));
   }
 
   Future<SyncRunReport> _run(String accountId) async {
@@ -193,6 +193,41 @@ class SyncEngine {
           block(aggregate, _BlockReason.awaitingReview);
           skipped += 1;
           blockedByReview += 1;
+          continue;
+        }
+
+        var dependencyPending = false;
+        var dependencyInvalid = false;
+        for (final localId in command.prerequisites) {
+          CommandEnvelope? prerequisite;
+          try {
+            prerequisite = await _store.commandByLocalId(accountId, localId);
+          } on Object {
+            dependencyInvalid = true;
+          }
+          if (prerequisite == null ||
+              localId == command.localId ||
+              prerequisite.sequence >= command.sequence ||
+              prerequisite.status == CommandStatus.review) {
+            dependencyInvalid = true;
+          } else if (prerequisite.status != CommandStatus.confirmed) {
+            dependencyPending = true;
+          }
+        }
+        if (dependencyInvalid) {
+          await _store.markNeedsReview(
+            accountId,
+            command.localId,
+            error: 'local_prerequisite_requires_review',
+            attemptedAt: _clock().toUtc(),
+          );
+          block(aggregate, _BlockReason.awaitingReview);
+          needsReview += 1;
+          continue;
+        }
+        if (dependencyPending) {
+          block(aggregate, _BlockReason.transient);
+          skipped += 1;
           continue;
         }
 

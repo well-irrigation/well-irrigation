@@ -16,6 +16,9 @@ class InMemoryOutboxStore implements OutboxStore {
   final Map<String, int> _sequences = {};
   final Map<String, DateTime> _lastSync = {};
   final Set<String> _usedCommandIds = {};
+  final Map<String, String> _bundles = {};
+  final Map<String, CommandEnvelope> _byLocalId = {};
+  final Map<String, Set<String>> _byWell = {};
   bool _closed = false;
 
   @override
@@ -25,13 +28,63 @@ class InMemoryOutboxStore implements OutboxStore {
   Future<CommandEnvelope> insert(CommandEnvelope envelope) async {
     _assertOpen();
 
-    if (!_usedCommandIds.add(envelope.commandId)) {
+    if (_usedCommandIds.contains(envelope.commandId)) {
       throw DuplicateCommandIdException(envelope.commandId);
     }
 
+    if (_byLocalId.containsKey(envelope.localId)) {
+      throw StateError('duplicate_local_id');
+    }
+    _usedCommandIds.add(envelope.commandId);
     _commands.putIfAbsent(envelope.accountId, () => []).add(envelope);
+    _byLocalId[envelope.localId] = envelope;
+    _indexWell(envelope);
 
     return envelope;
+  }
+
+  @override
+  Future<String?> readBundle(String accountId, String key) async {
+    _assertOpen();
+    return _bundles['$accountId::$key'];
+  }
+
+  @override
+  Future<String> insertBundle({
+    required String accountId,
+    required String key,
+    required String value,
+    required List<CommandEnvelope> commands,
+    Map<String, String> localValues = const {},
+    bool Function()? isCurrent,
+  }) async {
+    _assertOpen();
+    final bundleKey = '$accountId::$key';
+    final prior = _bundles[bundleKey];
+    if (prior != null) return prior;
+    final ids = <String>{};
+    final locals = <String>{};
+    for (final command in commands) {
+      if (command.accountId != accountId ||
+          !ids.add(command.commandId) ||
+          _usedCommandIds.contains(command.commandId) ||
+          !locals.add(command.localId) ||
+          _byLocalId.containsKey(command.localId)) {
+        throw StateError('invalid_bundle');
+      }
+    }
+    if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
+    for (final command in commands) {
+      _usedCommandIds.add(command.commandId);
+      _commands.putIfAbsent(accountId, () => []).add(command);
+      _byLocalId[command.localId] = command;
+      _indexWell(command);
+    }
+    _bundles[bundleKey] = value;
+    for (final entry in localValues.entries) {
+      _bundles['$accountId::${entry.key}'] = entry.value;
+    }
+    return value;
   }
 
   @override
@@ -64,13 +117,8 @@ class InMemoryOutboxStore implements OutboxStore {
   ) async {
     _assertOpen();
 
-    for (final row in _commands[accountId] ?? const <CommandEnvelope>[]) {
-      if (row.localId == localId) {
-        return row;
-      }
-    }
-
-    return null;
+    final row = _byLocalId[localId];
+    return row?.accountId == accountId ? row : null;
   }
 
   @override
@@ -80,6 +128,34 @@ class InMemoryOutboxStore implements OutboxStore {
     final rows = [...?_commands[accountId]];
     rows.sort((a, b) => a.sequence.compareTo(b.sequence));
 
+    return rows;
+  }
+
+  void _indexWell(CommandEnvelope command) {
+    final root = _byLocalId[command.aggregateLocalId];
+    final well =
+        command.wellId ??
+        command.payload['p_well_id'] as String? ??
+        root?.wellId ??
+        root?.payload['p_well_id'] as String?;
+    if (well != null) {
+      _byWell
+          .putIfAbsent('${command.accountId}:$well', () => <String>{})
+          .add(command.localId);
+    }
+  }
+
+  @override
+  Future<List<CommandEnvelope>> commandsForWell(
+    String accountId,
+    String wellId,
+  ) async {
+    _assertOpen();
+    final rows = [
+      for (final id in _byWell['$accountId:$wellId'] ?? const <String>{})
+        _byLocalId[id]!,
+    ];
+    rows.sort((a, b) => a.sequence.compareTo(b.sequence));
     return rows;
   }
 
@@ -107,6 +183,7 @@ class InMemoryOutboxStore implements OutboxStore {
       status: CommandStatus.dispatching,
       lastAttemptAt: attemptedAt,
     );
+    _byLocalId[localId] = rows[index];
 
     return true;
   }
@@ -254,6 +331,7 @@ class InMemoryOutboxStore implements OutboxStore {
 
     final rows = _commands[accountId]!;
     rows[index] = transform(rows[index]);
+    _byLocalId[localId] = rows[index];
   }
 
   void _assertOpen() {

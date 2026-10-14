@@ -82,6 +82,16 @@ enum CommandType {
     produces: EntityKind.session,
   ),
 
+  startBookingSession(
+    rpcName: 'start_irrigation_session_from_booking',
+    scope: CommandScope.well,
+    scopeArgument: 'p_booking_id',
+    eventTimeArgument: 'p_started_at',
+    returnsJson: true,
+    resultKey: 'session_id',
+    produces: EntityKind.session,
+  ),
+
   pauseIrrigationSession(
     rpcName: 'pause_irrigation_session',
     scope: CommandScope.session,
@@ -124,6 +134,13 @@ enum CommandType {
     returnsJson: true,
     resultKey: 'session_charge_id',
     produces: EntityKind.sessionCharge,
+  ),
+
+  endBookingTransitionChain(
+    rpcName: 'end_booking_transition_chain',
+    scope: CommandScope.session,
+    scopeArgument: 'p_session_id',
+    returnsJson: true,
   ),
 
   resolveFarmerIdentity(

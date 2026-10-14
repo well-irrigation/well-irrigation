@@ -689,6 +689,51 @@ class BookingRepository {
     return schedule;
   }
 
+  /// نفس عقد جدول اليوم القائم مع يوم صريح؛ قراءة محدودة بلا عقد جديد.
+  Future<BookingScheduleView> fetchDayScheduleView({
+    required String accountId,
+    required String wellId,
+    required DateTime day,
+  }) async {
+    final dayText =
+        '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    try {
+      final client = _effectiveClient;
+      if (client == null) throw StateError('Supabase client is unavailable');
+      final response = await client
+          .schema('api')
+          .rpc(
+            'get_well_day_schedule',
+            params: {'p_well_id': wellId, 'p_day': dayText},
+          );
+      final schedule = WellDaySchedule.fromContract(response);
+      if (schedule.wellId != wellId ||
+          schedule.requestedDay.year != day.year ||
+          schedule.requestedDay.month != day.month ||
+          schedule.requestedDay.day != day.day) {
+        throw StateError('جدول الحجز عاد لنطاق مختلف');
+      }
+      final fetchedAt = DateTime.now().toUtc();
+      return BookingScheduleView(
+        schedule: schedule,
+        isCached: false,
+        fetchedAt: fetchedAt,
+      );
+    } catch (_) {
+      final cached = await _localLedger.loadSchedule(
+        accountId,
+        wellId,
+        dayText,
+      );
+      if (cached == null) rethrow;
+      return BookingScheduleView(
+        schedule: cached.schedule,
+        isCached: true,
+        fetchedAt: cached.fetchedAt,
+      );
+    }
+  }
+
   Future<BookingAutomationState> fetchAutomation(String wellId) async {
     final client = _effectiveClient;
     if (client == null) {
@@ -816,4 +861,295 @@ class BookingRepository {
         );
     return BookingStartResult.fromContract(response);
   }
+
+  // ===== PACKAGE B — إدارة الحجوزات (قراءة online محدودة + إنشاء/جدولة/إلغاء) =====
+  // قراءات محدودة بالنطاق والحدّ (list_well_bookings يدعم p_from/p_to/p_limit)،
+  // فلا مسح شامل ولا N+1. الكتابات online فقط في هذه الحزمة؛ offline = حزمة C.
+
+  Future<WellBookingList> listWellBookings({
+    required String wellId,
+    DateTime? from,
+    DateTime? to,
+    int limit = 200,
+  }) async {
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+    final response = await client
+        .schema('api')
+        .rpc(
+          'list_well_bookings',
+          params: {
+            'p_well_id': wellId,
+            'p_from': from?.toUtc().toIso8601String(),
+            'p_to': to?.toUtc().toIso8601String(),
+            'p_limit': limit,
+          },
+        );
+    return WellBookingList.fromContract(response);
+  }
+
+  Future<WellBookingDetail> getBookingDetail(String bookingId) async {
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+    final response = await client
+        .schema('api')
+        .rpc('get_booking_detail', params: {'p_booking_id': bookingId});
+    return WellBookingDetail.fromContract(response);
+  }
+
+  Future<BookingMutationResult> createBooking({
+    required String wellId,
+    required String farmerWellAccountId,
+    required String farmId,
+    required DateTime scheduledStart,
+    required DateTime scheduledEnd,
+    required String commandId,
+    String? expectedEnergySource,
+    String? alternativeEnergySource,
+    int priority = 0,
+    String? notes,
+  }) async {
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+    final response = await client
+        .schema('api')
+        .rpc(
+          'create_booking',
+          params: {
+            'p_well_id': wellId,
+            'p_farmer_well_account_id': farmerWellAccountId,
+            'p_farm_id': farmId,
+            'p_scheduled_start': scheduledStart.toUtc().toIso8601String(),
+            'p_scheduled_end': scheduledEnd.toUtc().toIso8601String(),
+            'p_command_id': commandId,
+            'p_expected_energy_source': expectedEnergySource,
+            'p_alternative_energy_source': alternativeEnergySource,
+            'p_priority': priority,
+            'p_notes': notes,
+          },
+        );
+    return BookingMutationResult.fromContract(response);
+  }
+
+  Future<BookingMutationResult> rescheduleBooking({
+    required String bookingId,
+    required DateTime scheduledStart,
+    required DateTime scheduledEnd,
+    required String reason,
+    required String commandId,
+  }) async {
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+    final response = await client
+        .schema('api')
+        .rpc(
+          'reschedule_booking',
+          params: {
+            'p_booking_id': bookingId,
+            'p_scheduled_start': scheduledStart.toUtc().toIso8601String(),
+            'p_scheduled_end': scheduledEnd.toUtc().toIso8601String(),
+            'p_reason': reason,
+            'p_command_id': commandId,
+          },
+        );
+    return BookingMutationResult.fromContract(response);
+  }
+
+  Future<BookingMutationResult> cancelBooking({
+    required String bookingId,
+    required String reason,
+    required String commandId,
+  }) async {
+    final client = _effectiveClient;
+    if (client == null) {
+      throw StateError('Supabase client is unavailable');
+    }
+    final response = await client
+        .schema('api')
+        .rpc(
+          'cancel_booking',
+          params: {
+            'p_booking_id': bookingId,
+            'p_reason': reason,
+            'p_command_id': commandId,
+          },
+        );
+    return BookingMutationResult.fromContract(response);
+  }
+}
+
+/// عنصر حجز من عقد القراءة `api.list_well_bookings` / `get_booking_detail`.
+/// حقول كنونية فقط؛ لا يُخترع شيء. (crops ليست في العقد بعد — حزمة لاحقة.)
+class WellBookingListItem {
+  const WellBookingListItem({
+    required this.id,
+    required this.publicCode,
+    required this.farmerWellAccountId,
+    required this.farmerName,
+    required this.farmId,
+    required this.farmName,
+    required this.scheduledStart,
+    required this.scheduledEnd,
+    required this.scheduledDay,
+    required this.expectedDurationMinutes,
+    required this.status,
+    required this.priority,
+    this.expectedEnergySource,
+    this.alternativeEnergySource,
+    this.notes,
+  });
+
+  factory WellBookingListItem.fromJson(Map<String, dynamic> json) {
+    return WellBookingListItem(
+      id: _requiredString(json, 'id'),
+      publicCode: _optionalString(json, 'public_code') ?? '',
+      farmerWellAccountId:
+          _optionalString(json, 'farmer_well_account_id') ?? '',
+      farmerName: _optionalString(json, 'farmer_name') ?? '',
+      farmId: _optionalString(json, 'farm_id') ?? '',
+      farmName: _optionalString(json, 'farm_name') ?? '',
+      scheduledStart: _requiredTime(json, 'scheduled_start'),
+      scheduledEnd: _requiredTime(json, 'scheduled_end'),
+      scheduledDay: _optionalString(json, 'scheduled_day') ?? '',
+      expectedDurationMinutes: _optionalInt(json, 'expected_duration_minutes'),
+      status: _optionalString(json, 'status') ?? 'unknown',
+      priority: _optionalInt(json, 'priority') ?? 0,
+      expectedEnergySource: _optionalString(json, 'expected_energy_source'),
+      alternativeEnergySource: _optionalString(
+        json,
+        'alternative_energy_source',
+      ),
+      notes: _optionalString(json, 'notes'),
+    );
+  }
+
+  final String id;
+  final String publicCode;
+  final String farmerWellAccountId;
+  final String farmerName;
+  final String farmId;
+  final String farmName;
+  final DateTime scheduledStart;
+  final DateTime scheduledEnd;
+  final String scheduledDay;
+  final int? expectedDurationMinutes;
+  final String status;
+  final int priority;
+  final String? expectedEnergySource;
+  final String? alternativeEnergySource;
+  final String? notes;
+}
+
+/// نتيجة `api.list_well_bookings`: نطاق محدود مرتَّب كما يعيده الخادم.
+class WellBookingList {
+  const WellBookingList({
+    required this.wellTimezone,
+    required this.count,
+    required this.bookings,
+  });
+
+  factory WellBookingList.fromContract(Object? response) {
+    final json = _requiredMap(response, 'استجابة قائمة الحجوزات');
+    if (json['status'] != 'ok') {
+      throw StateError('عقد قائمة الحجوزات لم يُعِد status=ok');
+    }
+    final raw = json['bookings'];
+    if (raw is! List) {
+      throw StateError('عقد قائمة الحجوزات لم يُعِد قائمة');
+    }
+    return WellBookingList(
+      wellTimezone: _optionalString(json, 'well_timezone') ?? '',
+      count: _optionalInt(json, 'count') ?? raw.length,
+      bookings: raw
+          .map(
+            (item) =>
+                WellBookingListItem.fromJson(_requiredMap(item, 'عنصر حجز')),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  final String wellTimezone;
+  final int count;
+  final List<WellBookingListItem> bookings;
+}
+
+/// نتيجة `api.get_booking_detail`: نفس الحقول الكنونية مع تاريخ الحالة.
+class WellBookingDetail {
+  const WellBookingDetail({required this.booking, required this.wellTimezone});
+
+  factory WellBookingDetail.fromContract(Object? response) {
+    final json = _requiredMap(response, 'استجابة تفاصيل الحجز');
+    if (json['status'] != 'ok') {
+      throw StateError('عقد تفاصيل الحجز لم يُعِد status=ok');
+    }
+    final booking = _requiredMap(json['booking'], 'تفاصيل الحجز');
+    return WellBookingDetail(
+      booking: WellBookingListItem.fromJson(booking),
+      wellTimezone: _optionalString(json, 'well_timezone') ?? '',
+    );
+  }
+
+  final WellBookingListItem booking;
+  final String wellTimezone;
+}
+
+/// نتيجة إنشاء/جدولة/إلغاء حجز. التعارض ورفض الأعمال حالتان صريحتان لا
+/// فشلَ نقل: نحفظ `conflict_code` و`reason_code` الكنونيَّين كما وردا من
+/// الخادم حتى تترجمهما الواجهة لرسائل مفهومة، فلا يُطمَس سبب منظّم في عموم
+/// «لم يكتمل». النجاح الكنوني للإنشاء هو `confirmed`.
+class BookingMutationResult {
+  const BookingMutationResult({
+    required this.status,
+    this.bookingId,
+    this.message,
+    this.reasonCode,
+    this.conflictCode,
+  });
+
+  factory BookingMutationResult.fromContract(Object? response) {
+    final json = _requiredMap(response, 'استجابة أمر الحجز');
+    return BookingMutationResult(
+      status: _optionalString(json, 'status') ?? 'unknown',
+      bookingId: _optionalString(json, 'booking_id') ?? _bookingIdOf(json),
+      message: _optionalString(json, 'message'),
+      reasonCode: _optionalString(json, 'reason_code'),
+      conflictCode: _optionalString(json, 'conflict_code'),
+    );
+  }
+
+  static String? _bookingIdOf(Map<String, dynamic> json) {
+    final booking = json['booking'];
+    if (booking is Map && booking['id'] is String) {
+      return booking['id'] as String;
+    }
+    return null;
+  }
+
+  final String status;
+  final String? bookingId;
+  final String? message;
+
+  /// سبب رفض الأعمال المنظّم (ق-132: solar_start_outside_window،
+  /// missing_alternative_energy_source، missing_energy_source، …).
+  final String? reasonCode;
+
+  /// رمز التعارض الكنوني (time_overlap).
+  final String? conflictCode;
+
+  bool get isConflict => status == 'conflict';
+  bool get isRejected => status == 'rejected';
+  bool get isOk =>
+      status == 'ok' ||
+      status == 'created' ||
+      status == 'updated' ||
+      status == 'confirmed';
 }

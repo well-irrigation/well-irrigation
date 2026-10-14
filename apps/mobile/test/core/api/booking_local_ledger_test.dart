@@ -454,7 +454,7 @@ void main() {
   });
 
   test(
-    'missing server session keeps prior local evidence for review',
+    'fresh missing server session clears the stale compatibility link',
     () async {
       await ledger.importServerSession(
         accountId: 'a',
@@ -467,18 +467,16 @@ void main() {
         store: store,
         bookingLedger: ledger,
       );
+      addTearDown(coordinator.dispose);
       await expectLater(
         coordinator.reconcileServerBookingSession(
           accountId: 'a',
           wellId: 'w',
           current: null,
         ),
-        throwsA(isA<StateError>()),
+        completion(isNull),
       );
-      expect(
-        (await ledger.loadServerSession('a', 'w'))?.sessionId,
-        'session-1',
-      );
+      expect(await ledger.loadServerSession('a', 'w'), isNull);
     },
   );
 

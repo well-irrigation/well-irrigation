@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/api/app_bootstrap_repository.dart';
+import '../core/api/bootstrap_identity_cache.dart';
+import '../core/sync/sqlite_outbox_store.dart';
 import '../core/api/auth_repository.dart';
 import '../core/config/app_config.dart';
 import '../core/session/offline_session_coordinator.dart';
@@ -31,6 +34,7 @@ class WellIrrigationApp extends StatefulWidget {
 
 class _WellIrrigationAppState extends State<WellIrrigationApp> {
   late final AuthenticatedBackgroundSync _automaticSync;
+  final _bootstrapCache = BootstrapIdentityCache(SqliteOutboxStore());
   bool _splashCompleted = false;
   bool _isLoggedIn = false;
 
@@ -92,8 +96,7 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
 
   LocalAuthAccount? _localAuthAccount() {
     final session = Supabase.instance.client.auth.currentSession;
-    if (session == null || session.user.id.isEmpty) return null;
-    return LocalAuthAccount(session.user.id, isExpired: session.isExpired);
+    return LocalAuthAccount.fromSession(session);
   }
 
   /// الخروج لا يُعلن إلا إن نجح فعلًا: فشل إبطال الجلسة يُعرض للمستخدم بدل
@@ -168,16 +171,29 @@ class _WellIrrigationAppState extends State<WellIrrigationApp> {
     return IdentityGate(
       key: ValueKey(_identityEpoch),
       loadBootstrap: _loadBootstrap,
+      bootstrapCache: _bootstrapCache,
+      connectivityRestored: Connectivity().onConnectivityChanged
+          .where(
+            (states) => states.any((state) => state != ConnectivityResult.none),
+          )
+          .map((_) {}),
       recoveryCoordinator: OfflineSessionCoordinator.instance,
       localAuthAccount: _localAuthAccount,
       authChanges: Supabase.instance.client.auth.onAuthStateChange.map((_) {}),
       onSignOutRequested: _handleLogout,
       onCreateWellRequested: () => _openCreateWellWizard(context),
-      builder: (context, identity, onWellChanged) => AuthenticatedShell(
-        identity: identity,
-        onWellChanged: onWellChanged,
-        onLogout: _handleLogout,
-      ),
+      builder:
+          (
+            context,
+            identity,
+            onWellChanged, {
+            bool isTrustedOfflineBootstrap = false,
+          }) => AuthenticatedShell(
+            identity: identity,
+            onWellChanged: onWellChanged,
+            onLogout: _handleLogout,
+            isTrustedOfflineBootstrap: isTrustedOfflineBootstrap,
+          ),
     );
   }
 

@@ -28,6 +28,8 @@ class CommandEnvelope {
     required this.occurredAt,
     required this.createdLocalAt,
     required this.payload,
+    this.prerequisites = const [],
+    this.localContext = const {},
     this.wellId,
     this.aggregateLocalId,
     this.status = CommandStatus.pending,
@@ -82,6 +84,10 @@ class CommandEnvelope {
   /// حقلي [commandId] و[occurredAt] حتى لا يوجد لهما مصدران.
   final Map<String, Object?> payload;
 
+  /// بيانات جدولة وإسقاط محلية فقط، لا تدخل حمولة RPC.
+  final List<String> prerequisites;
+  final Map<String, Object?> localContext;
+
   final CommandStatus status;
   final int retryCount;
   final String? lastError;
@@ -119,6 +125,8 @@ class CommandEnvelope {
       occurredAt: occurredAt,
       createdLocalAt: createdLocalAt,
       payload: payload,
+      prerequisites: prerequisites,
+      localContext: localContext,
       wellId: wellId,
       aggregateLocalId: aggregateLocalId,
       status: status ?? this.status,
