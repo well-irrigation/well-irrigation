@@ -444,7 +444,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
     // ق-99: الجلسة غير المفوترة ليست «غير مدفوعة» — حالة مستقلة بلا مبلغ.
     if (!session.hasCharge) {
       badgeColor = AppColors.textMuted;
-      badgeText = 'غير مفوترة بعد';
+      badgeText = 'الحالة المالية لم تُعتمد بعد';
     } else if (session.isFullySettled) {
       badgeColor = AppColors.agriculturalGreen;
       badgeText = 'خالص بالكامل ✅';
@@ -472,6 +472,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                 sessionId: session.id,
                 wellName: _activeWellName,
                 repository: _repo,
+                accountId: widget.identity.accountId,
+                wellId: _activeWellId,
               ),
             ),
           );
@@ -606,7 +608,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       const Text(
-                        'إجمالي الفاتورة',
+                        'تكلفة الجلسة',
                         style: TextStyle(
                           fontSize: 11,
                           color: AppColors.textMuted,

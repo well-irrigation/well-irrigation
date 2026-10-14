@@ -111,6 +111,75 @@ void main() {
     await store.close();
     await dir.delete(recursive: true);
   });
+  test('E1: pending payment and completion results never gate B or final chain ending', () async {
+    final results = <String>[];
+    final subscription = coordinator.completionResultStream.listen(
+      (r) => results.add(r.bookingId!),
+    );
+    await start();
+    final root = coordinator.currentActiveSession!;
+    clock.elapsed = const Duration(minutes: 4, seconds: 23);
+    await run();
+    final completeA = (await store.allCommands('account')).last;
+    await coordinator.recordPayment(
+      accountId: 'account',
+      wellId: 'well',
+      farmerAccountId: root.farmerReference!,
+      amountMinor: 100,
+      paymentMethod: 'cash',
+      sessionLocalId: root.localId,
+      sessionCompletionLocalId: completeA.localId,
+    );
+    final pendingPayment = (await store.allCommands('account')).last;
+    await store.markNeedsReview(
+      'account',
+      pendingPayment.localId,
+      error: 'payment_rejected',
+      attemptedAt: clock.base.add(clock.elapsed),
+    );
+    clock.elapsed = const Duration(minutes: 5);
+    await run();
+    final b = coordinator.currentActiveSession!;
+    expect(b.bookingId, 'B');
+    final startB = (await store.allCommands('account'))
+        .singleWhere((c) => c.localId == b.localId);
+    expect(startB.prerequisites, [completeA.localId]);
+    await expectLater(
+      coordinator.recordPayment(
+        accountId: 'account',
+        wellId: 'well',
+        farmerAccountId: root.farmerReference!,
+        amountMinor: 50,
+        paymentMethod: 'cash',
+        sessionLocalId: root.localId,
+        sessionCompletionLocalId: completeA.localId,
+      ),
+      throwsStateError,
+    );
+    expect(
+      (await store.allCommands('account'))
+          .where((c) => c.type == CommandType.recordPayment),
+      hasLength(1),
+    );
+    expect(coordinator.currentActiveSession?.bookingId, 'B');
+    clock.elapsed = const Duration(minutes: 8);
+    await run();
+    final commands = await store.allCommands('account');
+    final end = commands.singleWhere(
+      (c) => c.type == CommandType.endBookingTransitionChain,
+    );
+    final completeB = commands.singleWhere(
+      (c) =>
+          c.type == CommandType.completeIrrigationSession &&
+          c.aggregateLocalId == b.localId,
+    );
+    expect(end.prerequisites, [completeB.localId]);
+    expect(coordinator.currentActiveSession, isNull);
+    await Future<void>.delayed(Duration.zero);
+    expect(results, containsAll(['A', 'B']));
+    await subscription.cancel();
+  });
+
   test(
     'manual start is durable locally before ACK with exact RPC-only args',
     () async {

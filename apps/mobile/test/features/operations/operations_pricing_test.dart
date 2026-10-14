@@ -487,7 +487,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('3,493'), findsWidgets);
-    expect(find.text('منتهي'), findsOneWidget);
+    expect(find.text('انتهت الجلسة'), findsNothing);
+    expect(find.text('دفعة مؤجلة'), findsOneWidget);
+    await tester.ensureVisible(find.text('دفعة مؤجلة'));
+    await tester.tap(find.text('دفعة مؤجلة'));
+    await tester.pumpAndSettle();
+    expect(find.text('انتهت الجلسة'), findsOneWidget);
     expect(find.textContaining('سعر الساعة ('), findsNothing);
   });
 }

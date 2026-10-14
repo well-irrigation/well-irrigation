@@ -180,6 +180,34 @@ class ActiveSessionProjector {
         .firstOrNull;
   }
 
+  /// جلسة منتهية واحدة من صفوفها المحددة فقط؛ لا projectAll ولا N+1.
+  ActiveSessionRecord? projectCompletedSnapshot(
+    SessionOutboxSnapshot snapshot, {
+    required DateTime now,
+  }) {
+    final start = snapshot.commands
+        .where((c) => _isSessionStartType(c.type))
+        .firstOrNull;
+    if (start == null ||
+        !snapshot.commands.any(
+          (c) => c.type == CommandType.completeIrrigationSession,
+        )) {
+      return null;
+    }
+    return _project(
+      accountId: start.accountId,
+      start: start,
+      events: snapshot.commands
+          .where((c) => _isSessionStartType(c.type) || _isSessionScoped(c.type))
+          .toList(),
+      now: now,
+      timeContext: null,
+      serverIdByLocalId: {for (final m in snapshot.mappings) m.localId: m},
+      lastSync: null,
+      prerequisiteRequiresReview: false,
+    );
+  }
+
   /// يُسقِط كل جلسات الحساب من الطابور.
   Future<List<ActiveSessionRecord>> projectAll(
     String accountId, {
@@ -342,6 +370,7 @@ class ActiveSessionProjector {
     final payments = <LocalPayment>[];
 
     DateTime? completedAt;
+    CommandEnvelope? completion;
     final context = start.type == CommandType.startBookingSession
         ? start.localContext
         : start.payload;
@@ -420,6 +449,7 @@ class ActiveSessionProjector {
         case CommandType.completeIrrigationSession:
           closeOpenSegment(at);
           completedAt = at;
+          completion = command;
 
         case CommandType.recordPayment:
           final mapping = serverIdByLocalId[command.localId];
@@ -433,6 +463,13 @@ class ActiveSessionProjector {
               status: command.status,
               method: command.payload['p_method'] as String?,
               serverId: mapping?.serverId,
+              acceptedReceipt:
+                  command.status == CommandStatus.confirmed &&
+                      command.serverResponse?['receipt'] is Map
+                  ? Map<String, Object?>.from(
+                      command.serverResponse!['receipt'] as Map,
+                    )
+                  : null,
             ),
           );
 
@@ -456,8 +493,11 @@ class ActiveSessionProjector {
       bookingContext: start.type == CommandType.startBookingSession
           ? start.localContext
           : const {},
-      farmerName: context['farmer_name'] as String?,
-      farmName: context['farm_name'] as String?,
+      farmerName:
+          (start.localContext['farmer_name'] ?? context['farmer_name'])
+              as String?,
+      farmName:
+          (start.localContext['farm_name'] ?? context['farm_name']) as String?,
       accountId: accountId,
       serverSessionId: serverIdByLocalId[start.localId]?.serverId,
       wellId: start.wellId ?? start.payload['p_well_id'] as String?,
@@ -470,6 +510,13 @@ class ActiveSessionProjector {
       crops: _cropSnapshot(start.payload['p_crops']),
       startedAt: start.occurredAt.toUtc(),
       completedAt: completedAt,
+      completionCommandLocalId: completion?.localId,
+      approvedAmountMinor:
+          completion?.status == CommandStatus.confirmed &&
+              completion?.serverResponse?['session_charge_id'] is String &&
+              completion?.serverResponse?['amount_minor'] is num
+          ? (completion!.serverResponse!['amount_minor'] as num).toInt()
+          : null,
       businessState: stateFromSegments(
         segments,
         completed: completedAt != null,

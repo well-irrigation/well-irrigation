@@ -38,7 +38,7 @@ class SqliteOutboxStore implements OutboxStore {
 
   final DatabaseFactory? _factory;
 
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
   static const String commandsTable = 'outbox_commands';
   static const String mappingsTable = 'id_mappings';
   static const String metaTable = 'sync_meta';
@@ -108,6 +108,7 @@ class SqliteOutboxStore implements OutboxStore {
               'create index ${commandsTable}_well_idx on $commandsTable (account_id, well_id, sequence)',
             );
           }
+          if (oldVersion < 3) await _createSessionIndexes(db);
         },
         onCreate: (db, version) async {
           await db.execute('''
@@ -153,6 +154,7 @@ class SqliteOutboxStore implements OutboxStore {
             )
           ''');
 
+          await _createSessionIndexes(db);
           await db.execute('''
             create table $metaTable (
               account_id text not null,
@@ -164,6 +166,128 @@ class SqliteOutboxStore implements OutboxStore {
         },
       ),
     );
+  }
+
+  static Future<void> _createSessionIndexes(DatabaseExecutor db) async {
+    await db.execute(
+      'create index if not exists ${commandsTable}_session_idx on $commandsTable (account_id, aggregate_local_id, sequence)',
+    );
+    await db.execute(
+      'create index if not exists ${mappingsTable}_server_idx on $mappingsTable (account_id, entity_kind, server_id)',
+    );
+  }
+
+  static String _paymentReadKey(String well, String session) =>
+      'session.payment.read:${jsonEncode([well, session])}';
+
+  @override
+  Future<SessionOutboxSnapshot?> sessionSnapshot({
+    required String accountId,
+    required String wellId,
+    String? localSessionId,
+    String? serverSessionId,
+  }) async {
+    await initialize();
+    if ((localSessionId == null) == (serverSessionId == null)) {
+      throw ArgumentError('يلزم معرف جلسة واحد');
+    }
+    // قراءة متسقة للصفوف والإقرارات والقراءة الخادمية، بلا N+1.
+    return _db.transaction((txn) async {
+      final roots = await txn.rawQuery(
+        'select c.*, m.server_id as mapped_server_id, m.resolved_at as mapped_at '
+        'from $commandsTable c '
+        '${localSessionId == null ? 'join' : 'left join'} $mappingsTable m '
+        "on m.account_id = c.account_id and m.local_id = c.local_id and m.entity_kind = 'session' "
+        'where c.account_id = ? and '
+        '${localSessionId == null ? 'm.server_id = ?' : 'c.local_id = ?'} '
+        "and coalesce(c.well_id, json_extract(c.payload, '\$.p_well_id')) = ? limit 2",
+        [accountId, localSessionId ?? serverSessionId, wellId],
+      );
+      if (roots.length != 1) return null;
+      final root = _fromRow(roots.single);
+      if (root.type != CommandType.startIrrigationSession &&
+          root.type != CommandType.startAdhocSession &&
+          root.type != CommandType.startBookingSession) {
+        return null;
+      }
+      final events = await txn.rawQuery(
+        'select c.*, m.server_id as mapped_server_id, m.resolved_at as mapped_at '
+        'from $commandsTable c left join $mappingsTable m '
+        "on m.account_id = c.account_id and m.local_id = c.local_id and m.entity_kind = 'payment' "
+        'where c.account_id = ? and c.aggregate_local_id = ? '
+        'and (c.well_id = ? or c.well_id is null) order by c.sequence',
+        [accountId, root.localId, wellId],
+      );
+      final rows = [roots.single, ...events];
+      final read = await txn.query(
+        metaTable,
+        columns: ['value'],
+        where: 'account_id = ? and key = ?',
+        whereArgs: [accountId, _paymentReadKey(wellId, root.localId)],
+      );
+      return SessionOutboxSnapshot(
+        commands: [root, ...events.map(_fromRow)],
+        mappings: [
+          for (final row in rows)
+            if (row['mapped_server_id'] != null)
+              IdMapping(
+                localId: row['local_id'] as String,
+                kind: row['local_id'] == root.localId
+                    ? EntityKind.session
+                    : EntityKind.payment,
+                serverId: row['mapped_server_id'] as String,
+                resolvedAt: _decodeTime(row['mapped_at'] as String),
+              ),
+        ],
+        paymentRead: read.isEmpty
+            ? null
+            : Map<String, Object?>.from(
+                jsonDecode(read.single['value'] as String) as Map,
+              ),
+      );
+    });
+  }
+
+  @override
+  Future<void> saveSessionPaymentRead({
+    required String accountId,
+    required String wellId,
+    required String localSessionId,
+    required Map<String, Object?> value,
+  }) async {
+    await writeLocalValue(
+      accountId,
+      _paymentReadKey(wellId, localSessionId),
+      jsonEncode(value),
+    );
+  }
+
+  @override
+  Future<CommandEnvelope> insertSessionPayment(CommandEnvelope command) async {
+    if (command.type != CommandType.recordPayment ||
+        command.aggregateLocalId == null ||
+        command.wellId == null) {
+      throw ArgumentError('دفعة جلسة مطلوبة');
+    }
+    await initialize();
+    return _db.transaction((txn) async {
+      final unresolved = await txn.rawQuery(
+        'select c.local_id from $commandsTable c left join $mappingsTable m '
+        "on m.account_id = c.account_id and m.local_id = c.local_id and m.entity_kind = 'payment' "
+        'where c.account_id = ? and c.aggregate_local_id = ? and c.command_type = ? '
+        "and (c.status != 'confirmed' or m.server_id is null) limit 1",
+        [
+          command.accountId,
+          command.aggregateLocalId,
+          CommandType.recordPayment.storageValue,
+        ],
+      );
+      if (unresolved.isNotEmpty) {
+        throw StateError('توجد دفعة محفوظة أو تحتاج مراجعة لهذه الجلسة');
+      }
+      await txn.insert(commandsTable, _toRow(command));
+      return command;
+    });
   }
 
   /// مساحة بيانات محلية مرتبطة بالحساب داخل ملف الطابور نفسه.

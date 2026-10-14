@@ -18,17 +18,19 @@ import '../../core/session/local_booking_transition_resolver.dart';
 import '../../core/session/session_business_state.dart';
 import '../../core/session/session_segment.dart';
 import '../../core/session/time_integrity.dart';
-import '../../core/sync/command_envelope.dart';
 import '../../core/sync/farmer_identity_review.dart';
 import '../../core/theme/app_colors.dart';
 import '../farmers/farmer_identity_resolution_sheet.dart';
 import '../../core/utils/currency_utils.dart';
 import '../../core/utils/digit_utils.dart';
 import '../../core/utils/tafqeet_utils.dart';
+import '../../core/widgets/currency_display.dart';
 import '../../core/widgets/smart_lookup_field.dart';
 import '../../core/widgets/top_well_selector.dart';
 import 'widgets/compact_energy_selector.dart';
 import 'widgets/payment_receipt_dialog.dart';
+import 'widgets/session_completion_result.dart';
+import '../history/session_detail_screen.dart';
 import 'widgets/session_confirmation_dialogs.dart';
 import 'widgets/today_bookings_panel.dart';
 
@@ -75,6 +77,258 @@ class OperationsScreen extends StatefulWidget {
 class _OperationsScreenState extends State<OperationsScreen>
     with WidgetsBindingObserver {
   late OperationsRepository _repo;
+  StreamSubscription<ActiveSessionRecord>? _completionSubscription;
+  ActiveSessionRecord? _completionResult;
+  SessionDetailData? _completionDetail;
+  CompletedSessionPaymentState? _completionPaymentState;
+  StateSetter? _refreshCompletionSurface;
+  bool _completionSummaryVisible = false;
+  DateTime? _latestCompletionAt;
+  Object? _completionFingerprint;
+  bool _completionDetailsVisible = false;
+  int _completionDetailGeneration = 0;
+
+  void _handleCompletionResult(ActiveSessionRecord record) {
+    if (!mounted ||
+        record.accountId != _accountId ||
+        record.wellId != _activeWellId) {
+      return;
+    }
+    if (_latestCompletionAt != null &&
+        record.completedAt!.isBefore(_latestCompletionAt!)) {
+      return;
+    }
+    final fingerprint = (
+      record.localId,
+      record.approvedAmountMinor,
+      record.totals.accruedMinor,
+      record.syncState,
+      record.payments
+          .map((p) => '${p.localId}:${p.status}:${p.serverId}')
+          .join('|'),
+    );
+    if (fingerprint == _completionFingerprint) return;
+    setState(() {
+      _completionDetail = null;
+      _completionPaymentState = null;
+      _completionResult = record;
+      _latestCompletionAt = record.completedAt;
+      _completionFingerprint = fingerprint;
+    });
+    final generation = ++_completionDetailGeneration;
+    _restoreCompletionPaymentPresentation(record, generation);
+    _refreshCompletionSurface?.call(() {});
+    if (_completionDetailsVisible ||
+        record.serverSessionId == null ||
+        record.approvedAmountMinor == null) {
+      return;
+    }
+    // جلب واحد للنتيجة الظاهرة عند تغيّر إقرارها، خارج أي انتظار تشغيلي.
+    _repo
+        .fetchSessionDetail(record.serverSessionId!)
+        .then((detail) {
+          if (!mounted ||
+              generation != _completionDetailGeneration ||
+              record.accountId != _accountId ||
+              record.wellId != _activeWellId) {
+            return;
+          }
+          setState(() => _completionDetail = detail);
+          _refreshCompletionSurface?.call(() {});
+        })
+        .catchError((Object _) {
+          /* غياب القراءة لا يغيّر حقائق الإقرار. */
+        });
+  }
+
+  // قرار الأهلية من المسار المشترك؛ شروط المبلغ والهوية تخص قدرة العرض
+  // على فتح نافذة الدفع الحالية، ولا تستنتج السداد من المبلغ.
+  bool get _completionCanRecordPayment {
+    final state = _completionPaymentState;
+    final result = _completionResult;
+    if (state == null || result == null || !state.canRecordPayment) {
+      return false;
+    }
+    final detail = _completionDetail;
+    if (detail != null) {
+      final current = CompletedSessionPaymentState(
+        record: state.record,
+        revision: state.revision,
+        paymentRead: {
+          'revision': state.revision,
+          'payment_status': detail.session.paymentStatus,
+          'has_charge': detail.session.hasCharge,
+          'remaining_amount_minor': detail.session.remainingAmountYER,
+        },
+      );
+      if (!current.canRecordPayment) return false;
+    }
+    return (result.approvedAmountMinor ?? result.totals.accruedMinor ?? 0) >
+            0 &&
+        result.wellId != null &&
+        result.farmerReference != null;
+  }
+
+  Future<void> _restoreCompletionPaymentPresentation(
+    ActiveSessionRecord record,
+    int generation,
+  ) async {
+    final state = record.serverSessionId == null
+        ? CompletedSessionPaymentState(record: record, revision: '')
+        : await _coordinator.restoreCompletedSession(
+            accountId: record.accountId,
+            wellId: record.wellId!,
+            serverSessionId: record.serverSessionId!,
+          );
+    if (!mounted || generation != _completionDetailGeneration) return;
+    setState(() => _completionPaymentState = state);
+    _refreshCompletionSurface?.call(() {});
+  }
+
+  Future<void> _showCompletionPaymentSummary() async {
+    if (_completionSummaryVisible || !_completionCanRecordPayment) return;
+    _completionSummaryVisible = true;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (sheetContext) => StatefulBuilder(
+          builder: (context, refresh) {
+            _refreshCompletionSurface = refresh;
+            final result = _completionResult;
+            return SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * .9,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: IconButton(
+                          tooltip: 'إغلاق',
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ),
+                      if (result != null)
+                        SessionCompletionResult(
+                          record: result,
+                          detail:
+                              _completionDetail ??
+                              _completionPaymentState?.cachedDetail,
+                          showReceipts: false,
+                          onPayment: _completionCanRecordPayment
+                              ? () {
+                                  Navigator.pop(sheetContext);
+                                  _recordCompletionPayment(result);
+                                }
+                              : null,
+                          onDetails:
+                              result.serverSessionId != null &&
+                                  !widget.isTrustedOfflineBootstrap
+                              ? () {
+                                  Navigator.pop(sheetContext);
+                                  _openCompletionDetails(result);
+                                }
+                              : null,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      _refreshCompletionSurface = null;
+      _completionSummaryVisible = false;
+    }
+  }
+
+  Future<void> _openCompletionDetails(ActiveSessionRecord result) async {
+    _completionDetailsVisible = true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SessionDetailScreen(
+            sessionId: result.serverSessionId!,
+            wellName: _activeWell.name,
+            repository: _repo,
+            coordinator: _coordinator,
+            accountId: _accountId,
+            wellId: _activeWellId,
+            initialResult: result,
+          ),
+        ),
+      );
+    } finally {
+      _completionDetailsVisible = false;
+      if (mounted && _completionResult != null) {
+        _completionFingerprint = null;
+        _handleCompletionResult(_completionResult!);
+      }
+    }
+  }
+
+  Future<void> _recordCompletionPayment(ActiveSessionRecord record) async {
+    final amount = record.approvedAmountMinor ?? record.totals.accruedMinor;
+    final well = record.wellId;
+    final farmer = record.farmerReference;
+    final completion = record.completionCommandLocalId;
+    if (amount == null ||
+        amount <= 0 ||
+        well == null ||
+        farmer == null ||
+        completion == null) {
+      return;
+    }
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => PaymentReceiptDialog(
+        wellName:
+            widget.identity.wells
+                .where((w) => w.id == well)
+                .firstOrNull
+                ?.name ??
+            '—',
+        operatorName: widget.identity.displayName,
+        farmerName: record.farmerName ?? '—',
+        farmName: record.farmName ?? '—',
+        energySource: energySourceLabel(record.currentEnergySource),
+        hourlyRateYER: null,
+        billableSeconds: record.totals.billableSeconds,
+        actualSeconds: record.totals.wallClockSeconds,
+        totalAmountYER: amount,
+        amountApproved: record.approvedAmountMinor != null,
+        onConfirmPayment:
+            ({
+              required paidAmountYER,
+              required paymentMethod,
+              required isFullySettled,
+            }) async {
+              await _coordinator.recordPayment(
+                accountId: record.accountId,
+                wellId: well,
+                farmerAccountId: farmer,
+                amountMinor: paidAmountYER,
+                paymentMethod: paymentMethod,
+                sessionLocalId: record.localId,
+                sessionCompletionLocalId: completion,
+                note: 'دفعة جلسة سقي',
+              );
+            },
+      ),
+    );
+  }
+
   BookingScope? _bookingScope;
   void _bindBookingScope() {
     _bookingScope?.removeListener(_onBookingChanged);
@@ -385,6 +639,9 @@ class _OperationsScreenState extends State<OperationsScreen>
     WidgetsBinding.instance.addObserver(this);
     _activeSessionSubscription = _coordinator.activeSessionStream.listen(
       _handleActiveSessionUpdate,
+    );
+    _completionSubscription = _coordinator.completionResultStream.listen(
+      _handleCompletionResult,
     );
     _recoverActiveSession();
     _loadPumps();
@@ -1529,6 +1786,12 @@ class _OperationsScreenState extends State<OperationsScreen>
         widget.identity.accountId != oldWidget.identity.accountId) {
       setState(() {
         _activeWell = incoming;
+        _completionResult = null;
+        _completionDetail = null;
+        _completionFingerprint = null;
+        _completionPaymentState = null;
+        _latestCompletionAt = null;
+        _completionDetailGeneration++;
         _selectedFarmer = null;
         _selectedFarm = null;
         _selectedPump = null;
@@ -1575,6 +1838,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     _invalidateBookingTransitionTimer();
     _bookingScope?.removeListener(_onBookingChanged);
     _activeSessionSubscription?.cancel();
+    _completionSubscription?.cancel();
     _newCropController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -2249,6 +2513,9 @@ class _OperationsScreenState extends State<OperationsScreen>
         energySource: energySourceCode,
         crops: List<String>.from(_selectedCrops),
         startedAt: _now(),
+        farmerName: _selectedFarmer?.fullName,
+        farmName: _selectedFarm?.name,
+        pumpName: _selectedPump?.name,
       );
       sessionLocalId = envelope.localId;
     } catch (e) {
@@ -2508,15 +2775,6 @@ class _OperationsScreenState extends State<OperationsScreen>
         return;
       }
 
-      final endedWellId = activeSession.wellId;
-      final endedAccountId = activeSession.accountId;
-      final paymentFarmerId = activeSession.farmerReference;
-      final operatorDisplayName = widget.identity.displayName;
-      final endedWell = widget.identity.wells
-          .where((well) => well.id == endedWellId)
-          .firstOrNull;
-      final endedWellName = endedWell?.name ?? 'بئر غير محدد';
-
       // ق-129 / E3: لقطة زمنية موحدة لحساب المقاطع وأمر الإغلاق
       final completedAt = _now();
       final totals = summarize(activeSession.segments, completedAt);
@@ -2559,9 +2817,8 @@ class _OperationsScreenState extends State<OperationsScreen>
       _timer?.cancel();
       _timer = null;
 
-      late final CommandEnvelope completionEnvelope;
       try {
-        completionEnvelope = await _coordinator.completeSession(
+        await _coordinator.completeSession(
           accountId: _accountId,
           sessionLocalId: activeSessionId,
           completedAt: completedAt,
@@ -2590,87 +2847,6 @@ class _OperationsScreenState extends State<OperationsScreen>
       });
 
       if (!mounted) return;
-
-      // ق-129 / E4: ملخص ما بعد الإنهاء منفصل عن السداد
-      final wantsPayment = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => PostEndSessionSummaryDialog(
-          farmerName: farmerDisplayName,
-          farmName: farmDisplayName,
-          totalDurationText: durationText,
-          sourceSummaries: sourceSummaries,
-          totalAmountMinor: totalAmount,
-          crops: activeSession.crops,
-          canRecordPayment: endedWellId != null && paymentFarmerId != null,
-        ),
-      );
-
-      // ق-129 / E5: تسجيل الدفعة اختياري وبطلب صريح
-      if (wantsPayment == true &&
-          mounted &&
-          totalAmount != null &&
-          totalAmount > 0) {
-        final billableSegments = activeSession.segments
-            .where((segment) => segment.kind == SegmentKind.running)
-            .toList(growable: false);
-        final sources = billableSegments
-            .map((segment) => segment.energySource)
-            .toSet();
-        final rates = billableSegments
-            .map((segment) => segment.hourlyRateMinor)
-            .toSet();
-        final usesCompositePricing = sources.length > 1 || rates.length > 1;
-        final singleHourlyRate = usesCompositePricing
-            ? null
-            : billableSegments.firstOrNull?.hourlyRateMinor;
-        final singleEnergySource = sources.length == 1 ? sources.single : null;
-
-        await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => PaymentReceiptDialog(
-            wellName: endedWellName,
-            operatorName: operatorDisplayName,
-            farmerName: farmerDisplayName,
-            farmName: farmDisplayName,
-            energySource: usesCompositePricing
-                ? 'مصادر متعددة'
-                : energySourceLabel(singleEnergySource ?? _energySourceCode),
-            hourlyRateYER: singleHourlyRate,
-            billableSeconds: totalSeconds,
-            // الفعلي من حصيلة المقاطع نفسها (كامل الخط الزمني قبل
-            // الإنهاء) — عرضٌ فقط لا يدخل في أي حساب مالي (ق-131).
-            actualSeconds: totals.wallClockSeconds,
-            totalAmountYER: totalAmount,
-            onConfirmPayment:
-                ({
-                  required int paidAmountYER,
-                  required String paymentMethod,
-                  required bool isFullySettled,
-                }) async {
-                  if (paidAmountYER <= 0) return;
-
-                  if (endedWellId == null || paymentFarmerId == null) {
-                    throw StateError(
-                      'هوية الجلسة غير مكتملة — لم يُسجَّل السداد',
-                    );
-                  }
-
-                  await _coordinator.recordPayment(
-                    accountId: endedAccountId,
-                    wellId: endedWellId,
-                    farmerAccountId: paymentFarmerId,
-                    amountMinor: paidAmountYER,
-                    paymentMethod: paymentMethod,
-                    sessionLocalId: activeSessionId,
-                    sessionCompletionLocalId: completionEnvelope.localId,
-                    note: 'سداد جلسة سقي',
-                  );
-                },
-          ),
-        );
-      }
     } finally {
       _finishSessionAction();
     }
@@ -2912,6 +3088,12 @@ class _OperationsScreenState extends State<OperationsScreen>
           onWellChanged: (newWell) {
             setState(() {
               _activeWell = newWell;
+              _completionResult = null;
+              _completionDetail = null;
+              _completionFingerprint = null;
+              _completionPaymentState = null;
+              _latestCompletionAt = null;
+              _completionDetailGeneration++;
               _selectedFarmer = null;
               _selectedFarm = null;
               _selectedPump = null;
@@ -2974,6 +3156,61 @@ class _OperationsScreenState extends State<OperationsScreen>
                 _buildFarmerReviewBanner(),
                 const SizedBox(height: 16),
               ],
+              if (_completionCanRecordPayment)
+                Card(
+                  key: const Key('deferred-payment-reminder'),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _showCompletionPaymentSummary,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'دفعة مؤجلة',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                Wrap(
+                                  spacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    const Text(
+                                      'جلسة تحتاج إلى تسجيل دفعة',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                    CurrencyDisplay(
+                                      amount:
+                                          _completionResult!
+                                              .approvedAmountMinor ??
+                                          _completionResult!
+                                              .totals
+                                              .accruedMinor!,
+                                      unit: 'ريال',
+                                      showTafqeet: false,
+                                      amountStyle: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_left),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               // 1. كرت حالة الجلسة والعداد المباشر (استجابة مرنة بدون تجاوز ق-129 / B6)
               Container(
                 padding: const EdgeInsets.all(20),

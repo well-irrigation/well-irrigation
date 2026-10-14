@@ -38,91 +38,119 @@ class FreshRepo extends f.FieldBookingRepository {
 
 void main() {
   sqfliteFfiInit();
-  testWidgets(
-    'fresh online snapshot arms phone transition, switches to B and never duplicates on timer',
-    (tester) async {
-      late Directory dir;
-      late SqliteOutboxStore store;
-      late BookingLocalLedger ledger;
-      final clock = f.FieldClock();
-      var scheduled = 0;
-      await tester.runAsync(() async {
-        dir = await Directory.systemTemp.createTemp('package-a-ui-');
-        store = SqliteOutboxStore(
-          databasePath: '${dir.path}/outbox.db',
-          sqfliteFactory: databaseFactoryFfi,
-        );
-        await store.initialize();
-        ledger = BookingLocalLedger(store);
-        await ledger.importServerSession(
-          accountId: 'account',
-          wellId: 'well',
-          sessionId: 'server-A',
-          bookingId: 'A',
-          startedAt: f.at(43),
-        );
-      });
-      final coordinator = OfflineSessionCoordinator(
-        store: store,
-        bookingLedger: ledger,
-        timeIntegritySource: clock,
-        commandQueuedScheduler: (_) async {
-          scheduled++;
-          return true;
-        },
-      );
-      Future<void> flush() async {
-        for (var i = 0; i < 18; i++) {
-          await tester.runAsync(
-            () => Future<void>.delayed(const Duration(milliseconds: 10)),
+  for (final gap in [false, true]) {
+    testWidgets(
+      'fresh online snapshot transitions to B without modal or duplicate; gap=$gap',
+      (tester) async {
+        tester.view.physicalSize = const Size(720, 1600);
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.reset);
+        late Directory dir;
+        late SqliteOutboxStore store;
+        late BookingLocalLedger ledger;
+        final clock = f.FieldClock();
+        var scheduled = 0;
+        await tester.runAsync(() async {
+          dir = await Directory.systemTemp.createTemp('package-a-ui-');
+          store = SqliteOutboxStore(
+            databasePath: '${dir.path}/outbox.db',
+            sqfliteFactory: databaseFactoryFfi,
           );
-          await tester.pump();
+          await store.initialize();
+          ledger = BookingLocalLedger(store);
+          await ledger.importServerSession(
+            accountId: 'account',
+            wellId: 'well',
+            sessionId: 'server-A',
+            bookingId: 'A',
+            startedAt: f.at(43),
+          );
+        });
+        final coordinator = OfflineSessionCoordinator(
+          store: store,
+          bookingLedger: ledger,
+          timeIntegritySource: clock,
+          commandQueuedScheduler: (_) async {
+            scheduled++;
+            return true;
+          },
+        );
+        Future<void> flush() async {
+          for (var i = 0; i < 18; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 10)),
+            );
+            await tester.pump();
+          }
         }
-      }
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: OperationsScreen(
-            identity: testIdentity(
-              accountId: 'account',
-              wells: [
-                testWell(id: 'well', roles: ['operator']),
-              ],
+        await tester.pumpWidget(
+          MaterialApp(
+            home: OperationsScreen(
+              identity: testIdentity(
+                accountId: 'account',
+                wells: [
+                  testWell(id: 'well', roles: ['operator']),
+                ],
+              ),
+              coordinator: coordinator,
+              bookingRepository: FreshRepo(
+                ledger,
+                clock,
+                gap
+                    ? f.fieldSchedule(
+                        bookings: [f.booking('A', 40), f.booking('B', 48)],
+                      )
+                    : f.fieldSchedule(),
+              ),
+              repository: f.EmptyFieldOperations(),
+              priceRepository: f.EmptyFieldPrices(),
+              timeIntegritySource: clock,
             ),
-            coordinator: coordinator,
-            bookingRepository: FreshRepo(ledger, clock, f.fieldSchedule()),
-            repository: f.EmptyFieldOperations(),
-            priceRepository: f.EmptyFieldPrices(),
-            timeIntegritySource: clock,
           ),
-        ),
-      );
-      await flush();
-      clock.now = f.at(47);
-      await tester.pump(const Duration(minutes: 4));
-      await flush();
-      expect(coordinator.currentActiveSession?.bookingId, 'B');
-      expect(find.text('إيقاف مؤقت'), findsOneWidget);
-      expect(
-        find.byKey(const Key('server-booking-session-notice')),
-        findsNothing,
-      );
-      clock.now = f.at(48);
-      await tester.pump(const Duration(minutes: 1));
-      await flush();
-      await tester.runAsync(() async {
-        expect(await store.allCommands('account'), hasLength(2));
-      });
-      expect(scheduled, 1);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-      coordinator.dispose();
-      await tester.runAsync(() async {
-        await store.close();
-        await dir.delete(recursive: true);
-      });
-    },
-  );
+        );
+        await flush();
+        clock.now = f.at(47);
+        await tester.pump(const Duration(minutes: 4));
+        await flush();
+        if (gap) {
+          expect(coordinator.currentActiveSession, isNull);
+          expect(find.byType(Dialog), findsNothing);
+          expect(find.byType(BottomSheet), findsNothing);
+          clock.now = f.at(48);
+          await tester.pump(const Duration(minutes: 1));
+          await flush();
+        }
+        expect(coordinator.currentActiveSession?.bookingId, 'B');
+        expect(
+          find.byType(Dialog),
+          findsNothing,
+          reason: 'الانتقال التلقائي لا يفتح حوار مالية',
+        );
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(find.text('انتهت الجلسة'), findsNothing);
+        expect(find.text('إيقاف مؤقت'), findsOneWidget);
+        expect(
+          find.byKey(const Key('server-booking-session-notice')),
+          findsNothing,
+        );
+        clock.now = f.at(gap ? 49 : 48);
+        await tester.pump(const Duration(minutes: 1));
+        await flush();
+        await tester.runAsync(() async {
+          expect(await store.allCommands('account'), hasLength(2));
+        });
+        expect(scheduled, 1);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        coordinator.dispose();
+        await tester.runAsync(() async {
+          await store.close();
+          await dir.delete(recursive: true);
+        });
+      },
+    );
+  }
   for (final mode in ['pending', 'confirmed', 'completed']) {
     final confirmed = mode != 'pending';
     final completed = mode == 'completed';

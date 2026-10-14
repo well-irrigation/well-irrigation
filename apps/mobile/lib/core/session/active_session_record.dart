@@ -27,6 +27,7 @@ class LocalPayment {
     required this.status,
     this.method,
     this.serverId,
+    this.acceptedReceipt,
   });
 
   final String localId;
@@ -38,6 +39,8 @@ class LocalPayment {
 
   /// المعرّف الخادمي بعد القبول، أو `null` قبله.
   final String? serverId;
+
+  final Map<String, Object?>? acceptedReceipt;
 
   /// هل قَبِلها الخادم فعلًا؟
   ///
@@ -99,6 +102,8 @@ class ActiveSessionRecord {
     this.pumpName,
     this.crops = const [],
     this.completedAt,
+    this.completionCommandLocalId,
+    this.approvedAmountMinor,
     this.lastSuccessfulSyncAt,
     this.oldestPendingAt,
   });
@@ -143,6 +148,10 @@ class ActiveSessionRecord {
 
   final DateTime startedAt;
   final DateTime? completedAt;
+  final String? completionCommandLocalId;
+
+  /// لا يتوفر إلا من إقرار إكمال مؤكد يحمل تكلفة الجلسة.
+  final int? approvedAmountMinor;
 
   final SessionBusinessState businessState;
   final SessionSyncState syncState;

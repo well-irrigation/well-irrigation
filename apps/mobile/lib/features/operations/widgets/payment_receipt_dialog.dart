@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../core/printer/receipt_formatter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/currency_utils.dart';
-import '../../../core/utils/tafqeet_utils.dart';
 import '../../../core/widgets/currency_display.dart';
 import '../../../core/widgets/currency_text_form_field.dart';
+import 'session_completion_result.dart';
 
-/// نافذة سداد الفاتورة وسند القبض والطباعة الحرارية الميدانية (UX-10 / ق-91 / ق-92)
+/// طلب دفعة مستقل؛ قبول الخادم وحده يثبت السداد والسند.
 class PaymentReceiptDialog extends StatefulWidget {
   const PaymentReceiptDialog({
     required this.wellName,
@@ -19,6 +18,7 @@ class PaymentReceiptDialog extends StatefulWidget {
     required this.hourlyRateYER,
     required this.billableSeconds,
     this.actualSeconds,
+    this.amountApproved = false,
     required this.totalAmountYER,
     required this.onConfirmPayment,
     super.key,
@@ -37,6 +37,7 @@ class PaymentReceiptDialog extends StatefulWidget {
   /// غيابها يعني أنها غير متوفرة فلا تُعرض ولا تُخترع محليًا
   /// (ق-131 البند 7). لا يدخل في أي حساب مالي.
   final int? actualSeconds;
+  final bool amountApproved;
   final int totalAmountYER;
   final Future<void> Function({
     required int paidAmountYER,
@@ -74,48 +75,13 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
 
   int get _remainingAmount => widget.totalAmountYER - _paidAmount;
 
-  String _buildReceiptText(int hourlyRate) {
-    final paidAmount = _paidAmount;
-    final remainingAmount = widget.totalAmountYER - paidAmount;
-    var text = ReceiptFormatter.formatSessionInvoice(
-      wellName: widget.wellName,
-      invoiceNumber:
-          'INV-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}',
-      date: DateTime.now(),
-      operatorName: widget.operatorName,
-      farmerName: widget.farmerName,
-      farmName: widget.farmName,
-      energySource: widget.energySource,
-      hourlyRateYER: hourlyRate,
-      actualSeconds: widget.actualSeconds,
-      billableSeconds: widget.billableSeconds,
-      totalAmountYER: widget.totalAmountYER,
-      paidAmountYER: paidAmount,
-    );
-    text = text.replaceAll(' ريال يمني', ' ريال');
-    text = text.replaceFirst(
-      '- سعر الساعة: ${CurrencyUtils.formatAmount(hourlyRate)} ريال',
-      '- سعر الساعة: ${CurrencyUtils.formatAmount(hourlyRate)} ريال / ساعة\n'
-          '- سعر الساعة كتابة: ${Tafqeet.format(hourlyRate)}',
-    );
-    text = text.replaceFirst(
-      'المدفوع نقداً: ${CurrencyUtils.formatAmount(paidAmount)} ريال',
-      'المدفوع نقداً: ${CurrencyUtils.formatAmount(paidAmount)} ريال\n'
-          'المدفوع كتابة: ${Tafqeet.format(paidAmount)}',
-    );
-    final originalRemaining =
-        'المتبقي: ${CurrencyUtils.formatAmount(remainingAmount)} ريال';
-    final truthfulBalance = switch (remainingAmount) {
-      > 0 =>
-        'المتبقي: ${CurrencyUtils.formatAmount(remainingAmount)} ريال\n'
-            'المتبقي كتابة: ${Tafqeet.format(remainingAmount)}',
-      0 => 'الحساب: خالص بالكامل',
-      _ =>
-        'رصيد مقدم: ${CurrencyUtils.formatAmount(remainingAmount.abs())} ريال\n'
-            'الرصيد المقدم كتابة: ${Tafqeet.format(remainingAmount.abs())}',
-    };
-    return text.replaceFirst(originalRemaining, truthfulBalance);
-  }
+  String _buildReceiptText(int hourlyRate) =>
+      'ملخص طلب دفعة — ليس سند قبض\n'
+      'المزارع: ${widget.farmerName}\n'
+      'الأرض: ${widget.farmName}\n'
+      'المبلغ المطلوب تسجيله: ${CurrencyUtils.formatAmount(_paidAmount)} ريال\n'
+      'طريقة الدفع: ${SessionCompletionResult.methodLabel(_paymentMethod)}\n'
+      'لا يثبت السداد أو التخصيص قبل قبول الخادم';
 
   void _handlePrint() {
     // لا طباعة مُدَّعاة: لا تكامل بلوتوث في هذا الإصدار، وكان التأخير
@@ -165,17 +131,13 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
     final hours = seconds ~/ 3600;
     final minutes = (seconds % 3600) ~/ 60;
     final secs = seconds % 60;
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      runSpacing: 4,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label),
-        const SizedBox(width: 8),
+        Text(label, style: const TextStyle(fontSize: 12)),
         Text(
           '$hours س : $minutes د : $secs ث',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
       ],
     );
@@ -189,9 +151,10 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
         : _buildReceiptText(hourlyRate);
 
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(12),
         constraints: const BoxConstraints(maxWidth: 480),
         child: SingleChildScrollView(
           child: Column(
@@ -202,7 +165,7 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: AppColors.agriculturalGreen.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
@@ -210,10 +173,10 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                     child: const Icon(
                       Icons.receipt_long,
                       color: AppColors.agriculturalGreen,
-                      size: 28,
+                      size: 24,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,109 +200,144 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
+                    tooltip: 'إغلاق طلب الدفعة',
                     onPressed: () => Navigator.of(context).pop(false),
                   ),
                 ],
               ),
-              const Divider(height: 24),
+              const Divider(height: 12),
 
-              // تفاصيل المدة والمستحق
+              // الحقائق نفسها في شبكة مرنة؛ لا طي ولا حذف للمبالغ أو المدد.
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: Column(
-                  children: [
-                    // الفعلي إن وُفر من المستدعي يُعرض بسطره المستقل،
-                    // والمفوتر دائمًا بعنوانه المالي الصريح.
-                    if (widget.actualSeconds != null) ...[
-                      _durationRow(
-                        'مدة التنفيذ الفعلية:',
-                        widget.actualSeconds!,
-                      ),
-                      const SizedBox(height: 6),
-                    ],
-                    _durationRow('الوقت المفوتر:', widget.billableSeconds),
-
-                    const SizedBox(height: 6),
-                    if (hourlyRate == null)
-                      const Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          Text('طريقة التسعير:'),
-                          Text(
-                            'حسب مقاطع الجلسة',
-                            textAlign: TextAlign.end,
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      )
-                    else
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.start,
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          Text('سعر الساعة (${widget.energySource}):'),
-                          CurrencyDisplay(
-                            amount: hourlyRate,
-                            unit: 'ريال / ساعة',
-                            alignment: CrossAxisAlignment.end,
-                            amountStyle: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
-                            tafqeetStyle: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    const Divider(height: 16),
-                    Wrap(
-                      alignment: WrapAlignment.spaceBetween,
-                      crossAxisAlignment: WrapCrossAlignment.start,
-                      spacing: 8,
-                      runSpacing: 4,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stacked =
+                        MediaQuery.textScalerOf(context).scale(14) > 20;
+                    final width = stacked
+                        ? constraints.maxWidth
+                        : (constraints.maxWidth - 12) / 2;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
                       children: [
-                        const Text(
-                          'المبلغ الإجمالي:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                        if (widget.actualSeconds != null)
+                          SizedBox(
+                            width: width,
+                            child: _durationRow(
+                              'مدة التنفيذ الفعلية:',
+                              widget.actualSeconds!,
+                            ),
+                          ),
+                        SizedBox(
+                          width: width,
+                          child: _durationRow(
+                            'الوقت المفوتر:',
+                            widget.billableSeconds,
                           ),
                         ),
-                        CurrencyDisplay(
-                          amount: widget.totalAmountYER,
-                          unit: 'ريال',
-                          alignment: CrossAxisAlignment.end,
-                          amountStyle: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.agriculturalGreen,
+                        SizedBox(
+                          width: width,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (hourlyRate == null) ...[
+                                const Text(
+                                  'طريقة التسعير:',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                                const Text(
+                                  'حسب مقاطع الجلسة',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ] else ...[
+                                Text(
+                                  'سعر الساعة (${widget.energySource}):',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                CurrencyDisplay(
+                                  amount: hourlyRate,
+                                  unit: 'ريال / ساعة',
+                                  showTafqeet: false,
+                                  amountStyle: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  unitStyle: const TextStyle(fontSize: 12),
+                                ),
+                                Text(
+                                  SessionCompletionResult.amountWords(
+                                    hourlyRate,
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: width,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.amountApproved
+                                    ? 'المبلغ المعتمد للجلسة:'
+                                    : 'المبلغ التقديري للجلسة:',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              CurrencyDisplay(
+                                amount: widget.totalAmountYER,
+                                unit: 'ريال',
+                                showTafqeet: false,
+                                amountStyle: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.agriculturalGreen,
+                                ),
+                              ),
+                              Text(
+                                SessionCompletionResult.amountWords(
+                                  widget.totalAmountYER,
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
               // حقل المبلغ المدفوع نقداً
               CurrencyTextFormField(
                 controller: _paidController,
-                labelText: 'المبلغ المدفوع الآن (ريال)',
-                hintText: 'أدخل المبلغ المحصل',
+                labelText: 'مبلغ الدفعة',
+                tafqeetFormatter: SessionCompletionResult.amountWords,
+                hintText: 'أدخل المبلغ',
                 onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
               // طريقة الدفع
               DropdownButtonFormField<String>(
@@ -356,10 +354,10 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                   ),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('نقداً (كاش)')),
+                  DropdownMenuItem(value: 'cash', child: Text('نقدًا')),
                   DropdownMenuItem(
                     value: 'bank_transfer',
-                    child: Text('حوالة / مصرفية'),
+                    child: Text('حوالة مصرفية'),
                   ),
                   DropdownMenuItem(
                     value: 'mobile_wallet',
@@ -372,13 +370,19 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                   }
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+
+              const Text(
+                'طلب دفعة — لا يثبت السداد قبل قبول الخادم',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
 
               // المتبقي
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 10,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
                   color: _remainingAmount > 0
@@ -393,7 +397,7 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                 ),
                 child: _remainingAmount == 0
                     ? Text(
-                        'خالص بالكامل ✅',
+                        'طلب دفعة مطابق للمبلغ المعروض — لم يُعتمد بعد',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
@@ -405,8 +409,8 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                         children: [
                           Text(
                             _remainingAmount > 0
-                                ? 'المتبقي (دين على المزارع):'
-                                : 'رصيد مقدم:',
+                                ? 'الفرق عن المبلغ المعروض (تقديري):'
+                                : 'زيادة مقترحة — يحددها الخادم:',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: _remainingAmount > 0
@@ -417,6 +421,7 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                           const SizedBox(height: 6),
                           CurrencyDisplay(
                             amount: _remainingAmount.abs(),
+                            showTafqeet: false,
                             unit: 'ريال',
                             amountStyle: TextStyle(
                               fontWeight: FontWeight.bold,
@@ -425,10 +430,19 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                                   : Colors.green.shade900,
                             ),
                           ),
+                          Text(
+                            SessionCompletionResult.amountWords(
+                              _remainingAmount.abs(),
+                            ),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ],
                       ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
               // خيار معاينة الفاتورة الحرارية
               if (receiptText != null)
@@ -437,32 +451,34 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                     () => _showThermalPreview = !_showThermalPreview,
                   ),
                   borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _showThermalPreview
-                              ? Icons.keyboard_arrow_up
-                              : Icons.receipt,
-                          size: 18,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
                             _showThermalPreview
-                                ? 'إخفاء معاينة الإيصال'
-                                : 'معاينة قالب الإيصال الحراري (58mm)',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                                ? Icons.keyboard_arrow_up
+                                : Icons.receipt,
+                            size: 18,
+                            color: AppColors.textSecondary,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              _showThermalPreview
+                                  ? 'إخفاء ملخص طلب الدفعة'
+                                  : 'معاينة ملخص طلب الدفعة',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -486,49 +502,66 @@ class _PaymentReceiptDialogState extends State<PaymentReceiptDialog> {
                   ),
                 ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
 
-              // أزرار العمليات
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _handlePrint,
-                    icon: const Icon(Icons.print_disabled),
-                    label: const Text('طباعة حرارية (غير متاحة)'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: _isSaving || _paidAmount <= 0
-                        ? null
-                        : _handleConfirm,
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
+              // الحفظ والطباعة في صف واحد مع أهداف لمس كاملة.
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final stacked =
+                      MediaQuery.textScalerOf(context).scale(14) > 20;
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: stacked
+                            ? constraints.maxWidth
+                            : constraints.maxWidth - 56,
+                        child: ElevatedButton.icon(
+                          onPressed: _isSaving || _paidAmount <= 0
+                              ? null
+                              : _handleConfirm,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.check_circle),
+                          label: const Text(
+                            'حفظ طلب الدفعة',
+                            textAlign: TextAlign.center,
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.agriculturalGreen,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(48, 48),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 8,
                             ),
-                          )
-                        : const Icon(Icons.check_circle),
-                    label: const Text('حفظ واعتماد'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.agriculturalGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+                      IconButton(
+                        onPressed: _handlePrint,
+                        icon: const Icon(Icons.print_disabled),
+                        tooltip: 'طباعة حرارية (غير متاحة)',
+                        constraints: const BoxConstraints(
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),

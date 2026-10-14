@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../theme/app_colors.dart';
 import '../utils/currency_utils.dart';
 import '../utils/digit_utils.dart';
@@ -21,6 +22,7 @@ class CurrencyTextFormField extends StatefulWidget {
     this.validator,
     this.autofocus = false,
     this.enabled = true,
+    this.tafqeetFormatter,
     super.key,
   });
 
@@ -32,6 +34,9 @@ class CurrencyTextFormField extends StatefulWidget {
   final FormFieldValidator<String>? validator;
   final bool autofocus;
   final bool enabled;
+
+  /// تخصيص نص العرض فقط؛ لا يدخل في القراءة أو الحفظ أو تنسيق الأرقام.
+  final String Function(int amount)? tafqeetFormatter;
 
   @override
   State<CurrencyTextFormField> createState() => _CurrencyTextFormFieldState();
@@ -66,7 +71,10 @@ class _CurrencyTextFormFieldState extends State<CurrencyTextFormField> {
   @override
   Widget build(BuildContext context) {
     final hasAmount = _currentAmount > 0;
-    final tafqeetText = hasAmount ? Tafqeet.format(_currentAmount) : '';
+    final tafqeetText = hasAmount
+        ? (widget.tafqeetFormatter?.call(_currentAmount) ??
+              Tafqeet.format(_currentAmount))
+        : '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -92,7 +100,10 @@ class _CurrencyTextFormFieldState extends State<CurrencyTextFormField> {
           validator: widget.validator,
           decoration: InputDecoration(
             hintText: widget.hintText,
-            hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+            hintStyle: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 14,
+            ),
             suffixText: widget.unitSuffix,
             suffixStyle: const TextStyle(
               fontWeight: FontWeight.bold,
@@ -101,7 +112,10 @@ class _CurrencyTextFormFieldState extends State<CurrencyTextFormField> {
             ),
             filled: true,
             fillColor: AppColors.surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.border),
@@ -112,7 +126,10 @@ class _CurrencyTextFormFieldState extends State<CurrencyTextFormField> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.borderFocused, width: 1.5),
+              borderSide: const BorderSide(
+                color: AppColors.borderFocused,
+                width: 1.5,
+              ),
             ),
           ),
         ),
