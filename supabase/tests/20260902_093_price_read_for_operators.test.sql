@@ -86,8 +86,8 @@ begin
 
   select count(*) into v_count_2 from iam.role_permissions;
 
-  if v_count = 45 and v_count_2 = 84 then
-    raise notice 'PASS 3: الكتالوج 45 صلاحية وiam.role_permissions 84 منحًا';
+  if v_count = 45 and v_count_2 = 85 then
+    raise notice 'PASS 3: الكتالوج 45 صلاحية وiam.role_permissions 85 منحًا';
   else
     raise notice 'FAIL 3: أرقام السلطة غير متوقعة (% صلاحية، % منحًا)',
       v_count, v_count_2;

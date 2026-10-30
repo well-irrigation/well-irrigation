@@ -1,14 +1,78 @@
--- =====================================================================
--- P2 Automated Execution Proof — Phase 1 (LOCAL ONLY)
--- ق-135 / ق-136: هوية تنفيذ تقنية منفصلة، Actor نظامي ثابت، مشغّل
--- بشري حقيقي، إعادة تفويض ذرية، P1-B منسق الأعمال الوحيد.
--- التزامن الحقيقي متعدد الاتصالات في scripts/p2_automation_concurrency_proof.py.
--- =====================================================================
-
+-- Q137: منع إعادة تشغيل منفذ الأتمتة القديم؛ اختبار محلي سلبي.
+\set ON_ERROR_STOP on
 begin;
 
 set local timezone to 'UTC';
 
+
+-- مساعدات مؤقتة داخل معاملة الاختبار؛ لا تعديل لأي عقد إنتاج.
+create function pg_temp.q137_check(ok boolean,label text)
+returns void language plpgsql as $qcheck$
+begin
+  if ok is distinct from true then raise exception 'FAIL %',label; end if;
+  raise notice 'PASS %',label;
+end;
+$qcheck$;
+
+-- Q137-REFERENCE-CLASS: EXPECTED_NEGATIVE_TEST
+-- مقارنة الصفوف كاملة، بما فيها بيانات المحاسبة والتدقيق ومحاولات التنفيذ.
+create function pg_temp.q137_snapshot()
+returns jsonb language plpgsql as $qsnapshot$
+declare r record; rows_json jsonb; result jsonb := '{}'::jsonb;
+begin
+  for r in
+    select n.nspname,c.relname
+    from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid=c.relnamespace
+    where c.relkind in ('r','p') and not c.relispartition
+      and (n.nspname in ('billing','finance','inventory','audit','sync')
+        or (n.nspname='core' and c.relname in ('wells','well_settings'))
+        or (n.nspname='ops' and c.relname in (
+          'irrigation_bookings','irrigation_sessions','session_segments',
+          'booking_transition_chains','booking_transition_decisions',
+          'booking_status_history','resource_reservations',
+          'booking_automation_control','booking_automation_execution_contexts')))
+    order by n.nspname,c.relname
+  loop
+    execute format(
+      'select coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),''[]''::jsonb) from %I.%I t',
+      r.nspname,r.relname) into rows_json;
+    result := result || jsonb_build_object(r.nspname||'.'||r.relname,rows_json);
+  end loop;
+  perform pg_temp.q137_check(result ?& array[
+    'ops.irrigation_bookings','ops.irrigation_sessions',
+    'ops.booking_transition_chains','ops.booking_transition_decisions',
+    'sync.processed_commands','audit.booking_automation_attempts',
+    'billing.session_charges','finance.journal_entries','finance.journal_lines'],
+    'snapshot covers operational, execution, command and financial authorities');
+  return result;
+end;
+$qsnapshot$;
+
+-- النجاح غير المتوقع أو خطأ مختلف يفشل الاختبار؛ لا ابتلاع للأخطاء.
+create function pg_temp.q137_refused(
+  statement text,label text,expected_state text,
+  as_role text default 'authenticated',expected_message text default null)
+returns void language plpgsql as $qrefused$
+declare before_state jsonb; caught_state text; caught_message text;
+begin
+  before_state := pg_temp.q137_snapshot();
+  begin
+    if as_role is not null then execute format('set local role %I',as_role); end if;
+    execute statement;
+  exception when others then
+    get stacked diagnostics caught_state=returned_sqlstate,caught_message=message_text;
+  end;
+  execute 'reset role';
+  perform pg_temp.q137_check(
+    caught_state=expected_state
+    and (expected_message is null or caught_message=expected_message),label);
+  perform pg_temp.q137_check(pg_temp.q137_snapshot()=before_state,
+    label||' / zero partial effects');
+end;
+$qrefused$;
+
+-- Q137-REFERENCE-CLASS: EXPECTED_HISTORICAL_READ_FIXTURE
 create temporary table p2_seed (
   tenant_id uuid not null,
   farmer_profile_id uuid not null,
@@ -138,10 +202,6 @@ begin
     'request.jwt.claim.sub', v_seed.operator_profile_id::text, true
   );
 
-  v_result := api.set_well_booking_automation(
-    v_well, true, 0::bigint, gen_random_uuid()
-  );
-
   v_result := ops.start_booking_session_core(
     v_current_booking,
     v_seed.operator_profile_id,
@@ -149,9 +209,17 @@ begin
   );
   v_current_session := (v_result ->> 'session_id')::uuid;
 
-  select c.id into v_chain
-  from ops.booking_transition_chains c
-  where c.well_id = v_well and c.status = 'active';
+  perform pg_temp.q137_check(not exists(
+    select 1 from ops.booking_transition_chains where well_id=v_well),
+    'manual start creates no chain');
+  -- historical fixture for retained Q137 read/replay contract.
+  -- صف اختبار قديم صريح، وليس أثرًا لعقد البدء اليدوي الحالي.
+  insert into ops.booking_transition_chains(
+    tenant_id,well_id,status,opened_by_session_id,opened_at,
+    current_session_id,next_booking_id,decision_revision,created_by)
+  values(v_seed.tenant_id,v_well,'active',v_current_session,
+    v_now-interval '130 minutes',v_current_session,v_next_booking,0,
+    v_seed.operator_profile_id) returning id into v_chain;
 
   select ws.booking_auto_transition_revision
     into v_auto_revision
@@ -172,430 +240,170 @@ begin
     'current_session_id', v_current_session,
     'next_booking_id', v_next_booking,
     'decision_revision', 0,
-    'automation_revision', v_auto_revision,
-    'policy_version', v_policy_version
+    'automation_revision', coalesce(v_auto_revision,0),
+    'policy_version', coalesce(v_policy_version,1)
   );
 end;
 $function$;
 
-create function pg_temp.call_automation(
-  p_context jsonb,
-  p_command_id uuid,
-  p_attempt_id uuid,
-  p_runtime_run_id uuid
-)
-returns jsonb
-language plpgsql
-as $function$
-begin
-  return ops.execute_booking_transition_automation(
-    (p_context ->> 'well_id')::uuid,
-    (p_context ->> 'chain_id')::uuid,
-    (p_context ->> 'current_session_id')::uuid,
-    (p_context ->> 'next_booking_id')::uuid,
-    (p_context ->> 'decision_revision')::bigint,
-    (p_context ->> 'automation_revision')::bigint,
-    (p_context ->> 'policy_version')::bigint,
-    p_command_id,
-    p_attempt_id,
-    p_runtime_run_id
-  );
-end;
-$function$;
 
+-- Q137-REFERENCE-CLASS: EXPECTED_NEGATIVE_TEST
 do $test$
 declare
-  v_seed p2_seed%rowtype;
-  v_ctx jsonb;
-  v_res jsonb;
-  v_res2 jsonb;
-  v_command uuid;
-  v_attempt uuid;
-  v_run uuid;
-  v_second_operator uuid;
-  v_new_operator uuid;
-  v_count integer;
-  v_session_count integer;
-  v_charge_count integer;
+  seed p2_seed%rowtype;
+  ctx jsonb;
+  r record;
+  args text;
+  statement text;
+  caller text;
+  invocation text;
+  command_id uuid := gen_random_uuid();
+  same_attempt uuid := gen_random_uuid();
+  same_run uuid := gen_random_uuid();
+  calls integer := 0;
+  other_operator uuid := gen_random_uuid();
 begin
-  select * into v_seed from p2_seed limit 1;
+  select * into seed from p2_seed limit 1;
+  ctx := pg_temp.make_p2_case('Q137-RETIRED');
+  perform pg_temp.q137_check(
+    (select status='open' and ended_at is null
+      and operator_profile_id=seed.operator_profile_id
+     from ops.irrigation_sessions where id=(ctx->>'current_session_id')::uuid),
+    'AP17/AP19: real human operator and open current session');
 
-  update ops.booking_automation_control
-  set execution_enabled = true,
-      policy_version = policy_version + 1,
-      updated_at = clock_timestamp()
-  where control_key = 'global';
+  -- نفس مجموعة الهجرة؛ يشمل كل overload مثبت، لا توقيعًا مفترضًا فقط.
+  for r in
+    select p.oid,n.nspname,p.proname,p.proargtypes,p.prosecdef,p.proconfig
+    from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace
+    where (n.nspname='ops' and p.proname in (
+      'execute_booking_transition','execute_booking_transition_automation',
+      'execute_pending_booking_start','record_booking_transition_decision'))
+      or (n.nspname='api' and p.proname in (
+        'execute_pending_booking_start','record_booking_transition_decision'))
+    order by n.nspname,p.proname,p.oid
+  loop
+    calls := calls+1;
+    perform pg_temp.q137_check(
+      r.prosecdef=(r.nspname='ops')
+      and r.proconfig @> array['search_path=pg_catalog, pg_temp']
+      and not has_function_privilege('anon',r.oid,'execute')
+      and not exists(select 1 from pg_catalog.pg_proc p,
+        lateral pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) acl
+        where p.oid=r.oid and acl.grantee=0 and acl.privilege_type='EXECUTE')
+      and case when r.nspname='api' then
+        has_function_privilege('authenticated',r.oid,'execute')
+        and has_function_privilege('service_role',r.oid,'execute')
+      else not has_function_privilege('authenticated',r.oid,'execute')
+        and not has_function_privilege('service_role',r.oid,'execute') end,
+      'AP2-AP5: exact grants/security for '||r.oid::regprocedure::text);
+    select string_agg('NULL::'||pg_catalog.format_type(t,null),',' order by ord)
+      into args from unnest(r.proargtypes::oid[]) with ordinality a(t,ord);
+    statement := format('select %I.%I(%s)',r.nspname,r.proname,args);
+    perform pg_temp.q137_refused(statement,
+      'disabled installed identity '||r.oid::regprocedure::text,'0A000',
+      case when r.nspname='api' then 'authenticated' else null end,
+      'legacy_booking_automation_disabled');
+    foreach caller in array array['anon','authenticated','service_role','booking_automation_executor'] loop
+      perform pg_temp.q137_refused(statement,
+        'role boundary '||caller||' / '||r.oid::regprocedure::text,
+        case when has_function_privilege(caller,r.oid,'execute') then '0A000' else '42501' end,
+        caller,case when has_function_privilege(caller,r.oid,'execute')
+          then 'legacy_booking_automation_disabled' else null end);
+    end loop;
+  end loop;
+  perform pg_temp.q137_check(calls>=6
+    and to_regprocedure('ops.execute_booking_transition(uuid,bigint,uuid)') is not null
+    and to_regprocedure('ops.execute_booking_transition_automation(uuid,uuid,uuid,uuid,bigint,bigint,bigint,uuid,uuid,uuid)') is not null
+    and to_regprocedure('ops.execute_pending_booking_start(uuid,bigint,uuid)') is not null
+    and to_regprocedure('ops.record_booking_transition_decision(uuid,uuid,uuid,text,bigint,uuid,uuid)') is not null
+    and to_regprocedure('api.execute_pending_booking_start(uuid,bigint,uuid)') is not null
+    and to_regprocedure('api.record_booking_transition_decision(uuid,uuid,uuid,text,bigint,uuid)') is not null,
+    'all six required production identities covered');
+  perform pg_temp.q137_check(
+    position('actor' in lower(pg_get_function_arguments(
+      'ops.execute_booking_transition_automation(uuid,uuid,uuid,uuid,bigint,bigint,bigint,uuid,uuid,uuid)'::regprocedure)))=0
+    and position('operator' in lower(pg_get_function_arguments(
+      'ops.execute_booking_transition_automation(uuid,uuid,uuid,uuid,bigint,bigint,bigint,uuid,uuid,uuid)'::regprocedure)))=0,
+    'AP4: caller cannot select actor or operator identity');
 
-  -- AP1: المسار البشري القديم يبقى كما هو ولا يعتمد على دور الأتمتة.
-  v_ctx := pg_temp.make_p2_case('AP1-HUMAN');
-  perform set_config(
-    'request.jwt.claim.sub', v_seed.operator_profile_id::text, true
-  );
-  v_res := ops.execute_booking_transition(
-    (v_ctx ->> 'well_id')::uuid,
-    (v_ctx ->> 'decision_revision')::bigint,
-    gen_random_uuid()
-  );
-  if (v_res ->> 'auto_transition_executed')::boolean
-     and (v_res ->> 'executed_by')::uuid = v_seed.operator_profile_id then
-    raise notice 'PASS AP1: المسار البشري بقي بهوية auth الحقيقية والعقد القديم';
-  else
-    raise notice 'FAIL AP1: تغير المسار البشري أو إسناده: %', v_res;
-  end if;
+  -- معرفات تاريخية حقيقية: لا تكفي اختبارات NULL وحدها لإثبات الرفض.
+  statement := format(
+    'select ops.execute_booking_transition_automation(%L::uuid,%L::uuid,%L::uuid,%L::uuid,0::bigint,%L::bigint,%L::bigint,%L::uuid,%L::uuid,%L::uuid)',
+    ctx->>'well_id',ctx->>'chain_id',ctx->>'current_session_id',ctx->>'next_booking_id',
+    ctx->>'automation_revision',ctx->>'policy_version',command_id,same_attempt,same_run);
+  perform set_config('request.jwt.claim.sub','',true);
+  perform pg_temp.q137_refused(statement,'AP6: trusted technical role also retired',
+    '0A000','booking_automation_executor','legacy_booking_automation_disabled');
+  perform pg_temp.q137_refused(statement,'AP14/AP16: identical retry cannot execute',
+    '0A000','booking_automation_executor','legacy_booking_automation_disabled');
+  perform set_config('request.jwt.claim.sub',seed.operator_profile_id::text,true);
+  perform pg_temp.q137_refused(format(
+    'select ops.execute_booking_transition(%L::uuid,0::bigint,%L::uuid)',
+    ctx->>'well_id',gen_random_uuid()),'AP1: old human transition is retired',
+    '0A000',null,'legacy_booking_automation_disabled');
 
-  -- AP2–AP5: لا anon/authenticated/operator/service_role على المدخل الداخلي.
-  v_ctx := pg_temp.make_p2_case('AP2-AUTH');
-  perform set_config('request.jwt.claim.sub', '', true);
+  foreach invocation in array array['true','false'] loop
+    perform pg_temp.q137_refused(format(
+      'select api.set_well_booking_automation(%L::uuid,%s,0::bigint,%L::uuid)',
+      ctx->>'well_id',invocation,gen_random_uuid()),'AP11: new ON/OFF disabled',
+      '0A000','authenticated','legacy_booking_automation_disabled');
+  end loop;
+  perform pg_temp.q137_refused(format(
+    'select ops.set_well_booking_automation(%L::uuid,true,0::bigint,%L::uuid,%L::uuid)',
+    ctx->>'well_id',seed.owner_profile_id,gen_random_uuid()),
+    'actor mismatch cannot impersonate another profile','42501','authenticated');
+  perform set_config('request.jwt.claim.sub',seed.owner_profile_id::text,true);
+  perform pg_temp.q137_refused(format(
+    'select api.set_well_booking_automation(%L::uuid,true,0::bigint,%L::uuid)',
+    ctx->>'well_id',gen_random_uuid()),'owner is not the authorized operator','42501');
 
-  execute 'set local role anon';
-  begin
-    perform pg_temp.call_automation(
-      v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-    );
-    raise notice 'FAIL AP2: anon استدعى مسار الأتمتة';
-  exception when insufficient_privilege then
-    raise notice 'PASS AP2: anon لا يستدعي مسار الأتمتة';
-  end;
-  execute 'reset role';
+  -- AP7/AP9: السحب الفعلي للتعيين لا يمنح مسارًا بديلًا.
+  perform set_config('request.jwt.claim.sub',seed.operator_profile_id::text,true);
+  update core.well_assignments set status='inactive'
+    where id=(ctx->>'operator_assignment_id')::uuid;
+  perform pg_temp.q137_refused(format(
+    'select api.set_well_booking_automation(%L::uuid,true,0::bigint,%L::uuid)',
+    ctx->>'well_id',gen_random_uuid()),'revoked operator cannot activate','42501');
+  perform set_config('request.jwt.claim.sub','',true);
+  perform pg_temp.q137_refused(statement,'revoked delegation cannot bypass retirement',
+    '0A000','booking_automation_executor','legacy_booking_automation_disabled');
 
-  execute 'set local role authenticated';
-  begin
-    perform pg_temp.call_automation(
-      v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-    );
-    raise notice 'FAIL AP3: authenticated عادي استدعى مسار الأتمتة';
-  exception when insufficient_privilege then
-    raise notice 'PASS AP3: authenticated العادي محجوب';
-  end;
-  execute 'reset role';
+  -- AP8/AP10: إضافة مشغل أو تغييره لا يعيد فتح التنفيذ القديم.
+  insert into auth.users(id,raw_user_meta_data)
+    values(other_operator,'{"full_name":"مشغل بديل للاختبار"}');
+  insert into core.well_assignments(well_id,profile_id,role,status)
+    values((ctx->>'well_id')::uuid,other_operator,'operator','active');
+  perform set_config('request.jwt.claim.sub',other_operator::text,true);
+  perform pg_temp.q137_refused(statement,'changed operator cannot revive executor',
+    '0A000','booking_automation_executor','legacy_booking_automation_disabled');
+  update core.well_assignments set status='active'
+    where id=(ctx->>'operator_assignment_id')::uuid;
+  perform pg_temp.q137_refused(statement,'multiple operators cannot revive executor',
+    '0A000','booking_automation_executor','legacy_booking_automation_disabled');
 
-  perform set_config(
-    'request.jwt.claim.sub', v_seed.operator_profile_id::text, true
-  );
-  execute 'set local role authenticated';
-  begin
-    perform pg_temp.call_automation(
-      v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-    );
-    raise notice 'FAIL AP4: المشغل اختار Actor الأتمتة لنفسه';
-  exception when insufficient_privilege then
-    if position('actor' in lower(pg_get_function_arguments(
-      'ops.execute_booking_transition_automation'::regproc
-    ))) = 0
-       and position('operator' in lower(pg_get_function_arguments(
-      'ops.execute_booking_transition_automation'::regproc
-    ))) = 0 then
-      raise notice 'PASS AP4: المشغل محجوب والمدخل لا يقبل Actor أو Operator';
-    else
-      raise notice 'FAIL AP4: توقيع المدخل يسمح باختيار هوية أعمال';
-    end if;
-  end;
-  execute 'reset role';
+  -- AP12/AP15: اختلاف المفاتيح والمراجعات لا يصل إلى محرك الأعمال القديم.
+  update ops.booking_automation_control set execution_enabled=false where control_key='global';
+  perform pg_temp.q137_refused(statement,'global OFF does not change retirement contract',
+    '0A000','booking_automation_executor','legacy_booking_automation_disabled');
+  update ops.booking_automation_control set execution_enabled=true where control_key='global';
+  perform pg_temp.q137_refused(statement,'global ON cannot reactivate retirement',
+    '0A000','booking_automation_executor','legacy_booking_automation_disabled');
+  perform pg_temp.q137_refused(format(
+    'select ops.execute_booking_transition_automation(%L::uuid,%L::uuid,%L::uuid,%L::uuid,999::bigint,999::bigint,999::bigint,%L::uuid,%L::uuid,%L::uuid)',
+    ctx->>'well_id',ctx->>'chain_id',ctx->>'current_session_id',gen_random_uuid(),
+    gen_random_uuid(),gen_random_uuid(),gen_random_uuid()),'stale intent remains disabled',
+    '0A000','booking_automation_executor','legacy_booking_automation_disabled');
 
-  perform set_config('request.jwt.claim.sub', '', true);
-  execute 'set local role service_role';
-  begin
-    perform pg_temp.call_automation(
-      v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-    );
-    raise notice 'FAIL AP5: service_role أصبح Actor أعمال';
-  exception when insufficient_privilege then
-    raise notice 'PASS AP5: service_role وحده لا يستدعي الأتمتة';
-  end;
-  execute 'reset role';
-
-  -- AP6/AP17/AP18: السياق التقني الموثوق ينجح بلا auth.uid، والمشغّل بشري.
-  v_ctx := pg_temp.make_p2_case('AP6-TRUSTED');
-  v_command := gen_random_uuid();
-  v_attempt := gen_random_uuid();
-  v_run := gen_random_uuid();
-  perform set_config('request.jwt.claim.sub', '', true);
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(v_ctx, v_command, v_attempt, v_run);
-  execute 'reset role';
-
-  if v_res ->> 'result' = 'accepted'
-     and v_res ->> 'actor_kind' = 'system'
-     and v_res ->> 'actor_ref' = 'booking_automation_system' then
-    raise notice 'PASS AP6: المسار الموثوق نجح بسياق نظامي بلا auth مزيف';
-  else
-    raise notice 'FAIL AP6: المسار الموثوق لم ينجح: %', v_res;
-  end if;
-
-  if exists (
-    select 1
-    from ops.irrigation_sessions s
-    where s.booking_id = (v_ctx ->> 'next_booking_id')::uuid
-      and s.operator_profile_id = v_seed.operator_profile_id
-  ) then
-    raise notice 'PASS AP17: operator_profile_id بقي المشغل البشري الحقيقي';
-  else
-    raise notice 'FAIL AP17: الجلسة الجديدة لا تحمل المشغل الحقيقي';
-  end if;
-
-  if exists (
-    select 1
-    from audit.booking_automation_attempts a
-    where a.attempt_id = v_attempt
-      and a.actor_kind = 'system'
-      and a.actor_ref = 'booking_automation_system'
-      and a.executor_id = 'booking_automation_executor'
-      and a.operator_profile_id = v_seed.operator_profile_id
-      and a.command_id = v_command
-      and a.runtime_run_id = v_run
-      and a.result = 'accepted'
-  ) then
-    raise notice 'PASS AP18: التدقيق يفصل Actor وExecutor وOperator';
-  else
-    raise notice 'FAIL AP18: إسناد التدقيق ناقص أو مختلط';
-  end if;
-
-  -- AP7: غياب أي تعيين مشغل صالح يرفض مغلقًا.
-  v_ctx := pg_temp.make_p2_case('AP7-NONE');
-  delete from core.well_assignments
-  where id = (v_ctx ->> 'operator_assignment_id')::uuid;
-  perform set_config('request.jwt.claim.sub', '', true);
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  if v_res ->> 'result' = 'rejected'
-     and v_res ->> 'failure_reason' = 'operator_unassigned' then
-    raise notice 'PASS AP7: غياب المشغل الصالح يرفض مغلقًا';
-  else
-    raise notice 'FAIL AP7: غياب المشغل لم يرفض كما يجب: %', v_res;
-  end if;
-
-  -- AP8: أكثر من مشغل نشط حالة ملتبسة لا اختيار تلقائيًا.
-  v_ctx := pg_temp.make_p2_case('AP8-MULTI');
-  v_second_operator := gen_random_uuid();
-  insert into auth.users (
-    id, instance_id, aud, role, email, encrypted_password,
-    email_confirmed_at, created_at, updated_at
-  ) values (
-    v_second_operator, '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated', 'p2-second@test.local',
-    crypt('x', gen_salt('bf')), now(), now(), now()
-  );
-  insert into iam.profiles (id, full_name)
-  values (v_second_operator, 'مشغل P2 ثان')
-  on conflict (id) do update set full_name = excluded.full_name;
-  insert into core.well_assignments (well_id, profile_id, role, status)
-  values ((v_ctx ->> 'well_id')::uuid, v_second_operator, 'operator', 'active');
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  if v_res ->> 'failure_reason' = 'ambiguous_responsible_operator' then
-    raise notice 'PASS AP8: تعدد المشغلين يرفض بلا اختيار ضمني';
-  else
-    raise notice 'FAIL AP8: تعدد المشغلين لم يرفض: %', v_res;
-  end if;
-
-  -- AP9: سحب التفويض بعد Discovery يرفض، والجلسة الحالية تبقى مفتوحة.
-  v_ctx := pg_temp.make_p2_case('AP9-REVOKED');
-  update core.well_assignments
-  set status = 'inactive', updated_at = now()
-  where id = (v_ctx ->> 'operator_assignment_id')::uuid;
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  if v_res ->> 'failure_reason' = 'revoked_delegation' then
-    raise notice 'PASS AP9: سحب التفويض قبل الحسم يرفض';
-  else
-    raise notice 'FAIL AP9: سحب التفويض لم يرفض: %', v_res;
-  end if;
-  if exists (
-    select 1 from ops.irrigation_sessions s
-    where s.id = (v_ctx ->> 'current_session_id')::uuid
-      and s.status = 'open' and s.ended_at is null
-  ) then
-    raise notice 'PASS AP19: رفض الأتمتة لم ينه الجلسة الجارية';
-  else
-    raise notice 'FAIL AP19: الرفض قطع الجلسة الجارية';
-  end if;
-
-  -- AP10: تغيير المشغل لا ينقل ON بصمت.
-  v_ctx := pg_temp.make_p2_case('AP10-CHANGED');
-  update core.well_assignments
-  set status = 'inactive', updated_at = now()
-  where id = (v_ctx ->> 'operator_assignment_id')::uuid;
-  v_new_operator := gen_random_uuid();
-  insert into auth.users (
-    id, instance_id, aud, role, email, encrypted_password,
-    email_confirmed_at, created_at, updated_at
-  ) values (
-    v_new_operator, '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated', 'p2-new@test.local',
-    crypt('x', gen_salt('bf')), now(), now(), now()
-  );
-  insert into iam.profiles (id, full_name)
-  values (v_new_operator, 'مشغل P2 جديد')
-  on conflict (id) do update set full_name = excluded.full_name;
-  insert into core.well_assignments (well_id, profile_id, role, status)
-  values ((v_ctx ->> 'well_id')::uuid, v_new_operator, 'operator', 'active');
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  if v_res ->> 'failure_reason' = 'operator_changed_pending_confirmation' then
-    raise notice 'PASS AP10: تغيير المشغل يحتاج إعادة تفويض وON جديدًا';
-  else
-    raise notice 'FAIL AP10: ON انتقل إلى المشغل الجديد: %', v_res;
-  end if;
-
-  -- AP11: OFF الذي سبق القرار الذري يمنع الانتقال.
-  v_ctx := pg_temp.make_p2_case('AP11-OFF');
-  perform set_config(
-    'request.jwt.claim.sub', v_seed.operator_profile_id::text, true
-  );
-  perform api.set_well_booking_automation(
-    (v_ctx ->> 'well_id')::uuid,
-    false,
-    (v_ctx ->> 'automation_revision')::bigint,
-    gen_random_uuid()
-  );
-  select ws.booking_auto_transition_revision
-    into v_count
-  from core.well_settings ws
-  where ws.well_id = (v_ctx ->> 'well_id')::uuid;
-  v_ctx := jsonb_set(v_ctx, '{automation_revision}', to_jsonb(v_count));
-  perform set_config('request.jwt.claim.sub', '', true);
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  if v_res ->> 'failure_reason' = 'booking_auto_transition_disabled' then
-    raise notice 'PASS AP11: OFF قبل الحسم يمنع الانتقال';
-  else
-    raise notice 'FAIL AP11: OFF لم يمنع الانتقال: %', v_res;
-  end if;
-
-  -- AP12: المفتاح العام داخل القاعدة يمنع الطلب الموجود في الطريق.
-  v_ctx := pg_temp.make_p2_case('AP12-KILL');
-  update ops.booking_automation_control
-  set execution_enabled = false,
-      policy_version = policy_version + 1,
-      updated_at = clock_timestamp()
-  where control_key = 'global';
-  select ctl.policy_version into v_count
-  from ops.booking_automation_control ctl
-  where ctl.control_key = 'global';
-  v_ctx := jsonb_set(v_ctx, '{policy_version}', to_jsonb(v_count));
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  if v_res ->> 'failure_reason' = 'global_automation_disabled' then
-    raise notice 'PASS AP12: المفتاح العام الذري يمنع التنفيذ';
-  else
-    raise notice 'FAIL AP12: المفتاح العام لم يمنع التنفيذ: %', v_res;
-  end if;
-  update ops.booking_automation_control
-  set execution_enabled = true,
-      policy_version = policy_version + 1,
-      updated_at = clock_timestamp()
-  where control_key = 'global';
-
-  -- AP15: مرشح next/revision قديم يرفض بلا أثر.
-  v_ctx := pg_temp.make_p2_case('AP15-STALE');
-  select ctl.policy_version into v_count
-  from ops.booking_automation_control ctl
-  where ctl.control_key = 'global';
-  v_ctx := jsonb_set(v_ctx, '{policy_version}', to_jsonb(v_count));
-  v_ctx := jsonb_set(v_ctx, '{next_booking_id}', to_jsonb(gen_random_uuid()));
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  if v_res ->> 'result' = 'rejected'
-     and v_res ->> 'failure_reason' = 'next_booking_changed' then
-    raise notice 'PASS AP15: الحجز التالي القديم يرفض';
-  else
-    raise notice 'FAIL AP15: المرشح القديم لم يرفض: %', v_res;
-  end if;
-
-  v_ctx := pg_temp.make_p2_case('AP15-REVISION');
-  select ctl.policy_version into v_count
-  from ops.booking_automation_control ctl
-  where ctl.control_key = 'global';
-  v_ctx := jsonb_set(v_ctx, '{policy_version}', to_jsonb(v_count));
-  v_ctx := jsonb_set(
-    v_ctx,
-    '{decision_revision}',
-    to_jsonb((v_ctx ->> 'decision_revision')::bigint + 1)
-  );
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  if v_res ->> 'result' = 'rejected'
-     and v_res ->> 'failure_reason' = 'stale_decision_revision' then
-    raise notice 'PASS AP15: مراجعة القرار القديمة ترفض';
-  else
-    raise notice 'FAIL AP15: مراجعة القرار القديمة لم ترفض: %', v_res;
-  end if;
-
-  -- AP14/AP16: معرفان لنفس النية أو ضياع الرد يعيدان الإقرار فقط.
-  v_ctx := pg_temp.make_p2_case('AP14-REPLAY');
-  select ctl.policy_version into v_count
-  from ops.booking_automation_control ctl
-  where ctl.control_key = 'global';
-  v_ctx := jsonb_set(v_ctx, '{policy_version}', to_jsonb(v_count));
-  v_command := gen_random_uuid();
-  execute 'set local role booking_automation_executor';
-  v_res := pg_temp.call_automation(
-    v_ctx, v_command, gen_random_uuid(), gen_random_uuid()
-  );
-  v_res2 := pg_temp.call_automation(
-    v_ctx, gen_random_uuid(), gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  select count(*) into v_session_count
-  from ops.irrigation_sessions s
-  where s.booking_id = (v_ctx ->> 'next_booking_id')::uuid;
-  select count(*) into v_charge_count
-  from billing.session_charges sc
-  where sc.session_id = (v_ctx ->> 'current_session_id')::uuid;
-  if v_res ->> 'result' = 'accepted'
-     and v_res2 ->> 'result' = 'replayed'
-     and v_session_count = 1 and v_charge_count = 1 then
-    raise notice 'PASS AP14: معرفان لنفس النية أنتجا أثرًا واحدًا وإقرارًا معادًا';
-  else
-    raise notice 'FAIL AP14: تكررت النية أو لم تعد الإقرار: % / %', v_res, v_res2;
-  end if;
-
-  execute 'set local role booking_automation_executor';
-  v_res2 := pg_temp.call_automation(
-    v_ctx, v_command, gen_random_uuid(), gen_random_uuid()
-  );
-  execute 'reset role';
-  select count(*) into v_session_count
-  from ops.irrigation_sessions s
-  where s.booking_id = (v_ctx ->> 'next_booking_id')::uuid;
-  select count(*) into v_charge_count
-  from billing.session_charges sc
-  where sc.session_id = (v_ctx ->> 'current_session_id')::uuid;
-  if v_res2 ->> 'result' = 'replayed'
-     and v_session_count = 1 and v_charge_count = 1
-     and v_res2 -> 'business_receipt' = v_res -> 'business_receipt' then
-    raise notice 'PASS AP16: ضياع الرد صولح بالإقرار المخزن بلا أثر مكرر';
-  else
-    raise notice 'FAIL AP16: replay لم يحسم النتيجة المجهولة: %', v_res2;
-  end if;
-
-  raise notice 'INFO AP13: الإثبات المتزامن متعدد الاتصالات في p2_automation_concurrency_proof.py';
-  raise notice '--- انتهى اختبار P2 Automated Execution Phase 1 ---';
-end;
+  perform pg_temp.q137_check(
+    (select status='open' and ended_at is null
+      and operator_profile_id=seed.operator_profile_id from ops.irrigation_sessions
+     where id=(ctx->>'current_session_id')::uuid)
+    and not exists(select 1 from ops.irrigation_sessions
+      where booking_id=(ctx->>'next_booking_id')::uuid)
+    and not exists(select 1 from billing.session_charges
+      where session_id=(ctx->>'current_session_id')::uuid),
+    'AP17-AP19: original session/operator retained, no next session or charge');
+  -- كل رفض أعلاه يقارن جميع صفوف الأوامر والمحاولات والمال، لا عدّ النجاح فقط.
+end
 $test$;
-
 rollback;

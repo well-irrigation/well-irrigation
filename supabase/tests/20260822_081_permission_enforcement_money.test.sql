@@ -90,10 +90,10 @@ begin
   -- ثم 79 بعد هجرة 094: `team.manage` للمالك وحده بلا توسيع.
   -- ثم 84 بعد هجرة 112: booking.cancel (مالك+مشغل) وbooking.read
   -- (مالك+مدير+مشغل) حفاظًا على دلالة قراءة 079.
-  if v_count = 84 then
-    raise notice 'PASS 3: iam.role_permissions = 84 (79 + 5)';
+  if v_count = 85 then
+    raise notice 'PASS 3: iam.role_permissions = 85 (79 + 5 + 1)';
   else
-    raise notice 'FAIL 3: role_permissions = % بدل 84', v_count;
+    raise notice 'FAIL 3: role_permissions = % بدل 85', v_count;
   end if;
 
 

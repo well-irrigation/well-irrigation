@@ -514,12 +514,12 @@ begin
 
   -- M112 أضافت booking.cancel وbooking.read للمشغل مع المالك.
   if v_src = 'booking.cancel,booking.create,booking.read,'
-             || 'booking.reschedule,farmer.create,'
+             || 'booking.reschedule,farm.create,farmer.create,'
              || 'fuel.consume,fuel.count,fuel.purchase,'
              || 'session.complete,session.energy.change,session.pause,'
              || 'session.resume,session.start,shift.open'
   then
-    raise notice 'PASS 13: operator يملك الميدان كاملًا بلا الأرض وبلا تجاوز المناوبة';
+    raise notice 'PASS 13: operator يملك الميدان كاملًا مع الأرض وبلا تجاوز المناوبة';
   else
     raise notice 'FAIL 13: operator ops set = "%"', v_src;
   end if;
@@ -554,7 +554,7 @@ begin
 
 
   -- ------------------------------------------------------------
-  -- 15. Farm creation remains owner-only.
+  -- 15. Farm creation allowed for owner/operator only.
   -- ------------------------------------------------------------
 
   perform set_config('request.jwt.claim.sub', v_operator::text, true);
@@ -571,8 +571,8 @@ begin
   end;
   execute 'reset role';
 
-  if v_count = 0 and v_count_2 = 0 then
-    raise notice 'PASS 15: إنشاء الأرض بقي للمالك وحده';
+  if v_count = 1 and v_count_2 = 0 then
+    raise notice 'PASS 15: إنشاء الأرض للمالك والمشغل دون المدير';
   else
     raise notice 'FAIL 15: operator=% manager=% حصلا على إنشاء الأرض',
       v_count, v_count_2;

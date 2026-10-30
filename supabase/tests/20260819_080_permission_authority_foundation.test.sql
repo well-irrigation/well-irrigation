@@ -124,7 +124,7 @@ begin
   -- +5 منح بعد Migration 112: `booking.cancel` للمالك والمشغل،
   -- و`booking.read` للمالك والمدير والمشغل — حفاظًا على دلالة
   -- قراءة 079 (عقد الحجوزات، ق-131 بند 8).
-  if v_count = 84
+  if v_count = 85
      and (
        select count(*)
        from iam.role_permissions rp
@@ -142,9 +142,9 @@ begin
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'operator'
-     ) = 24
+     ) = 25
   then
-    raise notice 'PASS 3: Role permission seed = owner 45 / manager 15 / operator 24';
+    raise notice 'PASS 3: Role permission seed = owner 45 / manager 15 / operator 25';
   else
     raise notice 'FAIL 3: role_permissions total=%', v_count;
   end if;
@@ -571,7 +571,7 @@ begin
      and iam.has_well_permission(v_well_1, 'expense.create')
      and iam.has_well_permission(v_well_1, 'fuel.count')
      and iam.has_well_permission(v_well_1, 'shift.open')
-     and not iam.has_well_permission(v_well_1, 'farm.create')
+     and iam.has_well_permission(v_well_1, 'farm.create')
      and not iam.has_well_permission(v_well_1, 'expense.approve')
      and not iam.has_well_permission(v_well_1, 'period.close')
   then
