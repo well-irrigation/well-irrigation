@@ -46,6 +46,17 @@ class SessionOutboxSnapshot {
   final Map<String, Object?>? paymentRead;
 }
 
+/// حفظ سجل محلي بلا أوامر. أول معاملة ناجحة تفوز ويُعاد السجل الموجود.
+/// لا يستبدل السجل، ولا يولّد أمرًا أو يحدّث حالة جلسة.
+/// يظل منفصلًا عن عقد Outbox القديم لتجنب تغيير مسار المزامنة الحالي.
+abstract interface class AtomicLocalRecordStore {
+  Future<String> insertLocalRecordOnce({
+    required String accountId,
+    required String key,
+    required String value,
+  });
+}
+
 abstract interface class OutboxStore {
   /// يهيّئ التخزين. يجب أن يُنادى قبل أي عملية أخرى.
   Future<void> initialize();

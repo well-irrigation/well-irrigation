@@ -24,7 +24,7 @@ import 'outbox_database.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
-class SqliteOutboxStore implements OutboxStore {
+class SqliteOutboxStore implements OutboxStore, AtomicLocalRecordStore {
   SqliteOutboxStore({
     this.databasePath,
     this.singleInstance = true,
@@ -418,6 +418,20 @@ class SqliteOutboxStore implements OutboxStore {
       readLocalValue(accountId, key);
 
   @override
+  Future<String> insertLocalRecordOnce({
+    required String accountId,
+    required String key,
+    required String value,
+  }) => _withExecutionContentionRetry(
+    () => insertBundle(
+      accountId: accountId,
+      key: key,
+      value: value,
+      commands: const [],
+    ),
+  );
+
+  @override
   Future<String> insertBundle({
     required String accountId,
     required String key,
@@ -776,4 +790,19 @@ class SqliteOutboxStore implements OutboxStore {
   static String _encodeTime(DateTime at) => at.toUtc().toIso8601String();
 
   static DateTime _decodeTime(String value) => DateTime.parse(value).toUtc();
+
+  // حصر إعادة محاولة SQLITE_BUSY في الأساس الجديد؛ سياسة المزامنة لا تتغير.
+  Future<T> _withExecutionContentionRetry<T>(
+    Future<T> Function() operation,
+  ) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await operation();
+      } on DatabaseException catch (error) {
+        final code = error.getResultCode();
+        if (attempt >= 4 || (code != 5 && code != 6)) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 10 << attempt));
+      }
+    }
+  }
 }

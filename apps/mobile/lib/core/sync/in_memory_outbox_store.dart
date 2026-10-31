@@ -10,7 +10,7 @@ import 'command_type.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
-class InMemoryOutboxStore implements OutboxStore {
+class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore {
   final Map<String, List<CommandEnvelope>> _commands = {};
   final Map<String, Map<String, IdMapping>> _mappings = {};
   final Map<String, int> _sequences = {};
@@ -52,6 +52,18 @@ class InMemoryOutboxStore implements OutboxStore {
     _assertOpen();
     return _bundles['$accountId::$key'];
   }
+
+  @override
+  Future<String> insertLocalRecordOnce({
+    required String accountId,
+    required String key,
+    required String value,
+  }) => insertBundle(
+    accountId: accountId,
+    key: key,
+    value: value,
+    commands: const [],
+  );
 
   @override
   Future<String> insertBundle({
