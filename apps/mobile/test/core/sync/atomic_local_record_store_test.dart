@@ -145,7 +145,10 @@ Future<void> createLegacy(String path, int version) async {
 }
 
 void main() {
-  setUpAll(sqfliteFfiInit);
+  setUpAll(() {
+    sqfliteFfiInit();
+    expect(SqliteOutboxStore.schemaVersion, 11);
+  });
   for (final sqlite in [false, true]) {
     group(sqlite ? 'SQLite' : 'memory', () {
       late OutboxStore store;
@@ -243,7 +246,7 @@ void main() {
     });
   }
 
-  test('SQLite close and fresh reopen preserve the original record and schema 3', () async {
+  test('SQLite close and fresh reopen preserve the original record and current schema', () async {
     final dir = await Directory.systemTemp.createTemp('atomic-durable-');
     final path = '${dir.path}/db';
     var store = openStore(path);
@@ -258,12 +261,12 @@ void main() {
       final db = await databaseFactoryFfi.openDatabase(path,
         options: OpenDatabaseOptions(singleInstance: false));
       try {
-        expect(SqliteOutboxStore.schemaVersion, 3);
-        expect(await db.getVersion(), 3);
+        expect(await db.getVersion(), SqliteOutboxStore.schemaVersion);
         final tables = await db.rawQuery("select name from sqlite_master where type='table' and name not like 'sqlite_%' and name!='android_metadata'");
-        expect(tables.map((r) => r['name']), unorderedEquals(['outbox_commands', 'id_mappings', 'sync_meta']));
+        expect(tables.map((r) => r['name']), unorderedEquals(['outbox_commands', 'id_mappings', 'sync_meta',
+          'local_booking_requests', 'notification_events', 'notification_reconcile_keys']));
         expect((await db.rawQuery('pragma table_info(outbox_commands)')).map((r) => r['name']),
-          isNot(contains('next_attempt_at')));
+          contains('next_attempt_at'));
       } finally {
         await db.close();
       }
@@ -299,7 +302,7 @@ void main() {
             whereArgs: ['account', 'record']);
           expect(rows, hasLength(1));
           expect(rows.single['value'], values.first);
-          expect(await db.getVersion(), 3);
+          expect(await db.getVersion(), SqliteOutboxStore.schemaVersion);
         } finally { await db.close(); }
       } finally { await reopened.close(); }
     } finally {
@@ -332,12 +335,26 @@ void main() {
   });
 
   for (final version in [1, 2]) {
-    test('baseline v$version upgrade preserves records and commands at v3', () async {
+    test('baseline v$version upgrade preserves records and commands at current schema', () async {
       final dir = await Directory.systemTemp.createTemp('atomic-upgrade-');
       final path = '${dir.path}/db';
       final store = openStore(path);
       try {
         await createLegacy(path, version);
+        final legacy = await databaseFactoryFfi.openDatabase(path,
+          options: OpenDatabaseOptions(singleInstance: false));
+        try {
+          expect(await legacy.getVersion(), version);
+          final columns = (await legacy.rawQuery('pragma table_info(outbox_commands)'))
+              .map((r) => r['name']);
+          expect(columns, isNot(contains('next_attempt_at')));
+          if (version == 1) {
+            expect(columns, isNot(contains('prerequisites')));
+            expect(columns, isNot(contains('local_context')));
+          } else {
+            expect(columns, containsAll(['prerequisites', 'local_context']));
+          }
+        } finally { await legacy.close(); }
         await store.initialize();
         expect(await record(store, 'replacement', key: 'legacy-record'), 'original');
         expect(await record(store, 'new-value', key: 'new-record'), 'new-value');
@@ -352,10 +369,10 @@ void main() {
         final db = await databaseFactoryFfi.openDatabase(path,
           options: OpenDatabaseOptions(singleInstance: false));
         try {
-          expect(await db.getVersion(), 3);
+          expect(await db.getVersion(), SqliteOutboxStore.schemaVersion);
           final columns = (await db.rawQuery('pragma table_info(outbox_commands)')).map((r) => r['name']);
           expect(columns, containsAll(['prerequisites', 'local_context']));
-          expect(columns, isNot(contains('next_attempt_at')));
+          expect(columns, contains('next_attempt_at'));
           final indexes = (await db.rawQuery("select name from sqlite_master where type='index'")).map((r) => r['name']);
           expect(indexes, containsAll(['outbox_commands_well_idx', 'outbox_commands_session_idx', 'id_mappings_server_idx']));
         } finally { await db.close(); }

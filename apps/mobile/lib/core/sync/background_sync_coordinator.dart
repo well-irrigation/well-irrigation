@@ -61,12 +61,40 @@ class BackgroundSyncCoordinator {
     return decision;
   }
 
+  /// يسجّل الإيقاظ الدائم أولًا ثم يطلب مرورًا واحدًا من المسار الموجود.
+  /// المتصل لا ينتظر الشبكة لإتمام حفظه المحلي.
+  Future<BackgroundSyncDecision> bookingSaved(String accountId) async {
+    await _scheduler.scheduleSync(accountId);
+    return runFromApp(accountId);
+  }
+
   Future<BackgroundSyncDecision> _drain(
     String accountId, {
     required int attempt,
   }) async {
+    // مرور حجوزات واحد فقط لكل إيقاظ؛ تصريف العائلات القديمة لا يعيد تشغيله.
+    final bookingRun = _engine.runBookingCreates(accountId);
+    final (legacy,farmResultsChanged) = await _drainLegacy(accountId, attempt: attempt);
+    final booking = policy.decide(report: await bookingRun, attempt: attempt);
+    // نتيجة الأرض قد تكون وصلت بعد قراءة صفحة الحجز؛ موعد عادي واحد، بلا تصريف إضافي.
+    if(farmResultsChanged && await _engine.hasReadyBookingCreates(accountId)) {
+      return BackgroundSyncDecision(outcome:BackgroundSyncOutcome.retryLater,attempt:attempt,retryDelay:policy.firstDelay);
+    }
+
+    if (booking.shouldRetry) {
+      if (!legacy.shouldRetry || booking.retryDelay! < legacy.retryDelay!) return booking;
+      return legacy;
+    }
+    if (legacy.shouldRetry) return legacy;
+    if (booking.outcome == BackgroundSyncOutcome.awaitsHumanDecision) return booking;
+    if (legacy.outcome == BackgroundSyncOutcome.nothingToSend) return booking;
+    return legacy;
+  }
+
+  Future<(BackgroundSyncDecision,bool)> _drainLegacy(String accountId, {required int attempt}) async {
     var report = await _engine.run(accountId);
     var passes = 1;
+    var farmResultsChanged=report.farmResultsChanged;
 
     // طابور طويل يجب أن يُفرَّغ في نافذة واحدة. شرط الاستمرار هو تقدّمٌ
     // فعلي في التمريرة السابقة، فلا تصير هذه حلقة مشدودة بلا شبكة.
@@ -77,12 +105,13 @@ class BackgroundSyncCoordinator {
         break;
       }
 
+      farmResultsChanged=farmResultsChanged||next.farmResultsChanged;
       report = next;
       passes += 1;
     }
 
     _passesInLastRun = passes;
 
-    return policy.decide(report: report, attempt: attempt);
+    return (policy.decide(report: report, attempt: attempt),farmResultsChanged);
   }
 }

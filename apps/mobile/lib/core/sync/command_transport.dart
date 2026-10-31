@@ -237,6 +237,44 @@ DispatchResult normalizeAcceptedResponse(
   CommandType type,
   Object? rawResponse,
 ) {
+  if (type == CommandType.createBooking) {
+    final response = rawResponse is Map
+        ? Map<String, Object?>.from(rawResponse)
+        : null;
+    final status = response?['status'];
+    if (response != null && (status == 'conflict' || status == 'rejected')) {
+      return DispatchFailed(
+        disposition: FailureDisposition.review,
+        message: 'طلب الحجز يحتاج مراجعة',
+        code: (response['reason_code'] ?? response['conflict_code'] ?? status)
+            ?.toString(),
+        serverResponse: response,
+      );
+    }
+    bool text(String key) =>
+        response?[key] is String && (response![key] as String).isNotEmpty;
+    final start = DateTime.tryParse(
+      response?['scheduled_start']?.toString() ?? '',
+    );
+    final end = DateTime.tryParse(response?['scheduled_end']?.toString() ?? '');
+    if (status != 'confirmed' ||
+        !text('booking_id') ||
+        !text('public_code') ||
+        !text('well_id') ||
+        start == null ||
+        end == null ||
+        !end.isAfter(start)) {
+      return const DispatchFailed(
+        disposition: FailureDisposition.retry,
+        code: 'booking_result_unknown',
+        message: 'نتيجة طلب الحجز غير معلومة',
+      );
+    }
+    return DispatchAccepted(
+      response: response!,
+      entityId: response['booking_id'] as String,
+    );
+  }
   if (!type.returnsJson) {
     final id = rawResponse?.toString();
 

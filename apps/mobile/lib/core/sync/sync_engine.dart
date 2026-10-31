@@ -17,6 +17,11 @@
 /// تصميم (القسم 35).
 library;
 
+import 'dart:async';
+
+import '../booking/booking_reactivity.dart';
+import 'background_sync_policy.dart';
+import 'retry_classification.dart';
 import 'command_envelope.dart';
 import 'command_reference.dart';
 import 'command_transport.dart';
@@ -35,6 +40,10 @@ class SyncRunReport {
     this.blockedByReview = 0,
     this.recoveredClaims = 0,
     this.alreadyRunning = false,
+    this.farmMappingsCreated = 0,
+    this.farmResultsChanged = false,
+    this.bookingNextWake,
+    this.bookingRetryDelay,
   });
 
   /// عدد الأوامر التي حُجزت وأُرسلت فعلًا.
@@ -65,6 +74,11 @@ class SyncRunReport {
   /// كانت هناك حلقة تعمل، فلم تبدأ حلقة ثانية.
   final bool alreadyRunning;
 
+  final int farmMappingsCreated;
+  final bool farmResultsChanged;
+  final DateTime? bookingNextWake;
+  final Duration? bookingRetryDelay;
+
   bool get hasPendingWork => retryScheduled > 0 || skipped > 0;
 
   /// هل بقي عملٌ قد ينجح وحده لو أُعيدت المحاولة لاحقًا؟
@@ -72,7 +86,7 @@ class SyncRunReport {
   /// هذا وحده مبرِّر إعادة الجدولة. `skipped` كلها موقوفة على إنسان
   /// يعني: لا تُوقظ الهاتف مرة أخرى بلا فائدة.
   bool get canRetryWithoutHelp =>
-      retryScheduled > 0 || skipped > blockedByReview;
+      retryScheduled > 0 || skipped > blockedByReview || bookingNextWake != null;
 
   /// هل يوجد ما ينتظر قرار إنسان؟ (يظهر للمستخدم، ولا يُعاد تلقائيًا.)
   bool get awaitsHumanDecision => needsReview > 0 || blockedByReview > 0;
@@ -112,6 +126,10 @@ class SyncEngine {
   final Duration staleClaimTimeout;
 
   final Map<String, Future<SyncRunReport>> _inFlight = {};
+  final Map<String, Future<SyncRunReport>> _bookingInFlight = {};
+  static const maxBookingBatch = 20;
+  static const maxBookingWells = 3;
+  static const bookingAttemptTimeout = Duration(seconds: 60);
 
   /// هل هناك تشغيل جارٍ الآن؟
   bool get isRunning => _inFlight.isNotEmpty;
@@ -143,6 +161,8 @@ class SyncEngine {
     var needsReview = 0;
     var skipped = 0;
     var blockedByReview = 0;
+    var farmMappingsCreated = 0;
+    var farmResultsChanged = false;
 
     var unblockedByResolver = false;
     const maxPasses = 2;
@@ -168,7 +188,7 @@ class SyncEngine {
         blockedAggregates[aggregate] = reason;
       }
 
-      for (final command in await _store.pendingCommands(accountId)) {
+      for (final command in await _legacyPending(accountId)) {
         final aggregate = command.effectiveAggregateId;
         final blockedBy = blockedAggregates[aggregate];
 
@@ -290,6 +310,10 @@ class SyncEngine {
             } else {
               await _confirm(accountId, command, accepted, attemptedAt);
             }
+            if (command.type == CommandType.createFarm) {
+              farmMappingsCreated++;
+              farmResultsChanged = true;
+            }
             confirmed += 1;
 
           case final DispatchFailed failure when failure.isRetryable:
@@ -303,6 +327,7 @@ class SyncEngine {
             retryScheduled += 1;
 
           case final DispatchFailed failure:
+            if (command.type == CommandType.createFarm) farmResultsChanged = true;
             await _store.markNeedsReview(
               accountId,
               command.localId,
@@ -328,7 +353,311 @@ class SyncEngine {
       skipped: skipped,
       blockedByReview: blockedByReview,
       recoveredClaims: recovered,
+      farmMappingsCreated: farmMappingsCreated,
+      farmResultsChanged: farmResultsChanged,
     );
+  }
+
+  Future<List<CommandEnvelope>> _legacyPending(String accountId) {
+    final store = _store;
+    return store is BookingDispatchStore
+        ? (store as BookingDispatchStore).pendingLegacyCommands(accountId)
+        : store.pendingCommands(accountId);
+  }
+
+  Future<bool> hasReadyBookingCreates(String accountId) async {
+    final store = _store;
+    if (store is! BookingDispatchStore) return false;
+    return (await (store as BookingDispatchStore).bookingCreatesReady(
+      accountId,
+      now: _clock().toUtc(),
+      limit: 1,
+    )).isNotEmpty;
+  }
+
+  /// مرور مستقل محدود، لا يُستدعى من واجهة الحجز في C2a.
+  Future<SyncRunReport> runBookingCreates(String accountId) {
+    if (_bookingInFlight.containsKey(accountId)) {
+      return Future.value(const SyncRunReport(alreadyRunning: true));
+    }
+    final run = _runBookingCreates(accountId);
+    _bookingInFlight[accountId] = run;
+    return run.whenComplete(() => _bookingInFlight.remove(accountId));
+  }
+
+  Future<SyncRunReport> _runBookingCreates(String accountId) async {
+    final storage = _store;
+    if (storage is! BookingDispatchStore) return const SyncRunReport();
+    final store = storage as BookingDispatchStore;
+    const policy = BackgroundSyncPolicy();
+    var recovered = 0;
+    final stale = await store.bookingCreatesStale(
+      accountId,
+      before: _clock().toUtc().subtract(staleClaimTimeout),
+      limit: maxBookingBatch,
+    );
+    for (final command in stale) {
+      final claimedAt = command.lastAttemptAt;
+      if (claimedAt == null) continue;
+      final restored = await store.finishBookingCreate(
+        accountId,
+        command.localId,
+        claimedAt: claimedAt,
+        status: CommandStatus.pending,
+        error: 'booking_attempt_interrupted',
+        nextAttemptAt: _clock().toUtc().add(
+          policy.bookingCreateDelay(command.commandId, command.retryCount + 1),
+        ),
+      );
+      if (restored) recovered++;
+    }
+    final candidates = await store.bookingCreatesReady(
+      accountId,
+      now: _clock().toUtc(),
+      limit: maxBookingBatch,
+    );
+    final wells = <String, List<CommandEnvelope>>{};
+    for (final command in candidates) {
+      wells.putIfAbsent(command.wellId!, () => []).add(command);
+    }
+    final groups = wells.values.toList(growable: false);
+    var cursor = 0;
+    var attempted = 0;
+    var confirmed = 0;
+    var retries = 0;
+    var review = 0;
+    var skipped = 0;
+    Future<void> lane() async {
+      while (cursor < groups.length) {
+        final group = groups[cursor++];
+        for (final command in group) {
+          final at = _clock().toUtc();
+          var resolved = command.payload;
+          final raw = command.payload['p_farm_id'];
+          if (raw is Map) {
+            final ref = CommandReference.fromJson(raw.cast<Object?, Object?>());
+            final parent = await _store.commandByLocalId(
+              accountId,
+              ref.localId,
+            );
+            final valid =
+                ref.kind == EntityKind.farm &&
+                parent?.type == CommandType.createFarm &&
+                parent?.wellId == command.wellId &&
+                parent?.payload['p_farmer_well_account_id'] ==
+                    command.payload['p_farmer_well_account_id'];
+            if (!valid || parent?.status == CommandStatus.review) {
+              if (await store.claimBookingCreate(
+                accountId,
+                command.localId,
+                attemptedAt: at,
+              )) {
+                await store.finishBookingCreate(
+                  accountId,
+                  command.localId,
+                  claimedAt: at,
+                  status: CommandStatus.review,
+                  error: 'farm_selection_required',
+                  response: {
+                    'status': 'rejected',
+                    'reason_code': 'farm_selection_required',
+                  },
+                );
+                final day = DateTime.parse(
+                  command.payload['p_scheduled_start'] as String,
+                ).toUtc().add(const Duration(hours: 3));
+                BookingReactivity.instance
+                    .scope(accountId, command.wellId!)
+                    .mutation(days: {BookingScope.dayKey(day)});
+                review++;
+              }
+              continue;
+            }
+            final mapping = await _store.mapping(
+              accountId,
+              ref.localId,
+              EntityKind.farm,
+            );
+            if (mapping == null) {
+              skipped++;
+              continue;
+            }
+            resolved = {...command.payload, 'p_farm_id': mapping.serverId};
+          }
+          if (!await store.claimBookingCreate(
+            accountId,
+            command.localId,
+            attemptedAt: at,
+          )) {
+            skipped++;
+            break;
+          }
+          attempted++;
+          final processed = await _dispatchAndPersist(
+            accountId,
+            command,
+            resolved,
+            at,
+          );
+          if (!processed.applied) {
+            skipped++;
+            break;
+          }
+          switch (processed.result) {
+            case DispatchAccepted():
+              confirmed++;
+            case DispatchFailed(disposition: FailureDisposition.retry):
+              retries++;
+              break;
+            case DispatchFailed():
+              review++;
+          }
+          if (processed.result is DispatchFailed &&
+              (processed.result as DispatchFailed).isRetryable) {
+            break;
+          }
+        }
+      }
+    }
+
+    // ثلاثة عمال ثابتين، لا Future لكل أمر أو لكل بئر.
+    await Future.wait(List.generate(maxBookingWells, (_) => lane()));
+    if (confirmed > 0) {
+      await _store.setLastSuccessfulSyncAt(accountId, _clock().toUtc());
+    }
+    final now = _clock().toUtc();
+    final wake = await store.bookingCreateNextWake(
+      accountId,
+      now: now,
+      staleClaimTimeout: staleClaimTimeout,
+    );
+    final delay = wake?.difference(now);
+    return SyncRunReport(
+      attempted: attempted,
+      confirmed: confirmed,
+      retryScheduled: retries,
+      needsReview: review,
+      skipped: skipped,
+      recoveredClaims: recovered,
+      bookingNextWake: wake,
+      bookingRetryDelay: delay == null
+          ? null
+          : delay < policy.firstDelay
+          ? policy.firstDelay
+          : delay,
+    );
+  }
+
+  Future<_ProcessedAttempt> _dispatchAndPersist(
+    String accountId,
+    CommandEnvelope command,
+    Map<String, Object?> resolved,
+    DateTime attemptedAt,
+  ) async {
+    final request = DispatchRequest(
+      accountId: command.accountId,
+      type: command.type,
+      commandId: command.commandId,
+      arguments: buildRpcArguments(
+        type: command.type,
+        commandId: command.commandId,
+        occurredAt: command.occurredAt,
+        resolvedPayload: resolved,
+      ),
+    );
+    DispatchResult result;
+      try {
+        // timeout لا يلغي HTTP. لا يربط أي callback متأخر بالتخزين؛ الإعادة تحمل الهوية نفسها.
+        result = await _transport
+            .dispatch(request)
+            .timeout(bookingAttemptTimeout);
+      } on TimeoutException {
+        result = const DispatchFailed(
+          disposition: FailureDisposition.retry,
+          message: 'booking_attempt_timeout',
+        );
+      } catch (error) {
+        result = DispatchFailed(
+          disposition: classifyThrownFailure(error),
+          message: error.toString(),
+        );
+      }
+      if (result is DispatchAccepted) {
+        result = normalizeAcceptedResponse(
+          CommandType.createBooking,
+          result.response,
+        );
+        if (result is DispatchAccepted &&
+            (result.response['well_id'] != command.wellId ||
+                DateTime.tryParse(
+                      result.response['scheduled_start']?.toString() ?? '',
+                    ) !=
+                    DateTime.tryParse(
+                      resolved['p_scheduled_start']?.toString() ?? '',
+                    ) ||
+                DateTime.tryParse(
+                      result.response['scheduled_end']?.toString() ?? '',
+                    ) !=
+                    DateTime.tryParse(
+                      resolved['p_scheduled_end']?.toString() ?? '',
+                    ))) {
+          result = const DispatchFailed(
+            disposition: FailureDisposition.retry,
+            message: 'booking_receipt_mismatch',
+          );
+        }
+      }
+      final CommandStatus status;
+      DateTime? next;
+      String? error;
+      Map<String, Object?>? response;
+      String? entityId;
+      switch (result) {
+        case DispatchAccepted accepted:
+          status = CommandStatus.confirmed;
+          response = accepted.response;
+          entityId = accepted.entityId;
+        case DispatchFailed failure:
+          status = failure.isRetryable
+              ? CommandStatus.pending
+              : CommandStatus.review;
+          error = failure.message;
+          response = failure.serverResponse;
+          if (failure.isRetryable) {
+            next = _clock().toUtc().add(
+              const BackgroundSyncPolicy().bookingCreateDelay(
+                command.commandId,
+                command.retryCount + 1,
+              ),
+            );
+          }
+      }
+      final applied = await (_store as BookingDispatchStore)
+          .finishBookingCreate(
+            accountId,
+            command.localId,
+            claimedAt: attemptedAt,
+            status: status,
+            nextAttemptAt: next,
+            error: error,
+            response: response,
+            entityId: entityId,
+          );
+      if (applied &&
+          response != null &&
+          const {
+            'confirmed',
+            'conflict',
+            'rejected',
+          }.contains(response['status'])) {
+        final scheduled = DateTime.parse(
+          command.payload['p_scheduled_start'] as String,
+        ).toUtc().add(const Duration(hours: 3));
+        BookingReactivity.instance
+            .scope(accountId, command.wellId!)
+            .mutation(days: {BookingScope.dayKey(scheduled)});
+      }
+      return _ProcessedAttempt(result, applied);
   }
 
   /// يُعيد الحجوزات الميتة إلى الطابور.
@@ -341,7 +670,7 @@ class SyncEngine {
     final now = _clock().toUtc();
     var recovered = 0;
 
-    for (final command in await _store.pendingCommands(accountId)) {
+    for (final command in await _legacyPending(accountId)) {
       if (command.status != CommandStatus.dispatching) {
         continue;
       }
@@ -512,4 +841,10 @@ class _PayloadResolution {
 
   final Map<String, Object?>? payload;
   final _BlockReason reason;
+}
+
+class _ProcessedAttempt {
+  const _ProcessedAttempt(this.result, this.applied);
+  final DispatchResult result;
+  final bool applied;
 }

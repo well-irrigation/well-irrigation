@@ -1,3 +1,14 @@
+import 'dart:convert';
+import 'operations_repository.dart';
+import '../booking/local_booking_request.dart';
+import '../booking/booking_reactivity.dart';
+import '../sync/command_type.dart';
+import '../sync/sync_status.dart';
+import '../sync/background_sync_coordinator.dart';
+import '../sync/workmanager_sync_scheduler.dart';
+import '../sync/supabase_command_transport.dart';
+import '../sync/sync_engine.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'booking_local_ledger.dart';
@@ -577,6 +588,164 @@ class BookingRepository {
   /// يُسلَّح انتقال آلي — وهذا قرار صريح لا فشل صامت.
   final TimeIntegritySource? _timeIntegritySource;
 
+  Future<LocalBookingRequest> saveLocalBooking({
+    required String accountId,
+    required String wellId,
+    required String requestId,
+    required FarmerAccount farmer,
+    required Farm farm,
+    required DateTime scheduledStart,
+    required DateTime scheduledEnd,
+    required String expectedEnergySource,
+    String? alternativeEnergySource,
+    int priority = 0,
+    String? notes,
+    LocalBookingRequest? replaces,
+  }) async {
+    if (replaces != null &&
+        (replaces.accountId != accountId || replaces.wellId != wellId ||
+         !replaces.needsCorrection || replaces.requestId == requestId)) {
+      throw ArgumentError('أعد فتح الحجز المطلوب تعديله.');
+    }
+    if (replaces?.response?['status'] == 'conflict' &&
+        DateTime.tryParse(replaces!.payload['p_scheduled_start'] as String) == scheduledStart.toUtc() &&
+        DateTime.tryParse(replaces.payload['p_scheduled_end'] as String) == scheduledEnd.toUtc()) {
+      throw ArgumentError('اختر موعدًا آخر للحجز.');
+    }
+    if (accountId.isEmpty ||
+        wellId.isEmpty ||
+        requestId.isEmpty ||
+        farmer.isPending ||
+
+        farmer.status != 'active' ||
+        (!farm.isPending && farm.status != 'active') ||
+        farm.wellId != wellId ||
+        farm.farmerAccountId != farmer.id ||
+        farm.farmerReference?.isPending == true) {
+      throw ArgumentError('اختر مزارعًا وأرضًا محفوظين مسبقًا.');
+    }
+    if(farm.isPending) {
+      await _localLedger.store.initialize();
+      final ref=farm.entityReference.localReference;
+      final parent=ref==null ? null : await _localLedger.store.commandByLocalId(accountId,ref.localId);
+      if(ref?.kind!=EntityKind.farm || parent==null || parent.type!=CommandType.createFarm || parent.wellId!=wellId || parent.payload['p_well_id']!=wellId || parent.payload['p_farmer_well_account_id']!=farmer.id || parent.status==CommandStatus.review) {
+        throw ArgumentError('اختر أرضًا محفوظة لهذا المزارع.');
+      }
+    }
+    if (!scheduledEnd.isAfter(scheduledStart) ||
+        !const {
+          'solar',
+          'well_diesel',
+          'farmer_diesel',
+        }.contains(expectedEnergySource)) {
+      throw ArgumentError('راجع بيانات الحجز.');
+    }
+    final day = scheduledStart
+        .toUtc()
+        .add(const Duration(hours: 3))
+        .toIso8601String()
+        .substring(0, 10);
+    final saved = await _localLedger.store.saveBookingRequest(
+      LocalBookingRequest(
+        accountId: accountId,
+        wellId: wellId,
+        requestId: requestId,
+        replacesRequestId: replaces?.requestId,
+        commandId: newCommandId(),
+        createdLocalAt: DateTime.now().toUtc(),
+        scheduledDay: day,
+        payloadJson: jsonEncode({
+          'p_well_id': wellId,
+          'p_farmer_well_account_id': farmer.id,
+          'p_farm_id': farm.entityReference.toPayload(),
+          'p_scheduled_start': scheduledStart.toUtc().toIso8601String(),
+          'p_scheduled_end': scheduledEnd.toUtc().toIso8601String(),
+          'p_expected_energy_source': expectedEnergySource,
+          'p_alternative_energy_source': alternativeEnergySource,
+          'p_priority': priority,
+          'p_notes': notes,
+        }),
+        contextJson: jsonEncode({
+          'farmer_name': farmer.fullName,
+          'farm_name': farm.name,
+          'duration_minutes': scheduledEnd.difference(scheduledStart).inMinutes,
+        }),
+      ),
+    );
+    BookingReactivity.instance.scope(accountId, wellId).mutation(
+      days: {saved.scheduledDay, if (replaces != null) replaces.scheduledDay},
+    );
+    return saved;
+  }
+
+  Future<List<LocalBookingRequest>> localBookingsForDay(String accountId, String wellId, DateTime day) =>
+      _localLedger.store.bookingRequestsForDay(accountId, wellId, BookingScope.dayKey(day), limit: 100);
+
+  /// نفس محرك C2a ونفس مجدول النظام؛ لا اتصال مباشر من نموذج الحجز.
+  Future<void> requestBookingConfirmation(String accountId) async {
+    final client = _effectiveClient;
+    final session = client?.auth.currentSession;
+    if (client == null || session == null || session.isExpired || session.user.id != accountId) return;
+    try {
+      await _localLedger.store.initialize();
+      await BackgroundSyncCoordinator(
+        engine: SyncEngine(store: _localLedger.store, transport: SupabaseCommandTransport(client)),
+        scheduler: WorkmanagerSyncScheduler(),
+      ).bookingSaved(accountId);
+    } catch (_) {
+      // الحفظ الدائم باقٍ؛ فتح التطبيق وعودة الشبكة يعيدان طلب الإيقاظ.
+    }
+  }
+
+  Future<LocalBookingRequest?> localBooking({
+    required String accountId,
+    required String wellId,
+    required String requestId,
+  }) => _localLedger.store.bookingRequest(accountId, wellId, requestId);
+
+  Future<void> cacheBookingChoices(
+    String accountId,
+    String wellId,
+    String key,
+    List<Map<String, Object?>> choices,
+  ) async {
+    await _localLedger.store.initialize();
+    final older = await cachedBookingChoices(accountId, wellId, key);
+    final seen = <String>{};
+    final merged = <Map<String, Object?>>[];
+    for (final choice in [...choices, ...older]) {
+      final id = choice['id'];
+      if (id is! String || id.isEmpty || choice['status'] == 'pending' || choice['status'] == 'inactive') continue;
+      if (seen.add(id)) merged.add(choice);
+      if (merged.length == 50) break;
+    }
+    await _localLedger.store.writeLocalValue(
+      accountId,
+      'booking.choices.$wellId.$key',
+      jsonEncode(merged),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> cachedBookingChoices(
+    String accountId,
+    String wellId,
+    String key,
+  ) async {
+    await _localLedger.store.initialize();
+    final raw = await _localLedger.store.readLocalValue(
+      accountId,
+      'booking.choices.$wellId.$key',
+    );
+    if (raw == null) return const [];
+    final values = jsonDecode(raw) as List;
+    return values
+        .take(50)
+        .map((v) => Map<String, dynamic>.from(v as Map))
+        .toList(growable: false);
+  }
+
+
+
   /// يلتقط مرساة زمن فور نجاح قراءة الجدول: زمن الخادم من الردّ نفسه،
   /// وقراءة الجسر المحلي مرة واحدة لحظة الاستلام. فشل الجسر أو غياب
   /// server_time لا يفشل قراءة الجدول للعرض — يعيدها بلا مرساة موثوقة،
@@ -1005,6 +1174,7 @@ class WellBookingListItem {
     this.expectedEnergySource,
     this.alternativeEnergySource,
     this.notes,
+    this.localRequest,
   });
 
   factory WellBookingListItem.fromJson(Map<String, dynamic> json) {
@@ -1046,6 +1216,7 @@ class WellBookingListItem {
   final String? expectedEnergySource;
   final String? alternativeEnergySource;
   final String? notes;
+  final LocalBookingRequest? localRequest;
 }
 
 /// نتيجة `api.list_well_bookings`: نطاق محدود مرتَّب كما يعيده الخادم.

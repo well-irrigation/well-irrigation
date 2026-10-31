@@ -10,7 +10,7 @@ import 'command_type.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
-class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore {
+class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingDispatchStore {
   final Map<String, List<CommandEnvelope>> _commands = {};
   final Map<String, Map<String, IdMapping>> _mappings = {};
   final Map<String, int> _sequences = {};
@@ -125,6 +125,189 @@ class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore {
     rows.sort((a, b) => a.sequence.compareTo(b.sequence));
 
     return rows;
+  }
+
+  List<CommandEnvelope> _bookingRows(String accountId) =>
+      (_commands[accountId] ?? <CommandEnvelope>[])
+          .where((c) => c.type == CommandType.createBooking)
+          .toList();
+
+  @override
+  Future<List<CommandEnvelope>> pendingLegacyCommands(String accountId) async =>
+      (await pendingCommands(accountId))
+          .where((c) => c.type != CommandType.createBooking)
+          .toList();
+
+  bool _farmReady(CommandEnvelope c) {
+    final raw = c.payload['p_farm_id'];
+    if (raw is! Map) return true;
+    final id = raw[r'$ref'] as String;
+    final p = _byLocalId[id];
+    return _mappings[c.accountId]?[_mappingKey(id, EntityKind.farm)] != null ||
+        p == null ||
+        p.accountId != c.accountId ||
+        p.status == CommandStatus.review;
+  }
+
+  @override
+  Future<List<CommandEnvelope>> bookingCreatesReady(
+    String accountId, {
+    required DateTime now,
+    int limit = 20,
+  }) async {
+    _assertOpen();
+    if (limit < 1 || limit > 20) throw ArgumentError.value(limit, 'limit');
+    final all = _bookingRows(accountId);
+    final rows = all
+        .where(
+          (c) =>
+              _farmReady(c) &&
+              c.status == CommandStatus.pending &&
+              (c.nextAttemptAt == null || !c.nextAttemptAt!.isAfter(now)) &&
+              !all.any(
+                (e) =>
+                    e.wellId == c.wellId &&
+                    e.sequence < c.sequence &&
+                    (e.status == CommandStatus.dispatching ||
+                        (e.status == CommandStatus.pending &&
+                            e.nextAttemptAt?.isAfter(now) == true)),
+              ),
+        )
+        .toList();
+    rows.sort((a, b) {
+      final order = a.sequence.compareTo(b.sequence);
+      return order == 0 ? a.localId.compareTo(b.localId) : order;
+    });
+    return rows.take(limit).toList();
+  }
+
+  @override
+  Future<List<CommandEnvelope>> bookingCreatesStale(
+    String accountId, {
+    required DateTime before,
+    int limit = 20,
+  }) async {
+    _assertOpen();
+    if (limit < 1 || limit > 20) throw ArgumentError.value(limit, 'limit');
+    final rows = _bookingRows(accountId)
+        .where(
+          (c) =>
+              c.status == CommandStatus.dispatching &&
+              (c.lastAttemptAt == null || !c.lastAttemptAt!.isAfter(before)),
+        )
+        .toList();
+    rows.sort(
+      (a, b) => (a.lastAttemptAt ?? DateTime(1970)).compareTo(
+        b.lastAttemptAt ?? DateTime(1970),
+      ),
+    );
+    return rows.take(limit).toList();
+  }
+
+  @override
+  Future<bool> claimBookingCreate(
+    String accountId,
+    String localId, {
+    required DateTime attemptedAt,
+  }) async {
+    _assertOpen();
+    final row = _byLocalId[localId];
+    if (row == null ||
+        row.accountId != accountId ||
+        row.type != CommandType.createBooking ||
+        row.status != CommandStatus.pending ||
+        row.nextAttemptAt?.isAfter(attemptedAt) == true) {
+      return false;
+    }
+    final all = _bookingRows(accountId);
+    if (all.where((c) => c.status == CommandStatus.dispatching).length >= 3 ||
+        all.any(
+          (c) =>
+              c.wellId == row.wellId &&
+              (c.status == CommandStatus.dispatching ||
+                  (c.status == CommandStatus.pending &&
+                      c.sequence < row.sequence)),
+        )) {
+      return false;
+    }
+    _update(
+      accountId,
+      localId,
+      (c) => c.copyWith(
+        status: CommandStatus.dispatching,
+        lastAttemptAt: attemptedAt,
+      ),
+    );
+    return true;
+  }
+
+  @override
+  Future<bool> finishBookingCreate(
+    String accountId,
+    String localId, {
+    required DateTime claimedAt,
+    required CommandStatus status,
+    DateTime? nextAttemptAt,
+    String? error,
+    Map<String, Object?>? response,
+    String? entityId,
+  }) async {
+    _assertOpen();
+    final row = _byLocalId[localId];
+    if (status == CommandStatus.dispatching) {
+      throw ArgumentError('نتيجة غير نهائية للمحاولة');
+    }
+    if (row == null ||
+        row.accountId != accountId ||
+        row.type != CommandType.createBooking ||
+        row.status != CommandStatus.dispatching ||
+        row.lastAttemptAt != claimedAt) {
+      return false;
+    }
+    _update(
+      accountId,
+      localId,
+      (c) => c.copyWith(
+        status: status,
+        retryCount: c.retryCount + (status == CommandStatus.pending ? 1 : 0),
+        nextAttemptAt: nextAttemptAt,
+        clearNextAttemptAt: nextAttemptAt == null,
+        lastError: error,
+        clearLastError: error == null,
+        serverResponse: response,
+      ),
+    );
+    if (status == CommandStatus.confirmed && entityId != null) {
+      await putMapping(
+        accountId,
+        IdMapping(
+          localId: localId,
+          kind: EntityKind.booking,
+          serverId: entityId,
+          resolvedAt: claimedAt,
+        ),
+      );
+    }
+    return true;
+  }
+
+  @override
+  Future<DateTime?> bookingCreateNextWake(
+    String accountId, {
+    required DateTime now,
+    required Duration staleClaimTimeout,
+  }) async {
+    DateTime? wake;
+    for (final c in _bookingRows(accountId)) {
+      if (!_farmReady(c)) continue;
+      final next = c.status == CommandStatus.pending
+          ? c.nextAttemptAt ?? now
+          : c.status == CommandStatus.dispatching
+          ? c.lastAttemptAt?.add(staleClaimTimeout) ?? now
+          : null;
+      if (next != null && (wake == null || next.isBefore(wake))) wake = next;
+    }
+    return wake;
   }
 
   @override

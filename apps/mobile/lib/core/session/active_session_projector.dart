@@ -473,6 +473,7 @@ class ActiveSessionProjector {
             ),
           );
 
+        case CommandType.createBooking:
         case CommandType.createFarmer:
         case CommandType.createFarm:
         case CommandType.resolveFarmerIdentity:

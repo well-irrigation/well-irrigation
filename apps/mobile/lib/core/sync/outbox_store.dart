@@ -11,6 +11,7 @@ library;
 
 import 'command_envelope.dart';
 import 'command_type.dart';
+import 'sync_status.dart';
 
 /// المعرّف الخادمي المحسوم لكيان أُنشئ محليًا.
 class IdMapping {
@@ -183,4 +184,39 @@ class DuplicateCommandIdException implements Exception {
 
   @override
   String toString() => 'معرّف عملية مستخدَم أصلًا: $commandId';
+}
+
+/// قدرة اختيارية لمسار الحجوزات؛ لا يغيّر عقد الطابور القديم أو قراءاته.
+abstract interface class BookingDispatchStore {
+  Future<List<CommandEnvelope>> pendingLegacyCommands(String accountId);
+  Future<List<CommandEnvelope>> bookingCreatesReady(
+    String accountId, {
+    required DateTime now,
+    int limit = 20,
+  });
+  Future<List<CommandEnvelope>> bookingCreatesStale(
+    String accountId, {
+    required DateTime before,
+    int limit = 20,
+  });
+  Future<bool> claimBookingCreate(
+    String accountId,
+    String localId, {
+    required DateTime attemptedAt,
+  });
+  Future<bool> finishBookingCreate(
+    String accountId,
+    String localId, {
+    required DateTime claimedAt,
+    required CommandStatus status,
+    DateTime? nextAttemptAt,
+    String? error,
+    Map<String, Object?>? response,
+    String? entityId,
+  });
+  Future<DateTime?> bookingCreateNextWake(
+    String accountId, {
+    required DateTime now,
+    required Duration staleClaimTimeout,
+  });
 }
