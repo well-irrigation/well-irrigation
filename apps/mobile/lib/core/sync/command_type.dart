@@ -136,6 +136,15 @@ enum CommandType {
     produces: EntityKind.sessionCharge,
   ),
 
+  recordBookingTransitionDecision(
+    rpcName: 'record_booking_transition_decision', scope: CommandScope.well,
+    scopeArgument: 'p_chain_id', returnsJson: true,
+  ),
+  executePendingBookingStart(
+    rpcName: 'execute_pending_booking_start', scope: CommandScope.well,
+    scopeArgument: 'p_chain_id', returnsJson: true, produces: EntityKind.session,
+  ),
+
   endBookingTransitionChain(
     rpcName: 'end_booking_transition_chain',
     scope: CommandScope.session,

@@ -91,6 +91,121 @@ abstract interface class CommandTransport {
   Future<DispatchResult> dispatch(DispatchRequest request);
 }
 
+/// قدرة قراءة اختيارية؛ لا تكسر تطبيقات النقل التي توفر الإرسال فقط.
+abstract interface class CompletionReceiptTransport {
+  Future<CompletionReceiptRead> readCompletionReceipt(
+    CompletionReceiptRequest request,
+  );
+}
+
+class CompletionReceiptRequest {
+  const CompletionReceiptRequest({
+    required this.accountId,
+    required this.wellId,
+    required this.sessionId,
+    required this.commandId,
+    required this.commandType,
+  });
+  final String accountId, wellId, sessionId, commandId, commandType;
+  Map<String, Object?> get arguments => {
+    'p_well_id': wellId,
+    'p_session_id': sessionId,
+    'p_command_id': commandId,
+    'p_expected_command_type': commandType,
+  };
+}
+
+enum CompletionReceiptState { accepted, processing, notFound, unresolved }
+
+enum CompletionReceiptFailureKind {
+  authentication,
+  forbidden,
+  network,
+  malformed,
+  unavailable,
+}
+
+sealed class CompletionReceiptRead {
+  const CompletionReceiptRead();
+}
+
+class CompletionReceiptResponse extends CompletionReceiptRead {
+  const CompletionReceiptResponse(this.state, this.receipt);
+  final CompletionReceiptState state;
+  final Map<String, Object?>? receipt;
+}
+
+class CompletionReceiptFailure extends CompletionReceiptRead {
+  const CompletionReceiptFailure(this.kind);
+  final CompletionReceiptFailureKind kind;
+}
+
+/// نجاح HTTP لا يثبت النتيجة؛ تُطابق الهوية الكاملة قبل قبول الإقرار.
+CompletionReceiptRead parseCompletionReceipt(
+  CompletionReceiptRequest request,
+  Object? raw,
+) {
+  const invalid = CompletionReceiptFailure(
+    CompletionReceiptFailureKind.malformed,
+  );
+  if (raw is! Map ||
+      raw['contract'] != 'get_completion_receipt' ||
+      raw['version'] != 1 ||
+      raw['retry_authorized'] != false ||
+      raw['well_id'] != request.wellId ||
+      raw['session_id'] != request.sessionId ||
+      raw['command_id'] != request.commandId ||
+      raw['command_type'] != request.commandType ||
+      !const {
+        'complete_irrigation_session',
+        'complete_booking_session',
+      }.contains(request.commandType)) {
+    return invalid;
+  }
+  final state = switch (raw['status']) {
+    'accepted' => CompletionReceiptState.accepted,
+    'processing' => CompletionReceiptState.processing,
+    'not_found' => CompletionReceiptState.notFound,
+    'unresolved' => CompletionReceiptState.unresolved,
+    _ => null,
+  };
+  if (state == null) {
+    return invalid;
+  }
+  final receipt = raw['receipt'];
+  if (state != CompletionReceiptState.accepted) {
+    return receipt == null ? CompletionReceiptResponse(state, null) : invalid;
+  }
+  if (receipt is! Map ||
+      receipt['session_id'] != request.sessionId ||
+      receipt['status'] != 'closed' ||
+      receipt['segments'] is! List ||
+      receipt['session_charge_id'] is! String ||
+      (receipt['session_charge_id'] as String).isEmpty ||
+      receipt['ended_at'] is! String ||
+      DateTime.tryParse(receipt['ended_at'] as String) == null) {
+    return invalid;
+  }
+  for (final key in [
+    'actual_seconds',
+    'billable_seconds',
+    'weighted_price_per_hour_minor',
+    'amount_minor',
+  ]) {
+    if (receipt[key] is! int || (receipt[key] as int) < 0) {
+      return invalid;
+    }
+  }
+  if ((receipt['billable_seconds'] as int) >
+      (receipt['actual_seconds'] as int)) {
+    return invalid;
+  }
+  return CompletionReceiptResponse(
+    state,
+    Map<String, Object?>.unmodifiable(receipt.cast<String, Object?>()),
+  );
+}
+
 /// يبني وسائط الدالة النهائية.
 ///
 /// نقطة التركيب الوحيدة لثلاثة مصادر: حمولة الأمر بعد حَل مراجعها،

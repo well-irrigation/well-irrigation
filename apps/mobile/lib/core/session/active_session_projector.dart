@@ -476,6 +476,8 @@ class ActiveSessionProjector {
         case CommandType.createFarmer:
         case CommandType.createFarm:
         case CommandType.resolveFarmerIdentity:
+        case CommandType.recordBookingTransitionDecision:
+        case CommandType.executePendingBookingStart:
         case CommandType.endBookingTransitionChain:
           // كيانات مرجعية، ليست أحداث جلسة. لا تُنشئ مقطعًا.
           break;
