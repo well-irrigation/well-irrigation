@@ -160,14 +160,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('إضافة مزارع جديد'), findsOneWidget);
-      expect(find.text('الاسم الكامل للمزارع *'), findsOneWidget);
-      expect(find.text('حفظ المزارع'), findsOneWidget);
+      expect(find.text('اسم المزارع'), findsOneWidget);
+      expect(find.text('حفظ'), findsOneWidget);
       // تلميح عام لا اسم شخص: اسمٌ كامل في الحقل يظنّه المستعجل قيمة مكتوبة.
       expect(find.text('الاسم الثلاثي'), findsOneWidget);
       expect(find.textContaining('محمد عبدالله الشامي'), findsNothing);
     });
 
-    testWidgets('دليل المشغّل يمرر منع إنشاء الأرض إلى ملف المزارع', (
+    for(final role in ['owner','operator','manager','partner','viewer','farmer']) {
+    testWidgets('دليل المزارعين يمرر صلاحية إضافة الأرض: $role', (
       tester,
     ) async {
       final coordinator = OfflineSessionCoordinator(
@@ -181,7 +182,7 @@ void main() {
           home: FarmersDirectoryScreen(
             identity: testIdentity(
               wells: [
-                testWell(roles: const ['operator']),
+                testWell(roles: [role]),
               ],
             ),
             repository: const _FakeOperationsRepository(),
@@ -191,15 +192,18 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.text('مزارع جديد'), role=='owner'||role=='operator' ? findsOneWidget : findsNothing);
       await tester.tap(find.text('جميل الجاري'));
       await tester.pumpAndSettle();
 
-      expect(find.text('إضافة أرض'), findsNothing);
+      expect(find.text('إضافة أرض جديدة'), role=='owner'||role=='operator' ? findsOneWidget : findsNothing);
+      expect(find.byTooltip('إضافة مزارع جديد'), role=='owner'||role=='operator' ? findsOneWidget : findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       coordinator.dispose();
       await tester.pump();
     });
+    }
   });
   group('ترتيب الدليل وفلترته — هجرة 099', () {
     testWidgets('3. القائمة تعرض ترتيب الخادم ولا تعيد ترتيبه', (tester) async {

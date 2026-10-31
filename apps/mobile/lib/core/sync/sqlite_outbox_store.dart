@@ -29,7 +29,7 @@ import 'outbox_database.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
-class SqliteOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingDispatchStore {
+class SqliteOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
   SqliteOutboxStore({
     this.databasePath,
     this.singleInstance = true,
@@ -337,6 +337,63 @@ class SqliteOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingD
     await db.execute(
       "create index if not exists farm_parent_mapping_idx on id_mappings(account_id,server_id,local_id) where entity_kind='farmerWellAccount'",
     );
+  }
+
+  static const farmSelectionSql = r"""
+    with farmer_refs(kind,id) as (
+      select ?,? union all
+      select 'local',pm.local_id from id_mappings pm indexed by farm_parent_mapping_idx
+      where pm.account_id=? and pm.entity_kind='farmerWellAccount' and pm.server_id=? and ?='server'
+    )
+    select c.*, fm.server_id as farm_server_id
+    from farmer_refs r cross join outbox_commands c indexed by outbox_farm_selection_idx
+    left join id_mappings fm on fm.account_id=c.account_id and fm.local_id=c.local_id and fm.entity_kind='farm'
+    where c.farmer_ref_kind=r.kind and c.farmer_ref_id=r.id
+      and c.command_type='createFarm' and c.account_id=? and c.well_id=?
+      and c.status!='review'
+      and (?='' or instr(c.farm_name,?)>0 or instr(coalesce(c.farm_distinguishing_label,''),?)>0)
+    order by c.sequence desc, c.local_id limit ?
+  """;
+  @override
+  Future<List<FarmCommandRow>> farmCommands({
+    required String accountId,
+    required String wellId,
+    required Object farmer,
+    int limit = 50,
+    String query = '',
+  }) async {
+    if (limit < 1 || limit > 100) throw ArgumentError('حد الأراضي غير صالح');
+    await initialize();
+    final kind = farmer is String ? 'server' : 'local';
+    final value = farmer is String
+        ? farmer
+        : (farmer as Map)[r'$ref'] as String;
+    final rows = await _db.rawQuery(farmSelectionSql, [
+      kind,
+      value,
+      accountId,
+      value,
+      kind,
+      accountId,
+      wellId,
+      query.trim(),
+      query.trim(),
+      query.trim(),
+      limit,
+    ]);
+    return rows
+        .map(
+          (r) => FarmCommandRow(
+            command: _fromRow(r),
+            serverId: r['farm_server_id'] as String?,
+            farmerId: farmer is String
+                ? farmer
+                : farmer is Map
+                ? farmer[r'$ref'] as String?
+                : null,
+          ),
+        )
+        .toList();
   }
 
   static const bookingFarmReadySql = r"""

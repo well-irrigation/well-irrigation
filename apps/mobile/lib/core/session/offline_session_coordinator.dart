@@ -1,5 +1,7 @@
 // ignore_for_file: prefer_initializing_formals
 
+import '../farms/farm_selection_projection.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -1932,6 +1934,74 @@ class OfflineSessionCoordinator {
     return list;
   }
 
+  Future<FarmerAccount?> farmFarmerIdentity({
+    required String accountId,
+    required String wellId,
+    required String farmerId,
+    FarmerAccount? current,
+  }) async {
+    await _store.initialize();
+    final storage = _store;
+    final key = 'farm.farmer.$wellId.$farmerId';
+    if (current != null && current.id == farmerId && !current.isPending) {
+      if (storage is SqliteOutboxStore) {
+        await storage.writeLocalValue(
+          accountId,
+          key,
+          jsonEncode({
+            'id': current.id,
+            'full_name': current.fullName,
+            'public_code': current.publicCode,
+            'phone': current.phone,
+            'status': current.status,
+          }),
+        );
+      }
+      return current;
+    }
+    if (storage is! SqliteOutboxStore) return null;
+    final raw = await storage.readLocalValue(accountId, key);
+    if (raw == null) return null;
+    final account = FarmerAccount.fromJson(
+      Map<String, dynamic>.from(jsonDecode(raw) as Map),
+    );
+    return account.id == farmerId ? account : null;
+  }
+
+  final _farmChanges = StreamController<String>.broadcast();
+  Stream<String> get farmChanges => _farmChanges.stream;
+  Future<List<Farm>> farmChoices({
+    required String accountId,
+    required String wellId,
+    required EntityReference farmerReference,
+    List<Farm> canonical = const [],
+    int limit = 50,
+    String query = '',
+  }) async {
+    await _store.initialize();
+    final storage = _store;
+    if (storage is! FarmSelectionStore) {
+      throw StateError('تخزين الأراضي غير متاح');
+    }
+    final rows = await (storage as FarmSelectionStore).farmCommands(
+      accountId: accountId,
+      wellId: wellId,
+      farmer: farmerReference.toPayload(),
+      limit: limit,
+      query: query,
+    );
+    final farmerId =
+        farmerReference.serverId ?? farmerReference.localReference!.localId;
+    return projectFarmSelection(
+      canonical: canonical,
+      local: rows,
+      wellId: wellId,
+      farmerId: farmerId,
+      limit: limit,
+      query: query,
+    );
+  }
+
   /// إنشاء مزارع جديد وحفظه متينًا في الطابور المحلي أولًا (ق-89 / ق-114 / م-21).
   Future<FarmerAccount> enqueueFarmer({
     required String accountId,
@@ -1940,6 +2010,7 @@ class OfflineSessionCoordinator {
     String? phone,
     String? notes,
     String? actionToken,
+    bool waitForCanonical = false,
   }) async {
     final cleanName = fullName.trim();
     if (cleanName.isEmpty) {
@@ -1959,6 +2030,7 @@ class OfflineSessionCoordinator {
         fullName: cleanName,
         phone: phone,
         notes: notes,
+        waitForCanonical: waitForCanonical,
       );
       _inFlightFarmerEnqueues[key] = future;
       try {
@@ -1974,6 +2046,7 @@ class OfflineSessionCoordinator {
       fullName: cleanName,
       phone: phone,
       notes: notes,
+      waitForCanonical: waitForCanonical,
     );
   }
 
@@ -1983,6 +2056,7 @@ class OfflineSessionCoordinator {
     required String fullName,
     String? phone,
     String? notes,
+    bool waitForCanonical = false,
   }) async {
     await initialize();
 
@@ -1999,7 +2073,54 @@ class OfflineSessionCoordinator {
       },
     );
 
-    await _triggerSync(accountId, wellId: wellId);
+    final opportunity = _triggerSync(
+      accountId,
+      wellId: wellId,
+      waitForCompletion: waitForCanonical,
+    );
+    if (waitForCanonical) {
+      try {
+        await opportunity.timeout(const Duration(seconds: 8));
+      } catch (_) {
+        /* Durable save survives sync failure. */
+      }
+      final current = await _store.commandByLocalId(
+        accountId,
+        envelope.localId,
+      );
+      final mapping = await _store.mapping(
+        accountId,
+        envelope.localId,
+        EntityKind.farmerWellAccount,
+      );
+      if (current?.status == CommandStatus.confirmed &&
+          mapping != null &&
+          mapping.serverId.isNotEmpty) {
+        return FarmerAccount(
+          id: mapping.serverId,
+          fullName: fullName,
+          publicCode: current?.serverResponse?['public_code'] as String? ?? '',
+          phone: phone?.trim(),
+        );
+      }
+      if (current?.status == CommandStatus.review) {
+        return FarmerAccount(
+          id: '',
+          fullName: fullName,
+          publicCode: '',
+          phone: phone?.trim(),
+          status: 'requires_resolution',
+          reference: PendingLocalEntityReference(
+            CommandReference(
+              localId: envelope.localId,
+              kind: EntityKind.farmerWellAccount,
+            ),
+          ),
+        );
+      }
+    } else {
+      unawaited(opportunity.catchError((_) {}));
+    }
 
     return FarmerAccount.pending(
       reference: CommandReference(
@@ -2019,12 +2140,20 @@ class OfflineSessionCoordinator {
     String? distinguishingLabel,
     required EntityReference farmerReference,
   }) async {
+    if (accountId.isEmpty ||
+        wellId.isEmpty ||
+        (farmerReference.isServer &&
+            (farmerReference.serverId?.isEmpty ?? true))) {
+      throw ArgumentError('اختر المزارع والبئر');
+    }
     final cleanName = name.trim();
     if (cleanName.isEmpty) {
       throw ArgumentError('اسم الأرض مطلوب');
     }
 
-    final cleanLabel = distinguishingLabel?.trim();
+    final cleanLabel = distinguishingLabel?.trim().isEmpty == true
+        ? null
+        : distinguishingLabel?.trim();
     final key =
         '$accountId:$wellId:${farmerReference.toPayload()}:$cleanName:$cleanLabel';
     final inFlight = _inFlightFarmEnqueues[key];
@@ -2054,9 +2183,9 @@ class OfflineSessionCoordinator {
     String? distinguishingLabel,
     required EntityReference farmerReference,
   }) async {
-    await initialize();
+    await _store.initialize();
 
-    final envelope = await _outbox.enqueue(
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: wellId,
       type: CommandType.createFarm,
@@ -2069,6 +2198,20 @@ class OfflineSessionCoordinator {
           'p_distinguishing_label': distinguishingLabel,
       },
     );
+
+    final key =
+        'farm.create.${jsonEncode([wellId, farmerReference.toPayload(), name, distinguishingLabel])}';
+    final stored = await _store.insertBundle(
+      accountId: accountId,
+      key: key,
+      value: prepared.localId,
+      commands: [prepared],
+    );
+    final envelope = (await _store.commandByLocalId(accountId, stored))!;
+    if (envelope.status == CommandStatus.review) {
+      throw StateError('اختر أرضًا موجودة أو أضف صفة مميزة.');
+    }
+    if (!_farmChanges.isClosed) _farmChanges.add(wellId);
 
     await _triggerSync(accountId, wellId: wellId);
 
@@ -2738,6 +2881,7 @@ class OfflineSessionCoordinator {
     String? sessionLocalId,
     String? wellId,
     bool paymentOnly = false,
+    bool waitForCompletion = false,
   }) async {
     try {
       await _commandQueuedScheduler?.call(accountId);
@@ -2746,9 +2890,13 @@ class OfflineSessionCoordinator {
     }
     if (_syncEngine == null) return;
     final projectionGeneration = ++_syncProjectionGeneration;
-    _syncEngine!
+    final opportunity = _syncEngine!
         .run(accountId)
-        .then((_) async {
+        .then((report) async {
+          if (report.farmResultsChanged) {
+            await _commandQueuedScheduler?.call(accountId);
+            if (!_farmChanges.isClosed && wellId != null) _farmChanges.add(wellId);
+          }
           if (!paymentOnly &&
               projectionGeneration != _syncProjectionGeneration) {
             return;
@@ -2769,6 +2917,7 @@ class OfflineSessionCoordinator {
           }
         })
         .catchError((_) {});
+    if (waitForCompletion) await opportunity;
   }
 
   /// جلب عدد العمليات المعلقة في الطابور المتين (القرار 563 / القرار 578)
@@ -2941,6 +3090,7 @@ class OfflineSessionCoordinator {
   }
 
   void dispose() {
+    if (!_farmChanges.isClosed) _farmChanges.close();
     _tickerTimer?.cancel();
     _tickerTimer = null;
     _initialized = false;

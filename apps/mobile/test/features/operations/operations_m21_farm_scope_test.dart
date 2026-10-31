@@ -1,3 +1,5 @@
+import 'package:well_irrigation_mobile/core/errors/user_facing_error.dart';
+import 'package:well_irrigation_mobile/core/widgets/farmer_create_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
@@ -38,6 +40,26 @@ class _ScopedTestOperationsRepository extends OperationsRepository {
       return list.where((f) => f.fullName.contains(query.trim())).toList();
     }
     return list;
+  }
+
+  @override
+  Future<List<Farm>> searchFarms(
+    String wellId, {
+    required String farmerAccountId,
+    String query = '',
+    int limit = 50,
+  }) async {
+    if (wellId.isEmpty || farmerAccountId.isEmpty || limit < 1 || limit > 100) {
+      throw ArgumentError('invalid farm search scope');
+    }
+    final farms = await fetchFarms(wellId, farmerAccountId: farmerAccountId);
+    return farms
+        .where((farm) => farm.wellId == wellId &&
+            farm.farmerAccountId == farmerAccountId &&
+            farm.status == 'active' && farm.id.isNotEmpty &&
+            farm.displayName.contains(query.trim()))
+        .take(limit)
+        .toList();
   }
 
   @override
@@ -90,6 +112,26 @@ class _SearchStateOperationsRepository extends OperationsRepository {
       throw StateError('farmer lookup failed');
     }
     return farmers;
+  }
+
+  @override
+  Future<List<Farm>> searchFarms(
+    String wellId, {
+    required String farmerAccountId,
+    String query = '',
+    int limit = 50,
+  }) async {
+    if (wellId.isEmpty || farmerAccountId.isEmpty || limit < 1 || limit > 100) {
+      throw ArgumentError('invalid farm search scope');
+    }
+    final farms = await fetchFarms(wellId, farmerAccountId: farmerAccountId);
+    return farms
+        .where((farm) => farm.wellId == wellId &&
+            farm.farmerAccountId == farmerAccountId &&
+            farm.status == 'active' && farm.id.isNotEmpty &&
+            farm.displayName.contains(query.trim()))
+        .take(limit)
+        .toList();
   }
 
   @override
@@ -177,7 +219,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+          lookupText(UserFacingError.unknownMessage),
           findsOneWidget,
         );
         expect(lookupText('لا توجد نتائج مطابقة'), findsNothing);
@@ -188,7 +230,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+          lookupText(UserFacingError.unknownMessage),
           findsNothing,
         );
         expect(lookupText('مزارع محلي محفوظ'), findsOneWidget);
@@ -214,7 +256,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+        lookupText(UserFacingError.unknownMessage),
         findsOneWidget,
       );
       expect(lookupText('مزارع محلي قابل للاختيار'), findsOneWidget);
@@ -266,7 +308,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+          lookupText(UserFacingError.unknownMessage),
           findsOneWidget,
         );
         expect(lookupText('لا توجد نتائج مطابقة'), findsNothing);
@@ -277,7 +319,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+          lookupText(UserFacingError.unknownMessage),
           findsNothing,
         );
         expect(lookupText('الكوثة — الغربية'), findsOneWidget);
@@ -315,7 +357,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        lookupText('تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.'),
+        lookupText(UserFacingError.unknownMessage),
         findsOneWidget,
       );
       expect(lookupText('الجربة — القبلية'), findsOneWidget);
@@ -559,10 +601,13 @@ void main() {
         await tester.pumpAndSettle();
 
         await tester.enterText(
-          find.widgetWithText(TextFormField, 'اسم المزارع الكامل *'),
+          find.byKey(const Key('farmer_name')),
           'مزارع خاص ببئر أ',
         );
-        await tester.tap(find.text('حفظ وإضافة'));
+        await tester.tap(find.descendant(
+          of: find.byType(FarmerCreateDialog),
+          matching: find.widgetWithText(FilledButton, 'حفظ'),
+        ));
         await tester.pumpAndSettle();
 
         // Verify selected farmer in Well A is the pending farmer

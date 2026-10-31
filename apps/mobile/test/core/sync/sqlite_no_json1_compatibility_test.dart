@@ -564,6 +564,112 @@ void main() {
       await bad.close();
     },
   );
+  test('D indexed farm filter precedes LIMIT; canonical and mapped local parents remain isolated', () async {
+    await store.initialize();
+    for (var i = 0; i < 350; i++) {
+      await store.insert(
+        command(
+          'noise-$i',
+          CommandType.createFarm,
+          {'p_farmer_well_account_id': 'farmer', 'p_name': 'noise'},
+          sequence: i + 10,
+          account: i % 3 == 0 ? 'other' : 'a',
+          well: i % 2 == 0 ? 'other' : 'w',
+        ),
+      );
+    }
+    await store.insert(
+      command('hit', CommandType.createFarm, {
+        'p_farmer_well_account_id': 'farmer',
+        'p_name': 'target',
+        'p_distinguishing_label': 'north',
+      }, sequence: 1),
+    );
+    await store.insert(
+      command('mapped-hit', CommandType.createFarm, {
+        'p_farmer_well_account_id': {
+          r'$ref': 'pending',
+          r'$kind': 'farmerWellAccount',
+        },
+        'p_name': 'target',
+      }, sequence: 2),
+    );
+    await store.putMapping(
+      'a',
+      IdMapping(
+        localId: 'pending',
+        kind: EntityKind.farmerWellAccount,
+        serverId: 'farmer',
+        resolvedAt: now,
+      ),
+    );
+    final hits = await store.farmCommands(
+      accountId: 'a',
+      wellId: 'w',
+      farmer: 'farmer',
+      query: 'target',
+      limit: 2,
+    );
+    expect(hits.map((r) => r.command.localId), ['mapped-hit', 'hit']);
+    expect(
+      (await store.farmCommands(
+        accountId: 'a',
+        wellId: 'w',
+        farmer: 'farmer',
+        query: 'north',
+        limit: 1,
+      )).single.command.localId,
+      'hit',
+    );
+    expect(
+      (await store.farmCommands(
+        accountId: 'a',
+        wellId: 'w',
+        farmer: {r'$ref': 'pending', r'$kind': 'farmerWellAccount'},
+        query: 'target',
+      )).single.command.localId,
+      'mapped-hit',
+    );
+    expect(
+      await store.farmCommands(
+        accountId: 'other',
+        wellId: 'w',
+        farmer: 'farmer',
+        query: 'target',
+      ),
+      isEmpty,
+    );
+    expect(
+      await store.farmCommands(
+        accountId: 'a',
+        wellId: 'other',
+        farmer: 'farmer',
+        query: 'target',
+      ),
+      isEmpty,
+    );
+    final plan = await store.notificationEvents.db.rawQuery(
+      'explain query plan ${SqliteOutboxStore.farmSelectionSql}',
+      [
+        'server',
+        'farmer',
+        'a',
+        'farmer',
+        'server',
+        'a',
+        'w',
+        'target',
+        'target',
+        'target',
+        2,
+      ],
+    );
+    final details = plan.map((r) => r['detail']).join(' ');
+    expect(details, contains('outbox_farm_selection_idx'));
+    expect(details, contains('farm_parent_mapping_idx'));
+    expect(details, contains('farmer_ref_kind=? AND farmer_ref_id=?'));
+    expect(details, isNot(contains('SCAN c')));
+  });
   test(
     'E F booking local farm readiness and next wake happen in SQL before LIMIT',
     () async {

@@ -22,9 +22,10 @@ import '../../core/sync/farmer_identity_review.dart';
 import '../../core/theme/app_colors.dart';
 import '../farmers/farmer_identity_resolution_sheet.dart';
 import '../../core/utils/currency_utils.dart';
-import '../../core/utils/digit_utils.dart';
 import '../../core/utils/tafqeet_utils.dart';
 import '../../core/widgets/currency_display.dart';
+import '../../core/widgets/farmer_create_dialog.dart';
+import '../../core/widgets/farm_create_dialog.dart';
 import '../../core/widgets/smart_lookup_field.dart';
 import '../../core/widgets/top_well_selector.dart';
 import 'widgets/compact_energy_selector.dart';
@@ -1615,7 +1616,11 @@ class _OperationsScreenState extends State<OperationsScreen>
     final farmerRef = active.farmerReference;
     final sessionId = active.localId;
     try {
-      final farms = await _repo.fetchFarms(wellId, farmerAccountId: farmerRef);
+      final farms = await _repo.searchFarms(
+        wellId,
+        farmerAccountId: farmerRef ?? _selectedFarmer?.id ?? '',
+        query: active.farmName ?? '',
+      );
       final matched = await _coordinator.resolveFarm(
         accountId,
         farmRef,
@@ -2180,9 +2185,10 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<List<FarmerAccount>> _searchFarmers(String query) async {
+    final account = _accountId, well = _activeWellId;
     final durablePending = await _coordinator.pendingFarmers(
-      accountId: _accountId,
-      wellId: _activeWellId,
+      accountId: account,
+      wellId: well,
     );
 
     final q = query.trim();
@@ -2194,12 +2200,17 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     late final List<FarmerAccount> list;
     try {
-      list = await _repo.fetchFarmers(_activeWellId, query: query);
-    } catch (_) {
+      list = await _repo.fetchFarmers(well, query: query);
+    } catch (error) {
+      if (!mounted || account != _accountId || well != _activeWellId) return [];
+
       throw SmartLookupSearchFailure<FarmerAccount>(
         availableLocalItems: matchingPending,
+        cause: error,
       );
     }
+
+    if (!mounted || account != _accountId || well != _activeWellId) return [];
 
     matchingPending.removeWhere((f) {
       if (list.any((existing) => existing.id == f.entityReference.serverId)) {
@@ -2212,268 +2223,95 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<List<Farm>> _searchFarms(String query) async {
-    final selectedFarmer = _selectedFarmer;
-    if (selectedFarmer == null) return [];
-
-    final wellId = _activeWellId;
-    final accountId = _accountId;
-    final q = query.trim();
-
-    final durablePending = await _coordinator.pendingFarms(
-      accountId: accountId,
-      wellId: wellId,
-      farmerReference: selectedFarmer.entityReference,
-    );
-
-    final filteredPending = durablePending.where((f) {
-      if (q.isEmpty) return true;
-      return f.displayName.contains(q);
-    }).toList();
-
-    List<Farm> serverFarms = [];
-    if (!selectedFarmer.isPending &&
-        selectedFarmer.entityReference.serverId != null &&
-        selectedFarmer.entityReference.serverId!.isNotEmpty) {
+    final farmer = _selectedFarmer;
+    if (farmer == null) return [];
+    final well = _activeWellId;
+    final account = _accountId;
+    List<Farm> canonical = [];
+    Object? failure;
+    if (!farmer.isPending) {
       try {
-        serverFarms = await _repo.fetchFarms(
-          wellId,
-          farmerAccountId: selectedFarmer.entityReference.serverId,
+        canonical = await _repo.searchFarms(
+          well,
+          farmerAccountId: farmer.id,
+          query: query,
         );
-      } catch (_) {
-        throw SmartLookupSearchFailure<Farm>(
-          availableLocalItems: filteredPending,
-        );
+      } catch (error) {
+        failure = error;
       }
     }
-
-    final filteredServer = q.isEmpty
-        ? serverFarms
-        : serverFarms.where((f) => f.displayName.contains(q)).toList();
-
-    filteredPending.removeWhere(
-      (f) => serverFarms.any(
-        (existing) => existing.id == f.entityReference.serverId,
-      ),
+    final choices = await _coordinator.farmChoices(
+      accountId: account,
+      wellId: well,
+      farmerReference: farmer.entityReference,
+      canonical: canonical,
+      query: query,
     );
-
-    return [...filteredPending, ...filteredServer];
+    if (!mounted ||
+        account != _accountId ||
+        well != _activeWellId ||
+        _selectedFarmer?.entityReference != farmer.entityReference) {
+      return [];
+    }
+    final local = choices;
+    if (failure != null) {
+      throw SmartLookupSearchFailure<Farm>(
+        availableLocalItems: local,
+        cause: failure,
+      );
+    }
+    return local;
   }
 
   Future<FarmerAccount?> _showAddFarmerDialog() async {
-    final wellId = _activeWellId;
-    final accountId = _accountId;
-
-    final nameController = TextEditingController();
-    final phoneController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isSubmitting = false;
-
-    final created = await showDialog<FarmerAccount>(
+    if (!(_activeWell.isOwner || _activeWell.isOperator)) return null;
+    final well = _activeWellId, account = _accountId;
+    final farmer = await showFarmerCreateDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text(
-            'إضافة مزارع جديد',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.deepBlue,
-            ),
-          ),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  enabled: !isSubmitting,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم المزارع الكامل *',
-                    hintText: 'مثال: محمد صالح القاسمي',
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                  validator: (val) => (val == null || val.trim().isEmpty)
-                      ? 'الاسم مطلوب'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: phoneController,
-                  enabled: !isSubmitting,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: const [ArabicToEnglishDigitsFormatter()],
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الهاتف (اختياري)',
-                    hintText: '77XXXXXXX',
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.waterBlue,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
-                      if (!(formKey.currentState?.validate() ?? false)) return;
-
-                      setDialogState(() => isSubmitting = true);
-                      try {
-                        final farmer = await _coordinator.enqueueFarmer(
-                          accountId: accountId,
-                          wellId: wellId,
-                          fullName: nameController.text.trim(),
-                          phone: phoneController.text.trim().isNotEmpty
-                              ? phoneController.text.trim()
-                              : null,
-                        );
-                        if (ctx.mounted) Navigator.of(ctx).pop(farmer);
-                      } catch (e) {
-                        setDialogState(() => isSubmitting = false);
-                        _showActionFailure('تعذر إنشاء المزارع: $e');
-                      }
-                    },
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('حفظ وإضافة'),
-            ),
-          ],
-        ),
+      save: (name, phone) => _coordinator.enqueueFarmer(
+        accountId: account,
+        wellId: well,
+        fullName: name,
+        phone: phone,
       ),
     );
-
+    if (!mounted ||
+        well != _activeWellId ||
+        account != _accountId ||
+        farmer == null) {
+      return null;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('تم حفظ المزارع')));
     await _checkActiveWellReviews();
-    return created;
+    return farmer;
   }
 
   Future<Farm?> _showAddFarmDialog() async {
-    if (_selectedFarmer == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يرجى اختيار المزارع أولاً لربط الأرض الزراعية به'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
+    final farmer = _selectedFarmer;
+    if (farmer == null || !(_activeWell.isOwner || _activeWell.isOperator)) {
       return null;
     }
-
-    final wellId = _activeWellId;
-    final accountId = _accountId;
-    final selectedFarmer = _selectedFarmer!;
-
-    final nameController = TextEditingController();
-    final labelController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isSubmitting = false;
-
-    return showDialog<Farm>(
+    final well = _activeWellId;
+    final account = _accountId;
+    final saved = await showFarmCreateDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(
-            'إضافة أرض للمزارع: ${selectedFarmer.fullName}',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.deepBlue,
-            ),
-          ),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  enabled: !isSubmitting,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم الأرض الزراعية *',
-                    hintText: 'مثال: الكوثة',
-                    prefixIcon: Icon(Icons.landscape),
-                  ),
-                  validator: (val) => (val == null || val.trim().isEmpty)
-                      ? 'اسم الأرض مطلوب'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: labelController,
-                  enabled: !isSubmitting,
-                  decoration: const InputDecoration(
-                    labelText: 'صفة مميزة (اختياري)',
-                    hintText: 'مثال: الشرقية أو الغربية',
-                    prefixIcon: Icon(Icons.label_outline),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.waterBlue,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
-                      if (!(formKey.currentState?.validate() ?? false)) return;
-
-                      setDialogState(() => isSubmitting = true);
-                      try {
-                        final farm = await _coordinator.enqueueFarm(
-                          accountId: accountId,
-                          wellId: wellId,
-                          name: nameController.text.trim(),
-                          distinguishingLabel:
-                              labelController.text.trim().isNotEmpty
-                              ? labelController.text.trim()
-                              : null,
-                          farmerReference: selectedFarmer.entityReference,
-                        );
-                        if (ctx.mounted) Navigator.of(ctx).pop(farm);
-                      } catch (e) {
-                        setDialogState(() => isSubmitting = false);
-                        _showActionFailure('تعذر إنشاء الأرض: $e');
-                      }
-                    },
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('حفظ وإضافة'),
-            ),
-          ],
-        ),
+      farmerName: farmer.fullName,
+      save: (name, label) => _coordinator.enqueueFarm(
+        accountId: account,
+        wellId: well,
+        name: name,
+        distinguishingLabel: label,
+        farmerReference: farmer.entityReference,
       ),
     );
+    if (!mounted ||
+        well != _activeWellId ||
+        account != _accountId ||
+        _selectedFarmer?.entityReference != farmer.entityReference) {
+      return null;
+    }
+    return saved;
   }
 
   Future<void> _startSession() async {

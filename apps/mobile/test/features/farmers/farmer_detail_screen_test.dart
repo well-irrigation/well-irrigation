@@ -1,3 +1,7 @@
+import 'package:well_irrigation_mobile/core/sync/command_type.dart';
+import '../../core/sync/fake_command_transport.dart';
+import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
+import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
@@ -54,12 +58,35 @@ Widget _wrap({bool shouldFail = false, bool canCreateFarm = true}) {
       farmerAccountId: 'acc-1',
       wellName: 'بئر الخير الرئيسي',
       canCreateFarm: canCreateFarm,
+      accountId:'a',
+      coordinator:OfflineSessionCoordinator(store:InMemoryOutboxStore()),
       repository: _FakeOperationsRepository(shouldFail: shouldFail),
     ),
   );
 }
 
 void main() {
+  for (final canonical in [true,false]) {
+    testWidgets('lands farmer create canonical=$canonical never creates a farm automatically', (tester) async {
+      final store=InMemoryOutboxStore();final transport=FakeCommandTransport();
+      transport.scheduleRawResponse(CommandType.createFarmer,{'status':'matched_existing','farmer_well_account_id':'new-farmer'});
+      final coordinator=OfflineSessionCoordinator(store:store,commandTransport:canonical?transport:null);
+      addTearDown(coordinator.dispose);
+      await tester.pumpWidget(MaterialApp(home:Builder(builder:(context)=>Scaffold(body:TextButton(
+        onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>FarmerDetailScreen(
+          wellId:'well-1',farmerAccountId:'acc-1',wellName:'بئر',canCreateFarm:true,canCreateFarmer:true,
+          accountId:'a',coordinator:coordinator,repository:const _FakeOperationsRepository()))),child:const Text('directory'))))));
+      await tester.tap(find.text('directory'));await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('إضافة مزارع جديد'));await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('farmer_name')),'مزارع جديد');
+      await tester.tap(find.text('حفظ'));await tester.pumpAndSettle();
+      if(canonical) { expect(tester.widget<FarmerDetailScreen>(find.byType(FarmerDetailScreen)).farmerAccountId,'new-farmer'); }
+      else { expect(find.byType(FarmerDetailScreen),findsNothing);expect(find.text('directory'),findsOneWidget); }
+      expect((await store.allCommands('a')).map((c)=>c.type),[CommandType.createFarmer]);
+      await tester.pumpWidget(const SizedBox.shrink()); coordinator.dispose(); await tester.pump();
+    });
+  }
+
   group('FarmerDetailScreen Tests (UX-13 / 380)', () {
     testWidgets('1. عرض الملف الشخصي للمزارع والتبويبات الثلاث', (
       tester,
@@ -75,26 +102,26 @@ void main() {
       expect(find.textContaining('الأراضي'), findsOneWidget);
       expect(find.textContaining('الجلسات'), findsOneWidget);
       expect(find.text('كشف الحساب'), findsOneWidget);
-      expect(find.text('إضافة أرض'), findsOneWidget);
+      expect(find.text('إضافة أرض جديدة'), findsOneWidget);
     });
 
     testWidgets('2. فتح حوار إضافة أرض جديدة للمزارع', (tester) async {
       await tester.pumpWidget(_wrap());
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('إضافة أرض'));
+      await tester.tap(find.text('إضافة أرض جديدة'));
       await tester.pumpAndSettle();
 
-      expect(find.text('إضافة أرض زراعية جديدة'), findsOneWidget);
+      expect(find.descendant(of:find.byType(AlertDialog),matching:find.text('إضافة أرض جديدة')), findsOneWidget);
       expect(find.text('اسم الأرض أو القطعة الزراعية *'), findsOneWidget);
-      expect(find.text('حفظ الأرض'), findsOneWidget);
+      expect(find.text('حفظ'), findsOneWidget);
     });
 
-    testWidgets('المشغّل لا يرى إضافة أرض', (tester) async {
+    testWidgets('غير المخوّل لا يرى إضافة أرض', (tester) async {
       await tester.pumpWidget(_wrap(canCreateFarm: false));
       await tester.pumpAndSettle();
 
-      expect(find.text('إضافة أرض'), findsNothing);
+      expect(find.text('إضافة أرض جديدة'), findsNothing);
     });
 
     testWidgets('3. التبديل إلى تبويب كشف الحساب والمالية', (tester) async {

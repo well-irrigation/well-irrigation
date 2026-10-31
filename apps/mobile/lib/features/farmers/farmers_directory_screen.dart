@@ -1,5 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/utils/digit_utils.dart';
+import 'dart:async';
+import '../../core/widgets/farmer_create_dialog.dart';
+import 'package:flutter/material.dart';
 
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/identity/app_identity.dart';
@@ -7,7 +10,6 @@ import '../../core/api/operations_repository.dart';
 import '../../core/session/offline_session_coordinator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_utils.dart';
-import '../../core/utils/digit_utils.dart';
 import '../../core/widgets/top_well_selector.dart';
 import '../../core/widgets/well_loading_indicator.dart';
 import 'farmer_detail_screen.dart';
@@ -212,169 +214,15 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
     };
   }
 
-  void _showAddFarmerDialog() {
-    final nameController = TextEditingController();
-    final phoneController = TextEditingController();
-    final notesController = TextEditingController();
-    bool isSubmitting = false;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: const [
-              Icon(Icons.person_add_outlined, color: AppColors.deepBlue),
-              SizedBox(width: 8),
-              Text(
-                'إضافة مزارع جديد',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  // تلميح عام لا اسم شخص: «مثال: محمد عبدالله الشامي» اسمٌ
-                  // كامل يظنّه المستعجل قيمةً مكتوبة فيضغط حفظ، أو يظنّه اسمًا
-                  // مسجَّلًا سلفًا. والتلميح يوصِف الشكل المطلوب لا يعطي قيمة.
-                  decoration: const InputDecoration(
-                    labelText: 'الاسم الكامل للمزارع *',
-                    hintText: 'الاسم الثلاثي',
-                    prefixIcon: Icon(Icons.person_outline, size: 20),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: phoneController,
-                  keyboardType: TextInputType.phone,
-                  // الرقم يُكتب ويُقرأ من اليسار دائمًا: في سياق عربي يقع
-                  // المفتاح `+967` بصريًّا في غير موضعه، فيُقرأ الرقم معكوسًا
-                  // ومن يقرؤه ليتّصل يخطئ. عزلُ الحقل بـ`ltr` يمنع ذلك.
-                  textDirection: TextDirection.ltr,
-                  textAlign: TextAlign.left,
-                  inputFormatters: [
-                    ArabicToEnglishDigitsFormatter(),
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(9),
-                  ],
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الهاتف (9 أرقام)',
-                    hintText: '7XXXXXXXX',
-                    prefixText: '+967 ',
-                    prefixIcon: Icon(Icons.phone_outlined, size: 20),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: notesController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظات إضافية (اختياري)',
-                    hintText: 'موقع الأرض أو تفاصيل إضافية...',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting
-                  ? null
-                  : () => Navigator.of(dialogCtx).pop(),
-              child: const Text(
-                'إلغاء',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.deepBlue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
-                      final name = nameController.text.trim();
-                      if (name.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('يرجى إدخال اسم المزارع'),
-                          ),
-                        );
-                        return;
-                      }
-
-                      setDialogState(() => isSubmitting = true);
-                      try {
-                        final coordinator =
-                            widget.coordinator ??
-                            OfflineSessionCoordinator.instance;
-                        await coordinator.enqueueFarmer(
-                          accountId: widget.identity.accountId,
-                          wellId: _activeWellId,
-                          fullName: name,
-                          phone: phoneController.text.trim().isNotEmpty
-                              ? phoneController.text.trim()
-                              : null,
-                          notes: notesController.text.trim().isNotEmpty
-                              ? notesController.text.trim()
-                              : null,
-                        );
-
-                        if (dialogCtx.mounted) {
-                          Navigator.of(dialogCtx).pop();
-                        }
-
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'تم حفظ المزارع محلياً وقيد المزامنة ⏳',
-                              ),
-                            ),
-                          );
-                          _refreshDataQuietly();
-                        }
-                      } catch (e) {
-                        setDialogState(() => isSubmitting = false);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('حدث خطأ أثناء الإضافة: $e'),
-                            ),
-                          );
-                        }
-                      }
-                    },
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Text('حفظ المزارع'),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _showAddFarmerDialog() async {
+    if (!(_activeWell.isOwner || _activeWell.isOperator)) return;
+    final well = _activeWellId;
+    final farmer = await showFarmerCreateDialog(context: context, save: (name, phone) =>
+      (widget.coordinator ?? OfflineSessionCoordinator.instance).enqueueFarmer(
+        accountId: widget.identity.accountId, wellId: well, fullName: name, phone: phone));
+    if (!mounted || well != _activeWellId || farmer == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ المزارع')));
+    unawaited(_refreshDataQuietly());
   }
 
   @override
@@ -414,7 +262,7 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: !(_activeWell.isOwner || _activeWell.isOperator) ? null : FloatingActionButton.extended(
         backgroundColor: AppColors.deepBlue,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.person_add),
@@ -649,7 +497,9 @@ class _FarmersDirectoryScreenState extends State<FarmersDirectoryScreen> {
                 farmerAccountId: entry.id,
                 wellName: _activeWellName,
                 accountId: widget.identity.accountId,
-                canCreateFarm: _activeWell.isOwner,
+                canCreateFarm: _activeWell.isOwner || _activeWell.isOperator,
+                canCreateFarmer: _activeWell.isOwner || _activeWell.isOperator,
+                initialFarmer: FarmerAccount(id:entry.id,fullName:entry.fullName,publicCode:entry.publicCode,phone:entry.phone,status:entry.status),
                 repository: _repo,
                 coordinator: widget.coordinator,
               ),

@@ -1,3 +1,5 @@
+import '../session/offline_session_coordinator.dart';
+
 import 'dart:convert';
 import 'operations_repository.dart';
 import '../booking/local_booking_request.dart';
@@ -587,6 +589,9 @@ class BookingRepository {
   /// وفي الاختبارات fake. `null` = لا مرساة تُبنى، فالجدول يُعرض ولا
   /// يُسلَّح انتقال آلي — وهذا قرار صريح لا فشل صامت.
   final TimeIntegritySource? _timeIntegritySource;
+
+  OfflineSessionCoordinator? _farmCoordinator;
+  OfflineSessionCoordinator get farmCoordinator => _farmCoordinator ??= OfflineSessionCoordinator(store:_localLedger.store,supabaseClient:_effectiveClient,commandQueuedScheduler:(account) async {await WorkmanagerSyncScheduler().scheduleSync(account);return true;});
 
   Future<LocalBookingRequest> saveLocalBooking({
     required String accountId,

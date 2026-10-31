@@ -1,12 +1,14 @@
+import '../errors/user_facing_error.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../utils/digit_utils.dart';
 
 class SmartLookupSearchFailure<T> implements Exception {
-  const SmartLookupSearchFailure({required this.availableLocalItems});
+  const SmartLookupSearchFailure({required this.availableLocalItems, this.cause});
 
   final List<T> availableLocalItems;
+  final Object? cause;
 }
 
 /// مكوّن البحث الذكي الموحد (Smart Lookup Component - ق-88 / ق-119)
@@ -249,17 +251,17 @@ class _SmartLookupBottomSheetState<T>
         setState(() {
           _results = failure.availableLocalItems;
           _searchError =
-              'تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.';
+              UserFacingError.from(failure.cause).message;
           _isLoading = false;
         });
       }
-    } catch (_) {
+    } catch (error) {
       // م-41C1: فشل عقد القراءة يظهر صريحًا بدل قائمة فارغة مضلِّلة.
       if (mounted) {
         setState(() {
           _results = [];
           _searchError =
-              'تعذّر تحميل النتائج. تحقق من الاتصال ثم أعد المحاولة.';
+              UserFacingError.from(error).message;
           _isLoading = false;
         });
       }

@@ -10,7 +10,7 @@ import 'command_type.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
-class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingDispatchStore {
+class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
   final Map<String, List<CommandEnvelope>> _commands = {};
   final Map<String, Map<String, IdMapping>> _mappings = {};
   final Map<String, int> _sequences = {};
@@ -125,6 +125,55 @@ class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore, Bookin
     rows.sort((a, b) => a.sequence.compareTo(b.sequence));
 
     return rows;
+  }
+
+  @override
+  Future<List<FarmCommandRow>> farmCommands({
+    required String accountId,
+    required String wellId,
+    required Object farmer,
+    int limit = 50,
+    String query = '',
+  }) async {
+    if (limit < 1 || limit > 100) throw ArgumentError('حد الأراضي غير صالح');
+    final rows = <FarmCommandRow>[];
+    for (final c in await commandsForWell(accountId, wellId)) {
+      if (c.type != CommandType.createFarm ||
+          c.status == CommandStatus.review) {
+        continue;
+      }
+      if (query.trim().isNotEmpty &&
+          !(c.payload['p_name'] as String).contains(query.trim()) &&
+          !(c.payload['p_distinguishing_label'] as String? ?? '').contains(
+            query.trim(),
+          )) {
+        continue;
+      }
+      final raw = c.payload['p_farmer_well_account_id'];
+      String? parent;
+      if (raw is Map) {
+        parent =
+            _mappings[accountId]?[_mappingKey(
+                  raw[r'$ref'] as String,
+                  EntityKind.farmerWellAccount,
+                )]
+                ?.serverId;
+      }
+      if (raw.toString() != farmer.toString() && parent != farmer) continue;
+      rows.add(
+        FarmCommandRow(
+          command: c,
+          serverId:
+              _mappings[accountId]?[_mappingKey(c.localId, EntityKind.farm)]
+                  ?.serverId,
+          farmerId: farmer is String
+              ? farmer
+              : (farmer as Map)[r'$ref'] as String?,
+        ),
+      );
+    }
+    rows.sort((a, b) => b.command.sequence.compareTo(a.command.sequence));
+    return rows.take(limit).toList();
   }
 
   List<CommandEnvelope> _bookingRows(String accountId) =>

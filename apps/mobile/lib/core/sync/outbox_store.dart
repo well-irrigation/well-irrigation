@@ -220,3 +220,21 @@ abstract interface class BookingDispatchStore {
     required Duration staleClaimTimeout,
   });
 }
+
+/// قراءة اختيار الأراضي: صفحة واحدة مع الربط، دون قراءات لكل صف.
+class FarmCommandRow {
+  const FarmCommandRow({required this.command, this.serverId, this.farmerId});
+  final CommandEnvelope command;
+  final String? serverId;
+  final String? farmerId;
+}
+
+abstract interface class FarmSelectionStore {
+  Future<List<FarmCommandRow>> farmCommands({
+    required String accountId,
+    required String wellId,
+    required Object farmer,
+    int limit = 50,
+    String query = '',
+  });
+}
