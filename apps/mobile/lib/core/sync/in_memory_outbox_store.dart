@@ -722,6 +722,106 @@ class InMemoryOutboxStore implements AtomicCommandDispatchStore, OutboxStore, At
   }
 
   @override
+  Future<bool> reconcileBookingStartReceipt(
+    CommandEnvelope observed,
+    Map<String, Object?> receipt,
+  ) async {
+    _assertOpen();
+    receipt = freezeDispatchReceipt(receipt)!;
+    observed = freezeDispatchCommand(observed);
+    final mapping =
+        _mappings[observed.accountId]?[_mappingKey(
+          observed.localId,
+          EntityKind.session,
+        )];
+    if (!canReconcileBookingStartReceipt(
+      observed: observed,
+      current: _byLocalId[observed.localId],
+      manualRecord:
+          _bundles['${observed.accountId}::booking.manual_start.v1.${observed.wellId}.${observed.payload['p_booking_id']}'],
+      mapping: mapping,
+      receipt: receipt,
+    )) {
+      return false;
+    }
+    _update(
+      observed.accountId,
+      observed.localId,
+      (c) => c.copyWith(
+        status: CommandStatus.confirmed,
+        serverResponse: receipt,
+        clearLastError: true,
+      ),
+    );
+    _mappings
+        .putIfAbsent(observed.accountId, () => {})
+        .putIfAbsent(
+          _mappingKey(observed.localId, EntityKind.session),
+          () => IdMapping(
+            localId: observed.localId,
+            kind: EntityKind.session,
+            serverId: receipt['session_id'] as String,
+            resolvedAt: DateTime.parse(receipt['started_at'] as String),
+          ),
+        );
+    return true;
+  }
+
+  @override
+  Future<bool> reconcileCompletionReceipt(
+    CommandEnvelope observed,
+    String sessionId,
+    Map<String, Object?> receipt,
+  ) async {
+    receipt = freezeDispatchReceipt(receipt)!;
+    observed = freezeDispatchCommand(observed);
+    _assertOpen();
+    final root = observed.aggregateLocalId;
+    final charge =
+        _mappings[observed.accountId]?[_mappingKey(
+          observed.localId,
+          EntityKind.sessionCharge,
+        )];
+    if (!canReconcileCompletionReceipt(
+      observed: observed,
+      current: _byLocalId[observed.localId],
+      root: root == null ? null : _byLocalId[root],
+      sessionMapping: root == null
+          ? null
+          : _mappings[observed.accountId]?[_mappingKey(
+              root,
+              EntityKind.session,
+            )],
+      chargeMapping: charge,
+      sessionId: sessionId,
+      receipt: receipt,
+    )) {
+      return false;
+    }
+    _update(
+      observed.accountId,
+      observed.localId,
+      (c) => c.copyWith(
+        status: CommandStatus.confirmed,
+        serverResponse: receipt,
+        clearLastError: true,
+      ),
+    );
+    _mappings
+        .putIfAbsent(observed.accountId, () => {})
+        .putIfAbsent(
+          _mappingKey(observed.localId, EntityKind.sessionCharge),
+          () => IdMapping(
+            localId: observed.localId,
+            kind: EntityKind.sessionCharge,
+            serverId: receipt['session_charge_id'] as String,
+            resolvedAt: DateTime.parse(receipt['ended_at'] as String),
+          ),
+        );
+    return true;
+  }
+
+  @override
   Future<bool> claim(
     String accountId,
     String localId, {

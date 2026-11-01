@@ -11,11 +11,128 @@ library;
 
 import 'dart:convert';
 
+import 'booking_start_receipt.dart';
+import 'command_transport.dart';
 import 'command_intent_policy.dart';
 import 'command_reference.dart';
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'sync_status.dart';
+
+bool canReconcileBookingStartReceipt({
+  required CommandEnvelope observed,
+  required CommandEnvelope? current,
+  required String? manualRecord,
+  required IdMapping? mapping,
+  required Map<String, Object?> receipt,
+}) {
+  final request = BookingStartReceiptRequest.fromCommand(observed);
+  if (request == null ||
+      current == null ||
+      dispatchCommandFingerprint(current) !=
+          dispatchCommandFingerprint(observed) ||
+      !(const {
+            CommandStatus.pending,
+            CommandStatus.dispatching,
+          }.contains(current.status) ||
+          (current.status == CommandStatus.review &&
+              current.serverResponse == null)) ||
+      !validBookingStartReceipt(request, receipt) ||
+      (mapping != null && mapping.serverId != receipt['session_id']) ||
+      (observed.serverResponse != null &&
+          observed.serverResponse!['session_id'] != receipt['session_id'])) {
+    return false;
+  }
+  try {
+    final proof = jsonDecode(manualRecord ?? '');
+    return proof is Map &&
+        proof.length == 2 &&
+        proof['start_local_id'] == observed.localId &&
+        proof['start_command_id'] == observed.commandId;
+  } on FormatException {
+    return false;
+  }
+}
+
+// Receipt adoption uses the original row and the existing receipt validator.
+// It neither grants retry permission nor changes dispatch attempt ownership.
+bool canReconcileCompletionReceipt({
+  required CommandEnvelope observed,
+  required CommandEnvelope? current,
+  required CommandEnvelope? root,
+  required IdMapping? sessionMapping,
+  required IdMapping? chargeMapping,
+  required String sessionId,
+  required Map<String, Object?> receipt,
+}) {
+  if (current == null ||
+      dispatchCommandFingerprint(current) !=
+          dispatchCommandFingerprint(observed) ||
+      observed.type != CommandType.completeIrrigationSession ||
+      observed.accountId.isEmpty ||
+      observed.wellId == null ||
+      observed.wellId!.isEmpty ||
+      observed.commandId.isEmpty ||
+      observed.localId.isEmpty ||
+      sessionId.isEmpty ||
+      !(const {
+            CommandStatus.pending,
+            CommandStatus.dispatching,
+          }.contains(current.status) ||
+          (current.status == CommandStatus.review &&
+              current.serverResponse == null)) ||
+      root == null ||
+      root.localId != observed.aggregateLocalId ||
+      root.accountId != observed.accountId ||
+      root.wellId != observed.wellId ||
+      root.type.produces != EntityKind.session ||
+      sessionMapping?.serverId != sessionId ||
+      sessionMapping?.localId != root.localId ||
+      sessionMapping?.kind != EntityKind.session ||
+      (chargeMapping != null &&
+          (chargeMapping.localId != observed.localId ||
+              chargeMapping.kind != EntityKind.sessionCharge ||
+              chargeMapping.serverId != receipt['session_charge_id']))) {
+    return false;
+  }
+  final target = observed.payload['p_session_id'];
+  if (target != sessionId &&
+      !(target is Map &&
+          target.length == 2 &&
+          target[r'$ref'] == root.localId &&
+          target[r'$kind'] == 'session')) {
+    return false;
+  }
+  for (final pair in [
+    ('command_id', observed.commandId),
+    ('command_type', observed.type.rpcName),
+    ('well_id', observed.wellId),
+  ]) {
+    if (receipt.containsKey(pair.$1) && receipt[pair.$1] != pair.$2) {
+      return false;
+    }
+  }
+  final request = CompletionReceiptRequest(
+    accountId: observed.accountId,
+    wellId: observed.wellId!,
+    sessionId: sessionId,
+    commandId: observed.commandId,
+    commandType: observed.type.rpcName,
+  );
+  final result = parseCompletionReceipt(request, {
+    'contract': 'get_completion_receipt',
+    'version': 1,
+    'retry_authorized': false,
+    'well_id': request.wellId,
+    'session_id': request.sessionId,
+    'command_id': request.commandId,
+    'command_type': request.commandType,
+    'status': 'accepted',
+    'receipt': receipt,
+  });
+  return result is CompletionReceiptResponse &&
+      result.state == CompletionReceiptState.accepted;
+}
 
 /// عقد اختياري غير موصول بالمرسل القديم؛ لا يغير دلالات claim القديمة.
 abstract interface class AtomicCommandDispatchStore {
@@ -41,7 +158,16 @@ abstract interface class AtomicCommandDispatchStore {
     String? entityId,
   });
 
+  Future<bool> reconcileBookingStartReceipt(
+    CommandEnvelope observed,
+    Map<String, Object?> receipt,
+  );
 
+  Future<bool> reconcileCompletionReceipt(
+    CommandEnvelope observed,
+    String sessionId,
+    Map<String, Object?> receipt,
+  );
 }
 
 enum DispatchClaimDecision {

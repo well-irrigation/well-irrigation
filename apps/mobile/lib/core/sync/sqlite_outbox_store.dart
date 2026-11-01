@@ -1641,6 +1641,200 @@ class SqliteOutboxStore implements AtomicCommandDispatchStore, OutboxStore, Atom
   }
 
   @override
+  Future<bool> reconcileBookingStartReceipt(
+    CommandEnvelope observed,
+    Map<String, Object?> receipt,
+  ) async {
+    receipt = freezeDispatchReceipt(receipt)!;
+    observed = freezeDispatchCommand(observed);
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        final rows = await tx.query(
+          commandsTable,
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+          limit: 1,
+        );
+        final maps = await tx.query(
+          mappingsTable,
+          where: 'account_id=? and local_id=? and entity_kind=?',
+          whereArgs: [
+            observed.accountId,
+            observed.localId,
+            EntityKind.session.storageValue,
+          ],
+          limit: 1,
+        );
+        final proofs = await tx.query(
+          metaTable,
+          columns: ['value'],
+          where: 'account_id=? and key=?',
+          whereArgs: [
+            observed.accountId,
+            'booking.manual_start.v1.${observed.wellId}.${observed.payload['p_booking_id']}',
+          ],
+          limit: 1,
+        );
+        if (!canReconcileBookingStartReceipt(
+          observed: observed,
+          current: rows.isEmpty ? null : _fromRow(rows.single),
+          manualRecord: proofs.isEmpty
+              ? null
+              : proofs.single['value'] as String,
+          mapping: maps.isEmpty ? null : _mappingFromRow(maps.single),
+          receipt: receipt,
+        )) {
+          return false;
+        }
+        await tx.update(
+          commandsTable,
+          {
+            'status': CommandStatus.confirmed.storageValue,
+            'server_response': jsonEncode(receipt),
+            'last_error': null,
+          },
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+        );
+        // An existing different session mapping was rejected above, never replaced.
+        if (maps.isEmpty) {
+          await tx.insert(mappingsTable, {
+            'account_id': observed.accountId,
+            'local_id': observed.localId,
+            'entity_kind': EntityKind.session.storageValue,
+            'server_id': receipt['session_id'],
+            'resolved_at': _encodeTime(
+              DateTime.parse(receipt['started_at'] as String),
+            ),
+            'matched_existing': 0,
+          });
+        }
+        final accepted = observed.copyWith(
+          status: CommandStatus.confirmed,
+          serverResponse: receipt,
+        );
+        await SqliteNotificationEventStore.insertEventTx(
+          tx,
+          operationalEvent(
+            accountId: accepted.accountId,
+            wellId: accepted.wellId!,
+            eventType: 'session.started',
+            identity: accepted.commandId,
+            entityType: 'session',
+            entityId: accepted.aggregateLocalId ?? accepted.localId,
+            at: accepted.occurredAt,
+          ),
+        );
+        await SqliteNotificationEventStore.cancelSchedulesTx(
+          tx,
+          accepted.accountId,
+          accepted.wellId,
+          'booking',
+          accepted.payload['p_booking_id'] as String,
+          'session_started',
+          accepted.occurredAt,
+        );
+
+        return true;
+      }),
+    );
+  }
+
+  @override
+  Future<bool> reconcileCompletionReceipt(
+    CommandEnvelope observed,
+    String sessionId,
+    Map<String, Object?> receipt,
+  ) async {
+    receipt = freezeDispatchReceipt(receipt)!;
+    observed = freezeDispatchCommand(observed);
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        Future<CommandEnvelope?> command(String? local) async {
+          final rows = await tx.query(
+            commandsTable,
+            where: 'account_id=? and local_id=?',
+            whereArgs: [observed.accountId, local],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : _fromRow(rows.single);
+        }
+
+        Future<IdMapping?> mapping(String? local, EntityKind kind) async {
+          final rows = await tx.query(
+            mappingsTable,
+            where: 'account_id=? and local_id=? and entity_kind=?',
+            whereArgs: [observed.accountId, local, kind.storageValue],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : _mappingFromRow(rows.single);
+        }
+
+        final charge = await mapping(
+          observed.localId,
+          EntityKind.sessionCharge,
+        );
+        if (!canReconcileCompletionReceipt(
+          observed: observed,
+          current: await command(observed.localId),
+          root: await command(observed.aggregateLocalId),
+          sessionMapping: await mapping(
+            observed.aggregateLocalId,
+            EntityKind.session,
+          ),
+          chargeMapping: charge,
+          sessionId: sessionId,
+          receipt: receipt,
+        )) {
+          return false;
+        }
+        await tx.update(
+          commandsTable,
+          {
+            'status': CommandStatus.confirmed.storageValue,
+            'server_response': jsonEncode(receipt),
+            'last_error': null,
+          },
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+        );
+        if (charge == null) {
+          await tx.insert(mappingsTable, {
+            'account_id': observed.accountId,
+            'local_id': observed.localId,
+            'entity_kind': EntityKind.sessionCharge.storageValue,
+            'server_id': receipt['session_charge_id'],
+            'resolved_at': _encodeTime(
+              DateTime.parse(receipt['ended_at'] as String),
+            ),
+            'matched_existing': 0,
+          });
+        }
+        final accepted = observed.copyWith(
+          status: CommandStatus.confirmed,
+          serverResponse: receipt,
+        );
+        final event = acceptedCompletionNotificationEvent(accepted);
+        if (event != null) {
+          await SqliteNotificationEventStore.insertEventTx(tx, event);
+        }
+        await SqliteNotificationEventStore.cancelSchedulesTx(
+          tx,
+          accepted.accountId,
+          accepted.wellId,
+          'session',
+          accepted.aggregateLocalId,
+          'session_completed',
+          accepted.occurredAt,
+        );
+        return true;
+      }),
+    );
+  }
+
+  @override
   Future<bool> claim(
     String accountId,
     String localId, {
