@@ -10,6 +10,9 @@ import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sqlite_outbox_store.dart';
+import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
+
+import 'session_test_support.dart' show acceptTestCompletion;
 
 final at = DateTime.utc(2026, 10, 14);
 Future<(CommandEnvelope, CommandEnvelope)> closedSession(
@@ -33,23 +36,22 @@ Future<(CommandEnvelope, CommandEnvelope)> closedSession(
     sessionLocalId: start.localId,
     completedAt: at.add(const Duration(minutes: 2)),
   );
+  await acceptTestCompletion(
+    store,
+    root: start,
+    completion: end,
+    serverId: server,
+    chargeId: 'charge-$server',
+    amountMinor: 100,
+  );
   await store.putMapping(
     account,
     IdMapping(
-      localId: start.localId,
-      kind: EntityKind.session,
-      serverId: server,
-      resolvedAt: at,
+      localId: end.localId,
+      kind: EntityKind.sessionCharge,
+      serverId: 'charge-$server',
+      resolvedAt: end.occurredAt,
     ),
-  );
-  await store.markConfirmed(
-    account,
-    end.localId,
-    serverResponse: {
-      'session_charge_id': 'charge-$server',
-      'amount_minor': 100,
-    },
-    attemptedAt: at,
   );
   return (start, end);
 }
@@ -408,14 +410,36 @@ void main() {
             sqfliteFactory: databaseFactoryFfi,
           );
           final c = OfflineSessionCoordinator(store: store);
-          final state = (await c.restoreCompletedSession(
+          final snapshot = (await store.sessionSnapshot(
             accountId: 'a',
             wellId: 'w',
             serverSessionId: 'server',
           ))!;
-          expect(state.record.localId, 'old-start');
-          expect(state.record.payments.single.localId, 'old-pay');
-          expect(state.hasPendingPayment, isTrue);
+          expect(snapshot.commands.map((c) => c.localId), [
+            'old-start', 'old-end', 'old-pay',
+          ]);
+          final oldPayment = snapshot.commands.singleWhere(
+            (c) => c.localId == 'old-pay',
+          );
+          expect(oldPayment.status, CommandStatus.pending);
+          expect(oldPayment.aggregateLocalId, 'old-start');
+          expect(oldPayment.payload, {
+            'p_well_id': 'w', 'p_amount_minor': 30, 'p_method': 'cash',
+          });
+          final oldEnd = snapshot.commands.singleWhere(
+            (c) => c.localId == 'old-end',
+          );
+          expect(oldEnd.commandId, 'stable-end');
+          expect(oldEnd.serverResponse, {
+            'session_charge_id': 'charge', 'amount_minor': 100,
+          });
+          expect(
+            await c.restoreCompletedSession(
+              accountId: 'a', wellId: 'w', serverSessionId: 'server',
+            ),
+            isNull,
+            reason: 'Preserving a legacy row does not fabricate financial completion',
+          );
           expect(
             (await store.commandByLocalId('a', 'old-pay'))!.commandId,
             'stable-pay',

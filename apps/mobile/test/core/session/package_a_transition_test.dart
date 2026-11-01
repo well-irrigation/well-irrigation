@@ -117,8 +117,18 @@ void main() {
   test(
     'B has all normal offline controls and remains the only active session',
     () async {
-      await run();
-      final id = coordinator.currentActiveSession!.localId;
+      // The shared fixture imported an old server link; this manual case has
+      // a fresh idle schedule and does not invoke an automatic transition.
+      await coordinator.reconcileServerBookingSession(
+        accountId: 'account', wellId: 'well', current: null,
+      );
+      clock.now = f.at(47);
+      final manualSchedule = f.cached(copySchedule(f.fieldSchedule(), null));
+      final original = await coordinator.startBookedSession(
+        accountId: 'account', wellId: 'well', bookingId: 'B',
+        cachedSchedule: manualSchedule, automation: f.automation(),
+      );
+      final id = original.localId;
       await coordinator.pauseSession(
         accountId: 'account',
         sessionLocalId: id,
@@ -145,8 +155,24 @@ void main() {
         sessionLocalId: id,
         completedAt: f.at(51),
       );
-      expect(coordinator.currentActiveSession, isNull);
-      expect(await store.allCommands('account'), hasLength(6));
+      final active = coordinator.currentActiveSession!;
+      expect(active.localId, id);
+      expect(active.businessState.isActive, isTrue);
+      expect(active.completedAt, isNull);
+      expect(active.approvedAmountMinor, isNull);
+      expect(
+        (await coordinator.unresolvedSessions('account'))
+            .where((session) => session.businessState.isActive),
+        hasLength(1),
+      );
+      await expectLater(
+        coordinator.startBookedSession(
+          accountId: 'account', wellId: 'well', bookingId: 'A',
+          cachedSchedule: manualSchedule, automation: f.automation(),
+        ),
+        throwsStateError,
+      );
+      expect(await store.allCommands('account'), hasLength(5));
     },
   );
   test('missed callback creates no outbox commands and no B', () async {

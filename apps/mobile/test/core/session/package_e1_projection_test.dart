@@ -30,11 +30,21 @@ void main() {
           energySource: 'solar',
           startedAt: startAt,
         );
-        await coordinator.completeSession(
+        final completion = await coordinator.completeSession(
           accountId: 'a',
           sessionLocalId: start.localId,
           completedAt: startAt.add(const Duration(minutes: 2)),
         );
+        if (farmer == 'farmer-b') {
+          await acceptTestCompletion(
+            store,
+            root: start,
+            completion: completion,
+            serverId: 'server-B',
+            chargeId: 'charge-B',
+            amountMinor: 125,
+          );
+        }
         return start.localId;
       }
 
@@ -71,11 +81,13 @@ void main() {
             c.aggregateLocalId == a &&
             c.type == CommandType.completeIrrigationSession,
       );
-      await store.markConfirmed(
-        'a',
-        completion.localId,
-        serverResponse: {'session_charge_id': 'charge-A', 'amount_minor': 50},
-        attemptedAt: at,
+      await acceptTestCompletion(
+        store,
+        root: (await store.commandByLocalId('a', a))!,
+        completion: completion,
+        serverId: 'server-A',
+        chargeId: 'charge-A',
+        amountMinor: 50,
       );
       await coordinator.freshProjectActiveSession(accountId: 'a', wellId: 'w');
       await Future<void>.delayed(Duration.zero);
@@ -124,11 +136,52 @@ void main() {
         sessionLocalId: start.localId,
         sessionCompletionLocalId: end.localId,
       );
-      await store.markConfirmed(
+      final pending = (await ActiveSessionProjector(store: store)
+          .projectSession(
+            'a',
+            start.localId,
+            now: at.add(const Duration(hours: 1)),
+          ))!;
+      expect(pending.completedAt, isNull);
+      expect(pending.approvedAmountMinor, isNull);
+      expect(pending.businessState.isActive, isTrue);
+      expect(pending.payments.single.localId, payment.localId);
+      expect(pending.payments.single.isPosted, isFalse);
+      expect(
+        await store.mapping('a', end.localId, EntityKind.sessionCharge),
+        isNull,
+      );
+      expect(
+        await coordinator.restoreCompletedSession(
+          accountId: 'a',
+          wellId: 'w',
+          serverSessionId: 'accepted-session',
+        ),
+        isNull,
+      );
+      await acceptTestCompletion(
+        store,
+        root: start,
+        completion: end,
+        chargeId: 'charge',
+        amountMinor: 125,
+      );
+      await store.putMapping(
         'a',
-        end.localId,
-        serverResponse: {'session_charge_id': 'charge', 'amount_minor': 125},
-        attemptedAt: at,
+        IdMapping(
+          localId: end.localId,
+          kind: EntityKind.sessionCharge,
+          serverId: 'charge',
+          resolvedAt: at,
+        ),
+      );
+      expect(
+        (await store.mapping(
+          'a',
+          end.localId,
+          EntityKind.sessionCharge,
+        ))!.serverId,
+        'charge',
       );
       await store.markConfirmed(
         'a',
@@ -169,6 +222,17 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       final restored = records.single;
       expect(restored.approvedAmountMinor, 125);
+      expect(restored.payments.single.localId, payment.localId);
+      expect(restored.payments.single.serverId, 'payment-server');
+      expect(restored.payments.single.isPosted, isTrue);
+      expect(
+        (await store.commandByLocalId('a', payment.localId))!.commandId,
+        payment.commandId,
+      );
+      expect(
+        (await store.commandByLocalId('a', payment.localId))!.occurredAt,
+        payment.occurredAt,
+      );
       expect(restored.farmerName, 'غانم');
       expect(restored.farmName, 'الوادي');
       expect(restored.pumpName, 'الشرقية');
@@ -210,11 +274,12 @@ void main() {
             now: at.add(const Duration(minutes: 3)),
           ))!;
       expect(record.approvedAmountMinor, isNull);
-      await store.markConfirmed(
-        sessionAccount,
-        end.localId,
-        serverResponse: {'session_charge_id': 'charge-1', 'amount_minor': 125},
-        attemptedAt: at,
+      await acceptTestCompletion(
+        store,
+        root: start,
+        completion: end,
+        chargeId: 'charge-1',
+        amountMinor: 125,
       );
       record = (await ActiveSessionProjector(store: store).projectSession(
         sessionAccount,

@@ -12,6 +12,7 @@ import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
+import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
 import '../sync/fake_command_transport.dart';
 
@@ -348,7 +349,7 @@ void main() {
       expect(active!.businessState, SessionBusinessState.running);
     });
 
-    test('4. إنهاء الجلسة يغلقها ويفرغ الجلسة النشطة', () async {
+    test('4. أمر الإكمال غير المقبول يبقي الجلسة النشطة', () async {
       final start = DateTime.now();
       final startEnv = await coordinator.startSession(
         accountId: 'acc-01',
@@ -368,7 +369,9 @@ void main() {
       );
 
       final active = coordinator.currentActiveSession;
-      expect(active, isNull);
+      expect(active?.localId, startEnv.localId);
+      expect(active?.completedAt, isNull);
+      expect(active?.approvedAmountMinor, isNull);
     });
 
     test('5. استعادة الجلسة الجارية بعد إغلاق التطبيق وموت العملية (Process Death)', () async {
@@ -414,6 +417,16 @@ void main() {
         sessionLocalId: session.localId,
         completedAt: startedAt.add(const Duration(minutes: 30)),
       );
+      expect(completion.status, CommandStatus.pending);
+      expect(completion.serverResponse, isNull);
+      expect(
+        await store.mapping(
+          'acc-01',
+          completion.localId,
+          EntityKind.sessionCharge,
+        ),
+        isNull,
+      );
       final paymentEnv = await coordinator.recordPayment(
         accountId: 'acc-01',
         wellId: 'well-01',
@@ -427,6 +440,16 @@ void main() {
       );
 
       expect(paymentEnv.localId, isNotEmpty);
+      expect(paymentEnv.occurredAt, startedAt.add(const Duration(minutes: 31)));
+      expect(paymentEnv.status, CommandStatus.pending);
+      expect(
+        await store.mapping(
+          'acc-01',
+          completion.localId,
+          EntityKind.sessionCharge,
+        ),
+        isNull,
+      );
       final allCommands = await store.allCommands('acc-01');
       final stored = allCommands.singleWhere(
         (command) => command.localId == paymentEnv.localId,
@@ -451,6 +474,10 @@ void main() {
           );
       expect(projected!.payments.single.amountMinor, 10000);
       expect(projected.payments.single.method, 'cash');
+      expect(projected.completedAt, isNull);
+      expect(projected.approvedAmountMinor, isNull);
+      expect(projected.businessState.isActive, isTrue);
+      expect(projected.payments.single.isPosted, isFalse);
 
       final transport = FakeCommandTransport();
       await SyncEngine(store: store, transport: transport).run('acc-01');
@@ -467,6 +494,18 @@ void main() {
       ]);
       final dispatched = transport.lastRequestFor(CommandType.recordPayment);
       expect(dispatched.commandId, paymentEnv.commandId);
+      expect(
+        (await store.allCommands('acc-01'))
+            .where((c) => c.type == CommandType.recordPayment),
+        hasLength(1),
+      );
+      final savedPayment = (await store.commandByLocalId(
+        'acc-01',
+        paymentEnv.localId,
+      ))!;
+      expect(savedPayment.commandId, paymentEnv.commandId);
+      expect(savedPayment.occurredAt, paymentEnv.occurredAt);
+      expect(savedPayment.payload, paymentEnv.payload);
       expect(dispatched.arguments, {
         'p_well_id': 'well-01',
         'p_farmer_well_account_id': 'farmer-01',
@@ -487,6 +526,172 @@ void main() {
               .arguments['p_session_id'],
         ),
       );
+    });
+
+    group('pending payment eligibility', () {
+      for (final scenario in [
+        'pending',
+        'dispatching',
+        'wrong_account',
+        'wrong_well',
+        'wrong_farmer',
+        'wrong_completion_root',
+        'wrong_completion_scope',
+        'wrong_session_reference',
+        'missing_completion',
+        'multiple_completions',
+        'malformed_confirmed',
+        'review',
+        'rejected_response',
+        'pending_terminal_response',
+        'duplicate_pending',
+        'duplicate_review',
+        'concurrent',
+      ]) {
+        test(scenario, () async {
+          final at = DateTime.utc(2026, 11, 1, 8);
+          await store.insert(
+            CommandEnvelope(
+              localId: 'root',
+              commandId: 'start-command',
+              accountId: 'a',
+              wellId: 'w',
+              sequence: 1,
+              type: CommandType.startIrrigationSession,
+              occurredAt: at,
+              createdLocalAt: at,
+              payload: const {
+                'p_well_id': 'w',
+                'p_farmer_well_account_id': 'farmer',
+              },
+            ),
+          );
+          if (scenario != 'missing_completion') {
+            await store.insert(
+              CommandEnvelope(
+                localId: 'end',
+                commandId: 'end-command',
+                accountId: 'a',
+                wellId: scenario == 'wrong_completion_scope' ? 'other' : 'w',
+                sequence: 2,
+                aggregateLocalId: scenario == 'wrong_completion_root'
+                    ? 'other'
+                    : 'root',
+                type: CommandType.completeIrrigationSession,
+                occurredAt: at.add(const Duration(minutes: 1)),
+                createdLocalAt: at,
+                status: scenario == 'dispatching'
+                    ? CommandStatus.dispatching
+                    : scenario == 'malformed_confirmed'
+                    ? CommandStatus.confirmed
+                    : ['review', 'rejected_response'].contains(scenario)
+                    ? CommandStatus.review
+                    : CommandStatus.pending,
+                serverResponse: scenario == 'malformed_confirmed'
+                    ? {'status': 'closed', 'amount_minor': 100}
+                    : [
+                        'rejected_response',
+                        'pending_terminal_response',
+                      ].contains(scenario)
+                    ? {'status': 'rejected'}
+                    : null,
+                payload: {
+                  'p_session_id': {
+                    r'$ref': scenario == 'wrong_session_reference'
+                        ? 'other'
+                        : 'root',
+                    r'$kind': 'session',
+                  },
+                },
+              ),
+            );
+          }
+          if (scenario == 'multiple_completions') {
+            await store.insert(
+              CommandEnvelope(
+                localId: 'end-other',
+                commandId: 'end-other-command',
+                accountId: 'a',
+                wellId: 'w',
+                sequence: 3,
+                aggregateLocalId: 'root',
+                type: CommandType.completeIrrigationSession,
+                occurredAt: at,
+                createdLocalAt: at,
+                payload: const {
+                  'p_session_id': {r'$ref': 'root', r'$kind': 'session'},
+                },
+              ),
+            );
+          }
+          if (scenario.startsWith('duplicate_')) {
+            await store.insert(
+              CommandEnvelope(
+                localId: 'prior-payment',
+                commandId: 'prior-payment-command',
+                accountId: 'a',
+                wellId: 'w',
+                sequence: 3,
+                aggregateLocalId: 'root',
+                type: CommandType.recordPayment,
+                occurredAt: at,
+                createdLocalAt: at,
+                status: scenario == 'duplicate_review'
+                    ? CommandStatus.review
+                    : CommandStatus.pending,
+                payload: const {
+                  'p_well_id': 'w',
+                  'p_amount_minor': 40,
+                  'p_method': 'cash',
+                },
+              ),
+            );
+          }
+          Future<CommandEnvelope> pay() => coordinator.recordPayment(
+            accountId: scenario == 'wrong_account' ? 'other' : 'a',
+            wellId: scenario == 'wrong_well' ? 'other' : 'w',
+            farmerAccountId: scenario == 'wrong_farmer' ? 'other' : 'farmer',
+            sessionLocalId: 'root',
+            sessionCompletionLocalId: 'end',
+            amountMinor: 73,
+            paymentMethod: 'cash',
+            paidAt: at.add(const Duration(minutes: 2)),
+          );
+          if (scenario == 'concurrent') {
+            final results = await Future.wait([
+              for (var i = 0; i < 5; i++)
+                pay().then<Object>((v) => v, onError: (Object e) => e),
+            ]);
+            expect(results.whereType<CommandEnvelope>(), hasLength(1));
+            expect(
+              (await store.allCommands('a'))
+                  .where((c) => c.type == CommandType.recordPayment),
+              hasLength(1),
+            );
+          } else if (['pending', 'dispatching'].contains(scenario)) {
+            final payment = await pay();
+            expect(payment.payload['p_amount_minor'], 73);
+            expect(payment.payload['p_session_charge_id'], const {
+              r'$ref': 'end',
+              r'$kind': 'sessionCharge',
+            });
+            expect(
+              await store.mapping('a', 'end', EntityKind.sessionCharge),
+              isNull,
+            );
+          } else {
+            final before = [
+              for (final c in await store.allCommands('a'))
+                dispatchCommandFingerprint(c),
+            ];
+            await expectLater(pay(), throwsStateError);
+            expect([
+              for (final c in await store.allCommands('a'))
+                dispatchCommandFingerprint(c),
+            ], before);
+          }
+        });
+      }
     });
 
     test('طلب بئر بلا جلسة لا يسرّب جلسة بئر أخرى', () async {
@@ -780,9 +985,10 @@ void main() {
           sessionLocalId: w2.localId,
           completedAt: t0.add(const Duration(minutes: 4)),
         );
-        expect(coordinator.currentActiveSession, isNull);
+        expect(coordinator.currentActiveSession?.localId, w2.localId);
+        expect(coordinator.currentActiveSession?.completedAt, isNull);
         await Future<void>.delayed(Duration.zero);
-        expect(emitted.last, isNull);
+        expect(emitted.last?.localId, w2.localId);
       },
     );
 

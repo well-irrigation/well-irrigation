@@ -165,8 +165,10 @@ void main() {
 
       expect(chains, hasLength(2));
       expect(chains[0].businessState, SessionBusinessState.paused);
-      expect(chains[1].businessState, SessionBusinessState.completed);
-      expect(chains[1].businessState.isActive, isFalse);
+      expect(chains[1].businessState, SessionBusinessState.running);
+      expect(chains[1].businessState.isActive, isTrue);
+      expect(chains[1].completedAt, isNull);
+      expect(chains[1].approvedAmountMinor, isNull);
       expect(chains[1].localId, completed.localId);
       expect(
         (await reopened.commandByLocalId(
@@ -245,7 +247,7 @@ void main() {
       }
       final restored = await ActiveSessionProjector(store: reopened)
           .unresolvedSession(sessionAccount, start.localId, now: now);
-      expect(restored?.businessState, SessionBusinessState.completed);
+      expect(restored?.businessState, SessionBusinessState.running);
       final reader = OfflineSessionCoordinator(store: reopened);
       expect(
         (await reader.unresolvedSessions(sessionAccount)).map((s) => s.localId),

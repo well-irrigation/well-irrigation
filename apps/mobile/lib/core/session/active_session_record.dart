@@ -102,6 +102,7 @@ class ActiveSessionRecord {
     this.pumpName,
     this.crops = const [],
     this.completedAt,
+    this.stopRequestedAt,
     this.completionCommandLocalId,
     this.approvedAmountMinor,
     this.lastSuccessfulSyncAt,
@@ -142,12 +143,19 @@ class ActiveSessionRecord {
     return phoneOwned && value is int && value > 0 ? value : null;
   }
 
-  DateTime? get bookedOperationalEnd => bookedDurationMinutes == null
+  DateTime? get bookedOperationalEnd =>
+      hasPendingManualStop || bookedDurationMinutes == null
       ? null
       : startedAt.add(Duration(minutes: bookedDurationMinutes!));
 
   final DateTime startedAt;
   final DateTime? completedAt;
+
+  /// وقت الطلب الأصلي للعرض فقط؛ ليس نهاية معتمدة.
+  final DateTime? stopRequestedAt;
+
+  bool get hasPendingManualStop =>
+      businessState == SessionBusinessState.stopRequested;
   final String? completionCommandLocalId;
 
   /// لا يتوفر إلا من إقرار إكمال مؤكد يحمل تكلفة الجلسة.

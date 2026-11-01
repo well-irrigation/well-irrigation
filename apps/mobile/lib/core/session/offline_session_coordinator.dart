@@ -2615,6 +2615,12 @@ class OfflineSessionCoordinator {
       serverSessionId: serverSessionId,
     );
     if (snapshot == null) return null;
+    return _completedSessionPaymentFromSnapshot(snapshot);
+  }
+
+  CompletedSessionPaymentState? _completedSessionPaymentFromSnapshot(
+    SessionOutboxSnapshot snapshot,
+  ) {
     final record = _projector.projectCompletedSnapshot(
       snapshot,
       now: DateTime.now(),
@@ -2641,6 +2647,79 @@ class OfflineSessionCoordinator {
       revision: revision,
       paymentRead: snapshot.paymentRead,
     );
+  }
+
+  /// أهلية حفظ أول طلب تحصيل فقط؛ لا تثبت إكمالًا أو مبلغًا معتمدًا.
+  bool _canRecordPendingSessionPayment(
+    SessionOutboxSnapshot snapshot, {
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required String farmerAccountId,
+    required String? completionLocalId,
+  }) {
+    final roots = snapshot.commands.where((c) => c.localId == sessionLocalId);
+    if (roots.length != 1 ||
+        completionLocalId == null ||
+        snapshot.paymentRead != null) {
+      return false;
+    }
+    final root = roots.single;
+    if (!_isSessionStartType(root.type) ||
+        root.accountId != accountId ||
+        root.wellId != wellId ||
+        root.commandId.isEmpty ||
+        root.status == CommandStatus.review) {
+      return false;
+    }
+    final context = root.type == CommandType.startBookingSession
+        ? root.localContext
+        : root.payload;
+    final farmer = context['p_farmer_well_account_id'];
+    final matchesFarmer = farmer is String
+        ? farmer.isNotEmpty && farmer == farmerAccountId
+        : farmer is Map &&
+              farmer.length == 2 &&
+              farmer[r'$kind'] == EntityKind.farmerWellAccount.storageValue &&
+              farmer[r'$ref'] is String &&
+              farmer[r'$ref'] == farmerAccountId;
+    if (!matchesFarmer ||
+        snapshot.commands.any((c) => c.type == CommandType.recordPayment)) {
+      return false;
+    }
+    final completions = snapshot.commands
+        .where((c) => c.type == CommandType.completeIrrigationSession)
+        .toList();
+    if (completions.length != 1) return false;
+    final completion = completions.single;
+    if (completion.localId != completionLocalId ||
+        completion.commandId.isEmpty ||
+        completion.accountId != accountId ||
+        completion.wellId != wellId ||
+        completion.aggregateLocalId != sessionLocalId ||
+        completion.occurredAt.isBefore(root.occurredAt) ||
+        !const {
+          CommandStatus.pending,
+          CommandStatus.dispatching,
+        }.contains(completion.status) ||
+        completion.serverResponse != null) {
+      return false;
+    }
+    final target = completion.payload['p_session_id'];
+    if (target is Map) {
+      return target.length == 2 &&
+          target[r'$ref'] == root.localId &&
+          target[r'$kind'] == EntityKind.session.storageValue;
+    }
+    // A literal target needs the exact existing start mapping, not a guessed ID.
+    return target is String &&
+        target.isNotEmpty &&
+        snapshot.mappings.any(
+          (m) =>
+              m.localId == root.localId &&
+              m.kind == EntityKind.session &&
+              m.serverId == target,
+        );
   }
 
   /// استعادة عند الدخول، بلا انتظار حدث أو تشغيل إسقاط البئر/المزامنة.
@@ -2728,15 +2807,30 @@ class OfflineSessionCoordinator {
     return _withSessionPaymentSection(
       (accountId, wellId, sessionLocalId),
       () async {
-        final state = await _restoreSessionPayment(
+        await initialize();
+        final snapshot = await _store.sessionSnapshot(
           accountId: accountId,
           wellId: wellId,
           localSessionId: sessionLocalId,
         );
-        if (state == null ||
-            !state.canRecordPayment ||
-            state.record.farmerReference != farmerAccountId ||
-            state.record.completionCommandLocalId != sessionCompletionLocalId) {
+        final state = snapshot == null
+            ? null
+            : _completedSessionPaymentFromSnapshot(snapshot);
+        final eligible = state != null
+            ? state.canRecordPayment &&
+                  state.record.farmerReference == farmerAccountId &&
+                  state.record.completionCommandLocalId ==
+                      sessionCompletionLocalId
+            : snapshot != null &&
+                  _canRecordPendingSessionPayment(
+                    snapshot,
+                    accountId: accountId,
+                    wellId: wellId,
+                    sessionLocalId: sessionLocalId,
+                    farmerAccountId: farmerAccountId,
+                    completionLocalId: sessionCompletionLocalId,
+                  );
+        if (!eligible) {
           throw StateError(
             'لا يمكن إنشاء دفعة أخرى قبل حسم الحالة الحالية للجلسة',
           );

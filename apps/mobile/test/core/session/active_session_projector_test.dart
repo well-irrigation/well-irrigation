@@ -170,7 +170,7 @@ void main() {
       expect(record.totals.accruedMinor, 300);
     });
 
-    test('جلسة أُنهيت محليًا تُستعاد منتهية ولا تظهر ضمن الجارية', () async {
+    test('أمر إكمال غير مقبول يبقى نشطًا بلا نهاية أو مبلغ معتمد', () async {
       final writer = await openStore();
       final repository = repositoryFor(writer);
 
@@ -185,7 +185,7 @@ void main() {
 
       expect(
         await projector.activeSessions(sessionAccount, now: at(5000)),
-        isEmpty,
+        hasLength(1),
       );
 
       final record = (await projector.projectSession(
@@ -194,15 +194,16 @@ void main() {
         now: at(5000),
       ))!;
 
-      expect(record.businessState, SessionBusinessState.completed);
-      expect(record.businessStateText, SessionStateText.completed);
-      expect(record.completedAt, at(1800));
+      expect(record.businessState, SessionBusinessState.running);
+      expect(record.businessStateText, SessionStateText.running);
+      expect(record.completedAt, isNull);
+      expect(record.approvedAmountMinor, isNull);
       expect(
         record.totals.billableSeconds,
-        1800,
-        reason: 'المحتسب توقف عند الإنهاء ولا يزيد بمرور الوقت بعده',
+        5000,
+        reason: 'الأمر غير المقبول لا يثبت نهاية معتمدة',
       );
-      expect(record.totals.accruedMinor, 1800);
+      expect(record.totals.accruedMinor, 5000);
     });
 
     test('الدفعات المستلمة محليًا تُستعاد وتُعرض غير مُرحَّلة', () async {

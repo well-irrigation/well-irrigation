@@ -402,8 +402,12 @@ void main() {
     () async {
       await start();
       clock.elapsed = const Duration(minutes: 4, seconds: 23);
-      await run();
-      final complete = (await store.allCommands('account')).last;
+      final original = coordinator.currentActiveSession!;
+      final complete = await coordinator.completeSession(
+        accountId: 'account',
+        sessionLocalId: original.localId,
+        completedAt: clock.base.add(clock.elapsed),
+      );
       await store.markNeedsReview(
         'account',
         complete.localId,
@@ -411,9 +415,24 @@ void main() {
         attemptedAt: f.at(47),
       );
       clock.elapsed = const Duration(minutes: 5);
-      await expectLater(action(), throwsStateError);
+      final before = await store.allCommands('account');
+      await expectLater(
+        coordinator.startBookedSession(
+          accountId: 'account', wellId: 'well', bookingId: 'B',
+          cachedSchedule: cached, automation: automation,
+        ),
+        throwsStateError,
+      );
+      final active = coordinator.currentActiveSession!;
+      expect(active.localId, original.localId);
+      expect(active.businessState.isActive, isTrue);
+      expect(active.completedAt, isNull);
+      expect(active.approvedAmountMinor, isNull);
       expect(await store.allCommands('account'), hasLength(2));
-      expect(coordinator.currentActiveSession, isNull);
+      expect(
+        (await store.allCommands('account')).map(dispatchCommandFingerprint),
+        before.map(dispatchCommandFingerprint),
+      );
     },
   );
   test('invalid anchor/boot cannot authorize automatic writes', () async {
@@ -477,8 +496,12 @@ void main() {
       () async {
         await start();
         clock.elapsed = const Duration(minutes: 4, seconds: 23);
-        await run();
-        final complete = (await store.allCommands('account')).last;
+        final original = coordinator.currentActiveSession!;
+        final complete = await coordinator.completeSession(
+          accountId: 'account',
+          sessionLocalId: original.localId,
+          completedAt: clock.base.add(clock.elapsed),
+        );
         final db = await databaseFactoryFfi.openDatabase(
           '${dir.path}/outbox.db',
         );
@@ -497,8 +520,23 @@ void main() {
           );
         }
         clock.elapsed = const Duration(minutes: 5);
-        await expectLater(action(), throwsStateError);
-        expect(coordinator.currentActiveSession, isNull);
+        final before = await store.allCommands('account');
+        await expectLater(
+          coordinator.startBookedSession(
+            accountId: 'account', wellId: 'well', bookingId: 'B',
+            cachedSchedule: cached, automation: automation,
+          ),
+          throwsStateError,
+        );
+        final active = coordinator.currentActiveSession!;
+        expect(active.localId, original.localId);
+        expect(active.businessState.isActive, isTrue);
+        expect(active.completedAt, isNull);
+        expect(active.approvedAmountMinor, isNull);
+        expect(
+          (await store.allCommands('account')).map(dispatchCommandFingerprint),
+          before.map(dispatchCommandFingerprint),
+        );
       },
     );
   }
