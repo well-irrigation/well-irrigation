@@ -744,6 +744,7 @@ class BookingLocalLedger {
     required Object? response,
     required DateTime fetchedAt,
     SessionTimeAnchor? timeAnchor,
+    bool updateLatest = true,
   }) async {
     final schedule = WellDaySchedule.fromContract(response);
     if (schedule.wellId != wellId) throw StateError('جدول بئر مختلف');
@@ -766,7 +767,7 @@ class BookingLocalLedger {
       if (timeAnchor != null) 'time_anchor': _encodeAnchor(timeAnchor),
     });
     await store.writeLocalValue(accountId, _scheduleKey(wellId, day), payload);
-    await store.writeLocalValue(accountId, _latestKey(wellId), day);
+    if (updateLatest) await store.writeLocalValue(accountId, _latestKey(wellId), day);
   }
 
   /// المرساة تُسافر داخل نفس payload الجدول فلا تتزاوج مرساة قديمة
@@ -817,6 +818,10 @@ class BookingLocalLedger {
       accountId,
       _scheduleKey(wellId, day),
     );
+    return _decodeSchedule(raw,wellId,day);
+  }
+
+  CachedBookingSchedule? _decodeSchedule(String? raw,String wellId,String day) {
     if (raw == null) return null;
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
@@ -843,6 +848,18 @@ class BookingLocalLedger {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<Map<String,CachedBookingSchedule>> loadSchedules(String accountId,
+      String wellId,Set<String> days) async {
+    if(days.length>20||days.any((day)=>!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(day)))throw ArgumentError('invalid_schedule_page');
+    final values=await store.readLocalValuesByKeys(accountId,[for(final day in days)_scheduleKey(wellId,day)]);
+    final result=<String,CachedBookingSchedule>{};
+    for(final day in days) {
+      final decoded=_decodeSchedule(values[_scheduleKey(wellId,day)],wellId,day);
+      if(decoded!=null)result[day]=decoded;
+    }
+    return result;
   }
 
   Future<CachedBookingSchedule?> loadLatestSchedule(

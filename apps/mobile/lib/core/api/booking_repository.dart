@@ -1,3 +1,7 @@
+import 'dart:async';
+import '../notifications/notification_services.dart';
+import '../notifications/notification_permission_coordinator.dart';
+import '../notifications/operational_notification_event_factory.dart';
 import '../session/offline_session_coordinator.dart';
 
 import 'dart:convert';
@@ -680,6 +684,8 @@ class BookingRepository {
     BookingReactivity.instance.scope(accountId, wellId).mutation(
       days: {saved.scheduledDay, if (replaces != null) replaces.scheduledDay},
     );
+    final permission = NotificationServices.current?.permission;
+    if (permission != null) unawaited(permission.offer(accountId, bookingResultRationale));
     return saved;
   }
 
@@ -751,6 +757,99 @@ class BookingRepository {
 
 
 
+  /// يستعيد تذكيرات الحجوزات من الأيام المحفوظة لنطاق مصدق.
+  Future<void> recoverNotificationSchedules(String accountId,String wellId) async {
+    final scheduler=NotificationServices.current?.scheduling;
+    if(scheduler==null||!scheduler.accountActive(accountId))return;
+    try {
+      final rows=await scheduler.bookingRecoveryPage(accountId,wellId);
+      if(rows.isEmpty)return;
+      final days=<String>{};
+      for(final row in rows) {
+        final payload=jsonDecode(row['route_payload_json'] as String);
+        if(payload is Map&&payload['day'] is String)days.add(payload['day'] as String);
+      }
+      final caches=await _localLedger.loadSchedules(accountId,wellId,days);
+      final latest=await _localLedger.loadLatestSchedule(accountId,wellId);
+      final snapshots=[...caches.values,?latest]
+        ..sort((a,b)=>b.fetchedAt.compareTo(a.fetchedAt));
+      final reading=await _timeIntegritySource!.read();
+      ServerAlignedNow? trusted;
+      for(final cached in snapshots) {
+        final anchor=cached.timeAnchor;
+        if(anchor==null||anchor.serverTime==null||anchor.serverTime!=cached.schedule.serverTime)continue;
+        final resolved=resolveServerAlignedNow(anchor:anchor,reading:reading);
+        if(resolved.trustedForAutomaticTransition){trusted=resolved;break;}
+      }
+      if(trusted==null)return;
+      final keys=<String>{};
+      for(final cached in caches.values) {
+        for(final booking in cached.schedule.bookings) {
+          if(booking.wellId!=wellId||booking.status!='confirmed'||booking.session!=null)continue;
+          final intents=bookingReminderEvents(accountId:accountId,wellId:wellId,
+            bookingId:booking.id,scheduledStart:booking.scheduledStart,
+            scheduledDay:booking.scheduledDay,createdAt:trusted.at);
+          for(final intent in intents) {keys.add(intent.event.eventKey);}
+
+        }
+      }
+      if(!scheduler.accountActive(accountId))return;
+      // Missing/invalid cache is not proof of cancellation. Keep its intent
+      // dormant until a safe authenticated read can establish eligibility.
+      final knownRows=rows.where((row){final p=jsonDecode(row['route_payload_json'] as String) as Map;return caches.containsKey(p['day']);}).toList();
+      for(final row in knownRows) {
+        if(row['entity_id'] is String)scheduler.rememberBooking(accountId,wellId,row['entity_id'] as String);
+      }
+      await scheduler.store.recoverSchedulesPage(accountId,wellId,knownRows,keys,trusted.at);
+      await scheduler.run(accountId,wellId:wellId,trustedNow:trusted.at,
+        wallNow:reading.wallClock,eligibleKeys:keys,entityType:'booking');
+    } catch (_) { /* Notification recovery is independent of business reads. */ }
+  }
+
+  void _scheduleNotifications(String account, BookingScheduleView view,
+      {int? expectedGeneration}) {
+    unawaited(() async {
+      try {
+        await _notificationSchedule(account, view,
+            expectedGeneration: expectedGeneration);
+      } catch (_) {
+        // حفظ الإشعار وعرضه لا يغيّران نتيجة قراءة الجدول.
+      }
+    }());
+  }
+
+  Future<void> _notificationSchedule(String account,BookingScheduleView view,
+      {bool rearm=false,int? expectedGeneration}) async {
+    final scheduler=NotificationServices.current?.scheduling;
+    if(scheduler==null||!scheduler.accountActive(account))return;
+    try {
+      final anchor=view.timeAnchor;
+      if(anchor==null||anchor.serverTime!=view.schedule.serverTime||anchor.serverTime==null)return;
+      final reading=await _timeIntegritySource!.read();
+      final resolved=resolveServerAlignedNow(anchor:anchor,reading:reading);
+      if(!resolved.trustedForAutomaticTransition)return;
+      final well=view.schedule.wellId;
+      if(expectedGeneration!=null&&scheduler.generation(account,well)!=expectedGeneration)return;
+      final eligible=view.schedule.bookings.where((b)=>b.wellId==well&&b.status=='confirmed'&&b.session==null&&b.scheduledStart.isAfter(resolved.at)).toList()
+        ..sort((a,b){final c=a.scheduledStart.compareTo(b.scheduledStart);return c!=0?c:a.id.compareTo(b.id);});
+      // Persist the already bounded canonical day in pages. OS work still has
+      // one twenty-event opportunity, independent of the source page size.
+      final intents=[for(final b in eligible)...bookingReminderEvents(
+        accountId:account,wellId:well,bookingId:b.id,scheduledStart:b.scheduledStart,
+        scheduledDay:b.scheduledDay,createdAt:resolved.at)];
+      for(final b in eligible) {scheduler.rememberBooking(account,well,b.id);}
+      final keys={for(final intent in intents)intent.event.eventKey};
+      if(!scheduler.accountActive(account))return;
+      if(expectedGeneration!=null&&scheduler.generation(account,well)!=expectedGeneration)return;
+      for(var offset=0;offset<intents.length||offset==0;offset+=20) {
+      final page=intents.skip(offset).take(20).toList();
+      await scheduler.store.reconcileSchedules(account,well,'booking',page,keys,resolved.at,reactivate:!view.isCached,routeDay:'${view.schedule.requestedDay.year}-${view.schedule.requestedDay.month.toString().padLeft(2,'0')}-${view.schedule.requestedDay.day.toString().padLeft(2,'0')}',isCurrent:()=>scheduler.accountActive(account)&&(expectedGeneration==null||scheduler.generation(account,well)==expectedGeneration));
+      }
+      await scheduler.run(account,wellId:well,trustedNow:resolved.at,
+        wallNow:reading.wallClock,eligibleKeys:keys,rearm:rearm||!view.isCached,entityType:'booking',isCurrent:()=>expectedGeneration==null||scheduler.generation(account,well)==expectedGeneration);
+    } catch (_) { /* Scheduling must not fail a schedule read or a booking. */ }
+  }
+
   /// يلتقط مرساة زمن فور نجاح قراءة الجدول: زمن الخادم من الردّ نفسه،
   /// وقراءة الجسر المحلي مرة واحدة لحظة الاستلام. فشل الجسر أو غياب
   /// server_time لا يفشل قراءة الجدول للعرض — يعيدها بلا مرساة موثوقة،
@@ -785,6 +884,7 @@ class BookingRepository {
     required String accountId,
     required String wellId,
   }) async {
+    final notificationGeneration=NotificationServices.current?.scheduling?.generation(accountId,wellId);
     try {
       final schedule = await fetchTodaySchedule(wellId);
       final fetchedAt = DateTime.now().toUtc();
@@ -798,21 +898,25 @@ class BookingRepository {
           timeAnchor: anchor,
         );
       }
-      return BookingScheduleView(
+      final view=BookingScheduleView(
         schedule: schedule,
         isCached: false,
         fetchedAt: fetchedAt,
         timeAnchor: anchor,
       );
+      _scheduleNotifications(accountId,view,expectedGeneration:notificationGeneration);
+      return view;
     } catch (_) {
       final cached = await _localLedger.loadLatestSchedule(accountId, wellId);
       if (cached == null) rethrow;
-      return BookingScheduleView(
+      final view=BookingScheduleView(
         schedule: cached.schedule,
         isCached: true,
         fetchedAt: cached.fetchedAt,
         timeAnchor: cached.timeAnchor,
       );
+      _scheduleNotifications(accountId,view,expectedGeneration:notificationGeneration);
+      return view;
     }
   }
 
@@ -871,6 +975,7 @@ class BookingRepository {
   }) async {
     final dayText =
         '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    final notificationGeneration=NotificationServices.current?.scheduling?.generation(accountId,wellId);
     try {
       final client = _effectiveClient;
       if (client == null) throw StateError('Supabase client is unavailable');
@@ -888,11 +993,23 @@ class BookingRepository {
         throw StateError('جدول الحجز عاد لنطاق مختلف');
       }
       final fetchedAt = DateTime.now().toUtc();
-      return BookingScheduleView(
+      final anchor=NotificationServices.current?.scheduling!=null?await _captureTimeAnchor(schedule):null;
+      var notificationCached=false;
+      if(schedule.sourceResponse!=null) {
+        try {
+          await _localLedger.saveSchedule(accountId:accountId,wellId:wellId,
+            response:schedule.sourceResponse!,fetchedAt:fetchedAt,timeAnchor:anchor,updateLatest:false);
+          notificationCached=true;
+        } catch (_) { /* A notification-cache failure cannot fail a live read. */ }
+      }
+      final view=BookingScheduleView(
         schedule: schedule,
         isCached: false,
         fetchedAt: fetchedAt,
+        timeAnchor:anchor,
       );
+      if(notificationCached)_scheduleNotifications(accountId,view,expectedGeneration:notificationGeneration);
+      return view;
     } catch (_) {
       final cached = await _localLedger.loadSchedule(
         accountId,
@@ -900,11 +1017,14 @@ class BookingRepository {
         dayText,
       );
       if (cached == null) rethrow;
-      return BookingScheduleView(
+      final view=BookingScheduleView(
         schedule: cached.schedule,
         isCached: true,
         fetchedAt: cached.fetchedAt,
+        timeAnchor:cached.timeAnchor,
       );
+      _scheduleNotifications(accountId,view,expectedGeneration:notificationGeneration);
+      return view;
     }
   }
 
@@ -1072,7 +1192,17 @@ class BookingRepository {
     final response = await client
         .schema('api')
         .rpc('get_booking_detail', params: {'p_booking_id': bookingId});
-    return WellBookingDetail.fromContract(response);
+    final detail=WellBookingDetail.fromContract(response);
+    if(NotificationServices.current?.scheduling!=null) {
+      try {
+        final account=client.auth.currentSession?.user.id;
+        final raw=response is Map?response['booking']:null;
+        if(account!=null&&raw is Map&&raw['well_id'] is String) {
+          NotificationServices.current?.scheduling?.rememberBooking(account,raw['well_id'] as String,bookingId);
+        }
+      } catch (_) { /* Notification context cannot fail a business read. */ }
+    }
+    return detail;
   }
 
   Future<BookingMutationResult> createBooking({
@@ -1111,6 +1241,25 @@ class BookingRepository {
     return BookingMutationResult.fromContract(response);
   }
 
+  Future<void> _retireBookingReminders(String bookingId,BookingMutationResult result,
+      String reason,{DateTime? refreshDay, String? responseWell}) async {
+    final scheduler=NotificationServices.current?.scheduling;
+    if(scheduler==null||(!result.isOk&&result.status!='cancelled'))return;
+    try {
+      final account=_effectiveClient?.auth.currentSession?.user.id;
+      if(account==null||!scheduler.accountActive(account))return;
+      final well=responseWell ?? scheduler.bookingWell(account,bookingId);
+      if(well==null)return;
+      scheduler.invalidate(account,well);
+      await scheduler.store.cancelSchedules(account,well,'booking',bookingId,reason,DateTime.now());
+      unawaited(scheduler.cancelPending(account,20));
+      if(refreshDay!=null) {
+        unawaited(fetchDayScheduleView(accountId:account,wellId:well,day:refreshDay)
+          .then<void>((_){}).catchError((_){}));
+      }
+    } catch (_) { /* Business response is already authoritative. */ }
+  }
+
   Future<BookingMutationResult> rescheduleBooking({
     required String bookingId,
     required DateTime scheduledStart,
@@ -1134,7 +1283,10 @@ class BookingRepository {
             'p_command_id': commandId,
           },
         );
-    return BookingMutationResult.fromContract(response);
+    final result = BookingMutationResult.fromContract(response);
+    await _retireBookingReminders(bookingId, result, 'booking_rescheduled',
+      responseWell: response is Map && response['well_id'] is String ? response['well_id'] as String : null, refreshDay: scheduledStart);
+    return result;
   }
 
   Future<BookingMutationResult> cancelBooking({
@@ -1156,7 +1308,10 @@ class BookingRepository {
             'p_command_id': commandId,
           },
         );
-    return BookingMutationResult.fromContract(response);
+    final result = BookingMutationResult.fromContract(response);
+    await _retireBookingReminders(bookingId, result, 'booking_cancelled',
+      responseWell: response is Map && response['well_id'] is String ? response['well_id'] as String : null);
+    return result;
   }
 }
 

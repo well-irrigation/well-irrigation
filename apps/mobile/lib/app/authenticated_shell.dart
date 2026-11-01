@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/api/app_bootstrap_repository.dart';
 import '../core/identity/app_identity.dart';
+import '../core/notifications/notification_host.dart';
 import '../features/bookings/bookings_screen.dart';
 import '../features/farmers/farmers_directory_screen.dart';
 import '../features/finance/expenses_screen.dart';
@@ -57,7 +58,19 @@ class AuthenticatedShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shell = _buildRoleShell(context);
+    final shell = NotificationHost(accountId:identity.accountId,activeWellId:identity.activeWell.id,
+      wellIds:identity.wells.where((w)=>w.status=='active').map((w)=>w.id).toSet(),
+      onRoute:(route) {
+        final well=identity.wells.where((w)=>w.id==route.wellId&&w.status=='active').firstOrNull;
+        if(well==null)return;
+        if(route.type!='bookings')return;
+        final dayText=route.payload['day'];
+        final day=dayText is String&&RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dayText)?DateTime.tryParse(dayText):null;
+        if(day==null||day.toIso8601String().substring(0,10)!=dayText)return;
+        _push(context,BookingsScreen(identity:identity.withActiveWell(well),initialDay:day,
+          initialRequestId:route.payload['request_id'] is String?route.payload['request_id'] as String:null,
+          initialBookingId:route.payload['booking_id'] is String?route.payload['booking_id'] as String:null,onlineOverride:!isTrustedOfflineBootstrap));
+      },child:_buildRoleShell(context));
     if (!isTrustedOfflineBootstrap) return shell;
     // إشعار مستمر غير حاجب: التطبيق يعرض بيانات محفوظة قد لا تكون حديثة،
     // والعمليات الميدانية المدعومة دون اتصال ستُحفظ للمزامنة. ليس حوارًا

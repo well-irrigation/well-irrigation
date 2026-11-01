@@ -14,6 +14,8 @@
 ///   خلفيًا صريحًا. هذا ما يجعل «سجّلت ثم أغلقت التطبيق» يصل.
 library;
 
+import '../notifications/notification_delivery_coordinator.dart';
+import '../notifications/notification_services.dart';
 import 'background_sync_policy.dart';
 import 'background_sync_scheduler.dart';
 import 'sync_engine.dart';
@@ -23,8 +25,10 @@ class BackgroundSyncCoordinator {
     required this._engine,
     required this._scheduler,
     this.policy = const BackgroundSyncPolicy(),
-  });
+    NotificationDeliveryCoordinator? notifications,
+  }) : _notifications = notifications ?? NotificationServices.current?.delivery;
 
+  final NotificationDeliveryCoordinator? _notifications;
   final SyncEngine _engine;
   final BackgroundSyncScheduler _scheduler;
   final BackgroundSyncPolicy policy;
@@ -68,7 +72,16 @@ class BackgroundSyncCoordinator {
     return runFromApp(accountId);
   }
 
-  Future<BackgroundSyncDecision> _drain(
+  Future<BackgroundSyncDecision> _drain(String accountId, {required int attempt}) async {
+    final decision = await _drainBusiness(accountId, attempt:attempt);
+    final notifications = _notifications;
+    if (notifications != null && await notifications.deliver(accountId) && !decision.shouldRetry) {
+      return BackgroundSyncDecision(outcome:BackgroundSyncOutcome.retryLater,attempt:attempt,retryDelay:const Duration(minutes:1));
+    }
+    return decision;
+  }
+
+  Future<BackgroundSyncDecision> _drainBusiness(
     String accountId, {
     required int attempt,
   }) async {

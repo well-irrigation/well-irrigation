@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:well_irrigation_mobile/core/sync/background_sync_worker.dart';
 
 import 'package:well_irrigation_mobile/core/notifications/notification_router.dart';
 
@@ -201,6 +202,20 @@ void main() {
       expect(presenter.ids, [1]);
     },
   );
+  test(
+    'worker builds and initializes its own injected presentation capability',
+    () async {
+      await store.insertEvent(event('x'));
+      final worker = createBackgroundNotificationDelivery(
+        outbox,
+        presenter: presenter,
+      );
+      await worker.deliver('a');
+      expect(presenter.initialized, 1);
+      expect(presenter.ids, [1]);
+    },
+  );
+
   test('foreground/background presenters racing on two connections display one tray identity', () async {
     await store.insertEvent(event('x'));
     final other = open();

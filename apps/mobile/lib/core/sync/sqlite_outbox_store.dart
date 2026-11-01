@@ -1085,6 +1085,22 @@ class SqliteOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingD
     return rows.isEmpty ? null : rows.single['value'] as String;
   }
 
+  Future<Map<String, String>> readLocalValuesByKeys(
+    String accountId,
+    List<String> keys,
+  ) async {
+    if (keys.length > 20) throw ArgumentError('metadata_page_too_large');
+    if (keys.isEmpty) return {};
+    await initialize();
+    final rows = await _db.rawQuery(
+      'select key,value from $metaTable where account_id=? and key in (${List.filled(keys.length, '?').join(',')}) limit 20',
+      [accountId, ...keys],
+    );
+    return {
+      for (final row in rows) row['key'] as String: row['value'] as String,
+    };
+  }
+
   Future<void> deleteLocalValue(String accountId, String key) async {
     await initialize();
     await _db.delete(
