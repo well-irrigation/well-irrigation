@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:well_irrigation_mobile/core/notifications/app_notification_event.dart';
+import 'package:well_irrigation_mobile/core/notifications/notification_event_store.dart';
 import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
@@ -792,6 +793,107 @@ void main() {
       );
     },
   );
+  test('H reconcile route/day, membership beyond 20, scoped cleanup, rollback and query plan', () async {
+    await store.initialize();
+    final notifications = store.notificationEvents;
+    final due = now.add(const Duration(hours: 1));
+    final keys = <String>{};
+    for (var i = 0; i < 53; i++) {
+      keys.add('eligible-$i');
+      await notifications.saveSchedule(event('eligible-$i'), due, now);
+    }
+    await notifications.saveSchedule(event('obsolete'), due, now);
+    await notifications.saveSchedule(
+      event('other-day', day: '2026-10-18'),
+      due,
+      now,
+    );
+    await notifications.saveSchedule(
+      event('other-account', account: 'other'),
+      due,
+      now,
+    );
+    await notifications.saveSchedule(
+      event('other-well', well: 'other'),
+      due,
+      now,
+    );
+    await notifications.insertEvent(event('immediate'));
+    await notifications.reconcileSchedules(
+      'a',
+      'w',
+      'booking',
+      [],
+      keys,
+      now,
+      routeDay: '2026-10-17',
+    );
+    final rows = await notifications.db.query('notification_events');
+    expect(
+      rows
+          .where((r) => (r['event_key'] as String).startsWith('eligible'))
+          .every((r) => r['schedule_state'] == 'arm_pending'),
+      true,
+    );
+    expect(
+      rows.singleWhere((r) => r['event_key'] == 'obsolete')['schedule_state'],
+      'cancel_pending',
+    );
+    expect(
+      rows
+          .where((r) => (r['event_key'] as String).startsWith('other-'))
+          .every((r) => r['schedule_state'] == 'arm_pending'),
+      true,
+    );
+    expect(
+      rows.singleWhere((r) => r['event_key'] == 'immediate')['route_day'],
+      '2026-10-17',
+    );
+    expect(
+      await notifications.db.query('notification_reconcile_keys'),
+      isEmpty,
+    );
+    var checks = 0;
+    await expectLater(
+      notifications.reconcileSchedules(
+        'a',
+        'w',
+        'booking',
+        [],
+        {},
+        now,
+        routeDay: '2026-10-17',
+        isCurrent: () => ++checks < 2,
+      ),
+      throwsStateError,
+    );
+    expect(
+      await notifications.db.query('notification_reconcile_keys'),
+      isEmpty,
+    );
+    expect(
+      (await notifications.db.query(
+        'notification_events',
+        where: "event_key='eligible-0'",
+      )).single['schedule_state'],
+      'arm_pending',
+    );
+    final plan = await notifications.db.rawQuery(
+      'explain query plan ${SqliteNotificationEventStore.reconciliationSql(routeDay: '2026-10-17')}',
+      [
+        'a',
+        'w',
+        'booking',
+        '2026-10-17',
+        '2026-10-17',
+        now.microsecondsSinceEpoch,
+      ],
+    );
+    final details = plan.map((r) => r['detail']).join(' ');
+    expect(details, contains('notification_schedule_scope_idx'));
+    expect(details, contains('sqlite_autoindex_notification_reconcile_keys_1'));
+    expect(details, isNot(contains('SCAN n')));
+  });
   test(
     'harness rejects generated executor, transaction, callback and batch SQL',
     () async {
