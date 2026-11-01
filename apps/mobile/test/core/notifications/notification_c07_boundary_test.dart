@@ -52,7 +52,7 @@ void main() {
 void main() {
   setUpAll(sqfliteFfiInit);
 
-  test('المصنع المحمّل يقتصر على C06-A دون اعتماد تشغيل أو إيصالات', () async {
+  test('المصنع المحمّل يحصر C06 وإكمال C07-A دون تفعيل تشغيل أو إيصالات', () async {
     final directory = await Directory.systemTemp.createTemp('c06a_symbols_');
     addTearDown(() => directory.delete(recursive: true));
     final config = File('.dart_tool/package_config.json').absolute;
@@ -82,6 +82,7 @@ void main() {
         'operationalEvent',
         'bookingReminderEvents',
         'sessionNearEndEvent',
+        'acceptedCompletionNotificationEvent',
         'appNotificationPolicies',
         '_presentation',
         '_texts',
@@ -97,6 +98,9 @@ void main() {
         'core/notifications/app_notification_event.dart',
         'core/notifications/booking_notification_event_factory.dart',
         'core/notifications/notification_presenter.dart',
+        'core/sync/command_envelope.dart',
+        'core/sync/command_reference.dart',
+        'core/sync/command_type.dart',
         'core/sync/sync_status.dart',
       ]),
     );

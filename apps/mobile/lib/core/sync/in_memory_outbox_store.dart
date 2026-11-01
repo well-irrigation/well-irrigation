@@ -5,12 +5,16 @@
 /// للاختبار بلا هاتف وبلا قاعدة بيانات.
 library;
 
+import 'command_id_generator.dart';
+import 'command_intent_evidence_reader.dart';
+import 'dart:convert';
+
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
-class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
+class InMemoryOutboxStore implements AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
   final Map<String, List<CommandEnvelope>> _commands = {};
   final Map<String, Map<String, IdMapping>> _mappings = {};
   final Map<String, int> _sequences = {};
@@ -51,6 +55,19 @@ class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore, Bookin
   Future<String?> readBundle(String accountId, String key) async {
     _assertOpen();
     return _bundles['$accountId::$key'];
+  }
+
+  @override
+  Future<List<String>> readLocalValuesByPrefix(
+    String accountId,
+    String prefix,
+  ) async {
+    _assertOpen();
+    final scoped = '$accountId::$prefix';
+    return [
+      for (final entry in _bundles.entries)
+        if (entry.key.startsWith(scoped)) entry.value,
+    ];
   }
 
   @override
@@ -498,6 +515,210 @@ class InMemoryOutboxStore implements OutboxStore, AtomicLocalRecordStore, Bookin
     }
     // insert لا يتنازل عن التنفيذ قبل تحديث الفهارس، فيطابق المعاملة المحلية.
     return insert(command);
+  }
+
+  @override
+  Future<DispatchClaimResult> claimDispatch({
+    required String accountId,
+    required String wellId,
+    required String localId,
+    required String commandId,
+    required DateTime attemptedAt,
+    required DispatchClaimPolicy policy,
+  }) async {
+    _assertOpen();
+    final commandReads = <(String, String), String>{};
+    final bundleReads = <(String, String), String?>{};
+    final mappingReads = <(String, String, EntityKind), String?>{};
+    CommandEnvelope? row(String account, String id) {
+      final c = _byLocalId[id];
+      return c?.accountId == account ? c : null;
+    }
+
+    String? mappingValue(String account, String id, EntityKind kind) {
+      final m = _mappings[account]?[_mappingKey(id, kind)];
+      return m == null
+          ? null
+          : jsonEncode([m.localId, m.kind.storageValue, m.serverId]);
+    }
+
+    Future<CommandEnvelope?> readCommand(String account, String id) async {
+      final c = row(account, id);
+      commandReads.putIfAbsent((
+        account,
+        id,
+      ), () => dispatchCommandFingerprint(c));
+      return c == null ? null : freezeDispatchCommand(c);
+    }
+
+    Future<String?> readBundle(String account, String key) async {
+      final value = _bundles['$account::$key'];
+      bundleReads.putIfAbsent((account, key), () => value);
+      return value;
+    }
+
+    Future<IdMapping?> readMapping(
+      String account,
+      String id,
+      EntityKind kind,
+    ) async {
+      mappingReads.putIfAbsent((
+        account,
+        id,
+        kind,
+      ), () => mappingValue(account, id, kind));
+      return _mappings[account]?[_mappingKey(id, kind)];
+    }
+
+    final reader = CommandIntentEvidenceReader.fromReads(
+      readCommand,
+      readBundle,
+    );
+    final (decision, context) = await inspectDispatchClaim(
+      accountId: accountId,
+      wellId: wellId,
+      localId: localId,
+      commandId: commandId,
+      readCommand: readCommand,
+      readBundle: readBundle,
+      readMapping: readMapping,
+      classify: () =>
+          reader.read(accountId: accountId, wellId: wellId, localId: localId),
+      policy: policy,
+    );
+    // بعد آخر await: مقارنة كل القراءات والكتابة بلا نقطة تسليم؛ تشمل
+    // الكتابات القديمة التي لا تعرف واجهة الحجز الجديدة.
+    _assertOpen();
+    if (commandReads.entries.any(
+          (e) => dispatchCommandFingerprint(row(e.key.$1, e.key.$2)) != e.value,
+        ) ||
+        bundleReads.entries.any(
+          (e) => _bundles['${e.key.$1}::${e.key.$2}'] != e.value,
+        ) ||
+        mappingReads.entries.any(
+          (e) => mappingValue(e.key.$1, e.key.$2, e.key.$3) != e.value,
+        )) {
+      return const DispatchClaimResult(DispatchClaimDecision.concurrentChange);
+    }
+    if (decision != DispatchClaimDecision.allow) {
+      return DispatchClaimResult(decision, context: context);
+    }
+    final token = DispatchAttempt(
+      accountId: accountId,
+      wellId: wellId,
+      localId: localId,
+      commandId: commandId,
+      commandType: context!.command.type,
+      attemptId: SecureIdGenerator().newId(),
+      startedAt: attemptedAt.toUtc(),
+    );
+    final history =
+        '$accountId::${dispatchAttemptHistoryKey(localId, token.attemptId)}';
+    if (_bundles.containsKey(history)) {
+      throw StateError('duplicate_dispatch_attempt');
+    }
+    final claimed = context.command.copyWith(
+      status: CommandStatus.dispatching,
+      lastAttemptAt: token.startedAt,
+    );
+    _update(accountId, localId, (_) => claimed);
+    final value = jsonEncode(token.toJson());
+    _bundles[history] = value;
+    _bundles['$accountId::${dispatchAttemptCurrentKey(localId)}'] = value;
+    return DispatchClaimResult(
+      DispatchClaimDecision.allow,
+      context: context,
+      command: claimed,
+      attempt: token,
+    );
+  }
+
+  @override
+  Future<bool> releaseDispatchAttempt(
+    DispatchAttempt attempt, {
+    required String reason,
+  }) async => _finishOwnedDispatch(attempt, reason: reason);
+
+  @override
+  Future<bool> finishDispatchAttempt(
+    DispatchAttempt attempt, {
+    required CommandStatus status,
+    Map<String, Object?>? serverResponse,
+    String? error,
+    String? entityId,
+  }) async {
+    if (!const {
+          CommandStatus.confirmed,
+          CommandStatus.review,
+        }.contains(status) ||
+        (status == CommandStatus.confirmed && serverResponse == null)) {
+      throw ArgumentError('invalid_dispatch_result');
+    }
+    return _finishOwnedDispatch(
+      attempt,
+      status: status,
+      response: freezeDispatchReceipt(serverResponse),
+      reason: error,
+      entityId: entityId,
+    );
+  }
+
+  bool _finishOwnedDispatch(
+    DispatchAttempt attempt, {
+    CommandStatus? status,
+    Map<String, Object?>? response,
+    String? reason,
+    String? entityId,
+  }) {
+    _assertOpen();
+    final c = _byLocalId[attempt.localId];
+    final currentKey =
+        '${attempt.accountId}::${dispatchAttemptCurrentKey(attempt.localId)}';
+    final historyKey =
+        '${attempt.accountId}::${dispatchAttemptHistoryKey(attempt.localId, attempt.attemptId)}';
+    final current = _bundles[currentKey];
+    if (!ownsDispatchAttempt(c, current, attempt) ||
+        _bundles[historyKey] != current) {
+      return false;
+    }
+    _update(
+      attempt.accountId,
+      attempt.localId,
+      (c) => c.copyWith(
+        status: status ?? CommandStatus.pending,
+        retryCount: status == null ? c.retryCount + 1 : c.retryCount,
+        lastError: reason,
+        clearLastError: reason == null,
+        serverResponse: response,
+      ),
+    );
+    if (status == CommandStatus.confirmed &&
+        entityId != null &&
+        c!.type.produces != null) {
+      final mapping = IdMapping(
+        localId: c.localId,
+        kind: c.type.produces!,
+        serverId: entityId,
+        resolvedAt: attempt.startedAt,
+      );
+      _mappings.putIfAbsent(
+        attempt.accountId,
+        () => {},
+      )[_mappingKey(c.localId, c.type.produces!)] = mapping;
+    }
+    final value = jsonEncode(
+      attempt.toJson(
+        state: status == null
+            ? DispatchAttemptState.retryRequested
+            : status == CommandStatus.confirmed
+            ? DispatchAttemptState.confirmed
+            : DispatchAttemptState.review,
+        reason: reason,
+      ),
+    );
+    _bundles[currentKey] = value;
+    _bundles[historyKey] = value;
+    return true;
   }
 
   @override

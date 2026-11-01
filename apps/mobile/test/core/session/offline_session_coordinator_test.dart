@@ -34,6 +34,12 @@ class _ControlledDelayOutboxStore implements OutboxStore {
       _inner.readBundle(accountId, key);
 
   @override
+  Future<List<String>> readLocalValuesByPrefix(
+    String accountId,
+    String prefix,
+  ) => _inner.readLocalValuesByPrefix(accountId, prefix);
+
+  @override
   Future<String> insertBundle({
     required String accountId,
     required String key,

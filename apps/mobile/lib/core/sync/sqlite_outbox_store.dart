@@ -23,13 +23,16 @@ import '../booking/booking_reactivity.dart';
 import '../notifications/app_notification_event.dart';
 import '../notifications/booking_notification_event_factory.dart';
 import '../notifications/notification_event_store.dart';
+import '../notifications/operational_notification_event_factory.dart';
+import 'command_id_generator.dart';
+import 'command_intent_evidence_reader.dart';
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'outbox_database.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 
-class SqliteOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
+class SqliteOutboxStore implements AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
   SqliteOutboxStore({
     this.databasePath,
     this.singleInstance = true,
@@ -1197,6 +1200,7 @@ class SqliteOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingD
 
   /// قراءة مفاتيح المجال المحلي فقط ضمن الحساب نفسه. تستخدم المصالحة
   /// مفاتيح دفتر الحجوزات ولا تخلطها بصفوف طابور الأوامر.
+  @override
   Future<List<String>> readLocalValuesByPrefix(
     String accountId,
     String prefix,
@@ -1364,6 +1368,276 @@ class SqliteOutboxStore implements OutboxStore, AtomicLocalRecordStore, BookingD
       orderBy: 'sequence asc',
     );
     return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<DispatchClaimResult> claimDispatch({
+    required String accountId,
+    required String wellId,
+    required String localId,
+    required String commandId,
+    required DateTime attemptedAt,
+    required DispatchClaimPolicy policy,
+  }) async {
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        Future<CommandEnvelope?> readCommand(String account, String id) async {
+          final rows = await tx.query(
+            commandsTable,
+            where: 'account_id=? and local_id=?',
+            whereArgs: [account, id],
+            limit: 1,
+          );
+          if (rows.isEmpty) return null;
+          try {
+            return _fromRow(rows.single);
+          } on FormatException {
+            return null;
+          } on TypeError {
+            return null;
+          } on StateError {
+            // A corrupt dependency cannot authorize dispatch or abort an
+            // independent command. The original row remains untouched.
+            return null;
+          }
+        }
+
+        Future<String?> readBundle(String account, String key) async {
+          final rows = await tx.query(
+            metaTable,
+            columns: ['value'],
+            where: 'account_id=? and key=?',
+            whereArgs: [account, key],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : rows.single['value'] as String;
+        }
+
+        Future<IdMapping?> readMapping(
+          String account,
+          String id,
+          EntityKind kind,
+        ) async {
+          final rows = await tx.query(
+            mappingsTable,
+            where: 'account_id=? and local_id=? and entity_kind=?',
+            whereArgs: [account, id, kind.storageValue],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : _mappingFromRow(rows.single);
+        }
+
+        final reader = CommandIntentEvidenceReader.fromReads(
+          readCommand,
+          readBundle,
+        );
+        final (decision, context) = await inspectDispatchClaim(
+          accountId: accountId,
+          wellId: wellId,
+          localId: localId,
+          commandId: commandId,
+          readCommand: readCommand,
+          readBundle: readBundle,
+          readMapping: readMapping,
+          classify: () => reader.read(
+            accountId: accountId,
+            wellId: wellId,
+            localId: localId,
+          ),
+          policy: policy,
+        );
+        if (decision != DispatchClaimDecision.allow) {
+          return DispatchClaimResult(decision, context: context);
+        }
+        final row = context!.command;
+        final token = DispatchAttempt(
+          accountId: accountId,
+          wellId: wellId,
+          localId: localId,
+          commandId: commandId,
+          commandType: row.type,
+          attemptId: SecureIdGenerator().newId(),
+          startedAt: attemptedAt.toUtc(),
+        );
+        final affected = await tx.update(
+          commandsTable,
+          {
+            'status': CommandStatus.dispatching.storageValue,
+            'last_attempt_at': _encodeTime(token.startedAt),
+          },
+          where: 'account_id=? and local_id=? and command_id=? and status=?',
+          whereArgs: [
+            accountId,
+            localId,
+            commandId,
+            CommandStatus.pending.storageValue,
+          ],
+        );
+        if (affected != 1) {
+          return DispatchClaimResult(DispatchClaimDecision.concurrentChange);
+        }
+        final value = jsonEncode(token.toJson());
+        await tx.insert(metaTable, {
+          'account_id': accountId,
+          'key': dispatchAttemptHistoryKey(localId, token.attemptId),
+          'value': value,
+        });
+        await tx.insert(metaTable, {
+          'account_id': accountId,
+          'key': dispatchAttemptCurrentKey(localId),
+          'value': value,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        return DispatchClaimResult(
+          DispatchClaimDecision.allow,
+          context: context,
+          attempt: token,
+          command: row.copyWith(
+            status: CommandStatus.dispatching,
+            lastAttemptAt: token.startedAt,
+          ),
+        );
+      }),
+    );
+  }
+
+  @override
+  Future<bool> releaseDispatchAttempt(
+    DispatchAttempt attempt, {
+    required String reason,
+  }) => _finishOwnedDispatch(attempt, reason: reason);
+
+  @override
+  Future<bool> finishDispatchAttempt(
+    DispatchAttempt attempt, {
+    required CommandStatus status,
+    Map<String, Object?>? serverResponse,
+    String? error,
+    String? entityId,
+  }) {
+    if (!const {
+          CommandStatus.confirmed,
+          CommandStatus.review,
+        }.contains(status) ||
+        (status == CommandStatus.confirmed && serverResponse == null)) {
+      throw ArgumentError('invalid_dispatch_result');
+    }
+    return _finishOwnedDispatch(
+      attempt,
+      status: status,
+      response: freezeDispatchReceipt(serverResponse),
+      reason: error,
+      entityId: entityId,
+    );
+  }
+
+  Future<bool> _finishOwnedDispatch(
+    DispatchAttempt attempt, {
+    CommandStatus? status,
+    Map<String, Object?>? response,
+    String? reason,
+    String? entityId,
+  }) async {
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        final rows = await tx.query(
+          commandsTable,
+          where: 'account_id=? and local_id=?',
+          whereArgs: [attempt.accountId, attempt.localId],
+          limit: 1,
+        );
+        final row = rows.isEmpty ? null : _fromRow(rows.single);
+        Future<String?> meta(String key) async {
+          final values = await tx.query(
+            metaTable,
+            columns: ['value'],
+            where: 'account_id=? and key=?',
+            whereArgs: [attempt.accountId, key],
+            limit: 1,
+          );
+          return values.isEmpty ? null : values.single['value'] as String;
+        }
+
+        final currentKey = dispatchAttemptCurrentKey(attempt.localId);
+        final historyKey = dispatchAttemptHistoryKey(
+          attempt.localId,
+          attempt.attemptId,
+        );
+        final current = await meta(currentKey);
+        if (!ownsDispatchAttempt(row, current, attempt) ||
+            await meta(historyKey) != current) {
+          return false;
+        }
+        final result = status ?? CommandStatus.pending;
+        final changed = await tx.update(
+          commandsTable,
+          {
+            'status': result.storageValue,
+            'last_error': reason,
+            if (status == null) 'retry_count': row!.retryCount + 1,
+            if (response != null) 'server_response': jsonEncode(response),
+          },
+          where: 'account_id=? and local_id=? and command_id=? and status=? and last_attempt_at=?',
+          whereArgs: [
+            attempt.accountId,
+            attempt.localId,
+            attempt.commandId,
+            CommandStatus.dispatching.storageValue,
+            _encodeTime(attempt.startedAt),
+          ],
+        );
+        if (changed != 1) {
+          return false;
+        }
+        if (status == CommandStatus.confirmed &&
+            entityId != null &&
+            row!.type.produces != null) {
+          await tx.insert(mappingsTable, {
+            'account_id': attempt.accountId,
+            'local_id': attempt.localId,
+            'entity_kind': row.type.produces!.storageValue,
+            'server_id': entityId,
+            'resolved_at': _encodeTime(attempt.startedAt),
+            'matched_existing': 0,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if (status == CommandStatus.confirmed &&
+            row!.type == CommandType.completeIrrigationSession) {
+          final accepted = row.copyWith(
+            status: CommandStatus.confirmed,
+            serverResponse: response,
+          );
+          final event = acceptedCompletionNotificationEvent(accepted);
+          if (event != null) {
+            await SqliteNotificationEventStore.insertEventTx(tx, event);
+          }
+          await SqliteNotificationEventStore.cancelSchedulesTx(
+            tx, accepted.accountId, accepted.wellId, 'session',
+            accepted.aggregateLocalId, 'session_completed', accepted.occurredAt,
+          );
+        }
+        final value = jsonEncode(
+          attempt.toJson(
+            state: status == null
+                ? DispatchAttemptState.retryRequested
+                : status == CommandStatus.confirmed
+                ? DispatchAttemptState.confirmed
+                : DispatchAttemptState.review,
+            reason: reason,
+          ),
+        );
+        for (final key in [currentKey, historyKey]) {
+          await tx.update(
+            metaTable,
+            {'value': value},
+            where: 'account_id=? and key=?',
+            whereArgs: [attempt.accountId, key],
+          );
+        }
+        return true;
+      }),
+    );
   }
 
   @override

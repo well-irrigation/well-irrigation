@@ -1,3 +1,6 @@
+import '../sync/command_envelope.dart';
+import '../sync/command_type.dart';
+import '../sync/sync_status.dart';
 import 'app_notification_event.dart';
 import 'booking_notification_event_factory.dart';
 import 'notification_presenter.dart';
@@ -121,4 +124,26 @@ NotificationPresentation? _presentation(AppNotificationEvent event) {
   return text == null
       ? null
       : NotificationPresentation(text.$1, text.$2, 'operational_alerts_v1');
+}
+
+/// نتيجة قبول محلية فقط؛ لا يستدعي هذا المنتج نقلًا أو استعادة إيصالات.
+/// هوية الحدث من أمر الإكمال الأصلي، كما في فرع الإكمال اليدوي بالمصدر.
+AppNotificationEvent? acceptedCompletionNotificationEvent(CommandEnvelope command) {
+  if (command.type != CommandType.completeIrrigationSession ||
+      command.status != CommandStatus.confirmed ||
+      command.serverResponse == null ||
+      command.accountId.isEmpty ||
+      command.wellId == null || command.wellId!.isEmpty ||
+      command.localId.isEmpty || command.commandId.isEmpty) {
+    return null;
+  }
+  return operationalEvent(
+    accountId: command.accountId,
+    wellId: command.wellId!,
+    eventType: 'session.completed',
+    identity: command.commandId,
+    entityType: 'session',
+    entityId: command.aggregateLocalId ?? command.localId,
+    at: command.occurredAt,
+  );
 }
