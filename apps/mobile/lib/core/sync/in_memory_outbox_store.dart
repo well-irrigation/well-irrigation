@@ -12,9 +12,10 @@ import 'dart:convert';
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'outbox_store.dart';
+import 'outbox_repository.dart';
 import 'sync_status.dart';
 
-class InMemoryOutboxStore implements AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
+class InMemoryOutboxStore implements SessionExecutionStore, AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
   final Map<String, List<CommandEnvelope>> _commands = {};
   final Map<String, Map<String, IdMapping>> _mappings = {};
   final Map<String, int> _sequences = {};
@@ -819,6 +820,84 @@ class InMemoryOutboxStore implements AtomicCommandDispatchStore, OutboxStore, At
           ),
         );
     return true;
+  }
+
+  @override
+  Future<CommandEnvelope> prepareSessionExecutionCommand({
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required CommandType type,
+    required DateTime at,
+    required Map<String, Object?> payload,
+  }) => OutboxRepository(store: this).prepare(
+    accountId: accountId,
+    wellId: wellId,
+    aggregateLocalId: sessionLocalId,
+    type: type,
+    occurredAt: at,
+    payload: payload,
+  );
+
+  @override
+  Future<T> sessionExecutionTransaction<T>({
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required SessionExecutionWrite<T> Function(SessionExecutionSnapshot) decide,
+  }) async {
+    _assertOpen();
+    final candidate = _byLocalId[sessionLocalId];
+    final root =
+        candidate?.accountId == accountId && candidate?.wellId == wellId
+        ? candidate
+        : null;
+    final events =
+        (_bySession[(accountId, sessionLocalId)] ?? const <String>{})
+            .map((id) => _byLocalId[id]!)
+            .where((c) => c.wellId == wellId)
+            .toList()
+          ..sort((a, b) => a.sequence.compareTo(b.sequence));
+    final write = decide(SessionExecutionSnapshot(root: root, events: events));
+    validateManualStopMaterialization(
+      account: accountId,
+      well: wellId,
+      local: sessionLocalId,
+      root: root,
+      events: events,
+      savedRequest:
+          _bundles['$accountId::session.manual_stop.request.v1/${Uri.encodeComponent(wellId)}/${Uri.encodeComponent(sessionLocalId)}'],
+      previousLink:
+          _bundles['$accountId::${manualStopMaterializationKey(wellId, sessionLocalId)}'],
+      previousEffect:
+          _bundles['$accountId::session.completion.v1.$wellId.$sessionLocalId'],
+      mapping:
+          _mappings[accountId]?[_mappingKey(
+            sessionLocalId,
+            EntityKind.session,
+          )],
+      write: write,
+    );
+    final ids = <String>{};
+    for (final c in write.commands) {
+      if (_usedCommandIds.contains(c.commandId) ||
+          !ids.add(c.commandId) ||
+          _byLocalId.containsKey(c.localId)) {
+        throw DuplicateCommandIdException(c.commandId);
+      }
+    }
+    // No await between snapshot, guards and writes: no partial materialization.
+    for (final c in write.commands) {
+      _usedCommandIds.add(c.commandId);
+      _commands.putIfAbsent(accountId, () => []).add(c);
+      _byLocalId[c.localId] = c;
+      _indexWell(c);
+      _indexSession(c);
+    }
+    for (final entry in write.values.entries) {
+      _bundles['$accountId::${entry.key}'] = entry.value;
+    }
+    return write.result;
   }
 
   @override

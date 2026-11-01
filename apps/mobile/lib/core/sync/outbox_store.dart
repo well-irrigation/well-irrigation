@@ -715,3 +715,165 @@ abstract interface class FarmSelectionStore {
     String query = '',
   });
 }
+
+String manualStopMaterializationKey(String well, String local) =>
+    'session.manual_stop.materialized.v1/${Uri.encodeComponent(well)}/${Uri.encodeComponent(local)}';
+
+// C07-C subset: no execution pointers, successors or runtime activation.
+class SessionExecutionSnapshot {
+  const SessionExecutionSnapshot({required this.root, required this.events});
+  final CommandEnvelope? root;
+  final List<CommandEnvelope> events;
+}
+
+class SessionExecutionWrite<T> {
+  const SessionExecutionWrite(
+    this.result, {
+    this.values = const {},
+    this.commands = const [],
+    this.deferCompletionNotification = false,
+  });
+  final T result;
+  final Map<String, String> values;
+  final List<CommandEnvelope> commands;
+  final bool deferCompletionNotification;
+}
+
+abstract interface class SessionExecutionStore {
+  Future<CommandEnvelope> prepareSessionExecutionCommand({
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required CommandType type,
+    required DateTime at,
+    required Map<String, Object?> payload,
+  });
+  Future<T> sessionExecutionTransaction<T>({
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required SessionExecutionWrite<T> Function(SessionExecutionSnapshot) decide,
+  });
+}
+
+// Revalidate the durable human request inside the same write transaction.
+void validateManualStopMaterialization<T>({
+  required String account,
+  required String well,
+  required String local,
+  required CommandEnvelope? root,
+  required List<CommandEnvelope> events,
+  required String? savedRequest,
+  required String? previousLink,
+  required String? previousEffect,
+  required IdMapping? mapping,
+  required SessionExecutionWrite<T> write,
+}) {
+  final raw = jsonDecode(savedRequest ?? 'null');
+  final link = manualStopMaterializationKey(well, local);
+  final effectKey = 'session.completion.v1.$well.$local';
+  final at = raw is Map && raw['requested_at'] is String
+      ? DateTime.tryParse(raw['requested_at'] as String)
+      : null;
+  if (root == null ||
+      account.isEmpty ||
+      well.isEmpty ||
+      local.isEmpty ||
+      root.accountId != account ||
+      root.wellId != well ||
+      root.localId != local ||
+      root.type.produces != EntityKind.session ||
+      root.commandId.isEmpty ||
+      root.payload[root.type.scopeArgument] is! String ||
+      (root.payload[root.type.scopeArgument] as String).isEmpty ||
+      (root.type.scopeArgument == 'p_well_id' &&
+          root.payload['p_well_id'] != well) ||
+      raw is! Map ||
+      raw['version'] is! int ||
+      raw['version'] != 1 ||
+      raw['provenance'] != 'human_stop_request' ||
+      raw['source'] != 'operator_stop_action' ||
+      raw['state'] != 'recorded' ||
+      raw['account_id'] != account ||
+      raw['well_id'] != well ||
+      raw['session_local_id'] != local ||
+      raw['session_command_id'] != root.commandId ||
+      raw['request_id'] is! String ||
+      (raw['request_id'] as String).isEmpty ||
+      at == null ||
+      !at.isUtc ||
+      at.toIso8601String() != raw['requested_at'] ||
+      !raw.containsKey('server_session_id') ||
+      (mapping != null &&
+          (mapping.localId != local ||
+              mapping.kind != EntityKind.session ||
+              mapping.serverId.isEmpty ||
+              mapping.serverId.trim() != mapping.serverId)) ||
+      (raw['server_session_id'] != null &&
+          raw['server_session_id'] != mapping?.serverId) ||
+      write.values[link] != raw['request_id'] ||
+      (previousLink != null && previousLink != raw['request_id']) ||
+      write.values.keys.any((k) => k != link && k != effectKey)) {
+    throw StateError('manual_stop_durable_identity_changed');
+  }
+  final old = events
+      .where((c) => c.type == CommandType.completeIrrigationSession)
+      .toList();
+  final result = write.result;
+  if (old.length > 1 ||
+      result is! CommandEnvelope ||
+      result.accountId != account ||
+      result.wellId != well ||
+      result.aggregateLocalId != local ||
+      result.type != CommandType.completeIrrigationSession ||
+      result.occurredAt.isBefore(root.occurredAt)) {
+    throw StateError('manual_stop_completion_requires_review');
+  }
+  final target = result.payload['p_session_id'];
+  final reference =
+      target is Map &&
+      target.length == 2 &&
+      target[r'$ref'] == local &&
+      target[r'$kind'] == 'session';
+  if (!reference &&
+      !(target is String && mapping != null && target == mapping.serverId)) {
+    throw StateError('manual_stop_completion_session_mismatch');
+  }
+  if (old.isNotEmpty) {
+    // Reuse the original completion without adding human evidence to its origin.
+    if (write.commands.isNotEmpty ||
+        write.values.length != 1 ||
+        dispatchCommandFingerprint(old.single) !=
+            dispatchCommandFingerprint(result)) {
+      throw StateError('manual_stop_existing_completion_changed');
+    }
+    return;
+  }
+  if (previousLink != null ||
+      previousEffect != null ||
+      write.commands.length != 1 ||
+      !write.deferCompletionNotification ||
+      result.status != CommandStatus.pending ||
+      result.prerequisites.isNotEmpty ||
+      dispatchCommandFingerprint(write.commands.single) !=
+          dispatchCommandFingerprint(result) ||
+      result.occurredAt != at ||
+      at.isBefore(root.occurredAt) ||
+      events.any((c) => c.occurredAt.isAfter(at))) {
+    throw StateError('manual_stop_new_completion_requires_review');
+  }
+  final effect = jsonDecode(write.values[effectKey] ?? 'null');
+  if (effect is! Map ||
+      effect['version'] != 1 ||
+      effect['provenance'] != 'session_completion_effect' ||
+      effect['account_id'] != account ||
+      effect['well_id'] != well ||
+      effect['session_local_id'] != local ||
+      effect['completion_local_id'] != result.localId ||
+      effect['completion_command_id'] != result.commandId ||
+      effect['completed_at'] != raw['requested_at'] ||
+      effect['trigger'] != 'manual_stop' ||
+      effect['request_id'] != raw['request_id']) {
+    throw StateError('manual_stop_completion_evidence_mismatch');
+  }
+}

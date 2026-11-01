@@ -30,9 +30,10 @@ import 'command_envelope.dart';
 import 'command_type.dart';
 import 'outbox_database.dart';
 import 'outbox_store.dart';
+import 'outbox_repository.dart';
 import 'sync_status.dart';
 
-class SqliteOutboxStore implements AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
+class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
   SqliteOutboxStore({
     this.databasePath,
     this.singleInstance = true,
@@ -1830,6 +1831,107 @@ class SqliteOutboxStore implements AtomicCommandDispatchStore, OutboxStore, Atom
           accepted.occurredAt,
         );
         return true;
+      }),
+    );
+  }
+
+  @override
+  Future<CommandEnvelope> prepareSessionExecutionCommand({
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required CommandType type,
+    required DateTime at,
+    required Map<String, Object?> payload,
+  }) => _withExecutionContentionRetry(
+    () => OutboxRepository(store: this).prepare(
+      accountId: accountId,
+      wellId: wellId,
+      aggregateLocalId: sessionLocalId,
+      type: type,
+      occurredAt: at,
+      payload: payload,
+    ),
+  );
+
+  @override
+  Future<T> sessionExecutionTransaction<T>({
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required SessionExecutionWrite<T> Function(SessionExecutionSnapshot) decide,
+  }) async {
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        Future<String?> meta(String key) async {
+          final rows = await tx.query(
+            metaTable,
+            columns: ['value'],
+            where: 'account_id=? and key=?',
+            whereArgs: [accountId, key],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : rows.single['value'] as String;
+        }
+
+        final roots = await tx.query(
+          commandsTable,
+          where: 'account_id=? and well_id=? and local_id=?',
+          whereArgs: [accountId, wellId, sessionLocalId],
+          limit: 1,
+        );
+        final root = roots.isEmpty ? null : _fromRow(roots.single);
+        final rows = await tx.query(
+          commandsTable,
+          where: 'account_id=? and well_id=? and aggregate_local_id=?',
+          whereArgs: [accountId, wellId, sessionLocalId],
+          orderBy: 'sequence',
+        );
+        final events = rows.map(_fromRow).toList();
+        final mappings = await tx.query(
+          mappingsTable,
+          where: 'account_id=? and local_id=? and entity_kind=?',
+          whereArgs: [
+            accountId,
+            sessionLocalId,
+            EntityKind.session.storageValue,
+          ],
+          limit: 1,
+        );
+        final write = decide(
+          SessionExecutionSnapshot(root: root, events: events),
+        );
+        validateManualStopMaterialization(
+          account: accountId,
+          well: wellId,
+          local: sessionLocalId,
+          root: root,
+          events: events,
+          savedRequest: await meta(
+            'session.manual_stop.request.v1/${Uri.encodeComponent(wellId)}/${Uri.encodeComponent(sessionLocalId)}',
+          ),
+          previousLink: await meta(
+            manualStopMaterializationKey(wellId, sessionLocalId),
+          ),
+          previousEffect: await meta(
+            'session.completion.v1.$wellId.$sessionLocalId',
+          ),
+          mapping: mappings.isEmpty ? null : _mappingFromRow(mappings.single),
+          write: write,
+        );
+        // Pending human intent only. Acceptance owns notifications and cancellation.
+        for (final command in write.commands) {
+          await tx.insert(commandsTable, _toRow(command));
+        }
+        for (final entry in write.values.entries) {
+          await tx.insert(metaTable, {
+            'account_id': accountId,
+            'key': entry.key,
+            'value': entry.value,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        return write.result;
       }),
     );
   }
