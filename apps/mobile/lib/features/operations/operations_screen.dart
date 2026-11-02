@@ -589,6 +589,9 @@ class _OperationsScreenState extends State<OperationsScreen>
   StreamSubscription<ActiveSessionRecord?>? _activeSessionSubscription;
   ActiveSessionRecord? _activeSession;
   bool _isSessionActive = false;
+  bool get _hasPendingManualStop => _activeSession?.hasPendingManualStop ?? false;
+  bool _sameSessionScope(String account, String well, String? root) =>
+      mounted && _accountId == account && _activeWellId == well && _activeSessionId == root;
   bool _isPaused = false;
   int _secondsElapsed = 0;
   String? _activeSessionId;
@@ -1165,6 +1168,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   Future<void> _loadDaySchedule() async {
     _suspendBookingTransitionTimer();
     final requestedWellId = _activeWellId;
+    final requestedAccount = _accountId;
     final generation = ++_dayScheduleGeneration;
     if (mounted) {
       setState(() {
@@ -1183,7 +1187,7 @@ class _OperationsScreenState extends State<OperationsScreen>
       );
       if (!mounted ||
           generation != _dayScheduleGeneration ||
-          requestedWellId != _activeWellId) {
+          requestedWellId != _activeWellId || requestedAccount != _accountId) {
         return;
       }
       setState(() {
@@ -1521,6 +1525,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   Future<void> _recoverActiveSession() async {
     final requestedWellId = _activeWellId;
+    final requestedAccount = _accountId;
     final generation = ++_projectionGeneration;
     final active = await _coordinator.freshProjectActiveSession(
       accountId: _accountId,
@@ -1529,7 +1534,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     if (!mounted ||
         generation != _projectionGeneration ||
-        requestedWellId != _activeWellId) {
+        requestedWellId != _activeWellId || requestedAccount != _accountId) {
       return;
     }
 
@@ -1705,7 +1710,7 @@ class _OperationsScreenState extends State<OperationsScreen>
       // setState كل ثانية لتحديث العداد (محلي أو خادمي مُتبنّى)؛ الزيادة
       // المحلية وحدها مشروطة بعدم الإيقاف.
       setState(() {
-        if (!_isPaused) _secondsElapsed++;
+        if (!_isPaused && !_hasPendingManualStop) _secondsElapsed++;
       });
     });
   }
@@ -1716,7 +1721,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     _timer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       setState(() {
-        if (!_isPaused) _secondsElapsed++;
+        if (!_isPaused && !_hasPendingManualStop) _secondsElapsed++;
       });
     });
   }
@@ -2315,6 +2320,8 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<void> _startSession() async {
+    if (_isSessionActive || _hasPendingManualStop || _isSubmitting) return;
+    final account = _accountId, requestedWell = _activeWellId;
     if (_daySchedule?.currentSession != null ||
         _serverBookingLink != null ||
         _dayScheduleCached ||
@@ -2341,7 +2348,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     final String sessionLocalId;
     try {
       final envelope = await _coordinator.startSession(
-        accountId: _accountId,
+        accountId: account,
         wellId: wellId,
         pumpId: _selectedPump!.id,
         farmId: _selectedFarm!.id,
@@ -2365,6 +2372,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     if (!mounted) return;
 
+    if (!mounted || _accountId != account || _activeWellId != requestedWell) return;
     _activeSessionId = sessionLocalId;
     _startLocalTicker();
     setState(() {
@@ -2378,6 +2386,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   Future<void> _togglePause() async {
     if (!_isSessionActive || !_beginSessionAction()) return;
 
+    final account = _accountId, well = _activeWellId, root = _activeSessionId;
     try {
       final sessionId = _activeSessionId;
       if (sessionId == null) {
@@ -2391,11 +2400,11 @@ class _OperationsScreenState extends State<OperationsScreen>
           context: context,
           builder: (ctx) => const PauseConfirmationDialog(),
         );
-        if (confirmed != true) return;
+        if (confirmed != true || !_sameSessionScope(account, well, root) || _hasPendingManualStop) return;
 
         try {
           await _coordinator.pauseSession(
-            accountId: _accountId,
+            accountId: account,
             sessionLocalId: sessionId,
             reason: 'operator_pause',
             pausedAt: _now(),
@@ -2406,13 +2415,13 @@ class _OperationsScreenState extends State<OperationsScreen>
         }
       } else {
         await _coordinator.resumeSession(
-          accountId: _accountId,
+          accountId: account,
           sessionLocalId: sessionId,
           resumedAt: _now(),
         );
       }
 
-      if (!mounted) return;
+      if (!_sameSessionScope(account, well, root) || _hasPendingManualStop) return;
       setState(() => _isPaused = !wasPaused);
     } catch (e) {
       _showActionFailure('تعذر الاستئناف — الجلسة ما زالت موقوفة: $e');
@@ -2422,7 +2431,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   bool _beginSessionAction() {
-    if (_isSessionActionInProgress || !mounted) return false;
+    if (_isSessionActionInProgress || !mounted || _hasPendingManualStop) return false;
     setState(() => _isSessionActionInProgress = true);
     return true;
   }
@@ -2435,6 +2444,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     if (!_isSessionActive) return;
     if (!_beginSessionAction()) return;
 
+    final account = _accountId, well = _activeWellId, root = _activeSessionId;
     try {
       final selected = await showModalBottomSheet<String>(
         context: context,
@@ -2558,14 +2568,15 @@ class _OperationsScreenState extends State<OperationsScreen>
           ),
         ),
       );
-      if (selected != null) await _changeEnergySource(selected);
+      if (selected != null && _sameSessionScope(account, well, root) && !_hasPendingManualStop) await _changeEnergySource(selected);
     } finally {
       _finishSessionAction();
     }
   }
 
   Future<void> _changeEnergySource(String newSource) async {
-    if (_energySourceCode == newSource) return;
+    if (_hasPendingManualStop || _energySourceCode == newSource) return;
+    final account = _accountId, well = _activeWellId, root = _activeSessionId;
 
     final sessionId = _activeSessionId;
     if (_isSessionActive && sessionId != null) {
@@ -2581,11 +2592,11 @@ class _OperationsScreenState extends State<OperationsScreen>
         ),
       );
 
-      if (confirmed != true) return;
+      if (confirmed != true || !_sameSessionScope(account, well, root) || _hasPendingManualStop) return;
 
       try {
         await _coordinator.changeEnergySource(
-          accountId: _accountId,
+          accountId: account,
           sessionLocalId: sessionId,
           newEnergySource: newSource,
           changedAt: _now(),
@@ -2596,7 +2607,7 @@ class _OperationsScreenState extends State<OperationsScreen>
       }
     }
 
-    if (!mounted) return;
+    if (!_sameSessionScope(account, well, root) || _hasPendingManualStop) return;
     setState(() {
       _energySourceCode = newSource;
     });
@@ -2604,6 +2615,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   Future<void> _endSession() async {
     if (!_beginSessionAction()) return;
+    final account = _accountId, well = _activeWellId, root = _activeSessionId;
     try {
       final activeSession = _activeSession;
       final activeSessionId = _activeSessionId;
@@ -2648,7 +2660,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         ),
       );
 
-      if (confirmed != true) {
+      if (confirmed != true || !_sameSessionScope(account, well, root) || _hasPendingManualStop) {
         return;
       }
 
@@ -2657,34 +2669,22 @@ class _OperationsScreenState extends State<OperationsScreen>
 
       try {
         await _coordinator.completeSession(
-          accountId: _accountId,
+          accountId: account,
           sessionLocalId: activeSessionId,
           completedAt: completedAt,
         );
       } catch (e) {
-        _showActionFailure('تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند: $e');
+        if (!_sameSessionScope(account, well, root)) return;
+        await _recoverActiveSession();
+        if (!_sameSessionScope(account, well, root)) return;
+        _showActionFailure(_hasPendingManualStop
+            ? 'حُفظ طلب الإيقاف؛ ما زال التأكيد معلقًا'
+            : 'تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند: $e');
         _startLocalTicker();
         return;
       }
-
-      // ق-129 / E6: إعادة ضبط النموذج للعملية التالية
-      final solePump = _pumps.length == 1 ? _pumps.single : null;
-
-      setState(() {
-        _isSessionActive = false;
-        _isPaused = false;
-        _secondsElapsed = 0;
-        _activeSessionId = null;
-        _activeSession = null;
-        _selectedFarmer = null;
-        _selectedFarm = null;
-        _energySourceCode = null;
-        _selectedPump = solePump;
-        _resetCropSelection();
-        _resetFarmerStatus();
-      });
-
-      if (!mounted) return;
+      if (!_sameSessionScope(account, well, root)) return;
+      await _recoverActiveSession();
     } finally {
       _finishSessionAction();
     }
@@ -2895,7 +2895,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         _isSessionActive || hasServerOnlySession || showServerAdopted;
     final liveTotals = activeSession == null
         ? null
-        : summarize(activeSession.segments, _now());
+        : summarize(activeSession.segments, activeSession.stopRequestedAt ?? _now());
     final displaySeconds = liveTotals?.billableSeconds ?? _secondsElapsed;
     final accruedAmount = liveTotals?.accruedMinor;
 
@@ -3100,7 +3100,9 @@ class _OperationsScreenState extends State<OperationsScreen>
                               showServerAdopted
                                   ? 'جلسة محجوزة جارية على الخادم (عرض فقط)'
                                   : _isSessionActive
-                                  ? (_isPaused
+                                  ? (_hasPendingManualStop
+                                        ? 'متوقف محليًا'
+                                        : _isPaused
                                         ? SessionStateText.paused
                                         : SessionStateText.running)
                                   : hasServerOnlySession
@@ -3385,7 +3387,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                     if (_isSessionActive) ...[
                       const SizedBox(height: 6),
                       TextButton.icon(
-                        onPressed: _isSessionActionInProgress
+                        onPressed: (_isSessionActionInProgress || _hasPendingManualStop)
                             ? null
                             : _openActiveEnergySourcePicker,
                         icon: const Icon(
@@ -3917,7 +3919,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: _isSessionActionInProgress
+                        onPressed: (_isSessionActionInProgress || _hasPendingManualStop)
                             ? null
                             : _togglePause,
                       ),
@@ -3938,7 +3940,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: _isSessionActionInProgress
+                        onPressed: (_isSessionActionInProgress || _hasPendingManualStop)
                             ? null
                             : _endSession,
                       ),

@@ -1,3 +1,4 @@
+import 'package:well_irrigation_mobile/core/session/manual_stop_request_store.dart';
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -213,6 +214,19 @@ class _FirstDispatchGateTransport implements CommandTransport {
 }
 
 void main() {
+  test('activation publishes durable stop and blocks conflicting controls', () async {
+    final storage = InMemoryOutboxStore();
+    final c = OfflineSessionCoordinator(store: storage);
+    final start = await c.startSession(accountId: 'proof', wellId: 'well', pumpId: 'pump',
+      farmId: 'farm', farmerAccountId: 'farmer', energySource: 'solar');
+    final stop = DateTime.now();
+    await c.completeSession(accountId: 'proof', sessionLocalId: start.localId, completedAt: stop);
+    expect((await ManualStopRequestStore(storage).read(accountId: 'proof', wellId: 'well', sessionLocalId: start.localId))!.requestedAt, stop.toUtc());
+    await expectLater(c.changeEnergySource(accountId: 'proof', sessionLocalId: start.localId, newEnergySource: 'diesel'), throwsStateError);
+    await expectLater(c.startSession(accountId: 'proof', wellId: 'well', pumpId: 'pump', farmId: 'farm', farmerAccountId: 'farmer', energySource: 'solar'), throwsStateError);
+    c.dispose();
+  });
+
   group('OfflineSessionCoordinator Tests (ق-89 / ق-90 / ق-114)', () {
     late InMemoryOutboxStore store;
     late OfflineSessionCoordinator coordinator;
@@ -817,8 +831,8 @@ void main() {
       ).run('acc-01');
 
       expect(transport.calledFunctions, ['start_irrigation_session']);
-      expect(report.retryScheduled, 1);
-      expect(report.skipped, 2);
+      expect(report.retryScheduled, 0);
+      expect(report.skipped, 3);
     });
 
     test('تغيير المصدر أثناء التوقف يحفظ المصدر المعلّق دون فوترة ويستأنف به (ق-100)', () async {

@@ -1604,6 +1604,19 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
           }, conflictAlgorithm: ConflictAlgorithm.replace);
         }
         if (status == CommandStatus.confirmed &&
+            row!.type == CommandType.startBookingSession) {
+          final accepted = row.copyWith(status: CommandStatus.confirmed, serverResponse: response);
+          await SqliteNotificationEventStore.insertEventTx(tx, operationalEvent(
+            accountId: accepted.accountId, wellId: accepted.wellId!,
+            eventType: 'session.started', identity: accepted.commandId,
+            entityType: 'session', entityId: accepted.aggregateLocalId ?? accepted.localId,
+            at: accepted.occurredAt,
+          ));
+          await SqliteNotificationEventStore.cancelSchedulesTx(tx,
+            accepted.accountId, accepted.wellId, 'booking',
+            accepted.payload['p_booking_id'] as String, 'session_started', accepted.occurredAt);
+        }
+        if (status == CommandStatus.confirmed &&
             row!.type == CommandType.completeIrrigationSession) {
           final accepted = row.copyWith(
             status: CommandStatus.confirmed,

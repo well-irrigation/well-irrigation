@@ -18,6 +18,9 @@
 library;
 
 import 'dart:async';
+import '../session/manual_stop_request_store.dart';
+import 'booking_start_receipt.dart';
+import 'command_intent_policy.dart';
 
 import '../booking/booking_reactivity.dart';
 import 'background_sync_policy.dart';
@@ -152,15 +155,43 @@ class SyncEngine {
     return started.whenComplete(() => _inFlight.remove(accountId));
   }
 
+  final _runtimeFollowups = <String, Future<SyncRunReport>>{};
+
+  /// فرصة إرسال معروفة واحدة بعد المرسل الجاري، بلا مؤقت أو قرار تشغيل.
+  Future<SyncRunReport> runAfterCurrent(String accountId) {
+    final prior = _runtimeFollowups[accountId];
+    if (prior != null) return prior;
+    final running = _inFlight[accountId];
+    if (running == null) return run(accountId);
+    late Future<SyncRunReport> work;
+    work =
+        () async {
+          try {
+            await running;
+          } on Object {
+            /* الأصل المتين ينتظر فرصة الإرسال الحالية. */
+          }
+          return run(accountId);
+        }().whenComplete(() {
+          if (identical(_runtimeFollowups[accountId], work)) {
+            _runtimeFollowups.remove(accountId);
+          }
+        });
+    _runtimeFollowups[accountId] = work;
+    return work;
+  }
+
   Future<SyncRunReport> _run(String accountId) async {
+    await _store.initialize();
+    final blockedStops = await ManualStopRequestStore(_store).recoverRecordedRequests(accountId);
     final recovered = await _recoverStaleClaims(accountId);
 
     var attempted = 0;
     var confirmed = 0;
     var retryScheduled = 0;
     var needsReview = 0;
-    var skipped = 0;
-    var blockedByReview = 0;
+    var skipped = blockedStops;
+    var blockedByReview = blockedStops;
     var farmMappingsCreated = 0;
     var farmResultsChanged = false;
 
@@ -173,8 +204,8 @@ class SyncEngine {
       }
       if (pass > 0) {
         // إعادة تصفير المتخطى للمرور الإضافي لأن الأوامر غير المحسومة وحدها تُحسب
-        skipped = 0;
-        blockedByReview = 0;
+        skipped = blockedStops;
+        blockedByReview = blockedStops;
       }
       unblockedByResolver = false;
 
@@ -190,6 +221,29 @@ class SyncEngine {
 
       for (final command in await _legacyPending(accountId)) {
         final aggregate = command.effectiveAggregateId;
+        if (q137OperationalCommand(command.type)) {
+          if (blockedAggregates.containsKey(aggregate)) {
+            skipped++;
+            blockedByReview++;
+            continue;
+          }
+          final result = await _runOperational(command);
+          if (result == _OperationalResult.confirmed) {
+            confirmed++;
+          } else if (result == _OperationalResult.sent) {
+            attempted++;
+            confirmed++;
+          } else if (result == _OperationalResult.rejected) {
+            attempted++;
+            needsReview++;
+            block(aggregate, _BlockReason.awaitingReview);
+          } else {
+            skipped++;
+            blockedByReview++;
+            block(aggregate, _BlockReason.awaitingReview);
+          }
+          continue;
+        }
         final blockedBy = blockedAggregates[aggregate];
 
         // فحص استثنائي ضيق: أمر حسم هوية المزارع هو الوحيد المخوّل بفك حظر المراجعة لأصله
@@ -356,6 +410,274 @@ class SyncEngine {
       farmMappingsCreated: farmMappingsCreated,
       farmResultsChanged: farmResultsChanged,
     );
+  }
+
+  Future<_OperationalResult> _runOperational(CommandEnvelope candidate) async {
+    if (const {CommandType.recordBookingTransitionDecision,
+      CommandType.executePendingBookingStart, CommandType.endBookingTransitionChain}.contains(candidate.type)) {
+      await _holdOperational(candidate, 'retired_transition_write_disabled');
+      return _OperationalResult.held;
+    }
+    final storage = _store;
+    if (storage is! AtomicCommandDispatchStore || candidate.wellId == null) {
+      return _OperationalResult.held;
+    }
+    final atomic = storage as AtomicCommandDispatchStore;
+    final row = await storage.commandByLocalId(
+      candidate.accountId,
+      candidate.localId,
+    );
+    if (row == null) return _OperationalResult.held;
+    if (row.status == CommandStatus.confirmed) {
+      return _OperationalResult.confirmed;
+    }
+    final previousRaw = await storage.readBundle(
+      row.accountId,
+      dispatchAttemptCurrentKey(row.localId),
+    );
+    final previous = DispatchAttempt.parse(previousRaw);
+    // A finalized business rejection is not an unknown execution result.
+    if (row.status == CommandStatus.review &&
+        (row.serverResponse != null || previous?.state == DispatchAttemptState.review)) {
+      await _holdOperational(row, 'terminal_result_requires_review');
+      return _OperationalResult.held;
+    }
+    final definitelyNotSent =
+        row.status == CommandStatus.pending &&
+        previous != null &&
+        previous.matches(row) &&
+        previous.state == DispatchAttemptState.retryRequested &&
+        previous.reason == 'q137_preflight_not_sent';
+    final produced = row.type.produces;
+    final hasAcceptedIdentity =
+        produced != null &&
+        await storage.mapping(row.accountId, row.localId, produced) != null;
+    final uncertain =
+        hasAcceptedIdentity ||
+        !definitelyNotSent &&
+            (row.status == CommandStatus.dispatching ||
+                row.lastAttemptAt != null ||
+                row.retryCount > 0 ||
+                row.serverResponse != null ||
+                previousRaw != null);
+    if (row.type == CommandType.startBookingSession && uncertain) {
+      final transport = _transport;
+      final request = BookingStartReceiptRequest.fromCommand(row);
+      if (request == null || transport is! BookingStartReceiptTransport) {
+        return _OperationalResult.held;
+      }
+      try {
+        final response = await (transport as BookingStartReceiptTransport)
+            .readBookingStartReceipt(request);
+        if (response case BookingStartReceiptResponse(
+          state: BookingStartReceiptState.accepted, receipt: final receipt?,
+        )) {
+          if (validBookingStartReceipt(request, receipt) &&
+              await atomic.reconcileBookingStartReceipt(row, receipt)) {
+            return _OperationalResult.confirmed;
+          }
+        }
+      } on Object {
+        // A read failure never proves that execution did not happen.
+      }
+      await _holdOperational(row, 'start_reconciliation_pending');
+      return _OperationalResult.held;
+    }
+    if (row.type == CommandType.completeIrrigationSession && uncertain) {
+      final transport = _transport;
+      final root = row.aggregateLocalId;
+      final mapping = root == null
+          ? null
+          : await storage.mapping(row.accountId, root, EntityKind.session);
+      if (transport is! CompletionReceiptTransport || mapping == null) {
+        return _OperationalResult.held;
+      }
+      final originalSession = row.payload['p_session_id'];
+      final bound = originalSession is Map
+          ? originalSession.length == 2 &&
+                originalSession[r'$ref'] == root &&
+                originalSession[r'$kind'] == 'session'
+          : originalSession == mapping.serverId;
+      if (!bound) {
+        await _holdOperational(row, 'completion_session_link_unproven');
+        return _OperationalResult.held;
+      }
+      final request = CompletionReceiptRequest(
+        accountId: row.accountId,
+        wellId: row.wellId!,
+        sessionId: mapping.serverId,
+        commandId: row.commandId,
+        commandType: row.type.rpcName,
+      );
+      CompletionReceiptRead response;
+      try {
+        response = await (transport as CompletionReceiptTransport)
+            .readCompletionReceipt(request);
+      } on Object {
+        response = const CompletionReceiptFailure(
+          CompletionReceiptFailureKind.network,
+        );
+      }
+      if (response case CompletionReceiptResponse(
+        state: CompletionReceiptState.accepted,
+        receipt: final receipt?,
+      )) {
+        // حتى وسيلة النقل الوهمية تمر عبر مدقق الإقرار المشترك.
+        final checked = parseCompletionReceipt(request, {
+          'contract': 'get_completion_receipt',
+          'version': 1,
+          'well_id': request.wellId,
+          'session_id': request.sessionId,
+          'command_id': request.commandId,
+          'command_type': request.commandType,
+          'status': 'accepted',
+          'retry_authorized': false,
+          'receipt': receipt,
+        });
+        if (checked is CompletionReceiptResponse &&
+            await atomic.reconcileCompletionReceipt(
+              row,
+              mapping.serverId,
+              receipt,
+            )) {
+          return _OperationalResult.confirmed;
+        }
+      }
+      if (response is CompletionReceiptResponse &&
+              (response.state == CompletionReceiptState.notFound ||
+                  response.state == CompletionReceiptState.unresolved) ||
+          response is CompletionReceiptFailure &&
+              (response.kind == CompletionReceiptFailureKind.forbidden ||
+                  response.kind == CompletionReceiptFailureKind.malformed)) {
+        if (storage is AtomicLocalRecordStore) {
+          await (storage as AtomicLocalRecordStore).insertLocalRecordOnce(
+            accountId: row.accountId,
+            key: 'command.q137.review.v1.${row.localId}',
+            value: 'receipt_requires_review',
+          );
+        }
+      }
+      await _holdOperational(row, 'completion_reconciliation_pending');
+      return _OperationalResult.held;
+    }
+    if (uncertain || row.status != CommandStatus.pending) {
+      await _holdOperational(row, 'previous_attempt_requires_review');
+      return _OperationalResult.held;
+    }
+    final claimed = await atomic.claimDispatch(
+      accountId: row.accountId,
+      wellId: row.wellId!,
+      localId: row.localId,
+      commandId: row.commandId,
+      attemptedAt: _clock().toUtc(),
+      policy: (context) => switch (context.intent.origin) {
+        CommandIntentOrigin.provenHuman => DispatchClaimDecision.allow,
+        CommandIntentOrigin.provenAutomatic =>
+          DispatchClaimDecision.automaticSuspended,
+        CommandIntentOrigin.unresolved =>
+          DispatchClaimDecision.originUnresolved,
+      },
+    );
+    if (!claimed.isClaimed) {
+      await _holdOperational(row, claimed.decision.name);
+      return _OperationalResult.held;
+    }
+    final command = claimed.command!;
+    final payload = claimed.context?.resolvedPayload;
+    if (payload == null) return _OperationalResult.held;
+    DispatchResult result;
+    try {
+      result = await _transport.dispatch(
+        DispatchRequest(
+          accountId: command.accountId,
+          type: command.type,
+          commandId: command.commandId,
+          arguments: buildRpcArguments(
+            type: command.type,
+            commandId: command.commandId,
+            occurredAt: command.occurredAt,
+            resolvedPayload: payload,
+          ),
+        ),
+      );
+    } on Object {
+      await _holdOperational(command, 'outcome_unknown');
+      return _OperationalResult.held;
+    }
+    if (result case DispatchAccepted()) {
+      if (command.type == CommandType.startBookingSession) {
+        final request = BookingStartReceiptRequest.fromCommand(command);
+        if (request == null || !validBookingStartReceipt(request, result.response) ||
+            result.entityId != result.response['session_id']) {
+          await _holdOperational(command, 'start_receipt_invalid');
+          return _OperationalResult.held;
+        }
+      }
+      if (command.type == CommandType.completeIrrigationSession) {
+        final session = payload['p_session_id'];
+        if (session is! String) return _OperationalResult.held;
+        final request = CompletionReceiptRequest(
+          accountId: command.accountId,
+          wellId: command.wellId!,
+          sessionId: session,
+          commandId: command.commandId,
+          commandType: command.type.rpcName,
+        );
+        final checked = parseCompletionReceipt(request, {
+          'contract': 'get_completion_receipt',
+          'version': 1,
+          'well_id': request.wellId,
+          'session_id': session,
+          'command_id': command.commandId,
+          'command_type': command.type.rpcName,
+          'status': 'accepted',
+          'retry_authorized': false,
+          'receipt': result.response,
+        });
+        if (checked is! CompletionReceiptResponse ||
+            result.entityId != result.response['session_charge_id']) {
+          await _holdOperational(command, 'completion_receipt_invalid');
+          return _OperationalResult.held;
+        }
+      }
+      final applied = await atomic.finishDispatchAttempt(
+        claimed.attempt!,
+        status: CommandStatus.confirmed,
+        serverResponse: result.response,
+        entityId: result.entityId,
+      );
+      return applied ? _OperationalResult.sent : _OperationalResult.held;
+    }
+    if (result case DispatchFailed(executionNotStarted: true)) {
+      await atomic.releaseDispatchAttempt(
+        claimed.attempt!,
+        reason: 'q137_preflight_not_sent',
+      );
+      return _OperationalResult.held;
+    }
+    // خطأ النقل ليس إثبات عدم التنفيذ. لا تحرير تلقائي لمحاولة قد تكون خرجت.
+    if (result case DispatchFailed(isRetryable: false)) {
+      final applied = await atomic.finishDispatchAttempt(
+        claimed.attempt!,
+        status: CommandStatus.review,
+        serverResponse: result.serverResponse,
+        error: result.message,
+      );
+      if (applied) return _OperationalResult.rejected;
+    }
+    await _holdOperational(command, 'outcome_unknown');
+    return _OperationalResult.held;
+  }
+
+  Future<void> _holdOperational(CommandEnvelope row, String reason) async {
+    final storage = _store;
+    if (storage is AtomicLocalRecordStore) {
+      await (storage as AtomicLocalRecordStore).insertLocalRecordOnce(
+        accountId: row.accountId,
+        key: 'command.q137.hold.v1.${row.localId}',
+        value: reason,
+      );
+    }
   }
 
   Future<List<CommandEnvelope>> _legacyPending(String accountId) {
@@ -554,6 +876,9 @@ class SyncEngine {
     Map<String, Object?> resolved,
     DateTime attemptedAt,
   ) async {
+    if (q137OperationalCommand(command.type)) {
+      throw StateError('atomic_operational_dispatch_required');
+    }
     final request = DispatchRequest(
       accountId: command.accountId,
       type: command.type,
@@ -671,7 +996,7 @@ class SyncEngine {
     var recovered = 0;
 
     for (final command in await _legacyPending(accountId)) {
-      if (command.status != CommandStatus.dispatching) {
+      if (q137OperationalCommand(command.type) || command.status != CommandStatus.dispatching) {
         continue;
       }
 
@@ -848,3 +1173,5 @@ class _ProcessedAttempt {
   final DispatchResult result;
   final bool applied;
 }
+
+enum _OperationalResult { sent, confirmed, held, rejected }

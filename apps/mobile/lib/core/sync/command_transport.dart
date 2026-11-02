@@ -69,7 +69,10 @@ final class DispatchFailed extends DispatchResult {
     required this.message,
     this.code,
     this.serverResponse,
+    this.executionNotStarted = false,
   });
+
+  final bool executionNotStarted;
 
   final FailureDisposition disposition;
 

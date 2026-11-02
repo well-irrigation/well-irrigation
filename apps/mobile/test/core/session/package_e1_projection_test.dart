@@ -15,7 +15,7 @@ import 'session_test_support.dart';
 
 void main() {
   test(
-    'تفاصيل A تستقبل إقرارها بعد إغلاق B دون أحداث للسجل غير المركب',
+    'تفاصيل A تقرأ إقرارها السابق بعد إغلاق B دون أحداث للسجل غير المركب',
     () async {
       final store = InMemoryOutboxStore();
       final coordinator = OfflineSessionCoordinator(store: store);
@@ -35,30 +35,22 @@ void main() {
           sessionLocalId: start.localId,
           completedAt: startAt.add(const Duration(minutes: 2)),
         );
-        if (farmer == 'farmer-b') {
-          await acceptTestCompletion(
-            store,
-            root: start,
-            completion: completion,
-            serverId: 'server-B',
-            chargeId: 'charge-B',
-            amountMinor: 125,
-          );
-        }
+        // Acceptance releases the well before B starts; only A's local
+        // observation is delayed until after B, never its acceptance.
+        final isA = farmer == 'farmer-a';
+        await acceptTestCompletion(
+          store,
+          root: start,
+          completion: completion,
+          serverId: isA ? 'server-A' : 'server-B',
+          chargeId: isA ? 'charge-A' : 'charge-B',
+          amountMinor: isA ? 50 : 125,
+        );
         return start.localId;
       }
 
       final a = await close('farmer-a', at);
-      await close('farmer-b', at.add(const Duration(minutes: 3)));
-      await store.putMapping(
-        'a',
-        IdMapping(
-          localId: a,
-          kind: EntityKind.session,
-          serverId: 'server-A',
-          resolvedAt: at,
-        ),
-      );
+      final b = await close('farmer-b', at.add(const Duration(minutes: 3)));
       final observed = <ActiveSessionRecord>[];
       final unrelated = <ActiveSessionRecord>[];
       final sub = coordinator
@@ -81,17 +73,20 @@ void main() {
             c.aggregateLocalId == a &&
             c.type == CommandType.completeIrrigationSession,
       );
-      await acceptTestCompletion(
-        store,
-        root: (await store.commandByLocalId('a', a))!,
-        completion: completion,
-        serverId: 'server-A',
-        chargeId: 'charge-A',
-        amountMinor: 50,
-      );
+      final originalAcceptedResponse = completion.serverResponse;
       await coordinator.freshProjectActiveSession(accountId: 'a', wellId: 'w');
       await Future<void>.delayed(Duration.zero);
       expect(observed.single.approvedAmountMinor, 50);
+      expect(observed.single.localId, a);
+      expect(observed.single.completedAt, at.add(const Duration(minutes: 2)));
+      final records = await ActiveSessionProjector(store: store).projectAll(
+        'a', wellId: 'w', now: at.add(const Duration(minutes: 6)),
+      );
+      expect(records.singleWhere((r) => r.localId == b).approvedAmountMinor, 125);
+      expect(records.singleWhere((r) => r.localId == a).approvedAmountMinor, 50);
+      expect((await store.commandByLocalId('a', completion.localId))!.serverResponse,
+          originalAcceptedResponse);
+      expect(await store.allCommands('a'), hasLength(4));
       expect(unrelated, isEmpty);
       await sub.cancel();
       await other.cancel();

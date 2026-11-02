@@ -28,6 +28,8 @@ import 'active_session_projector.dart';
 import 'active_session_record.dart';
 import 'session_crop_snapshot.dart';
 import 'time_integrity.dart';
+import 'manual_stop_request_store.dart';
+import '../sync/command_intent_policy.dart';
 
 /// نتيجة قراءة فقط من الطابور وقراءة مالية خادمية محفوظة فيه.
 /// إصدار الدفعات يمنع رفع قراءة بدأت قبل الإقرار إلى حقيقة سارية بعده.
@@ -2378,6 +2380,9 @@ class OfflineSessionCoordinator {
       );
     }
 
+    if (await freshProjectActiveSession(accountId: accountId, wellId: wellId) != null) {
+      throw StateError('well_has_active_session');
+    }
     final eventTime = startedAt ?? DateTime.now();
     final effectiveFarm = farmReference != null
         ? farmReference.toPayload()
@@ -2413,7 +2418,7 @@ class OfflineSessionCoordinator {
       },
     );
 
-    final envelope = await _store.insert(prepared);
+    final envelope = await _persistExplicitHumanSessionCommand(prepared);
 
     await projectActiveSession(accountId: accountId, wellId: wellId);
     await _triggerSync(
@@ -2438,7 +2443,8 @@ class OfflineSessionCoordinator {
 
     final eventTime = pausedAt ?? DateTime.now();
     final start = await _sessionStart(accountId, sessionLocalId);
-    final envelope = await _outbox.enqueue(
+    await _assertManualSessionWritable(start);
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
@@ -2450,6 +2456,7 @@ class OfflineSessionCoordinator {
       },
     );
 
+    final envelope = await _persistExplicitHumanSessionCommand(prepared);
     await _projectExactSession(accountId, sessionLocalId);
     await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
@@ -2465,7 +2472,8 @@ class OfflineSessionCoordinator {
 
     final eventTime = resumedAt ?? DateTime.now();
     final start = await _sessionStart(accountId, sessionLocalId);
-    final envelope = await _outbox.enqueue(
+    await _assertManualSessionWritable(start);
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
@@ -2474,6 +2482,7 @@ class OfflineSessionCoordinator {
       payload: {'p_session_id': _outbox.referenceTo(start).toJson()},
     );
 
+    final envelope = await _persistExplicitHumanSessionCommand(prepared);
     await _projectExactSession(accountId, sessionLocalId);
     await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
@@ -2490,7 +2499,8 @@ class OfflineSessionCoordinator {
 
     final eventTime = changedAt ?? DateTime.now();
     final start = await _sessionStart(accountId, sessionLocalId);
-    final envelope = await _outbox.enqueue(
+    await _assertManualSessionWritable(start);
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
@@ -2502,6 +2512,7 @@ class OfflineSessionCoordinator {
       },
     );
 
+    final envelope = await _persistExplicitHumanSessionCommand(prepared);
     await _projectExactSession(accountId, sessionLocalId);
     await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
@@ -2514,21 +2525,54 @@ class OfflineSessionCoordinator {
     DateTime? completedAt,
   }) async {
     await initialize();
-
-    final eventTime = completedAt ?? DateTime.now();
     final start = await _sessionStart(accountId, sessionLocalId);
-    final envelope = await _outbox.enqueue(
-      accountId: accountId,
-      wellId: start.wellId,
-      aggregateLocalId: sessionLocalId,
-      type: CommandType.completeIrrigationSession,
-      occurredAt: eventTime,
-      payload: {'p_session_id': _outbox.referenceTo(start).toJson()},
+    await _assertManualSessionWritable(start);
+    final wellId = start.wellId;
+    if (wellId == null || wellId.isEmpty) throw StateError('manual_stop_scope_required');
+    final stops = ManualStopRequestStore(_store);
+    final request = await stops.recordHumanStopRequest(
+      accountId: accountId, wellId: wellId, sessionLocalId: sessionLocalId,
+      requestedAt: completedAt ?? DateTime.now(),
     );
-
+    // Local truth is published before creating a completion command.
     await _projectExactSession(accountId, sessionLocalId);
-    await _triggerSync(accountId, sessionLocalId: sessionLocalId);
-    return envelope;
+    try {
+      final command = await stops.materializeRecordedRequest(request);
+      await _projectExactSession(accountId, sessionLocalId);
+      return command;
+    } on Object catch (error) {
+      throw StateError('manual_stop_recorded_materialization_pending: $error');
+    } finally {
+      await _triggerSync(accountId, sessionLocalId: sessionLocalId, wellId: wellId);
+    }
+  }
+
+  Future<void> _assertManualSessionWritable(CommandEnvelope root) async {
+    final well = root.wellId;
+    if (well != null && await ManualStopRequestStore(_store).read(
+      accountId: root.accountId, wellId: well, sessionLocalId: root.localId) != null) {
+      throw StateError('manual_stop_already_requested');
+    }
+    final projection = await _projector.projectSession(root.accountId, root.localId, now: DateTime.now());
+    if (projection == null || !projection.businessState.isActive) {
+      throw StateError('session_not_active');
+    }
+  }
+
+  Future<CommandEnvelope> _persistExplicitHumanSessionCommand(CommandEnvelope command) async {
+    if (!const {CommandType.startIrrigationSession, CommandType.startAdhocSession,
+      CommandType.pauseIrrigationSession, CommandType.resumeIrrigationSession,
+      CommandType.changeSessionEnergySource}.contains(command.type)) {
+      throw ArgumentError('unsupported_human_session_command');
+    }
+    if (command.wellId == null || command.wellId!.isEmpty) {
+      return _store.insert(command);
+    }
+    final value = humanCommandIntentRecord(command);
+    final saved = await _store.insertBundle(accountId: command.accountId,
+      key: humanCommandIntentBundleKey(command.localId), value: value, commands: [command]);
+    if (saved != value) throw StateError('human_intent_identity_conflict');
+    return command;
   }
 
   static Map<String, Object?> _cacheDetail(SessionDetailData data) {
@@ -2985,7 +3029,7 @@ class OfflineSessionCoordinator {
     if (_syncEngine == null) return;
     final projectionGeneration = ++_syncProjectionGeneration;
     final opportunity = _syncEngine!
-        .run(accountId)
+        .runAfterCurrent(accountId)
         .then((report) async {
           if (report.farmResultsChanged) {
             await _commandQueuedScheduler?.call(accountId);

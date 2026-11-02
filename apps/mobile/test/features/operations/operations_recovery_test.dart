@@ -6,6 +6,9 @@
 /// - استعادة المزارع والأرض والمضخة والطاقة بشكل مستقل ومحمي بحساب وبئر وجيل وهوية الجلسة.
 library;
 
+import '../../core/session/session_test_support.dart' show acceptTestCompletion;
+
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -71,6 +74,10 @@ class _ConfigurableOperationsRepository extends OperationsRepository {
     }
     return farms;
   }
+
+  @override
+  Future<List<Farm>> searchFarms(String wellId, {required String farmerAccountId, String query = '', int limit = 50}) =>
+      fetchFarms(wellId, farmerAccountId: farmerAccountId);
 
   @override
   Future<List<Pump>> fetchPumps(String wellId) async {
@@ -536,6 +543,8 @@ void main() {
           accountId: accountId,
           sessionLocalId: s1.localId,
         );
+        final completion = (await store.allCommands(accountId)).last;
+        await acceptTestCompletion(store, root: s1, completion: completion, amountMinor: 0);
         await coordinator.startSession(
           accountId: accountId,
           wellId: 'well-1',

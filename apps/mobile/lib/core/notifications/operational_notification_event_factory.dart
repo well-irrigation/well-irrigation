@@ -107,6 +107,8 @@ final appNotificationPolicies = NotificationPolicyRegistry(
   },
 );
 const _texts = <String, (String, String)>{
+  'session.started': ('بدأت جلسة السقي', 'تم قبول بدء الجلسة.'),
+  'session.completed': ('اكتملت جلسة السقي', 'تم قبول إكمال الجلسة.'),
   'booking.reminder_upcoming': (
     'اقترب موعد الحجز',
     'راجع الحجوزات للاستعداد للموعد.',

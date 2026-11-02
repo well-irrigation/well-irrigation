@@ -11,6 +11,7 @@ import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
 import 'fake_command_transport.dart';
+import '../../support/human_command_fixture.dart';
 import 'sync_test_support.dart';
 
 void main() {
@@ -80,6 +81,9 @@ void main() {
       aggregateLocalId: start.localId,
     );
 
+    for (final c in [start, pause, resume, complete]) {
+      await recordTestHumanAction(store, c);
+    }
     return [start, pause, resume, complete];
   }
 
@@ -122,14 +126,16 @@ void main() {
         wellId: wellTwo,
       );
 
+      await recordTestHumanAction(store, startTwo);
+
       // أول محاولة بدء تفشل — وهي بدء الجلسة الأولى (الأدنى ترتيبًا).
       transport.scheduleNetworkFailure(CommandType.startIrrigationSession);
 
       final first = await engine.run(accountA);
 
-      expect(first.retryScheduled, 1);
+      expect(first.retryScheduled, 0);
       expect(first.confirmed, 1);
-      expect(first.skipped, 3);
+      expect(first.skipped, 4);
       expect(transport.calledFunctions, [
         'start_irrigation_session',
         'start_irrigation_session',
@@ -143,25 +149,17 @@ void main() {
 
       expect(startedTwo!.status, CommandStatus.confirmed);
 
-      // التشغيل التالي يُكمل الجلسة الأولى بالترتيب.
+      // Reconnection cannot turn an unknown first outcome into another write.
       advanceClock(const Duration(minutes: 4));
       final second = await engine.run(accountA);
-
-      expect(second.confirmed, 4);
-      expect(transport.calledFunctions.sublist(2), [
-        'start_irrigation_session',
-        'pause_irrigation_session',
-        'resume_irrigation_session',
-        'complete_irrigation_session',
-      ]);
-
+      expect(second.confirmed, 0);
+      expect(transport.requests, hasLength(2));
       final start = await repository.byLocalId(
         accountA,
         sessionOne.first.localId,
       );
-
-      expect(start!.retryCount, 1);
-      expect(start.status, CommandStatus.confirmed);
+      expect(start!.status, CommandStatus.dispatching);
+      expect(start.commandId, sessionOne.first.commandId);
     });
 
     test('رفض عملي يوقف الجلسة ولا يُعاد إرساله', () async {
@@ -226,6 +224,7 @@ void main() {
         occurredAt: DateTime.utc(2026, 8, 22, 4, 20),
         wellId: wellOne,
       );
+      await recordTestHumanAction(store, start);
       final payment = await repository.enqueue(
         accountId: accountA,
         type: CommandType.recordPayment,

@@ -125,6 +125,8 @@ void main() {
         'booking.reminder_upcoming',
         'booking.due',
         'session.near_end',
+        'session.started',
+        'session.completed',
       ]),
     );
   });

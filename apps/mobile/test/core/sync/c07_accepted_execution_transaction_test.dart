@@ -12,6 +12,8 @@ import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sqlite_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
+import 'c07_start_receipt_store_test.dart' show ReceiptStoreFixture, startReceipt;
+
 final _at = DateTime.utc(2027, 1, 1, 1);
 final _response = <String, Object?>{
   'session_id': 'server-session',
@@ -141,6 +143,41 @@ DispatchAttempt _changed(DispatchAttempt a, String field) => DispatchAttempt(
 
 void main() {
   setUpAll(sqfliteFfiInit);
+  for (final fault in ['none', 'event', 'cancellation']) {
+    test('direct booking start atomic effects rollback=$fault', () async {
+      final f = ReceiptStoreFixture(true);
+      await f.open();
+      try {
+        await f.seedStart();
+        final owner = DispatchAttempt.parse(await f.store.readBundle('a', dispatchAttemptCurrentKey('start')))!;
+        final reminder = bookingReminderEvents(accountId: 'a', wellId: 'w', bookingId: 'booking',
+          scheduledStart: owner.startedAt, createdAt: owner.startedAt).first;
+        await f.sql.notificationEvents.saveSchedule(reminder.event, reminder.due, owner.startedAt.subtract(const Duration(hours: 1)));
+        if (fault != 'none') {
+          await f.sql.notificationEvents.db.execute(fault == 'event'
+            ? "create trigger start_fault before insert on notification_events when new.event_type='session.started' begin select raise(abort,'injected'); end"
+            : "create trigger start_fault before update of schedule_state on notification_events when new.schedule_state='cancel_pending' begin select raise(abort,'injected'); end");
+          final before = await f.snapshot();
+          await expectLater(f.atomic.finishDispatchAttempt(owner, status: CommandStatus.confirmed,
+            serverResponse: startReceipt(), entityId: 'session'), throwsA(anything));
+          expect(await f.snapshot(), before);
+          await f.sql.notificationEvents.db.execute('drop trigger start_fault');
+        }
+        expect(await f.atomic.finishDispatchAttempt(owner, status: CommandStatus.confirmed,
+          serverResponse: startReceipt(), entityId: 'session'), isTrue);
+        final events = await f.sql.notificationEvents.db.query('notification_events', where: "event_type='session.started'");
+        expect(events, hasLength(1));
+        expect((await f.sql.notificationEvents.db.query('notification_events', where: 'due_at is not null')).single['schedule_state'], 'cancel_pending');
+        expect((await f.store.mapping('a', 'start', EntityKind.session))!.serverId, 'session');
+        expect(events.single['event_key'], 'session.started/original-start');
+        final before = await f.snapshot();
+        expect(await f.atomic.finishDispatchAttempt(owner, status: CommandStatus.confirmed,
+          serverResponse: startReceipt(), entityId: 'session'), isFalse);
+        expect(await f.snapshot(), before);
+      } finally { await f.close(); }
+    });
+  }
+
   for (final sqlite in [false, true]) {
     group(sqlite ? 'SQLite ownership' : 'memory ownership', () {
       late OutboxStore store;

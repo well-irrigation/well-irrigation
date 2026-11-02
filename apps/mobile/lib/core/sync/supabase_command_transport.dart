@@ -103,6 +103,7 @@ class SupabaseCommandTransport implements CommandTransport, CompletionReceiptTra
     final session = _client.auth.currentSession;
     if (session == null || session.isExpired) {
       return const DispatchFailed(
+        executionNotStarted: true,
         disposition: FailureDisposition.retry,
         message: 'لا توجد جلسة دخول؛ يُعاد الإرسال بعد الدخول',
       );
@@ -110,6 +111,7 @@ class SupabaseCommandTransport implements CommandTransport, CompletionReceiptTra
 
     if (request.accountId.isEmpty || session.user.id != request.accountId) {
       return const DispatchFailed(
+        executionNotStarted: true,
         disposition: FailureDisposition.retry,
         message: 'هوية جلسة الدخول لا تطابق مالك الأمر المحلي',
       );

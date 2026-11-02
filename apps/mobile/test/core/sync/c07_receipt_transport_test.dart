@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:well_irrigation_mobile/core/sync/booking_start_receipt.dart';
+import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/command_transport.dart';
 import 'package:well_irrigation_mobile/core/sync/supabase_command_transport.dart';
 
@@ -91,12 +92,29 @@ void main() {
         (r) => const [
           '/rest/v1/rpc/get_booking_start_receipt',
           '/rest/v1/rpc/get_completion_receipt',
+          '/rest/v1/rpc/start_irrigation_session',
         ].contains(r.url.path),
       ),
       isTrue,
     );
     await client.dispose();
   });
+  for (final scope in ['absent', 'wrong', 'after_rpc']) {
+    test('executionNotStarted proof $scope', () async {
+      if (scope == 'absent') {
+        await client.auth.signOut(scope: SignOutScope.local);
+        requests.clear(); // Exclude the mocked auth logout used only for fixture setup.
+      }
+      if (scope == 'wrong') await authenticate('other');
+      fail = true;
+      final result = await transport.dispatch(const DispatchRequest(
+        accountId: 'a', type: CommandType.startIrrigationSession,
+        commandId: 'manual', arguments: {'p_well_id': 'w'},
+      )) as DispatchFailed;
+      expect(result.executionNotStarted, scope != 'after_rpc');
+      expect(requests, hasLength(scope == 'after_rpc' ? 1 : 0));
+    });
+  }
   for (final state in ['accepted', 'processing', 'not_found', 'unresolved']) {
     test('start $state uses only exact original receipt RPC', () async {
       reply = startRead(state);

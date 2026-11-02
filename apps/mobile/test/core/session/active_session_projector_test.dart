@@ -28,6 +28,7 @@ import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
 import '../sync/fake_command_transport.dart';
 import '../sync/sync_test_support.dart';
+import '../../support/human_command_fixture.dart';
 import 'session_test_support.dart';
 
 void main() {
@@ -391,6 +392,7 @@ void main() {
       final repository = repositoryFor(store);
 
       final session = await startSession(repository, at: t0);
+      await recordTestHumanAction(store, session);
       final transport = FakeCommandTransport()
         ..scheduleNetworkFailure(CommandType.startIrrigationSession);
 
@@ -408,8 +410,14 @@ void main() {
         SessionBusinessState.running,
         reason: 'انقطاع الشبكة لا يوقف السقي في الأرض',
       );
-      expect(record.syncState, SessionSyncState.pending);
-      expect(record.syncState.text, SyncStatusText.pending);
+      // Unknown owned execution remains under verification, never reset for retry.
+      expect(record.syncState, SessionSyncState.syncing);
+      expect(record.syncState.text, SyncStatusText.dispatching);
+      final held = (await store.commandByLocalId(sessionAccount, session.localId))!;
+      expect(held.status, CommandStatus.dispatching);
+      expect(held.retryCount, 0);
+      expect(held.commandId, session.commandId);
+      expect(held.occurredAt, session.occurredAt);
       expect(record.pendingCommandCount, 1);
     });
 
@@ -418,6 +426,7 @@ void main() {
       final repository = repositoryFor(store);
 
       final session = await startSession(repository, at: t0);
+      await recordTestHumanAction(store, session);
       final transport = FakeCommandTransport()
         ..scheduleBusinessRejection(CommandType.startIrrigationSession);
 
@@ -440,6 +449,7 @@ void main() {
       final repository = repositoryFor(store);
 
       final session = await startSession(repository, at: t0);
+      await recordTestHumanAction(store, session);
       final transport = FakeCommandTransport();
 
       await SyncEngine(

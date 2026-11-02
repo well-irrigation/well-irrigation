@@ -75,6 +75,7 @@ class _OfflineSessionRecoveryScreenState
         !auth.isExpired &&
         session.accountId == widget.accountId &&
         session.businessState.isActive &&
+        !session.hasPendingManualStop &&
         session.syncState != SessionSyncState.conflict;
   }
 
@@ -85,6 +86,9 @@ class _OfflineSessionRecoveryScreenState
     required Future<void> Function() write,
   }) async {
     if (!_mayWrite(session)) return;
+    final account = widget.accountId;
+    bool sameScope() => mounted && widget.accountId == account && _accountMatches &&
+        _selectedLocalId == session.localId;
     setState(() => _busy = true);
     try {
       final accepted = await showDialog<bool>(
@@ -106,7 +110,7 @@ class _OfflineSessionRecoveryScreenState
           ],
         ),
       );
-      if (accepted != true || !mounted) return;
+      if (accepted != true || !sameScope()) return;
 
       // قد يتبدّل الحساب أو تنتهي الجلسة أثناء انتظار قرار المستخدم.
       if (!_accountMatches || widget.localAuthAccount()?.isExpired != false) {
@@ -117,6 +121,10 @@ class _OfflineSessionRecoveryScreenState
         session.localId,
       );
       if (current == null ||
+          !sameScope() ||
+          current.hasPendingManualStop ||
+          current.wellId != session.wellId ||
+          current.accountId != session.accountId ||
           current.businessState != session.businessState ||
           current.syncState == SessionSyncState.conflict ||
           !_accountMatches ||
@@ -125,10 +133,11 @@ class _OfflineSessionRecoveryScreenState
       }
 
       await write();
+      if (!sameScope()) return;
       final latest = await widget.coordinator.unresolvedSessions(
         widget.accountId,
       );
-      if (!mounted || !_accountMatches) return;
+      if (!sameScope()) return;
       setState(() {
         if (_sessions.length == 1 && latest.length > 1) {
           _selectedLocalId = null;
@@ -232,7 +241,7 @@ class _OfflineSessionRecoveryScreenState
                         title: 'تأكيد الإيقاف المؤقت',
                         confirmation: 'تأكيد الإيقاف',
                         write: () async => widget.coordinator.pauseSession(
-                          accountId: widget.accountId,
+                          accountId: selected.accountId,
                           sessionLocalId: selected.localId,
                           reason: 'operator_pause',
                         ),
@@ -246,19 +255,19 @@ class _OfflineSessionRecoveryScreenState
                         title: 'تأكيد الاستئناف',
                         confirmation: 'تأكيد الاستئناف',
                         write: () async => widget.coordinator.resumeSession(
-                          accountId: widget.accountId,
+                          accountId: selected.accountId,
                           sessionLocalId: selected.localId,
                         ),
                       ),
                       child: const Text('استئناف'),
                     ),
-                  FilledButton(
+                  if (!selected.hasPendingManualStop) FilledButton(
                     onPressed: () => _act(
                       selected,
                       title: 'تأكيد إنهاء الجلسة',
                       confirmation: 'تأكيد الإنهاء',
                       write: () async => widget.coordinator.completeSession(
-                        accountId: widget.accountId,
+                        accountId: selected.accountId,
                         sessionLocalId: selected.localId,
                       ),
                     ),
