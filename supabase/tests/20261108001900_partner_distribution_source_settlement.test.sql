@@ -51,7 +51,7 @@ do $test$
 declare t uuid;w uuid;o uuid:=gen_random_uuid();m uuid:=gen_random_uuid();op uuid:=gen_random_uuid();acc uuid:=gen_random_uuid();
  person uuid;partner uuid;expense uuid;category text;cycle uuid;cycle2 uuid;sid uuid;sel uuid;r jsonb;z jsonb;before_j bigint;before_p bigint;
  start_at timestamptz:=date_trunc('day',now())-interval '1 day';end_at timestamptz:=date_trunc('day',now())+interval '1 day';
- f jsonb;policy uuid;invoice uuid;inv_before jsonb;prior_used bigint;old_count bigint;body text;role_id uuid;older_invoice uuid;guarded_selection uuid;before_consumptions bigint;repayment_well uuid;repayment_partner uuid;repayment_source uuid;repayment_command uuid;receipt jsonb;legacy_source uuid;legacy_cycle uuid;legacy_review uuid;legacy_invoice_before jsonb;legacy_cycle_before jsonb;legacy_partner uuid;
+ f jsonb;policy uuid;invoice uuid;inv_before jsonb;prior_used bigint;old_count bigint;body text;role_id uuid;older_invoice uuid;guarded_selection uuid;before_consumptions bigint;repayment_well uuid;repayment_partner uuid;repayment_source uuid;repayment_command uuid;receipt jsonb;legacy_source uuid;legacy_cycle uuid;legacy_review uuid;legacy_invoice_before jsonb;legacy_cycle_before jsonb;legacy_partner uuid;legacy_cycle2 uuid;invalid_expense uuid;invalid_source uuid;legacy_line uuid;newer_invoice uuid;newer_source uuid;next_invoice_cycle uuid;
 begin
  insert into core.tenants(name) values('partner source settlement') returning id into t;
  insert into core.wells(tenant_id,name) values(t,'partner source well') returning id into w;
@@ -94,6 +94,11 @@ begin
  r:=api.recalculate_profit_distribution(cycle,true,z->>'state_token',0,true);cycle2:=(r->>'cycle_id')::uuid;
  perform pg_temp.ps_check((select mode='automatic' and amount_minor=100000 from finance.current_distribution_source_selections where cycle_id=cycle2 and source_id=sid)
   and exists(select 1 from finance.distribution_source_selections where id=sel),'recalculation keeps historical selection and never carries manual mode');
+ z:=api.get_partner_distribution_sources(cycle2);
+ perform pg_temp.ps_check(exists(select 1 from jsonb_array_elements(z->'eligible_sources') x
+  where x->>'source_id'=sid::text and x->>'usage_mode'='automatic' and(x->>'selectable')::boolean)
+  and not exists(select 1 from jsonb_array_elements(z->'historical_sources') x where x->>'source_id'=sid::text),
+  'new cycle read model separates eligible automatic candidates from history');
  r:=api.select_partner_distribution_source(cycle2,sid,30000,'consume thirty thousand');
  perform pg_temp.ps_check(before_j=(select count(*) from finance.journal_entries) and before_p=(select count(*) from billing.payments)
   and not exists(select 1 from finance.distribution_source_consumptions where source_id=sid),'all draft editing is nonposting/nonconsuming');
@@ -180,6 +185,22 @@ begin
  perform pg_temp.ps_check((select outstanding_minor=3000 and collectible_minor=3000 from billing.invoice_effective_balances where invoice_id=invoice)
   and inv_before=(select to_jsonb(i) from billing.invoices i where id=invoice),'non-cash source settlement enters canonical effective invoice debt without invoice mutation');
  perform pg_temp.ps_check(before_p=(select count(*) from billing.payments),'no fake payment');
+ -- The same invoice remainder is reconsidered in a later cycle; a newer
+ -- source cannot bypass that remainder even after a prior cycle consumed part.
+ insert into billing.invoices(tenant_id,well_id,public_code,farmer_well_account_id,invoice_date,status,
+  subtotal_minor,total_minor,paid_minor,outstanding_minor,partner_policy_id)
+ values((f->>'tenant')::uuid,(f->>'well')::uuid,core.generate_public_code('INV'),(f->>'account')::uuid,
+  now()+interval '1 day','draft',1000,1000,0,1000,policy) returning id into newer_invoice;
+ update billing.invoices set status='issued' where id=newer_invoice;
+ next_invoice_cycle:=finance.calculate_profit_distribution((f->>'well')::uuid,now()+interval '2 days',now()+interval '3 days',(f->>'actor')::uuid,0);
+ select id into strict newer_source from finance.distribution_sources where invoice_id=newer_invoice;
+ perform pg_temp.ps_check((finance.distribution_source_availability(sid)->>'remaining_amount_minor')::bigint=3000
+  and exists(select 1 from finance.current_distribution_source_selections where cycle_id=next_invoice_cycle and source_id=sid and mode='automatic'),
+  'later cycle reconsiders exact invoice remainder without restoring consumed value');
+ begin perform api.select_partner_distribution_source(next_invoice_cycle,newer_source,100,'newer cannot bypass previous-cycle remainder');
+  raise exception 'EXPECTED_CROSS_CYCLE_OLDEST_BLOCK';
+ exception when check_violation then
+  perform pg_temp.ps_check(SQLERRM='distribution_older_debt_requires_settlement','oldest invoice remainder blocks newer source across cycles');end;
  -- Departed partner's unused payable remains payable OUTSIDE distribution.
  -- No invented zero-share distribution line and no transfer to another person.
  insert into core.wells(tenant_id,name) values(t,'departed partner repayment') returning id into repayment_well;
@@ -215,7 +236,39 @@ begin
  expense:=finance.record_expense(w,category,50000,'ambiguous legacy payable',o,null,true,'partner_paid',null,legacy_partner,'اختبار بلا سند');
  r:=api.prepare_partner_payable_source(expense);legacy_source:=(r->>'source_id')::uuid;
  perform pg_temp.ps_check(r->>'status'='review_required' and r->>'remaining_amount_minor' is null,'ambiguous expense source does not invent historical consumption');
+ legacy_cycle2:=finance.calculate_profit_distribution(w,end_at+interval '3 days',end_at+interval '4 days',o,0);
  select count(*) into before_j from finance.journal_entries;select count(*) into before_p from billing.payments;
+ z:=api.get_partner_distribution_sources(legacy_cycle2);
+ perform pg_temp.ps_check(exists(select 1 from jsonb_array_elements(z->'historical_sources') x
+  where x->>'source_id'=legacy_source::text and x->>'availability_status'='review_required'
+   and x->>'usage_mode'='historical_only' and(x->>'read_only')::boolean and not(x->>'included_in_totals')::boolean
+   and not(x->>'selectable')::boolean and x->'source'->>'remaining_amount_minor' is null)
+  and not exists(select 1 from jsonb_array_elements(z->'eligible_sources') x where x->>'source_id'=legacy_source::text),
+  'review-required prior source is visible read-only and excluded from current candidates');
+ perform pg_temp.ps_check((select partner_receivables_minor=0 from finance.profit_distribution_lines
+  where distribution_cycle_id=legacy_cycle2 and partner_id=legacy_partner),'quarantined source contributes zero to actual line totals');
+ begin perform api.select_partner_distribution_source(legacy_cycle2,legacy_source,1,'quarantined source cannot be selected');
+  raise exception 'EXPECTED_QUARANTINED_SOURCE_DENIED';
+ exception when check_violation then
+  perform pg_temp.ps_check(SQLERRM='distribution_source_amount_unavailable','quarantined source selection denied by mutation boundary');end;
+ invalid_expense:=finance.record_expense(w,category,25000,'source no longer matches original evidence',o,null,true,'partner_paid',null,legacy_partner,'اختبار بلا سند');
+ select id into strict legacy_line from finance.profit_distribution_lines where distribution_cycle_id=legacy_cycle2 and partner_id=legacy_partner;
+ insert into finance.distribution_sources(tenant_id,well_id,partner_id,expense_id,original_amount_minor,legacy_review_required)
+ values(t,w,legacy_partner,invalid_expense,24999,false) returning id into invalid_source;
+ insert into finance.distribution_source_selections(source_id,cycle_id,line_id,sequence,mode,amount_minor,actor_id)
+ values(invalid_source,legacy_cycle2,legacy_line,1,'automatic',0,o);
+ select count(*) into before_j from finance.journal_entries;select count(*) into before_p from billing.payments;
+ z:=api.get_partner_distribution_sources(legacy_cycle2);
+ perform pg_temp.ps_check(exists(select 1 from jsonb_array_elements(z->'historical_sources') x
+  where x->>'source_id'=invalid_source::text and x->>'availability_status'='unavailable'
+   and x->>'usage_mode'='historical_only' and(x->>'read_only')::boolean and not(x->>'included_in_totals')::boolean
+   and not(x->>'selectable')::boolean)
+  and not exists(select 1 from jsonb_array_elements(z->'eligible_sources') x where x->>'source_id'=invalid_source::text),
+  'ineligible historical source is visible read-only and excluded from current candidates');
+ perform pg_temp.ps_check(not exists(select 1 from finance.distribution_source_consumptions where source_id=legacy_source)
+  and not exists(select 1 from finance.distribution_source_consumptions where source_id=invalid_source)
+  and before_j=(select count(*) from finance.journal_entries) and before_p=(select count(*) from billing.payments),
+  'historical read projection creates no source use, journal, or payment');
  perform set_config('request.jwt.claim.sub',m::text,true);
  begin perform api.review_legacy_partner_expense_source(legacy_source,10000,'not owner');raise exception 'EXPECTED_REVIEW_OWNER_ONLY';exception when insufficient_privilege then null;end;
  perform set_config('request.jwt.claim.sub',o::text,true);
