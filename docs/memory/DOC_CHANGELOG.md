@@ -3565,3 +3565,50 @@ R6-C ونقطة الاستئناف إلى تحقق المالك من الأسا�
 في RESUME_POINT، والعقد/الثوابت في DECISIONS وINVARIANTS.
 الحالة Implemented / Static reviewed / Owner DB Verification Pending.
 لا DB/Docker/شبكة/Supabase/نشر أو Git mutation نفذه الوكيل.
+
+
+## 2026-11-02 — R6-C FINAL: تدقيق الدفع المباشر بلا فاتورة
+
+تغيير توثيقي فقط عند `2478c4eb0698e243c09883051352684724c54f5c`،
+مع شجرة نظيفة في البداية. تحقق R6-A/R6-B/R6-C0/R6-C0.1 وفق المالك.
+أعيد تدقيق الكتّاب الحالية والأقفال/العزل والأصول والإقرارات والوقود
+والتوزيع. كشف المانع BLOCKED_R6C_UNINVOICED_SESSION_PAYMENT_CREDIT_GAP:
+الدفع المباشر على charge بلا invoice/allocation لا يملك مصدر تحرير إلى
+credit عبر C0/C0.1. ليس إعادة فتح لمانع التطبيقات السابق المتحقق.
+
+أضيفت الأدلة والمثال الساكن والمتطلب الضيق إلى R6C_FINANCIAL_DEPENDENCY_AUDIT،
+والفجوة إلى OPEN_ISSUES، ونقطة العمل إلى RESUME_POINT. لا قرار منتج
+جديد أو هجرة أو اختبار أو API أو مسار تصحيح جزئي. لا تغيير للهجرات
+المتحققة أو الهاتف/SQLite أو بيانات/إقرارات تاريخية. لا DB/Docker/شبكة/
+Supabase/نشر أو Git mutation من الوكيل، ولا أعداد PASS تشغيلية مدعاة.
+
+
+## 2026-11-03 — R6-C0.2: فجوة هوية التسديد عند الرابط المزدوج
+
+الحالة BLOCKED / STATIC_ONLY عند HEAD
+`2478c4eb0698e243c09883051352684724c54f5c`. ملفات البداية الأربعة
+المتوقعة محفوظة. أثبت تتبع record_payment وallocate_payment وقراءات
+106 أن الدفع قد يرتبط برسوم A ويخصص لفاتورة B بالحساب والبئر نفسيهما،
+دون شرط تطابق الجلسة. القراءتان تعدان نفس الوحدة تسديدًا في موضعين.
+
+وُثق BLOCKED_R6C02_DIRECT_SETTLEMENT_IDENTITY_GAP وأصغر قرار سلطة
+مطلوب في R6C_FINANCIAL_DEPENDENCY_AUDIT وOPEN_ISSUES، وحُدث
+RESUME_POINT بنقطة التوقف. لا قرار مالي جديد اختاره الوكيل، ولا
+migration/test/primitive أو تعديل مستهلك مالي مسلّم. لا تغيير C0/C0.1
+أو أي هجرة مختومة أو هاتف/SQLite. لا DB/Docker/Supabase/شبكة/نشر أو
+Git mutation، ولا ادعاء بوجود بيانات متعارضة فعليًا أو نتيجة DB.
+
+
+## 2026-11-03 — C0.2: تقسيم التطبيق الاقتصادي بعد قرار المالك
+
+عند HEAD `2478c4eb0698e243c09883051352684724c54f5c` مع حفظ ملفات
+البداية الأربعة، كُتبت هجرتا متابعة واختبار دائم واختبار اتصالين. لا
+تعديل للهجرات المتحققة. يطبق القرار ALLOCATION_IS_TRANSFER ويمنع جمع
+الرابط المباشر والتخصيص كقيمتين، ويربط التحرير/الاستعادة بدفتر C0
+وتطبيقات C0.1 والقراءات والاقتراح والتوزيع دون تحصيل جديد.
+
+أضيف R6C02_PAYMENT_ECONOMIC_PARTITION وخريطة المستهلكين، ومتابعة إلى
+R6C_FINANCIAL_DEPENDENCY_AUDIT وOPEN_ISSUES، ونقطة العمل في RESUME_POINT،
+والقرار والثوابت في DECISIONS/INVARIANTS. الحالة Implemented / Static
+reviewed / Owner DB Verification Pending. لا DB/Docker/Supabase/شبكة/
+نشر/Git mutation أو هاتف/SQLite أو تصحيح جلسة بهذه الجولة.

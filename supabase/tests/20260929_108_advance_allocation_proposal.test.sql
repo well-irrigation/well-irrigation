@@ -237,7 +237,9 @@ begin
   end if;
 
   if (v_proposal ->> 'advance_remaining_minor')::bigint = 40000
-     and (v_proposal ->> 'invoice_outstanding_minor')::bigint = 100000
+     -- تخصيص التجهيز 20000 يسدد الفاتورة أيضًا: المتبقي الفعال 100000 − 20000.
+     -- لا نقرأ عداد outstanding_minor القديم الذي لم يحدّثه INSERT المباشر.
+     and (v_proposal ->> 'invoice_outstanding_minor')::bigint = 80000
      and (v_proposal ->> 'proposed_minor')::bigint = 40000
      and (v_proposal ->> 'can_apply')::boolean is true
   then
