@@ -319,10 +319,17 @@ begin
     coalesce(qual, '') || ' ' || coalesce(with_check, '')
   ) like '%iam.has_well_role%';
 
-  if v_count = 273 then
-    raise notice 'PASS 9: Legacy RLS compatibility layer بقيت 273 policy';
+  -- Follow-up RPC-only boundaries intentionally remove unsafe write policies.
+  -- Preserve compatibility through actual read predicates, not a frozen count
+  -- that also counts obsolete INSERT/UPDATE policies.
+  if v_count>0 and not exists(
+    select 1 from (values('core','wells'),('ops','farmer_well_accounts'),('finance','accounting_periods')) required(schema_name,table_name)
+    where not exists(select 1 from pg_policies p where p.schemaname=required.schema_name
+      and p.tablename=required.table_name and p.cmd='SELECT' and p.qual like '%iam.has_well_role%')
+  ) then
+    raise notice 'PASS 9: بقيت سياسات القراءة المتوافقة مع has_well_role رغم سحب سياسات الكتابة غير الآمنة';
   else
-    raise notice 'FAIL 9: has_well_role policy count=% بدل 273', v_count;
+    raise notice 'FAIL 9: سياسة قراءة توافقية مطلوبة مفقودة';
   end if;
 
 

@@ -467,7 +467,7 @@ begin
     perform ops.create_farmer(v_well, 'مزارع بلا صلاحية', '700000069');
     raise notice 'FAIL 19: سُمح لمستخدم بلا صلاحية بإنشاء مزارع';
   exception when others then
-    if position('لا تملك صلاحية' in sqlerrm) > 0 then
+    if SQLSTATE='42501' and SQLERRM='financial_write_forbidden' then
       raise notice 'PASS 19: رُفض المستخدم الموثق الذي لا يملك صلاحية على البئر';
     else
       raise notice 'FAIL 19: سبب رفض المستخدم بلا صلاحية غير متوقع: %', sqlerrm;

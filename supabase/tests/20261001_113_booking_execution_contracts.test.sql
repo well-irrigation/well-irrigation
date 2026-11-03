@@ -1541,7 +1541,7 @@ begin
     );
     raise notice 'FAIL B7: command_id خلط create_booking مع reschedule_booking';
   exception when others then
-    if position('محتوى مختلف' in sqlerrm) > 0 then
+    if SQLSTATE='22023' and SQLERRM='command_identity_conflict' then
       raise notice 'PASS B7: خلط نوعي الأمر رُفض';
     else
       raise notice 'FAIL B7: سبب رفض خلط نوع الأمر غير متوقع: %', sqlerrm;
@@ -1847,6 +1847,7 @@ declare
   v_person uuid;
   v_profile uuid;
   v_account uuid;
+  v_no_pump_account uuid;
   v_farm uuid;
   v_other_person uuid;
   v_other_profile uuid;
@@ -1929,6 +1930,8 @@ begin
   ) values (
     v_tenant, v_profile, v_well, 'FWA-113-C'
   ) returning id into v_account;
+  insert into ops.farmer_well_accounts(tenant_id,farmer_profile_id,well_id,public_code)
+  values(v_tenant,v_profile,v_well_without_pump,'FWA-113-C-NO-PUMP') returning id into v_no_pump_account;
   insert into ops.farms (well_id, name, farmer_well_account_id)
   values (v_well, 'أرض بدء الحجز 113-C', v_account)
   returning id into v_farm;
@@ -2008,7 +2011,7 @@ begin
     expected_energy_source, status
   ) values
     (v_tenant, 'BKG-113-C-NO-PUMP', v_well_without_pump,
-     v_account, null,
+     v_no_pump_account, null,
      timestamptz '2026-12-05 03:00:00+00',
      timestamptz '2026-12-05 04:00:00+00', 60, 'well_diesel', 'confirmed')
   returning id into v_no_pump_booking;

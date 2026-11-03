@@ -152,10 +152,11 @@ begin
   );
 
   insert into finance.expenses (
-    tenant_id, well_id, amount_minor, description, spent_at,
+    tenant_id, well_id, category_id, amount_minor, description, spent_at,
     payment_source, attachment_skipped, attachment_skip_reason, status
   ) values (
-    v_tenant, v_well, 1000, 'مصروف يومي للاختبار',
+    v_tenant, v_well, (select id from finance.expense_categories where tenant_id=v_tenant and well_id is null and is_active order by id limit 1),
+    1000, 'مصروف يومي للاختبار',
     timestamptz '2026-08-14 12:00:00+00', 'other', true,
     'تجهيز اختبار الملخص اليومي', 'posted'
   );

@@ -108,58 +108,24 @@ begin
   set status = 'issued', issued_at = now(), issued_by = v_profile
   where id = v_invoice_3;
 
-  -- دورة معتمدة لاختبار الدفع الجزئي ثم الكامل.
-  insert into finance.profit_distribution_cycles (
-    tenant_id, well_id, period_start, period_end, status,
-    distributable_amount_minor, calculated_at, calculated_by
-  ) values (
-    v_tenant, v_well,
-    timestamptz '2026-05-01 00:00:00+00',
-    timestamptz '2026-06-01 00:00:00+00',
-    'calculated', 1000, now(), v_profile
-  ) returning id into v_cycle_paid;
-  insert into finance.profit_distribution_lines (
-    tenant_id, distribution_cycle_id, partner_id,
-    profit_percentage_snapshot, gross_share_minor, net_payable_minor
-  ) values (
-    v_tenant, v_cycle_paid, v_partner, 100, 1000, 1000
-  ) returning id into v_line_paid;
-  perform finance.approve_profit_distribution(v_cycle_paid, v_profile);
-
-  -- دورة معتمدة مستقلة لاختبار تجاوز المستحق.
-  insert into finance.profit_distribution_cycles (
-    tenant_id, well_id, period_start, period_end, status,
-    distributable_amount_minor, calculated_at, calculated_by
-  ) values (
-    v_tenant, v_well,
-    timestamptz '2026-06-01 00:00:00+00',
-    timestamptz '2026-07-01 00:00:00+00',
-    'calculated', 500, now(), v_profile
-  ) returning id into v_cycle_over;
-  insert into finance.profit_distribution_lines (
-    tenant_id, distribution_cycle_id, partner_id,
-    profit_percentage_snapshot, gross_share_minor, net_payable_minor
-  ) values (
-    v_tenant, v_cycle_over, v_partner, 100, 500, 500
-  ) returning id into v_line_over;
-  perform finance.approve_profit_distribution(v_cycle_over, v_profile);
-
-  -- دورة غير معتمدة لاختبار الرفض.
-  insert into finance.profit_distribution_cycles (
-    tenant_id, well_id, period_start, period_end, status,
-    distributable_amount_minor, calculated_at, calculated_by
-  ) values (
-    v_tenant, v_well,
-    timestamptz '2026-07-01 00:00:00+00',
-    timestamptz '2026-08-01 00:00:00+00',
-    'calculated', 400, now(), v_profile
-  ) returning id into v_cycle_draft;
-  insert into finance.profit_distribution_lines (
-    tenant_id, distribution_cycle_id, partner_id,
-    profit_percentage_snapshot, gross_share_minor, net_payable_minor
-  ) values (
-    v_tenant, v_cycle_draft, v_partner, 100, 400, 400
-  ) returning id into v_line_draft;
+  -- R6-C2B: payable test fixtures must come from the real calculation
+  -- boundary, not hand-written cycle/line amounts without a calculation basis.
+  perform set_config('request.jwt.claim.sub',v_user::text,true);
+  insert into core.ownership_share_versions(tenant_id,well_id,partner_id,ownership_percentage,profit_percentage,effective_period)
+  values(v_tenant,v_well,v_partner,100,100,daterange(date '1970-01-01',null,'[)'));
+  perform api.update_distribution_settings(v_well,false);
+  insert into billing.payments(farmer_well_account_id,amount_minor,method,purpose,paid_at)
+  values(v_farmer_account,1000,'cash','old_debt',timestamptz '2026-05-15 10:00:00+00'),
+        (v_farmer_account,500,'cash','old_debt',timestamptz '2026-06-15 10:00:00+00'),
+        (v_farmer_account,400,'cash','old_debt',timestamptz '2026-07-15 10:00:00+00');
+  v_cycle_paid:=finance.calculate_profit_distribution(v_well,timestamptz '2026-05-01 00:00:00+00',timestamptz '2026-06-01 00:00:00+00',v_profile,0);
+  select id into strict v_line_paid from finance.profit_distribution_lines where distribution_cycle_id=v_cycle_paid;
+  perform finance.approve_profit_distribution(v_cycle_paid,v_profile);
+  v_cycle_over:=finance.calculate_profit_distribution(v_well,timestamptz '2026-06-01 00:00:00+00',timestamptz '2026-07-01 00:00:00+00',v_profile,0);
+  select id into strict v_line_over from finance.profit_distribution_lines where distribution_cycle_id=v_cycle_over;
+  perform finance.approve_profit_distribution(v_cycle_over,v_profile);
+  v_cycle_draft:=finance.calculate_profit_distribution(v_well,timestamptz '2026-07-01 00:00:00+00',timestamptz '2026-08-01 00:00:00+00',v_profile,0);
+  select id into strict v_line_draft from finance.profit_distribution_lines where distribution_cycle_id=v_cycle_draft;
 
   perform set_config('request.jwt.claim.sub', v_user::text, true);
   execute 'set local role authenticated';

@@ -310,10 +310,15 @@ begin
     coalesce(qual, '') || ' ' || coalesce(with_check, '')
   ) like '%iam.has_well_role%';
 
-  if v_count = 273 then
-    raise notice 'PASS 10: 273 RLS policy على has_well_role بلا تغيير';
+  -- R6-C2B removes unsafe write policies while retaining compatibility reads.
+  if v_count>0 and not exists(
+    select 1 from (values('core','wells'),('ops','farmer_well_accounts'),('finance','accounting_periods')) required(schema_name,table_name)
+    where not exists(select 1 from pg_policies p where p.schemaname=required.schema_name
+      and p.tablename=required.table_name and p.cmd='SELECT' and p.qual like '%iam.has_well_role%')
+  ) then
+    raise notice 'PASS 10: سياسات القراءة التوافقية محفوظة بعد سحب الكتابة غير الآمنة';
   else
-    raise notice 'FAIL 10: has_well_role policy count = % بدل 273', v_count;
+    raise notice 'FAIL 10: سياسة قراءة توافقية مطلوبة مفقودة';
   end if;
 
 

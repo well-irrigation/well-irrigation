@@ -270,7 +270,9 @@ begin
  cycle:=finance.calculate_profit_distribution((h->>'well')::uuid,(h->>'at')::timestamptz-interval '1 hour',
   (h->>'at')::timestamptz+interval '1 hour',(h->>'operator')::uuid,0);
  perform finance.approve_profit_distribution(cycle,(h->>'operator')::uuid);
- perform pg_temp.c0_check((select deducted_in_cycle_id=cycle from billing.invoices where id=(h->>'invoice')::uuid),
+ perform pg_temp.c0_check((select sum(amount_minor)=2000 from finance.distribution_source_consumptions
+  where invoice_id=(h->>'invoice')::uuid and cycle_id=cycle)
+  and (select collectible_minor=0 from billing.invoice_effective_balances where invoice_id=(h->>'invoice')::uuid),
   'fixture uses real approved partner deduction');
  cycle_snapshot:=(select jsonb_build_object('cycle',to_jsonb(c),'lines',
   (select jsonb_agg(to_jsonb(l) order by l.id) from finance.profit_distribution_lines l where distribution_cycle_id=cycle))

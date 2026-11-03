@@ -218,8 +218,12 @@ begin
  execute 'set local role authenticated';b:=api.get_reports_summary((g->>'well')::uuid,'custom',
   (g->>'at')::timestamptz-interval '1 day',(g->>'at')::timestamptz+interval '2 days');execute 'reset role';
  perform pg_temp.pp_check((select sum((value->>'collected_minor')::bigint) from jsonb_array_elements(b->'financial_trends'))=10000,'G cash reporting unchanged');
+ -- Distribution calculation requires its sanctioned owner authority; the
+ -- partition fixture otherwise retains its operator role for money tests.
+ update core.well_assignments set role='owner' where well_id=(g->>'well')::uuid and profile_id=(g->>'operator')::uuid;
  cycle:=finance.calculate_profit_distribution((g->>'well')::uuid,(g->>'at')::timestamptz-interval '1 day',
   (g->>'at')::timestamptz+interval '2 days',(g->>'operator')::uuid,0);
+ update core.well_assignments set role='operator' where well_id=(g->>'well')::uuid and profile_id=(g->>'operator')::uuid;
  perform pg_temp.pp_check((select eligible_collections_minor=10000 from finance.profit_distribution_cycles where id=cycle),'AD one payment contributes one collection');
  perform pg_temp.pp_check(billing.rebalance_payment_capacity((g->>'payment')::uuid,source,1,'تصنيف فرق الدين',(g->>'at')::timestamptz)=r
   and (select status='calculated' from finance.profit_distribution_cycles where id=cycle),
