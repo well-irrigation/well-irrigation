@@ -8,6 +8,7 @@ import 'package:well_irrigation_mobile/core/session/active_session_projector.dar
 import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/outbox_repository.dart';
+import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
 
 const String sessionAccount = 'account-session';
 const String sessionWell = 'well-0000-0000-0009';
@@ -130,3 +131,46 @@ Future<CommandEnvelope> payInSession(
     'p_method': 'cash',
   },
 );
+
+/// Explicit authoritative completion fixture, never an empty acknowledgement.
+Future<void> acceptTestCompletion(
+  OutboxStore store, {
+  required CommandEnvelope root,
+  required CommandEnvelope completion,
+  String serverId = 'accepted-session',
+  String chargeId = 'accepted-charge',
+  required int amountMinor,
+}) async {
+  await store.markConfirmed(
+    root.accountId,
+    root.localId,
+    attemptedAt: root.occurredAt,
+    serverResponse: {'session_id': serverId},
+  );
+  await store.putMapping(
+    root.accountId,
+    IdMapping(
+      localId: root.localId,
+      kind: EntityKind.session,
+      serverId: serverId,
+      resolvedAt: root.occurredAt,
+    ),
+  );
+  final seconds = completion.occurredAt.difference(root.occurredAt).inSeconds;
+  await store.markConfirmed(
+    root.accountId,
+    completion.localId,
+    attemptedAt: completion.occurredAt,
+    serverResponse: {
+      'session_id': serverId,
+      'session_charge_id': chargeId,
+      'status': 'closed',
+      'ended_at': completion.occurredAt.toUtc().toIso8601String(),
+      'actual_seconds': seconds,
+      'billable_seconds': seconds,
+      'weighted_price_per_hour_minor': 3600,
+      'amount_minor': amountMinor,
+      'segments': <Object?>[],
+    },
+  );
+}

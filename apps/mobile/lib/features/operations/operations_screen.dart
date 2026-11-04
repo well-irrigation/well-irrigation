@@ -22,9 +22,10 @@ import '../../core/sync/farmer_identity_review.dart';
 import '../../core/theme/app_colors.dart';
 import '../farmers/farmer_identity_resolution_sheet.dart';
 import '../../core/utils/currency_utils.dart';
-import '../../core/utils/digit_utils.dart';
 import '../../core/utils/tafqeet_utils.dart';
 import '../../core/widgets/currency_display.dart';
+import '../../core/widgets/farmer_create_dialog.dart';
+import '../../core/widgets/farm_create_dialog.dart';
 import '../../core/widgets/smart_lookup_field.dart';
 import '../../core/widgets/top_well_selector.dart';
 import 'widgets/compact_energy_selector.dart';
@@ -114,6 +115,22 @@ class _OperationsScreenState extends State<OperationsScreen>
       _completionResult = record;
       _latestCompletionAt = record.completedAt;
       _completionFingerprint = fingerprint;
+      // Only accepted completion of this exact local root clears its form.
+      // A late receipt for a previous session must not reset a new session.
+      if (_activeSessionId == record.localId) {
+        _timer?.cancel();
+        _timer = null;
+        _activeSession = null;
+        _activeSessionId = null;
+        _isSessionActive = false;
+        _isPaused = false;
+        _secondsElapsed = 0;
+        _selectedFarmer = null;
+        _selectedFarm = null;
+        _energySourceCode = null;
+        _resetCropSelection();
+        _resetFarmerStatus();
+      }
     });
     final generation = ++_completionDetailGeneration;
     _restoreCompletionPaymentPresentation(record, generation);
@@ -588,6 +605,9 @@ class _OperationsScreenState extends State<OperationsScreen>
   StreamSubscription<ActiveSessionRecord?>? _activeSessionSubscription;
   ActiveSessionRecord? _activeSession;
   bool _isSessionActive = false;
+  bool get _hasPendingManualStop => _activeSession?.hasPendingManualStop ?? false;
+  bool _sameSessionScope(String account, String well, String? root) =>
+      mounted && _accountId == account && _activeWellId == well && _activeSessionId == root;
   bool _isPaused = false;
   int _secondsElapsed = 0;
   String? _activeSessionId;
@@ -708,7 +728,15 @@ class _OperationsScreenState extends State<OperationsScreen>
     );
   }
 
+  // ق-137 / R6-A: booking times are reminders, never operational authority.
+  // Keep legacy recovery helpers unreachable from current runtime callbacks.
+  bool get _bookingOperationalAutomationEnabled => false;
+
   Future<void> _scheduleCachedBookingTransitionCheck() async {
+    if (!_bookingOperationalAutomationEnabled) {
+      _invalidateBookingTransitionTimer();
+      return;
+    }
     if (_bookedActionInFlight) return;
     _suspendBookingTransitionTimer();
     if (_isLoadingDaySchedule || _isLoadingBookingAutomation) return;
@@ -789,7 +817,11 @@ class _OperationsScreenState extends State<OperationsScreen>
     required bool scheduledCallback,
     required bool Function() isCurrent,
   }) async {
-    if (_bookedActionInFlight || !isCurrent()) return;
+    if (!_bookingOperationalAutomationEnabled ||
+        _bookedActionInFlight ||
+        !isCurrent()) {
+      return;
+    }
     final cached = _rawCachedBookingSchedule;
     if (cached == null) return;
     _bookedActionInFlight = true;
@@ -834,6 +866,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   void _scheduleLegacyBookingTransitionCheck() {
+    if (!_bookingOperationalAutomationEnabled) return;
     _suspendBookingTransitionTimer();
     // An overlapping reload has not produced a decision yet. Preserve its
     // previous arm until the complete snapshot can be compared.
@@ -993,6 +1026,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     int? expectedGeneration,
     ResolvedLocalBookingTransitionCandidate? expectedCandidate,
   }) async {
+    if (!_bookingOperationalAutomationEnabled) return;
     final wellId = _activeWellId;
     final accountId = _accountId;
     if (!mounted ||
@@ -1164,6 +1198,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   Future<void> _loadDaySchedule() async {
     _suspendBookingTransitionTimer();
     final requestedWellId = _activeWellId;
+    final requestedAccount = _accountId;
     final generation = ++_dayScheduleGeneration;
     if (mounted) {
       setState(() {
@@ -1182,7 +1217,7 @@ class _OperationsScreenState extends State<OperationsScreen>
       );
       if (!mounted ||
           generation != _dayScheduleGeneration ||
-          requestedWellId != _activeWellId) {
+          requestedWellId != _activeWellId || requestedAccount != _accountId) {
         return;
       }
       setState(() {
@@ -1520,6 +1555,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   Future<void> _recoverActiveSession() async {
     final requestedWellId = _activeWellId;
+    final requestedAccount = _accountId;
     final generation = ++_projectionGeneration;
     final active = await _coordinator.freshProjectActiveSession(
       accountId: _accountId,
@@ -1528,7 +1564,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     if (!mounted ||
         generation != _projectionGeneration ||
-        requestedWellId != _activeWellId) {
+        requestedWellId != _activeWellId || requestedAccount != _accountId) {
       return;
     }
 
@@ -1615,7 +1651,11 @@ class _OperationsScreenState extends State<OperationsScreen>
     final farmerRef = active.farmerReference;
     final sessionId = active.localId;
     try {
-      final farms = await _repo.fetchFarms(wellId, farmerAccountId: farmerRef);
+      final farms = await _repo.searchFarms(
+        wellId,
+        farmerAccountId: farmerRef ?? _selectedFarmer?.id ?? '',
+        query: active.farmName ?? '',
+      );
       final matched = await _coordinator.resolveFarm(
         accountId,
         farmRef,
@@ -1700,7 +1740,7 @@ class _OperationsScreenState extends State<OperationsScreen>
       // setState كل ثانية لتحديث العداد (محلي أو خادمي مُتبنّى)؛ الزيادة
       // المحلية وحدها مشروطة بعدم الإيقاف.
       setState(() {
-        if (!_isPaused) _secondsElapsed++;
+        if (!_isPaused && !_hasPendingManualStop) _secondsElapsed++;
       });
     });
   }
@@ -1711,7 +1751,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     _timer ??= Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       setState(() {
-        if (!_isPaused) _secondsElapsed++;
+        if (!_isPaused && !_hasPendingManualStop) _secondsElapsed++;
       });
     });
   }
@@ -2180,9 +2220,10 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<List<FarmerAccount>> _searchFarmers(String query) async {
+    final account = _accountId, well = _activeWellId;
     final durablePending = await _coordinator.pendingFarmers(
-      accountId: _accountId,
-      wellId: _activeWellId,
+      accountId: account,
+      wellId: well,
     );
 
     final q = query.trim();
@@ -2194,12 +2235,17 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     late final List<FarmerAccount> list;
     try {
-      list = await _repo.fetchFarmers(_activeWellId, query: query);
-    } catch (_) {
+      list = await _repo.fetchFarmers(well, query: query);
+    } catch (error) {
+      if (!mounted || account != _accountId || well != _activeWellId) return [];
+
       throw SmartLookupSearchFailure<FarmerAccount>(
         availableLocalItems: matchingPending,
+        cause: error,
       );
     }
+
+    if (!mounted || account != _accountId || well != _activeWellId) return [];
 
     matchingPending.removeWhere((f) {
       if (list.any((existing) => existing.id == f.entityReference.serverId)) {
@@ -2212,271 +2258,100 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<List<Farm>> _searchFarms(String query) async {
-    final selectedFarmer = _selectedFarmer;
-    if (selectedFarmer == null) return [];
-
-    final wellId = _activeWellId;
-    final accountId = _accountId;
-    final q = query.trim();
-
-    final durablePending = await _coordinator.pendingFarms(
-      accountId: accountId,
-      wellId: wellId,
-      farmerReference: selectedFarmer.entityReference,
-    );
-
-    final filteredPending = durablePending.where((f) {
-      if (q.isEmpty) return true;
-      return f.displayName.contains(q);
-    }).toList();
-
-    List<Farm> serverFarms = [];
-    if (!selectedFarmer.isPending &&
-        selectedFarmer.entityReference.serverId != null &&
-        selectedFarmer.entityReference.serverId!.isNotEmpty) {
+    final farmer = _selectedFarmer;
+    if (farmer == null) return [];
+    final well = _activeWellId;
+    final account = _accountId;
+    List<Farm> canonical = [];
+    Object? failure;
+    if (!farmer.isPending) {
       try {
-        serverFarms = await _repo.fetchFarms(
-          wellId,
-          farmerAccountId: selectedFarmer.entityReference.serverId,
+        canonical = await _repo.searchFarms(
+          well,
+          farmerAccountId: farmer.id,
+          query: query,
         );
-      } catch (_) {
-        throw SmartLookupSearchFailure<Farm>(
-          availableLocalItems: filteredPending,
-        );
+      } catch (error) {
+        failure = error;
       }
     }
-
-    final filteredServer = q.isEmpty
-        ? serverFarms
-        : serverFarms.where((f) => f.displayName.contains(q)).toList();
-
-    filteredPending.removeWhere(
-      (f) => serverFarms.any(
-        (existing) => existing.id == f.entityReference.serverId,
-      ),
+    final choices = await _coordinator.farmChoices(
+      accountId: account,
+      wellId: well,
+      farmerReference: farmer.entityReference,
+      canonical: canonical,
+      query: query,
     );
-
-    return [...filteredPending, ...filteredServer];
+    if (!mounted ||
+        account != _accountId ||
+        well != _activeWellId ||
+        _selectedFarmer?.entityReference != farmer.entityReference) {
+      return [];
+    }
+    final local = choices;
+    if (failure != null) {
+      throw SmartLookupSearchFailure<Farm>(
+        availableLocalItems: local,
+        cause: failure,
+      );
+    }
+    return local;
   }
 
   Future<FarmerAccount?> _showAddFarmerDialog() async {
-    final wellId = _activeWellId;
-    final accountId = _accountId;
-
-    final nameController = TextEditingController();
-    final phoneController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isSubmitting = false;
-
-    final created = await showDialog<FarmerAccount>(
+    if (!(_activeWell.isOwner || _activeWell.isOperator)) return null;
+    final well = _activeWellId, account = _accountId;
+    final farmer = await showFarmerCreateDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text(
-            'إضافة مزارع جديد',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.deepBlue,
-            ),
-          ),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  enabled: !isSubmitting,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم المزارع الكامل *',
-                    hintText: 'مثال: محمد صالح القاسمي',
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                  validator: (val) => (val == null || val.trim().isEmpty)
-                      ? 'الاسم مطلوب'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: phoneController,
-                  enabled: !isSubmitting,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: const [ArabicToEnglishDigitsFormatter()],
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الهاتف (اختياري)',
-                    hintText: '77XXXXXXX',
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.waterBlue,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
-                      if (!(formKey.currentState?.validate() ?? false)) return;
-
-                      setDialogState(() => isSubmitting = true);
-                      try {
-                        final farmer = await _coordinator.enqueueFarmer(
-                          accountId: accountId,
-                          wellId: wellId,
-                          fullName: nameController.text.trim(),
-                          phone: phoneController.text.trim().isNotEmpty
-                              ? phoneController.text.trim()
-                              : null,
-                        );
-                        if (ctx.mounted) Navigator.of(ctx).pop(farmer);
-                      } catch (e) {
-                        setDialogState(() => isSubmitting = false);
-                        _showActionFailure('تعذر إنشاء المزارع: $e');
-                      }
-                    },
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('حفظ وإضافة'),
-            ),
-          ],
-        ),
+      save: (name, phone) => _coordinator.enqueueFarmer(
+        accountId: account,
+        wellId: well,
+        fullName: name,
+        phone: phone,
       ),
     );
-
+    if (!mounted ||
+        well != _activeWellId ||
+        account != _accountId ||
+        farmer == null) {
+      return null;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('تم حفظ المزارع')));
     await _checkActiveWellReviews();
-    return created;
+    return farmer;
   }
 
   Future<Farm?> _showAddFarmDialog() async {
-    if (_selectedFarmer == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يرجى اختيار المزارع أولاً لربط الأرض الزراعية به'),
-          backgroundColor: AppColors.warning,
-        ),
-      );
+    final farmer = _selectedFarmer;
+    if (farmer == null || !(_activeWell.isOwner || _activeWell.isOperator)) {
       return null;
     }
-
-    final wellId = _activeWellId;
-    final accountId = _accountId;
-    final selectedFarmer = _selectedFarmer!;
-
-    final nameController = TextEditingController();
-    final labelController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isSubmitting = false;
-
-    return showDialog<Farm>(
+    final well = _activeWellId;
+    final account = _accountId;
+    final saved = await showFarmCreateDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(
-            'إضافة أرض للمزارع: ${selectedFarmer.fullName}',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.deepBlue,
-            ),
-          ),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  enabled: !isSubmitting,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم الأرض الزراعية *',
-                    hintText: 'مثال: الكوثة',
-                    prefixIcon: Icon(Icons.landscape),
-                  ),
-                  validator: (val) => (val == null || val.trim().isEmpty)
-                      ? 'اسم الأرض مطلوب'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: labelController,
-                  enabled: !isSubmitting,
-                  decoration: const InputDecoration(
-                    labelText: 'صفة مميزة (اختياري)',
-                    hintText: 'مثال: الشرقية أو الغربية',
-                    prefixIcon: Icon(Icons.label_outline),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.waterBlue,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
-                      if (!(formKey.currentState?.validate() ?? false)) return;
-
-                      setDialogState(() => isSubmitting = true);
-                      try {
-                        final farm = await _coordinator.enqueueFarm(
-                          accountId: accountId,
-                          wellId: wellId,
-                          name: nameController.text.trim(),
-                          distinguishingLabel:
-                              labelController.text.trim().isNotEmpty
-                              ? labelController.text.trim()
-                              : null,
-                          farmerReference: selectedFarmer.entityReference,
-                        );
-                        if (ctx.mounted) Navigator.of(ctx).pop(farm);
-                      } catch (e) {
-                        setDialogState(() => isSubmitting = false);
-                        _showActionFailure('تعذر إنشاء الأرض: $e');
-                      }
-                    },
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('حفظ وإضافة'),
-            ),
-          ],
-        ),
+      farmerName: farmer.fullName,
+      save: (name, label) => _coordinator.enqueueFarm(
+        accountId: account,
+        wellId: well,
+        name: name,
+        distinguishingLabel: label,
+        farmerReference: farmer.entityReference,
       ),
     );
+    if (!mounted ||
+        well != _activeWellId ||
+        account != _accountId ||
+        _selectedFarmer?.entityReference != farmer.entityReference) {
+      return null;
+    }
+    return saved;
   }
 
   Future<void> _startSession() async {
+    if (_isSessionActive || _hasPendingManualStop || _isSubmitting) return;
+    final account = _accountId, requestedWell = _activeWellId;
     if (_daySchedule?.currentSession != null ||
         _serverBookingLink != null ||
         _dayScheduleCached ||
@@ -2503,7 +2378,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     final String sessionLocalId;
     try {
       final envelope = await _coordinator.startSession(
-        accountId: _accountId,
+        accountId: account,
         wellId: wellId,
         pumpId: _selectedPump!.id,
         farmId: _selectedFarm!.id,
@@ -2527,6 +2402,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     if (!mounted) return;
 
+    if (!mounted || _accountId != account || _activeWellId != requestedWell) return;
     _activeSessionId = sessionLocalId;
     _startLocalTicker();
     setState(() {
@@ -2540,6 +2416,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   Future<void> _togglePause() async {
     if (!_isSessionActive || !_beginSessionAction()) return;
 
+    final account = _accountId, well = _activeWellId, root = _activeSessionId;
     try {
       final sessionId = _activeSessionId;
       if (sessionId == null) {
@@ -2553,11 +2430,11 @@ class _OperationsScreenState extends State<OperationsScreen>
           context: context,
           builder: (ctx) => const PauseConfirmationDialog(),
         );
-        if (confirmed != true) return;
+        if (confirmed != true || !_sameSessionScope(account, well, root) || _hasPendingManualStop) return;
 
         try {
           await _coordinator.pauseSession(
-            accountId: _accountId,
+            accountId: account,
             sessionLocalId: sessionId,
             reason: 'operator_pause',
             pausedAt: _now(),
@@ -2568,13 +2445,13 @@ class _OperationsScreenState extends State<OperationsScreen>
         }
       } else {
         await _coordinator.resumeSession(
-          accountId: _accountId,
+          accountId: account,
           sessionLocalId: sessionId,
           resumedAt: _now(),
         );
       }
 
-      if (!mounted) return;
+      if (!_sameSessionScope(account, well, root) || _hasPendingManualStop) return;
       setState(() => _isPaused = !wasPaused);
     } catch (e) {
       _showActionFailure('تعذر الاستئناف — الجلسة ما زالت موقوفة: $e');
@@ -2584,7 +2461,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   bool _beginSessionAction() {
-    if (_isSessionActionInProgress || !mounted) return false;
+    if (_isSessionActionInProgress || !mounted || _hasPendingManualStop) return false;
     setState(() => _isSessionActionInProgress = true);
     return true;
   }
@@ -2597,6 +2474,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     if (!_isSessionActive) return;
     if (!_beginSessionAction()) return;
 
+    final account = _accountId, well = _activeWellId, root = _activeSessionId;
     try {
       final selected = await showModalBottomSheet<String>(
         context: context,
@@ -2720,14 +2598,15 @@ class _OperationsScreenState extends State<OperationsScreen>
           ),
         ),
       );
-      if (selected != null) await _changeEnergySource(selected);
+      if (selected != null && _sameSessionScope(account, well, root) && !_hasPendingManualStop) await _changeEnergySource(selected);
     } finally {
       _finishSessionAction();
     }
   }
 
   Future<void> _changeEnergySource(String newSource) async {
-    if (_energySourceCode == newSource) return;
+    if (_hasPendingManualStop || _energySourceCode == newSource) return;
+    final account = _accountId, well = _activeWellId, root = _activeSessionId;
 
     final sessionId = _activeSessionId;
     if (_isSessionActive && sessionId != null) {
@@ -2743,11 +2622,11 @@ class _OperationsScreenState extends State<OperationsScreen>
         ),
       );
 
-      if (confirmed != true) return;
+      if (confirmed != true || !_sameSessionScope(account, well, root) || _hasPendingManualStop) return;
 
       try {
         await _coordinator.changeEnergySource(
-          accountId: _accountId,
+          accountId: account,
           sessionLocalId: sessionId,
           newEnergySource: newSource,
           changedAt: _now(),
@@ -2758,7 +2637,7 @@ class _OperationsScreenState extends State<OperationsScreen>
       }
     }
 
-    if (!mounted) return;
+    if (!_sameSessionScope(account, well, root) || _hasPendingManualStop) return;
     setState(() {
       _energySourceCode = newSource;
     });
@@ -2766,6 +2645,7 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   Future<void> _endSession() async {
     if (!_beginSessionAction()) return;
+    final account = _accountId, well = _activeWellId, root = _activeSessionId;
     try {
       final activeSession = _activeSession;
       final activeSessionId = _activeSessionId;
@@ -2810,7 +2690,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         ),
       );
 
-      if (confirmed != true) {
+      if (confirmed != true || !_sameSessionScope(account, well, root) || _hasPendingManualStop) {
         return;
       }
 
@@ -2819,34 +2699,22 @@ class _OperationsScreenState extends State<OperationsScreen>
 
       try {
         await _coordinator.completeSession(
-          accountId: _accountId,
+          accountId: account,
           sessionLocalId: activeSessionId,
           completedAt: completedAt,
         );
       } catch (e) {
-        _showActionFailure('تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند: $e');
+        if (!_sameSessionScope(account, well, root)) return;
+        await _recoverActiveSession();
+        if (!_sameSessionScope(account, well, root)) return;
+        _showActionFailure(_hasPendingManualStop
+            ? 'حُفظ طلب الإيقاف؛ ما زال التأكيد معلقًا'
+            : 'تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند: $e');
         _startLocalTicker();
         return;
       }
-
-      // ق-129 / E6: إعادة ضبط النموذج للعملية التالية
-      final solePump = _pumps.length == 1 ? _pumps.single : null;
-
-      setState(() {
-        _isSessionActive = false;
-        _isPaused = false;
-        _secondsElapsed = 0;
-        _activeSessionId = null;
-        _activeSession = null;
-        _selectedFarmer = null;
-        _selectedFarm = null;
-        _energySourceCode = null;
-        _selectedPump = solePump;
-        _resetCropSelection();
-        _resetFarmerStatus();
-      });
-
-      if (!mounted) return;
+      if (!_sameSessionScope(account, well, root)) return;
+      await _recoverActiveSession();
     } finally {
       _finishSessionAction();
     }
@@ -3057,7 +2925,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         _isSessionActive || hasServerOnlySession || showServerAdopted;
     final liveTotals = activeSession == null
         ? null
-        : summarize(activeSession.segments, _now());
+        : summarize(activeSession.segments, activeSession.stopRequestedAt ?? _now());
     final displaySeconds = liveTotals?.billableSeconds ?? _secondsElapsed;
     final accruedAmount = liveTotals?.accruedMinor;
 
@@ -3262,7 +3130,9 @@ class _OperationsScreenState extends State<OperationsScreen>
                               showServerAdopted
                                   ? 'جلسة محجوزة جارية على الخادم (عرض فقط)'
                                   : _isSessionActive
-                                  ? (_isPaused
+                                  ? (_hasPendingManualStop
+                                        ? 'متوقف محليًا'
+                                        : _isPaused
                                         ? SessionStateText.paused
                                         : SessionStateText.running)
                                   : hasServerOnlySession
@@ -3547,7 +3417,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                     if (_isSessionActive) ...[
                       const SizedBox(height: 6),
                       TextButton.icon(
-                        onPressed: _isSessionActionInProgress
+                        onPressed: (_isSessionActionInProgress || _hasPendingManualStop)
                             ? null
                             : _openActiveEnergySourcePicker,
                         icon: const Icon(
@@ -4079,7 +3949,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: _isSessionActionInProgress
+                        onPressed: (_isSessionActionInProgress || _hasPendingManualStop)
                             ? null
                             : _togglePause,
                       ),
@@ -4100,7 +3970,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: _isSessionActionInProgress
+                        onPressed: (_isSessionActionInProgress || _hasPendingManualStop)
                             ? null
                             : _endSession,
                       ),

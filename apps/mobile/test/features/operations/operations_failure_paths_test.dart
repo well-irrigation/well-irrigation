@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
+import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
@@ -32,6 +33,20 @@ class _FailingWriteCoordinator extends OfflineSessionCoordinator {
   }) async {
     throw StateError('outbox unavailable');
   }
+}
+
+class _ReadableOperations extends OperationsRepository {
+  @override
+  Future<List<FarmerAccount>> fetchFarmers(
+    String wellId, {
+    String? query,
+  }) async => const [
+    FarmerAccount(id: 'farmer-1', fullName: 'المزارع', publicCode: 'F'),
+  ];
+  @override
+  Future<List<Pump>> fetchPumps(String wellId) async => [
+    Pump(id: 'pump-1', wellId: wellId, name: 'المضخة', publicCode: 'P'),
+  ];
 }
 
 /// مسارات الفشل الصريح في شاشة التشغيل (ق-113 / م-41B3B / م-41D4).
@@ -91,13 +106,13 @@ void main() {
               wells: const [well],
             ),
             coordinator: coordinator,
+            repository: _ReadableOperations(),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      ScaffoldMessenger.of(
-        tester.element(find.byType(OperationsScreen)),
-      ).clearSnackBars();
+      ScaffoldMessenger.of(tester.element(find.byType(OperationsScreen)))
+          .clearSnackBars();
       await tester.pumpAndSettle();
     }
 
@@ -147,6 +162,9 @@ void main() {
     ) async {
       await pumpScreen(tester);
 
+      ScaffoldMessenger.of(tester.element(find.byType(OperationsScreen)))
+          .clearSnackBars();
+      await tester.pumpAndSettle();
       final endFinder = find.text('إنهاء الجلسة');
       await tester.ensureVisible(endFinder);
       await tester.pumpAndSettle();

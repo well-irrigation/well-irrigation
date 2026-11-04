@@ -124,7 +124,7 @@ begin
   -- +5 منح بعد Migration 112: `booking.cancel` للمالك والمشغل،
   -- و`booking.read` للمالك والمدير والمشغل — حفاظًا على دلالة
   -- قراءة 079 (عقد الحجوزات، ق-131 بند 8).
-  if v_count = 84
+  if v_count = 85
      and (
        select count(*)
        from iam.role_permissions rp
@@ -142,9 +142,9 @@ begin
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'operator'
-     ) = 24
+     ) = 25
   then
-    raise notice 'PASS 3: Role permission seed = owner 45 / manager 15 / operator 24';
+    raise notice 'PASS 3: Role permission seed = owner 45 / manager 15 / operator 25';
   else
     raise notice 'FAIL 3: role_permissions total=%', v_count;
   end if;
@@ -319,10 +319,17 @@ begin
     coalesce(qual, '') || ' ' || coalesce(with_check, '')
   ) like '%iam.has_well_role%';
 
-  if v_count = 273 then
-    raise notice 'PASS 9: Legacy RLS compatibility layer بقيت 273 policy';
+  -- Follow-up RPC-only boundaries intentionally remove unsafe write policies.
+  -- Preserve compatibility through actual read predicates, not a frozen count
+  -- that also counts obsolete INSERT/UPDATE policies.
+  if v_count>0 and not exists(
+    select 1 from (values('core','wells'),('ops','farmer_well_accounts'),('finance','accounting_periods')) required(schema_name,table_name)
+    where not exists(select 1 from pg_policies p where p.schemaname=required.schema_name
+      and p.tablename=required.table_name and p.cmd='SELECT' and p.qual like '%iam.has_well_role%')
+  ) then
+    raise notice 'PASS 9: بقيت سياسات القراءة المتوافقة مع has_well_role رغم سحب سياسات الكتابة غير الآمنة';
   else
-    raise notice 'FAIL 9: has_well_role policy count=% بدل 273', v_count;
+    raise notice 'FAIL 9: سياسة قراءة توافقية مطلوبة مفقودة';
   end if;
 
 
@@ -571,7 +578,7 @@ begin
      and iam.has_well_permission(v_well_1, 'expense.create')
      and iam.has_well_permission(v_well_1, 'fuel.count')
      and iam.has_well_permission(v_well_1, 'shift.open')
-     and not iam.has_well_permission(v_well_1, 'farm.create')
+     and iam.has_well_permission(v_well_1, 'farm.create')
      and not iam.has_well_permission(v_well_1, 'expense.approve')
      and not iam.has_well_permission(v_well_1, 'period.close')
   then

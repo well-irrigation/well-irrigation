@@ -1,6 +1,7 @@
 @TestOn('vm')
 library;
 
+import '../../support/human_command_fixture.dart';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -458,6 +459,8 @@ void main() {
             'p_energy_source': 'diesel',
           },
         );
+
+        await recordTestHumanAction(store, sessionCmd);
 
         // 4. أمر حسم المزارع أُدرج لاحقًا بعد المراجعة البشرية (تسلسل متأخر)
         final resolveCmd = await outbox.enqueue(

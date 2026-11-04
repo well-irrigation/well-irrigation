@@ -26,9 +26,12 @@ void main() {
         sequence: 2,
         occurredAt: fixture.instant.add(const Duration(minutes: 2)),
         createdLocalAt: fixture.instant,
-        payload: {'p_session_id': 'server-B'},
+        payload: {
+          'p_session_id': {r'$ref': 'B', r'$kind': 'session'},
+        },
       ),
     );
+    await fixture.seedPackageHumanActions(store);
     final coordinator = OfflineSessionCoordinator(
       store: store,
       commandTransport: fixture.PackageTransport(),
@@ -43,7 +46,7 @@ void main() {
     );
     expect(
       presentBooking(id: 'B', status: 'confirmed', scope: scope).label,
-      'منفذ',
+      'جاري',
     );
     expect(scope.sessions['B']?.syncState, SessionSyncState.localOnly);
     events = 0;

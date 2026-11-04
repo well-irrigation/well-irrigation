@@ -4,11 +4,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
+import 'package:well_irrigation_mobile/core/sync/command_transport.dart';
+import 'package:well_irrigation_mobile/core/session/active_session_projector.dart';
 import 'package:well_irrigation_mobile/core/sync/outbox_database.dart';
 import 'package:well_irrigation_mobile/core/sync/sqlite_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
 import '../sync/fake_command_transport.dart';
+
+class _ReceiptTransport extends FakeCommandTransport
+    implements CompletionReceiptTransport {
+  final reads = <CompletionReceiptRequest>[];
+
+  @override
+  Future<CompletionReceiptRead> readCompletionReceipt(
+    CompletionReceiptRequest request,
+  ) async {
+    reads.add(request);
+    final accepted = executed[request.commandId] as DispatchAccepted;
+    return CompletionReceiptResponse(
+      CompletionReceiptState.accepted,
+      accepted.response,
+    );
+  }
+}
 
 void main() {
   setUpAll(() {
@@ -117,7 +136,7 @@ void main() {
     stores.add(store);
     final writer = OfflineSessionCoordinator(store: store);
     coordinators.add(writer);
-    final command = await writer.startSession(
+    final start = await writer.startSession(
       accountId: 'account-a',
       wellId: 'well-a',
       pumpId: 'pump-a',
@@ -126,8 +145,8 @@ void main() {
       energySource: 'solar',
     );
 
-    final transport = FakeCommandTransport()
-      ..scheduleNetworkFailure(CommandType.startIrrigationSession);
+    // قبول البدء شرط سابق؛ محاولة الإكمال وحدها تفقد الرد بعد التنفيذ.
+    final transport = _ReceiptTransport();
     final wired = OfflineSessionCoordinator(
       store: store,
       commandTransport: transport,
@@ -135,10 +154,24 @@ void main() {
     coordinators.add(wired);
     expect(wired.canSyncNow, isTrue);
 
+    await wired.syncNow('account-a');
+    expect(
+      (await store.commandByLocalId('account-a', start.localId))!.status,
+      CommandStatus.confirmed,
+    );
+    transport.requests.clear();
+    transport.swallowAckOnce.add(CommandType.completeIrrigationSession.rpcName);
+    final command = await writer.completeSession(
+      accountId: 'account-a',
+      sessionLocalId: start.localId,
+      completedAt: start.occurredAt.add(const Duration(hours: 1)),
+    );
     final failed = await wired.syncNow('account-a');
-    expect(failed.retryScheduled, 1);
+    expect(failed.retryScheduled, 0);
+    expect(transport.requests, hasLength(1));
     final pending = await store.commandByLocalId('account-a', command.localId);
-    expect(pending!.status, CommandStatus.pending);
+    expect(pending!.status, CommandStatus.dispatching);
+    expect(pending.retryCount, 0);
     expect(pending.commandId, command.commandId);
 
     final accepted = await wired.syncNow('account-a');
@@ -149,6 +182,44 @@ void main() {
     );
     expect(confirmed!.status, CommandStatus.confirmed);
     expect(confirmed.commandId, command.commandId);
+    expect(confirmed.localId, command.localId);
+    expect(confirmed.occurredAt, command.occurredAt);
+    expect(confirmed.createdLocalAt, command.createdLocalAt);
+    expect(confirmed.payload, command.payload);
+    expect(transport.reads.single.commandId, command.commandId);
+    expect(
+      transport.reads.single.sessionId,
+      (await store.mapping(
+        'account-a',
+        start.localId,
+        EntityKind.session,
+      ))!.serverId,
+    );
+    await wired.syncNow('account-a');
+    expect(transport.requests, hasLength(1));
+    expect(transport.requests.single.commandId, command.commandId);
+    expect(
+      transport.requests.single.arguments['p_ended_at'],
+      command.occurredAt.toIso8601String(),
+    );
+    expect(await store.allCommands('account-a'), hasLength(2));
+    expect(
+      transport.executionCount,
+      2,
+    ); // البدء السابق والإكمال مرة واحدة لكل منهما.
+    final events = await store.notificationEvents.db.query(
+      'notification_events',
+      where: "event_type='session.completed'",
+    );
+    expect(events, hasLength(1));
+    expect(
+      events.single['event_key'],
+      'session.completed/${command.commandId}',
+    );
+    final projected = await ActiveSessionProjector(store: store)
+        .projectSession('account-a', start.localId, now: command.occurredAt);
+    expect(projected!.businessState.isActive, isFalse);
+    expect(projected.completedAt, command.occurredAt);
   });
 
   test('الأمر المتين يشغّل محرك المقدمة الموصول ويؤكده الرد فقط', () async {
@@ -162,7 +233,9 @@ void main() {
       commandTransport: transport,
     );
     coordinators.add(foreground);
-    final syncProjection = foreground.activeSessionStream.skip(1).first;
+    final syncProjection = foreground.activeSessionStream
+        .firstWhere((session) => session?.serverSessionId != null)
+        .timeout(const Duration(seconds: 10));
 
     final command = await foreground.startSession(
       accountId: 'account-a',
@@ -172,9 +245,20 @@ void main() {
       farmerAccountId: 'farmer-a',
       energySource: 'solar',
     );
-    await syncProjection;
+    final observed = await syncProjection;
 
+    expect(observed!.localId, command.localId);
+    expect(
+      observed.serverSessionId,
+      (await store.mapping(
+        'account-a',
+        command.localId,
+        EntityKind.session,
+      ))!.serverId,
+    );
     expect(transport.requests.single.commandId, command.commandId);
+    await foreground.syncNow('account-a');
+    expect(transport.requests, hasLength(1));
     expect(
       (await store.commandByLocalId('account-a', command.localId))!.status,
       CommandStatus.confirmed,

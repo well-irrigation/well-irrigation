@@ -1,18 +1,22 @@
-import '../../core/booking/booking_reactivity.dart';
+import '../../core/errors/user_facing_error.dart';
+import '../../core/widgets/farmer_create_dialog.dart';
+import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
 import '../../core/api/booking_repository.dart';
 import '../../core/api/operations_repository.dart';
+import '../../core/booking/local_booking_request.dart';
 import '../../core/identity/app_identity.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/session/offline_session_coordinator.dart';
+import '../../core/widgets/farm_create_dialog.dart';
 import '../../core/widgets/smart_lookup_field.dart';
 import 'bookings_screen.dart';
 
-/// نموذج إنشاء حجز online (OB-6 / البند 389). يعيد استخدام SmartLookup
-/// وقراءات المزارع/الأرض القائمة. التسلسل الموجّه: المزارع والأرض ← التاريخ
-/// والوقت ← المدة/النهاية ← الطاقة ← الملاحظات ← الحفظ. الكتابة online فقط
-/// في حزمة B؛ لا ادّعاء نجاح دون اتصال، والتعارض نتيجة أعمال لا خطأ نقل.
+/// يحفظ طلب الحجز على الهاتف قبل الاتصال؛ تثبيت الموعد من إيصال الخادم.
+/// المزارع محسوم، والأرض موجودة أو محفوظة على الهاتف؛ الطلب الأصلي ثابت.
 class BookingFormScreen extends StatefulWidget {
   const BookingFormScreen({
     required this.identity,
@@ -20,6 +24,9 @@ class BookingFormScreen extends StatefulWidget {
     this.operationsRepository,
     this.initialDate,
     this.online = true,
+    this.localRequestId,
+    this.replaces,
+    this.coordinator,
     super.key,
   });
 
@@ -31,6 +38,10 @@ class BookingFormScreen extends StatefulWidget {
   /// فلا يُفترض دائمًا تاريخ الجهاز الحالي.
   final DateTime? initialDate;
   final bool online;
+  final String? localRequestId;
+  final LocalBookingRequest? replaces;
+  final OfflineSessionCoordinator? coordinator;
+
 
   @override
   State<BookingFormScreen> createState() => _BookingFormScreenState();
@@ -40,8 +51,11 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   late final BookingRepository _bookingRepo;
   late final OperationsRepository _opsRepo;
   late final String _wellId;
+  late final String _accountId;
   late final DateTime _initialStart;
+  late final int _initialDurationMinutes;
 
+  OfflineSessionCoordinator get _coordinator => widget.coordinator ?? _bookingRepo.farmCoordinator;
   FarmerAccount? _farmer;
   Farm? _farm;
 
@@ -54,8 +68,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   String? _energySource;
   String? _alternativeEnergySource;
   String? _energyError;
-  String? _commandId;
+  late String _requestId;
   bool _busy = false;
+  bool _prefilling = false;
+  int _priority = 0;
   String? _validationError;
 
   /// تقييم الطاقة الشمسية للموعد الحالي من قيمه الاسمية (دقيقة البداية
@@ -73,9 +89,57 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     _bookingRepo = widget.bookingRepository ?? BookingRepository();
     _opsRepo = widget.operationsRepository ?? OperationsRepository();
     _wellId = widget.identity.activeWell.id;
-    _initialStart = _defaultStart(widget.initialDate);
+    _accountId = widget.identity.accountId;
+    _requestId = widget.localRequestId ?? _bookingRepo.newCommandId();
+    final original = widget.replaces;
+    _initialStart = original == null ? _defaultStart(widget.initialDate)
+        : DateTime.parse(original.payload['p_scheduled_start'] as String).toLocal();
+    _initialDurationMinutes = original == null ? 60
+        : DateTime.parse(original.payload['p_scheduled_end'] as String).difference(_initialStart).inMinutes;
     _start = _initialStart;
-    _durationMinutes = 60;
+    _durationMinutes = _initialDurationMinutes;
+    if (original != null) {
+      _energySource = original.payload['p_expected_energy_source'] as String?;
+      _alternativeEnergySource = original.payload['p_alternative_energy_source'] as String?;
+      _priority = original.payload['p_priority'] as int? ?? 0;
+      _notesController.text = original.payload['p_notes'] as String? ?? '';
+      _prefilling = true;
+      unawaited(_prefillCorrectionChoices(original));
+    }
+  }
+
+  Future<void> _prefillCorrectionChoices(LocalBookingRequest original) async {
+    try {
+      if (original.accountId != _accountId || original.wellId != _wellId || !original.needsCorrection) return;
+      final farmerId = original.payload['p_farmer_well_account_id'];
+      final context = jsonDecode(original.contextJson) as Map;
+      String query = context['farmer_name'] as String? ?? '';
+      try {
+        final cached = await _bookingRepo.cachedBookingChoices(_accountId, _wellId, 'farmers');
+        final known = cached.where((f) => f['id'] == farmerId).firstOrNull;
+        query = known?['public_code'] as String? ?? query;
+      } catch (_) { /* البحث المعتاد قد ينجح ولو تعذرت قراءة المخبأ. */ }
+      // نص البحث ليس هوية؛ لا نختار إلا تطابق المعرّف الأصلي نفسه.
+      final farmers = await _searchFarmers(query);
+      if (!mounted || !_isCurrentScope) return;
+      _farmer = farmers.where((f) => f.id == farmerId).firstOrNull;
+      if (_farmer != null) {
+        final farms = await _searchFarms('');
+        if (!mounted || !_isCurrentScope) return;
+        _farm = farms.where((f) => f.id == original.payload['p_farm_id']).firstOrNull;
+      }
+    } catch (_) {
+      // لا نستبدل هوية غير متاحة باختيار آخر ولا نخمن صلاحيتها.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _prefilling = false;
+          if (_farmer == null || _farm == null) {
+            _validationError = 'اختر مزارعًا وأرضًا محفوظين مسبقًا.';
+          }
+        });
+      }
+    }
   }
 
   /// وقت ابتدائي معقول: إن حمل التاريخ وقتًا صريحًا فهو البداية؛ وعلى يوم
@@ -117,7 +181,16 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
     });
   }
 
+  bool get _isCurrentScope =>
+      widget.identity.accountId == _accountId &&
+      widget.identity.activeWell.id == _wellId;
+
   Future<void> _submit() async {
+    if (_prefilling) return;
+    if (!_isCurrentScope) {
+      _notify('أعد فتح الحجز للبئر المطلوب.');
+      return;
+    }
     setState(() {
       _validationError = null;
       _energyError = null;
@@ -135,6 +208,13 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         () =>
             _validationError = 'راجع الموعد: يجب أن تكون النهاية بعد البداية.',
       );
+      return;
+    }
+    final original = widget.replaces;
+    if (original?.response?['status'] == 'conflict' &&
+        _start.toUtc() == DateTime.parse(original!.payload['p_scheduled_start'] as String) &&
+        _end.toUtc() == DateTime.parse(original.payload['p_scheduled_end'] as String)) {
+      setState(() => _validationError = 'اختر موعدًا آخر للحجز.');
       return;
     }
     // الطاقة مطلوبة لحجز مؤكّد جاهز للتنفيذ (ق-132) — ليست اختيارية.
@@ -160,23 +240,29 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         return;
       }
     }
-    if (!widget.online) {
-      _notify('هذه العملية تحتاج اتصالًا بالخادم حاليًا.');
+    if (_farmer!.isPending ||
+
+        _farmer!.status != 'active' ||
+        (!_farm!.isPending && _farm!.status != 'active') ||
+        _farm!.wellId != _wellId ||
+        _farm!.farmerAccountId != _farmer!.id) {
+      _notify('اختر مزارعًا وأرضًا محفوظين مسبقًا.');
       return;
     }
     if (_busy) return;
-    // معرّف عملية ثابت للطلب المنطقي الواحد: لا يتغيّر بإعادة بناء الواجهة.
-    _commandId ??= _bookingRepo.newCommandId();
     setState(() => _busy = true);
     try {
-      final result = await _bookingRepo.createBooking(
+      final request = await _bookingRepo.saveLocalBooking(
+        accountId: _accountId,
         wellId: _wellId,
-        farmerWellAccountId: _farmer!.id,
-        farmId: _farm!.id,
+        requestId: _requestId,
+        replaces: original,
+        farmer: _farmer!,
+        farm: _farm!,
         scheduledStart: _start,
         scheduledEnd: _end,
-        commandId: _commandId!,
-        expectedEnergySource: _energySource,
+        expectedEnergySource: _energySource!,
+        priority: _priority,
         alternativeEnergySource: _energySource == 'solar'
             ? _alternativeEnergySource
             : null,
@@ -184,52 +270,102 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
             ? null
             : _notesController.text.trim(),
       );
-      if (!mounted) return;
-      if (result.isConflict) {
-        _notify('هذا الوقت محجوز بالفعل. اختر وقت بداية أو مدة مختلفة.');
-        _commandId = null;
-      } else if (result.isOk) {
-        _notify('تم حفظ الحجز على الخادم.');
-        BookingReactivity.instance
-            .scope(widget.identity.accountId, widget.identity.activeWell.id)
-            .mutation(
-              days: {
-                BookingScope.dayKey(_start),
-                BookingScope.dayKey(
-                  _start.toUtc().add(const Duration(hours: 3)),
-                ),
-              },
-            );
-        Navigator.of(context).pop(true);
-      } else if (result.isRejected) {
-        // رفض أعمال منظّم: رسالة محدّدة من reason_code لا عموم «لم يكتمل».
-        final msg =
-            bookingRejectionMessage(result.reasonCode) ??
-            'تعذّر إنشاء الحجز لسبب في بياناته. راجع الحقول.';
-        if (_isEnergyReason(result.reasonCode)) {
-          setState(() => _energyError = msg);
-        }
-        _notify(msg);
-        _commandId = null;
-      } else {
-        // نقل/غير معروف فقط: الصياغة العامة مسموحة هنا دون سواها.
-        _notify(result.message ?? 'لم يكتمل حفظ الحجز. أعد المحاولة.');
-        _commandId = null;
-      }
-    } catch (_) {
-      _notify('تعذّر إتمام الحفظ. تحقّق من الاتصال وأعد المحاولة.');
-      // لا يُدّعى نجاح عند نتيجة غير مؤكّدة؛ المعرّف نفسه يُعاد استخدامه.
-    } finally {
+      if (!mounted || !_isCurrentScope) return;
+      unawaited(_bookingRepo.requestBookingConfirmation(request.accountId));
+      _finishSaved(request);
+    } catch (error) {
       if (mounted) setState(() => _busy = false);
+      _notify(UserFacingError.from(error).message);
+      return;
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  void _finishSaved(LocalBookingRequest request) {
+    if (!mounted || !_isCurrentScope) return;
+    _notify('تم حفظ الحجز');
+    if (Navigator.of(context).canPop()) {
+      if (widget.replaces == null) {
+        Navigator.of(context).pop(true);
+      } else {
+        Navigator.of(context).pop(request);
+      }
     }
   }
 
-  bool _isEnergyReason(String? code) =>
-      code == 'solar_start_outside_window' ||
-      code == 'missing_alternative_energy_source' ||
-      code == 'missing_energy_source' ||
-      code == 'unsupported_energy_source' ||
-      code == 'invalid_alternative_energy_source';
+  Future<FarmerAccount?> _addFarmer() async {
+    if (!(widget.identity.isOwner || widget.identity.isOperator)) return null;
+    final farmer = await showFarmerCreateDialog(context: context, save: (name, phone) =>
+      _coordinator.enqueueFarmer(accountId: _accountId, wellId: _wellId,
+        fullName: name, phone: phone, waitForCanonical: true));
+    if (!mounted || !_isCurrentScope || farmer == null) return null;
+    final message = farmer.status == 'requires_resolution'
+        ? 'تحتاج بيانات المزارع إلى مراجعة.'
+        : farmer.isPending ? 'تم حفظ المزارع وسيصبح متاحًا للحجز بعد تثبيته.' : 'تم حفظ المزارع';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    return farmer.isPending ? null : farmer;
+  }
+
+  Future<List<FarmerAccount>> _searchFarmers(String query) async {
+    final account = _accountId;
+    if (widget.online) {
+      try {
+        final values = await _opsRepo.fetchFarmers(_wellId, query: query);
+        final canonical = values
+            .where((f) => !f.isPending && f.status == 'active')
+            .toList();
+        await _bookingRepo.cacheBookingChoices(account, _wellId, 'farmers', [
+          for (final f in canonical)
+            {
+              'id': f.id,
+              'full_name': f.fullName,
+              'public_code': f.publicCode,
+              'phone': f.phone,
+              'status': f.status,
+            },
+        ]);
+        return canonical;
+      } catch (_) {
+        // البحث المحلي المحدود يظل متاحًا عند انقطاع النقل.
+      }
+    }
+    final cached = await _bookingRepo.cachedBookingChoices(
+      account,
+      _wellId,
+      'farmers',
+    );
+    return cached
+        .map(FarmerAccount.fromJson)
+        .where(
+          (f) =>
+              !f.isPending &&
+              f.status == 'active' &&
+              (f.fullName.contains(query.trim()) ||
+                  f.publicCode.contains(query.trim())),
+        )
+        .toList();
+  }
+
+  Future<List<Farm>> _searchFarms(String query) async {
+    final farmer=_farmer;if(farmer==null||farmer.isPending)return [];
+    final key='farms.${farmer.id}';List<Farm> canonical=[];bool loaded=false;
+    if(widget.online) {
+      try {
+        canonical=await _opsRepo.searchFarms(_wellId,farmerAccountId:farmer.id,query:query);
+        loaded=true;
+        await _bookingRepo.cacheBookingChoices(_accountId,_wellId,key,[for(final f in canonical){'id':f.id,'well_id':f.wellId,'name':f.name,'distinguishing_label':f.distinguishingLabel,'farmer_well_account_id':f.farmerAccountId,'status':f.status}]);
+      }catch(_) {}
+    }
+    if(!loaded) canonical=(await _bookingRepo.cachedBookingChoices(_accountId,_wellId,key)).map(Farm.fromJson).where((f)=>f.displayName.contains(query.trim())).toList();
+    return _coordinator.farmChoices(accountId:_accountId,wellId:_wellId,farmerReference:farmer.entityReference,canonical:canonical,query:query);
+  }
+  Future<Farm?> _addFarm() async {
+    final farmer=_farmer;
+    if(farmer==null||farmer.isPending||farmer.status!='active'||!(widget.identity.isOwner||widget.identity.isOperator))return null;
+    final saved=await showFarmCreateDialog(context:context,farmerName:farmer.fullName,save:(name,label)=>_coordinator.enqueueFarm(accountId:_accountId,wellId:_wellId,name:name,distinguishingLabel:label,farmerReference:farmer.entityReference));
+    if(!mounted||!_isCurrentScope||_farmer?.id!=farmer.id)return null;
+    return saved;
+  }
 
   Widget _buildEnergyChild() {
     final solar = _solarState;
@@ -299,9 +435,9 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         scrolledUnderElevation: 0.5,
-        title: const Text(
-          'إضافة حجز',
-          style: TextStyle(
+        title: Text(
+          widget.replaces?.correctionAction ?? 'إضافة حجز',
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: AppColors.deepBlue,
           ),
@@ -326,8 +462,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                     itemLabel: (f) => f.fullName,
                     itemSecondaryLabel: (f) => f.publicCode,
                     selectedItem: _farmer,
-                    searchFunction: (query) =>
-                        _opsRepo.fetchFarmers(_wellId, query: query),
+                    enabled: !_prefilling,
+                    searchFunction: _searchFarmers,
+                    onAddNew: widget.identity.isOwner || widget.identity.isOperator ? _addFarmer : null,
+                    addNewLabel: 'إضافة مزارع جديد',
                     onChanged: (f) => setState(() {
                       _farmer = f;
                       _farm = null;
@@ -337,14 +475,13 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                   SmartLookupField<Farm>(
                     label: 'الأرض *',
                     hintText: 'ابحث عن الأرض',
-                    itemLabel: (f) => f.name,
+                    itemLabel: (f) => f.displayName,
                     selectedItem: _farm,
-                    enabled: _farmer != null,
-                    searchFunction: (query) => _opsRepo.fetchFarms(
-                      _wellId,
-                      farmerAccountId: _farmer?.id,
-                    ),
+                    enabled: _farmer != null && !_prefilling,
+                    searchFunction: _searchFarms,
                     onChanged: (f) => setState(() => _farm = f),
+                    onAddNew: _farmer!=null && !_farmer!.isPending && _farmer!.status=='active' && (widget.identity.isOwner||widget.identity.isOperator) ? _addFarm : null,
+                    addNewLabel: 'إضافة أرض جديدة',
                   ),
                 ],
               ),
@@ -355,7 +492,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
               icon: Icons.event_rounded,
               child: BookingScheduleEditor(
                 initialStart: _initialStart,
-                initialDurationMinutes: 60,
+                initialDurationMinutes: _initialDurationMinutes,
                 onChanged: _onScheduleChanged,
               ),
             ),
@@ -389,7 +526,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
             SizedBox(
               height: 52,
               child: FilledButton.icon(
-                onPressed: _busy ? null : _submit,
+                onPressed: _busy || _prefilling ? null : _submit,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.waterBlue,
                   textStyle: const TextStyle(
@@ -497,7 +634,7 @@ class _OfflineNotice extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'أنت دون اتصال — لا يمكن حفظ الحجز حتى عودة الاتصال بالخادم.',
+              'يمكنك حفظ الحجز على الهاتف دون اتصال.',
               style: TextStyle(
                 fontSize: 12.5,
                 color: AppColors.warning.withValues(alpha: 0.9),
@@ -805,13 +942,16 @@ class _ScheduleFieldRow extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ),
-            const Spacer(),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: AppColors.deepBlue,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.deepBlue,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -1022,15 +1162,16 @@ class _CalcLine extends StatelessWidget {
             color: AppColors.textSecondary,
           ),
         ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: AppColors.deepBlue,
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.deepBlue,
+            ),
           ),
         ),
-        const Spacer(),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(

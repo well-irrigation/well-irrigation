@@ -19,11 +19,15 @@ enum SessionBusinessState {
   paused,
 
   /// أُنهيت محليًا. التسوية النهائية عند الخادم (ق-92).
-  completed;
+  completed,
+
+  /// طلب إيقاف بشري محفوظ؛ المورد مشغول حتى قبول الإكمال.
+  stopRequested;
 
   bool get isActive =>
       this == SessionBusinessState.running ||
-      this == SessionBusinessState.paused;
+      this == SessionBusinessState.paused ||
+      this == SessionBusinessState.stopRequested;
 
   String get storageValue => name;
 
@@ -67,6 +71,7 @@ String sessionStateText(SessionBusinessState state) => switch (state) {
   SessionBusinessState.running => SessionStateText.running,
   SessionBusinessState.paused => SessionStateText.paused,
   SessionBusinessState.completed => SessionStateText.completed,
+  SessionBusinessState.stopRequested => 'متوقف محليًا',
 };
 
 /// أيقونة / رمز مصدر الطاقة المعتمد (ق-81 / ق-129)

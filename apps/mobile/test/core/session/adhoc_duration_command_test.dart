@@ -1,7 +1,7 @@
 /// انحدار توافق أمر البدء الحرّ مع قاعدة المدة المشروطة (ق-132/750 /
 /// M113-E2-e-c2): النوع القديم يبقى حرفيًا كما هو، والمدة الصريحة تسافر
 /// إلى `start_adhoc_session` ببصمتها المستقلة، والأوامر المُسلسَلة قبل
-/// التغيير تُقرأ وتُرسَل كما كانت، والرفض المدة يصير مراجعة بشرية لا
+/// التغيير تُحفظ دون إرسال عند غياب دليل بشري، ورفض المدة يصير مراجعة لا
 /// حلقة إعادة.
 ///
 /// الاختبارات على السلوك لا على نصّ الكود: المزيَّف يسجّل ما أُرسل
@@ -26,6 +26,7 @@ import 'package:well_irrigation_mobile/core/sync/sqlite_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
+import '../../support/human_command_fixture.dart';
 import '../sync/fake_command_transport.dart';
 
 void main() {
@@ -155,18 +156,34 @@ void main() {
 
     test('إعادة المحاولة تحمل معرّف العملية الأصلي نفسه', () async {
       final transport = FakeCommandTransport();
-      transport.scheduleNetworkFailure(CommandType.startAdhocSession);
+      transport.swallowAckOnce.add(CommandType.startAdhocSession.rpcName);
       final (store, coordinator) = await harness(transport);
 
       final envelope = await startWithDuration(coordinator, minutes: 45);
       final engine = SyncEngine(store: store, transport: transport);
-      await engine.run(accountA);
-      await engine.run(accountA);
+      final first = await engine.run(accountA);
+      final retry = await engine.run(accountA);
 
       final attempts = transport.requestsFor(CommandType.startAdhocSession);
-      expect(attempts, hasLength(2));
-      expect(attempts.first.commandId, envelope.commandId);
-      expect(attempts.last.commandId, envelope.commandId);
+      expect(attempts, hasLength(1));
+      expect(attempts.single.commandId, envelope.commandId);
+      expect(
+        attempts.single.arguments['p_started_at'],
+        envelope.occurredAt.toIso8601String(),
+      );
+      expect(first.retryScheduled, 0);
+      expect(retry.retryScheduled, 0);
+      final saved = (await store.allCommands(accountA)).single;
+      expect(saved.localId, envelope.localId);
+      expect(saved.commandId, envelope.commandId);
+      expect(saved.occurredAt, envelope.occurredAt);
+      expect(saved.createdLocalAt, envelope.createdLocalAt);
+      expect(saved.payload, envelope.payload);
+      expect(saved.status, CommandStatus.dispatching);
+      expect(saved.retryCount, 0);
+      expect(saved.serverResponse, isNull);
+      // الرد المقبول مفقود: يبقى الأصل للتحقق، ولا يُستعاض عنه بإرسال آخر.
+      expect(transport.executed[envelope.commandId], isA<DispatchAccepted>());
       expect(transport.executionCount, 1);
     });
 
@@ -259,7 +276,7 @@ void main() {
       return databasePath;
     }
 
-    test('صف قديم محفوظ على القرص يُقرأ كما هو ويُرسَل للعقد الأصلي', () async {
+    test('صف قديم محفوظ على القرص يُقرأ كما هو ويُحجز بلا دليل بشري', () async {
       final databasePath = await databaseWithLegacyRow();
 
       final reader = SqliteOutboxStore(
@@ -279,18 +296,35 @@ void main() {
         isFalse,
       );
 
-      // الإرسال يذهب إلى العقد الأصلي بمعرّف العملية المخزَّن، بلا مدة.
+      final original = commands.single;
       final transport = FakeCommandTransport();
-      await SyncEngine(store: reader, transport: transport).run(accountA);
+      final engine = SyncEngine(store: reader, transport: transport);
+      await engine.run(accountA);
+      await engine.run(accountA);
 
-      expect(transport.calledFunctions, ['start_irrigation_session']);
-      final request = transport.requests.single;
-      expect(request.commandId, 'legacy-command-1');
-      expect(request.arguments['p_command_id'], 'legacy-command-1');
-      expect(request.arguments['p_started_at'], '2026-08-01T05:00:00.000Z');
+      expect(transport.requests, isEmpty);
+      final saved = (await reader.allCommands(accountA)).single;
+      expect(saved.localId, 'legacy-local-1');
+      expect(saved.commandId, original.commandId);
+      expect(saved.occurredAt, original.occurredAt);
+      expect(saved.createdLocalAt, original.createdLocalAt);
+      expect(saved.payload, legacyPayload);
+      expect(saved.localContext, original.localContext);
+      expect(saved.status, CommandStatus.pending);
+      expect(saved.retryCount, 0);
       expect(
-        request.arguments.containsKey('p_planned_duration_minutes'),
-        isFalse,
+        await reader.readBundle(
+          accountA,
+          'command.q137.hold.v1.${saved.localId}',
+        ),
+        'originUnresolved',
+      );
+      expect(
+        await reader.readBundle(
+          accountA,
+          'command.human_intent.v1.${saved.localId}',
+        ),
+        isNull,
       );
     });
 
@@ -304,13 +338,26 @@ void main() {
       await reader.initialize();
       addTearDown(reader.close);
 
+      final original = (await reader.allCommands(accountA)).single;
+      await recordTestHumanAction(reader, original);
       final transport = FakeCommandTransport();
       final engine = SyncEngine(store: reader, transport: transport);
-      await engine.run(accountA);
-      await engine.run(accountA);
+      final first = await engine.run(accountA);
+      expect(first.confirmed, 1);
+      expect(transport.requests, hasLength(1));
+      final second = await engine.run(accountA);
+      expect(second.attempted, 0);
 
       expect(transport.requests, hasLength(1));
       expect(transport.executionCount, 1);
+      final saved = (await reader.allCommands(accountA)).single;
+      expect(saved.status, CommandStatus.confirmed);
+      expect(saved.localId, original.localId);
+      expect(saved.commandId, original.commandId);
+      expect(saved.occurredAt, original.occurredAt);
+      expect(saved.createdLocalAt, original.createdLocalAt);
+      expect(saved.payload, original.payload);
+      expect(transport.requests.single.commandId, original.commandId);
       expect(await reader.pendingCommands(accountA), isEmpty);
     });
   });

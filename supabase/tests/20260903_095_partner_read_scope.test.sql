@@ -742,10 +742,50 @@ begin
     'api', 'ops', 'billing', 'finance', 'inventory', 'core', 'reporting'
   )
     and p.prokind = 'f'
-    and pg_get_functiondef(p.oid) like '%iam.has_well_role%';
+    and pg_get_functiondef(p.oid) like '%iam.has_well_role%'
+    -- R6-C2B explicitly adopted role-only configuration/review authority.
+    -- Generic finance/session permissions must NOT replace these owner-only
+    -- decisions. Preserve the zero-legacy-guard assertion outside this exact
+    -- reviewed signature list; no wildcard exception for other functions.
+    and p.oid <> all(array[
+      'billing.enter_financial_write(uuid,text,text[],uuid)'::regprocedure::oid,
+      'finance.change_current_distribution_adjustment(uuid,bigint,text,boolean)'::regprocedure::oid,
+      'finance.lock_editable_opening_batch(uuid)'::regprocedure::oid,
+      'finance.mutate_worker_compensation(uuid,uuid,text,uuid,text,bigint,date)'::regprocedure::oid,
+      'finance.r6c2_api_add_well_partner(uuid,uuid,text,text,text)'::regprocedure::oid,
+      'finance.r6c2_api_configure_fuel_tank(uuid,text,bigint,text,text)'::regprocedure::oid,
+      'finance.r6c2_api_create_fuel_tank(uuid,text,bigint,text)'::regprocedure::oid,
+      'finance.r6c2_api_create_opening_balance_batch(uuid,date,text)'::regprocedure::oid,
+      'finance.r6c2_api_get_distribution_configuration(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_expense_approval_configuration(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_legacy_invoice_accounting_review(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_partner_distribution_sources(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_partner_irrigation_policy(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_worker_compensation_history(uuid,uuid)'::regprocedure::oid,
+      'finance.r6c2_api_open_legacy_invoice_accounting_review(uuid,uuid,bigint,text,uuid)'::regprocedure::oid,
+      'finance.r6c2_api_pay_departed_partner_source(uuid,bigint,text,uuid)'::regprocedure::oid,
+      'finance.r6c2_api_prepare_partner_payable_source(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_preview_partner_share_change(uuid,date)'::regprocedure::oid,
+      'finance.r6c2_api_preview_worker_compensation_effective_date(uuid,text)'::regprocedure::oid,
+      'finance.r6c2_api_recalculate_profit_distribution(uuid,boolean,text,bigint,boolean)'::regprocedure::oid,
+      'finance.r6c2_api_record_partner_departure(uuid,jsonb,date,text,date)'::regprocedure::oid,
+      'finance.r6c2_api_rename_cashbox(uuid,text)'::regprocedure::oid,
+      'finance.r6c2_api_resolve_legacy_invoice_accounting_review(uuid,text,text,uuid)'::regprocedure::oid,
+      'finance.r6c2_api_review_legacy_partner_expense_source(uuid,bigint,text)'::regprocedure::oid,
+      'finance.r6c2_api_select_partner_distribution_source(uuid,uuid,bigint,text)'::regprocedure::oid,
+      'finance.r6c2_api_set_expense_approval_configuration(uuid,jsonb)'::regprocedure::oid,
+      'finance.r6c2_api_set_farmer_account_active(uuid,boolean)'::regprocedure::oid,
+      'finance.r6c2_api_set_partner_irrigation_policy(uuid,text)'::regprocedure::oid,
+      'finance.r6c2_api_set_partner_shares(uuid,date,date,jsonb,text)'::regprocedure::oid,
+      'finance.r6c2_api_set_well_partner_administrative_state(uuid,text)'::regprocedure::oid,
+      'finance.r6c2_api_update_well_partner_contact(uuid,text,text,text)'::regprocedure::oid,
+      'finance.request_period_reopen(uuid,uuid,text)'::regprocedure::oid,
+      'finance.save_distribution_configuration(uuid,boolean,text,numeric,bigint,boolean)'::regprocedure::oid,
+      'ops.lock_editable_farmer_account(uuid,boolean)'::regprocedure::oid
+    ]);
 
   if v_count = 0 then
-    raise notice 'PASS 26: صفر دوال عمل على مصفوفات الأدوار النصية بعد 095';
+    raise notice 'PASS 26: لا سلطة أدوار قديمة خارج حدود المالك والإعداد المعتمدة صراحة';
   else
     raise notice 'FAIL 26: بقيت % دالة على السلطة النصية', v_count;
   end if;

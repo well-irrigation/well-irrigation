@@ -15,6 +15,7 @@ import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
 import 'sync_test_support.dart';
+import '../../support/human_command_fixture.dart';
 
 void main() {
   late HttpServer server;
@@ -65,6 +66,7 @@ void main() {
         farmerWellAccount: 'farmer-a',
       ),
     );
+    await recordTestHumanAction(store, command);
     return (store, command.localId);
   }
 
@@ -93,7 +95,7 @@ void main() {
     ).run('account-a');
 
     expect(received, isEmpty);
-    expect(report.retryScheduled, 1);
+    expect(report.retryScheduled, 0);
     expect(
       (await store.commandByLocalId('account-a', localId))!.status,
       CommandStatus.pending,
@@ -108,7 +110,7 @@ void main() {
     ).run('account-a');
 
     expect(received, isEmpty);
-    expect(report.retryScheduled, 1);
+    expect(report.retryScheduled, 0);
     expect(
       (await store.commandByLocalId('account-a', localId))!.status,
       CommandStatus.pending,

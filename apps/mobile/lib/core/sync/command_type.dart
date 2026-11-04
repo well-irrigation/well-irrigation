@@ -25,7 +25,8 @@ enum EntityKind {
   sessionCharge,
   farmerWellAccount,
   farm,
-  payment;
+  payment,
+  booking;
 
   String get storageValue => name;
 
@@ -38,6 +39,13 @@ enum EntityKind {
 /// الترتيب هنا لا يعني ترتيب الإرسال؛ الإرسال يتبع `sequence` في
 /// الطابور.
 enum CommandType {
+  createBooking(
+    rpcName: 'create_booking', scope: CommandScope.well,
+    scopeArgument: 'p_well_id', returnsJson: true,
+    resultKey: 'booking_id', produces: EntityKind.booking,
+  ),
+
+
   createFarmer(
     rpcName: 'create_farmer',
     scope: CommandScope.well,
@@ -134,6 +142,15 @@ enum CommandType {
     returnsJson: true,
     resultKey: 'session_charge_id',
     produces: EntityKind.sessionCharge,
+  ),
+
+  recordBookingTransitionDecision(
+    rpcName: 'record_booking_transition_decision', scope: CommandScope.well,
+    scopeArgument: 'p_chain_id', returnsJson: true,
+  ),
+  executePendingBookingStart(
+    rpcName: 'execute_pending_booking_start', scope: CommandScope.well,
+    scopeArgument: 'p_chain_id', returnsJson: true, produces: EntityKind.session,
   ),
 
   endBookingTransitionChain(

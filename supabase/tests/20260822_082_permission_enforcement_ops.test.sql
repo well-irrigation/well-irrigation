@@ -156,10 +156,50 @@ begin
     'api', 'ops', 'billing', 'finance', 'inventory', 'core', 'reporting'
   )
     and p.prokind = 'f'
-    and pg_get_functiondef(p.oid) like '%iam.has_well_role%';
+    and pg_get_functiondef(p.oid) like '%iam.has_well_role%'
+    -- R6-C2B explicitly adopted role-only configuration/review authority.
+    -- Generic finance/session permissions must NOT replace these owner-only
+    -- decisions. Preserve the zero-legacy-guard assertion outside this exact
+    -- reviewed signature list; no wildcard exception for other functions.
+    and p.oid <> all(array[
+      'billing.enter_financial_write(uuid,text,text[],uuid)'::regprocedure::oid,
+      'finance.change_current_distribution_adjustment(uuid,bigint,text,boolean)'::regprocedure::oid,
+      'finance.lock_editable_opening_batch(uuid)'::regprocedure::oid,
+      'finance.mutate_worker_compensation(uuid,uuid,text,uuid,text,bigint,date)'::regprocedure::oid,
+      'finance.r6c2_api_add_well_partner(uuid,uuid,text,text,text)'::regprocedure::oid,
+      'finance.r6c2_api_configure_fuel_tank(uuid,text,bigint,text,text)'::regprocedure::oid,
+      'finance.r6c2_api_create_fuel_tank(uuid,text,bigint,text)'::regprocedure::oid,
+      'finance.r6c2_api_create_opening_balance_batch(uuid,date,text)'::regprocedure::oid,
+      'finance.r6c2_api_get_distribution_configuration(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_expense_approval_configuration(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_legacy_invoice_accounting_review(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_partner_distribution_sources(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_partner_irrigation_policy(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_get_worker_compensation_history(uuid,uuid)'::regprocedure::oid,
+      'finance.r6c2_api_open_legacy_invoice_accounting_review(uuid,uuid,bigint,text,uuid)'::regprocedure::oid,
+      'finance.r6c2_api_pay_departed_partner_source(uuid,bigint,text,uuid)'::regprocedure::oid,
+      'finance.r6c2_api_prepare_partner_payable_source(uuid)'::regprocedure::oid,
+      'finance.r6c2_api_preview_partner_share_change(uuid,date)'::regprocedure::oid,
+      'finance.r6c2_api_preview_worker_compensation_effective_date(uuid,text)'::regprocedure::oid,
+      'finance.r6c2_api_recalculate_profit_distribution(uuid,boolean,text,bigint,boolean)'::regprocedure::oid,
+      'finance.r6c2_api_record_partner_departure(uuid,jsonb,date,text,date)'::regprocedure::oid,
+      'finance.r6c2_api_rename_cashbox(uuid,text)'::regprocedure::oid,
+      'finance.r6c2_api_resolve_legacy_invoice_accounting_review(uuid,text,text,uuid)'::regprocedure::oid,
+      'finance.r6c2_api_review_legacy_partner_expense_source(uuid,bigint,text)'::regprocedure::oid,
+      'finance.r6c2_api_select_partner_distribution_source(uuid,uuid,bigint,text)'::regprocedure::oid,
+      'finance.r6c2_api_set_expense_approval_configuration(uuid,jsonb)'::regprocedure::oid,
+      'finance.r6c2_api_set_farmer_account_active(uuid,boolean)'::regprocedure::oid,
+      'finance.r6c2_api_set_partner_irrigation_policy(uuid,text)'::regprocedure::oid,
+      'finance.r6c2_api_set_partner_shares(uuid,date,date,jsonb,text)'::regprocedure::oid,
+      'finance.r6c2_api_set_well_partner_administrative_state(uuid,text)'::regprocedure::oid,
+      'finance.r6c2_api_update_well_partner_contact(uuid,text,text,text)'::regprocedure::oid,
+      'finance.request_period_reopen(uuid,uuid,text)'::regprocedure::oid,
+      'finance.save_distribution_configuration(uuid,boolean,text,numeric,bigint,boolean)'::regprocedure::oid,
+      'ops.lock_editable_farmer_account(uuid,boolean)'::regprocedure::oid
+    ]);
 
   if v_count = 0 then
-    raise notice 'PASS 5: صفر حرس دالة على مصفوفات الأدوار النصية';
+    raise notice 'PASS 5: لا حرس أدوار قديم خارج حدود الإعداد والمراجعة المعتمدة صراحة';
   else
     raise notice 'FAIL 5: بقي % دالة على السلطة القديمة', v_count;
   end if;
@@ -177,10 +217,15 @@ begin
     coalesce(qual, '') || ' ' || coalesce(with_check, '')
   ) like '%iam.has_well_role%';
 
-  if v_count = 273 then
-    raise notice 'PASS 6: 273 RLS policy باقية كطبقة توافق وحيدة';
+  -- R6-C2B removes unsafe write policies while retaining compatibility reads.
+  if v_count>0 and not exists(
+    select 1 from (values('core','wells'),('ops','farmer_well_accounts'),('finance','accounting_periods')) required(schema_name,table_name)
+    where not exists(select 1 from pg_policies p where p.schemaname=required.schema_name
+      and p.tablename=required.table_name and p.cmd='SELECT' and p.qual like '%iam.has_well_role%')
+  ) then
+    raise notice 'PASS 6: سياسات القراءة التوافقية محفوظة بعد سحب الكتابة غير الآمنة';
   else
-    raise notice 'FAIL 6: has_well_role policy count = % بدل 273', v_count;
+    raise notice 'FAIL 6: سياسة قراءة توافقية مطلوبة مفقودة';
   end if;
 
 
@@ -514,12 +559,12 @@ begin
 
   -- M112 أضافت booking.cancel وbooking.read للمشغل مع المالك.
   if v_src = 'booking.cancel,booking.create,booking.read,'
-             || 'booking.reschedule,farmer.create,'
+             || 'booking.reschedule,farm.create,farmer.create,'
              || 'fuel.consume,fuel.count,fuel.purchase,'
              || 'session.complete,session.energy.change,session.pause,'
              || 'session.resume,session.start,shift.open'
   then
-    raise notice 'PASS 13: operator يملك الميدان كاملًا بلا الأرض وبلا تجاوز المناوبة';
+    raise notice 'PASS 13: operator يملك الميدان كاملًا مع الأرض وبلا تجاوز المناوبة';
   else
     raise notice 'FAIL 13: operator ops set = "%"', v_src;
   end if;
@@ -554,7 +599,7 @@ begin
 
 
   -- ------------------------------------------------------------
-  -- 15. Farm creation remains owner-only.
+  -- 15. Farm creation allowed for owner/operator only.
   -- ------------------------------------------------------------
 
   perform set_config('request.jwt.claim.sub', v_operator::text, true);
@@ -571,8 +616,8 @@ begin
   end;
   execute 'reset role';
 
-  if v_count = 0 and v_count_2 = 0 then
-    raise notice 'PASS 15: إنشاء الأرض بقي للمالك وحده';
+  if v_count = 1 and v_count_2 = 0 then
+    raise notice 'PASS 15: إنشاء الأرض للمالك والمشغل دون المدير';
   else
     raise notice 'FAIL 15: operator=% manager=% حصلا على إنشاء الأرض',
       v_count, v_count_2;

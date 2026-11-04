@@ -1,5 +1,7 @@
 // ignore_for_file: prefer_initializing_formals
 
+import '../farms/farm_selection_projection.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -26,6 +28,8 @@ import 'active_session_projector.dart';
 import 'active_session_record.dart';
 import 'session_crop_snapshot.dart';
 import 'time_integrity.dart';
+import 'manual_stop_request_store.dart';
+import '../sync/command_intent_policy.dart';
 
 /// نتيجة قراءة فقط من الطابور وقراءة مالية خادمية محفوظة فيه.
 /// إصدار الدفعات يمنع رفع قراءة بدأت قبل الإقرار إلى حقيقة سارية بعده.
@@ -1932,6 +1936,74 @@ class OfflineSessionCoordinator {
     return list;
   }
 
+  Future<FarmerAccount?> farmFarmerIdentity({
+    required String accountId,
+    required String wellId,
+    required String farmerId,
+    FarmerAccount? current,
+  }) async {
+    await _store.initialize();
+    final storage = _store;
+    final key = 'farm.farmer.$wellId.$farmerId';
+    if (current != null && current.id == farmerId && !current.isPending) {
+      if (storage is SqliteOutboxStore) {
+        await storage.writeLocalValue(
+          accountId,
+          key,
+          jsonEncode({
+            'id': current.id,
+            'full_name': current.fullName,
+            'public_code': current.publicCode,
+            'phone': current.phone,
+            'status': current.status,
+          }),
+        );
+      }
+      return current;
+    }
+    if (storage is! SqliteOutboxStore) return null;
+    final raw = await storage.readLocalValue(accountId, key);
+    if (raw == null) return null;
+    final account = FarmerAccount.fromJson(
+      Map<String, dynamic>.from(jsonDecode(raw) as Map),
+    );
+    return account.id == farmerId ? account : null;
+  }
+
+  final _farmChanges = StreamController<String>.broadcast();
+  Stream<String> get farmChanges => _farmChanges.stream;
+  Future<List<Farm>> farmChoices({
+    required String accountId,
+    required String wellId,
+    required EntityReference farmerReference,
+    List<Farm> canonical = const [],
+    int limit = 50,
+    String query = '',
+  }) async {
+    await _store.initialize();
+    final storage = _store;
+    if (storage is! FarmSelectionStore) {
+      throw StateError('تخزين الأراضي غير متاح');
+    }
+    final rows = await (storage as FarmSelectionStore).farmCommands(
+      accountId: accountId,
+      wellId: wellId,
+      farmer: farmerReference.toPayload(),
+      limit: limit,
+      query: query,
+    );
+    final farmerId =
+        farmerReference.serverId ?? farmerReference.localReference!.localId;
+    return projectFarmSelection(
+      canonical: canonical,
+      local: rows,
+      wellId: wellId,
+      farmerId: farmerId,
+      limit: limit,
+      query: query,
+    );
+  }
+
   /// إنشاء مزارع جديد وحفظه متينًا في الطابور المحلي أولًا (ق-89 / ق-114 / م-21).
   Future<FarmerAccount> enqueueFarmer({
     required String accountId,
@@ -1940,6 +2012,7 @@ class OfflineSessionCoordinator {
     String? phone,
     String? notes,
     String? actionToken,
+    bool waitForCanonical = false,
   }) async {
     final cleanName = fullName.trim();
     if (cleanName.isEmpty) {
@@ -1959,6 +2032,7 @@ class OfflineSessionCoordinator {
         fullName: cleanName,
         phone: phone,
         notes: notes,
+        waitForCanonical: waitForCanonical,
       );
       _inFlightFarmerEnqueues[key] = future;
       try {
@@ -1974,6 +2048,7 @@ class OfflineSessionCoordinator {
       fullName: cleanName,
       phone: phone,
       notes: notes,
+      waitForCanonical: waitForCanonical,
     );
   }
 
@@ -1983,6 +2058,7 @@ class OfflineSessionCoordinator {
     required String fullName,
     String? phone,
     String? notes,
+    bool waitForCanonical = false,
   }) async {
     await initialize();
 
@@ -1999,7 +2075,54 @@ class OfflineSessionCoordinator {
       },
     );
 
-    await _triggerSync(accountId, wellId: wellId);
+    final opportunity = _triggerSync(
+      accountId,
+      wellId: wellId,
+      waitForCompletion: waitForCanonical,
+    );
+    if (waitForCanonical) {
+      try {
+        await opportunity.timeout(const Duration(seconds: 8));
+      } catch (_) {
+        /* Durable save survives sync failure. */
+      }
+      final current = await _store.commandByLocalId(
+        accountId,
+        envelope.localId,
+      );
+      final mapping = await _store.mapping(
+        accountId,
+        envelope.localId,
+        EntityKind.farmerWellAccount,
+      );
+      if (current?.status == CommandStatus.confirmed &&
+          mapping != null &&
+          mapping.serverId.isNotEmpty) {
+        return FarmerAccount(
+          id: mapping.serverId,
+          fullName: fullName,
+          publicCode: current?.serverResponse?['public_code'] as String? ?? '',
+          phone: phone?.trim(),
+        );
+      }
+      if (current?.status == CommandStatus.review) {
+        return FarmerAccount(
+          id: '',
+          fullName: fullName,
+          publicCode: '',
+          phone: phone?.trim(),
+          status: 'requires_resolution',
+          reference: PendingLocalEntityReference(
+            CommandReference(
+              localId: envelope.localId,
+              kind: EntityKind.farmerWellAccount,
+            ),
+          ),
+        );
+      }
+    } else {
+      unawaited(opportunity.catchError((_) {}));
+    }
 
     return FarmerAccount.pending(
       reference: CommandReference(
@@ -2019,12 +2142,20 @@ class OfflineSessionCoordinator {
     String? distinguishingLabel,
     required EntityReference farmerReference,
   }) async {
+    if (accountId.isEmpty ||
+        wellId.isEmpty ||
+        (farmerReference.isServer &&
+            (farmerReference.serverId?.isEmpty ?? true))) {
+      throw ArgumentError('اختر المزارع والبئر');
+    }
     final cleanName = name.trim();
     if (cleanName.isEmpty) {
       throw ArgumentError('اسم الأرض مطلوب');
     }
 
-    final cleanLabel = distinguishingLabel?.trim();
+    final cleanLabel = distinguishingLabel?.trim().isEmpty == true
+        ? null
+        : distinguishingLabel?.trim();
     final key =
         '$accountId:$wellId:${farmerReference.toPayload()}:$cleanName:$cleanLabel';
     final inFlight = _inFlightFarmEnqueues[key];
@@ -2054,9 +2185,9 @@ class OfflineSessionCoordinator {
     String? distinguishingLabel,
     required EntityReference farmerReference,
   }) async {
-    await initialize();
+    await _store.initialize();
 
-    final envelope = await _outbox.enqueue(
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: wellId,
       type: CommandType.createFarm,
@@ -2069,6 +2200,20 @@ class OfflineSessionCoordinator {
           'p_distinguishing_label': distinguishingLabel,
       },
     );
+
+    final key =
+        'farm.create.${jsonEncode([wellId, farmerReference.toPayload(), name, distinguishingLabel])}';
+    final stored = await _store.insertBundle(
+      accountId: accountId,
+      key: key,
+      value: prepared.localId,
+      commands: [prepared],
+    );
+    final envelope = (await _store.commandByLocalId(accountId, stored))!;
+    if (envelope.status == CommandStatus.review) {
+      throw StateError('اختر أرضًا موجودة أو أضف صفة مميزة.');
+    }
+    if (!_farmChanges.isClosed) _farmChanges.add(wellId);
 
     await _triggerSync(accountId, wellId: wellId);
 
@@ -2235,6 +2380,9 @@ class OfflineSessionCoordinator {
       );
     }
 
+    if (await freshProjectActiveSession(accountId: accountId, wellId: wellId) != null) {
+      throw StateError('well_has_active_session');
+    }
     final eventTime = startedAt ?? DateTime.now();
     final effectiveFarm = farmReference != null
         ? farmReference.toPayload()
@@ -2270,7 +2418,7 @@ class OfflineSessionCoordinator {
       },
     );
 
-    final envelope = await _store.insert(prepared);
+    final envelope = await _persistExplicitHumanSessionCommand(prepared);
 
     await projectActiveSession(accountId: accountId, wellId: wellId);
     await _triggerSync(
@@ -2295,7 +2443,8 @@ class OfflineSessionCoordinator {
 
     final eventTime = pausedAt ?? DateTime.now();
     final start = await _sessionStart(accountId, sessionLocalId);
-    final envelope = await _outbox.enqueue(
+    await _assertManualSessionWritable(start);
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
@@ -2307,6 +2456,7 @@ class OfflineSessionCoordinator {
       },
     );
 
+    final envelope = await _persistExplicitHumanSessionCommand(prepared);
     await _projectExactSession(accountId, sessionLocalId);
     await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
@@ -2322,7 +2472,8 @@ class OfflineSessionCoordinator {
 
     final eventTime = resumedAt ?? DateTime.now();
     final start = await _sessionStart(accountId, sessionLocalId);
-    final envelope = await _outbox.enqueue(
+    await _assertManualSessionWritable(start);
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
@@ -2331,6 +2482,7 @@ class OfflineSessionCoordinator {
       payload: {'p_session_id': _outbox.referenceTo(start).toJson()},
     );
 
+    final envelope = await _persistExplicitHumanSessionCommand(prepared);
     await _projectExactSession(accountId, sessionLocalId);
     await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
@@ -2347,7 +2499,8 @@ class OfflineSessionCoordinator {
 
     final eventTime = changedAt ?? DateTime.now();
     final start = await _sessionStart(accountId, sessionLocalId);
-    final envelope = await _outbox.enqueue(
+    await _assertManualSessionWritable(start);
+    final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: start.wellId,
       aggregateLocalId: sessionLocalId,
@@ -2359,6 +2512,7 @@ class OfflineSessionCoordinator {
       },
     );
 
+    final envelope = await _persistExplicitHumanSessionCommand(prepared);
     await _projectExactSession(accountId, sessionLocalId);
     await _triggerSync(accountId, sessionLocalId: sessionLocalId);
     return envelope;
@@ -2371,21 +2525,54 @@ class OfflineSessionCoordinator {
     DateTime? completedAt,
   }) async {
     await initialize();
-
-    final eventTime = completedAt ?? DateTime.now();
     final start = await _sessionStart(accountId, sessionLocalId);
-    final envelope = await _outbox.enqueue(
-      accountId: accountId,
-      wellId: start.wellId,
-      aggregateLocalId: sessionLocalId,
-      type: CommandType.completeIrrigationSession,
-      occurredAt: eventTime,
-      payload: {'p_session_id': _outbox.referenceTo(start).toJson()},
+    await _assertManualSessionWritable(start);
+    final wellId = start.wellId;
+    if (wellId == null || wellId.isEmpty) throw StateError('manual_stop_scope_required');
+    final stops = ManualStopRequestStore(_store);
+    final request = await stops.recordHumanStopRequest(
+      accountId: accountId, wellId: wellId, sessionLocalId: sessionLocalId,
+      requestedAt: completedAt ?? DateTime.now(),
     );
-
+    // Local truth is published before creating a completion command.
     await _projectExactSession(accountId, sessionLocalId);
-    await _triggerSync(accountId, sessionLocalId: sessionLocalId);
-    return envelope;
+    try {
+      final command = await stops.materializeRecordedRequest(request);
+      await _projectExactSession(accountId, sessionLocalId);
+      return command;
+    } on Object catch (error) {
+      throw StateError('manual_stop_recorded_materialization_pending: $error');
+    } finally {
+      await _triggerSync(accountId, sessionLocalId: sessionLocalId, wellId: wellId);
+    }
+  }
+
+  Future<void> _assertManualSessionWritable(CommandEnvelope root) async {
+    final well = root.wellId;
+    if (well != null && await ManualStopRequestStore(_store).read(
+      accountId: root.accountId, wellId: well, sessionLocalId: root.localId) != null) {
+      throw StateError('manual_stop_already_requested');
+    }
+    final projection = await _projector.projectSession(root.accountId, root.localId, now: DateTime.now());
+    if (projection == null || !projection.businessState.isActive) {
+      throw StateError('session_not_active');
+    }
+  }
+
+  Future<CommandEnvelope> _persistExplicitHumanSessionCommand(CommandEnvelope command) async {
+    if (!const {CommandType.startIrrigationSession, CommandType.startAdhocSession,
+      CommandType.pauseIrrigationSession, CommandType.resumeIrrigationSession,
+      CommandType.changeSessionEnergySource}.contains(command.type)) {
+      throw ArgumentError('unsupported_human_session_command');
+    }
+    if (command.wellId == null || command.wellId!.isEmpty) {
+      return _store.insert(command);
+    }
+    final value = humanCommandIntentRecord(command);
+    final saved = await _store.insertBundle(accountId: command.accountId,
+      key: humanCommandIntentBundleKey(command.localId), value: value, commands: [command]);
+    if (saved != value) throw StateError('human_intent_identity_conflict');
+    return command;
   }
 
   static Map<String, Object?> _cacheDetail(SessionDetailData data) {
@@ -2472,6 +2659,12 @@ class OfflineSessionCoordinator {
       serverSessionId: serverSessionId,
     );
     if (snapshot == null) return null;
+    return _completedSessionPaymentFromSnapshot(snapshot);
+  }
+
+  CompletedSessionPaymentState? _completedSessionPaymentFromSnapshot(
+    SessionOutboxSnapshot snapshot,
+  ) {
     final record = _projector.projectCompletedSnapshot(
       snapshot,
       now: DateTime.now(),
@@ -2498,6 +2691,79 @@ class OfflineSessionCoordinator {
       revision: revision,
       paymentRead: snapshot.paymentRead,
     );
+  }
+
+  /// أهلية حفظ أول طلب تحصيل فقط؛ لا تثبت إكمالًا أو مبلغًا معتمدًا.
+  bool _canRecordPendingSessionPayment(
+    SessionOutboxSnapshot snapshot, {
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required String farmerAccountId,
+    required String? completionLocalId,
+  }) {
+    final roots = snapshot.commands.where((c) => c.localId == sessionLocalId);
+    if (roots.length != 1 ||
+        completionLocalId == null ||
+        snapshot.paymentRead != null) {
+      return false;
+    }
+    final root = roots.single;
+    if (!_isSessionStartType(root.type) ||
+        root.accountId != accountId ||
+        root.wellId != wellId ||
+        root.commandId.isEmpty ||
+        root.status == CommandStatus.review) {
+      return false;
+    }
+    final context = root.type == CommandType.startBookingSession
+        ? root.localContext
+        : root.payload;
+    final farmer = context['p_farmer_well_account_id'];
+    final matchesFarmer = farmer is String
+        ? farmer.isNotEmpty && farmer == farmerAccountId
+        : farmer is Map &&
+              farmer.length == 2 &&
+              farmer[r'$kind'] == EntityKind.farmerWellAccount.storageValue &&
+              farmer[r'$ref'] is String &&
+              farmer[r'$ref'] == farmerAccountId;
+    if (!matchesFarmer ||
+        snapshot.commands.any((c) => c.type == CommandType.recordPayment)) {
+      return false;
+    }
+    final completions = snapshot.commands
+        .where((c) => c.type == CommandType.completeIrrigationSession)
+        .toList();
+    if (completions.length != 1) return false;
+    final completion = completions.single;
+    if (completion.localId != completionLocalId ||
+        completion.commandId.isEmpty ||
+        completion.accountId != accountId ||
+        completion.wellId != wellId ||
+        completion.aggregateLocalId != sessionLocalId ||
+        completion.occurredAt.isBefore(root.occurredAt) ||
+        !const {
+          CommandStatus.pending,
+          CommandStatus.dispatching,
+        }.contains(completion.status) ||
+        completion.serverResponse != null) {
+      return false;
+    }
+    final target = completion.payload['p_session_id'];
+    if (target is Map) {
+      return target.length == 2 &&
+          target[r'$ref'] == root.localId &&
+          target[r'$kind'] == EntityKind.session.storageValue;
+    }
+    // A literal target needs the exact existing start mapping, not a guessed ID.
+    return target is String &&
+        target.isNotEmpty &&
+        snapshot.mappings.any(
+          (m) =>
+              m.localId == root.localId &&
+              m.kind == EntityKind.session &&
+              m.serverId == target,
+        );
   }
 
   /// استعادة عند الدخول، بلا انتظار حدث أو تشغيل إسقاط البئر/المزامنة.
@@ -2585,15 +2851,30 @@ class OfflineSessionCoordinator {
     return _withSessionPaymentSection(
       (accountId, wellId, sessionLocalId),
       () async {
-        final state = await _restoreSessionPayment(
+        await initialize();
+        final snapshot = await _store.sessionSnapshot(
           accountId: accountId,
           wellId: wellId,
           localSessionId: sessionLocalId,
         );
-        if (state == null ||
-            !state.canRecordPayment ||
-            state.record.farmerReference != farmerAccountId ||
-            state.record.completionCommandLocalId != sessionCompletionLocalId) {
+        final state = snapshot == null
+            ? null
+            : _completedSessionPaymentFromSnapshot(snapshot);
+        final eligible = state != null
+            ? state.canRecordPayment &&
+                  state.record.farmerReference == farmerAccountId &&
+                  state.record.completionCommandLocalId ==
+                      sessionCompletionLocalId
+            : snapshot != null &&
+                  _canRecordPendingSessionPayment(
+                    snapshot,
+                    accountId: accountId,
+                    wellId: wellId,
+                    sessionLocalId: sessionLocalId,
+                    farmerAccountId: farmerAccountId,
+                    completionLocalId: sessionCompletionLocalId,
+                  );
+        if (!eligible) {
           throw StateError(
             'لا يمكن إنشاء دفعة أخرى قبل حسم الحالة الحالية للجلسة',
           );
@@ -2738,6 +3019,7 @@ class OfflineSessionCoordinator {
     String? sessionLocalId,
     String? wellId,
     bool paymentOnly = false,
+    bool waitForCompletion = false,
   }) async {
     try {
       await _commandQueuedScheduler?.call(accountId);
@@ -2746,9 +3028,13 @@ class OfflineSessionCoordinator {
     }
     if (_syncEngine == null) return;
     final projectionGeneration = ++_syncProjectionGeneration;
-    _syncEngine!
-        .run(accountId)
-        .then((_) async {
+    final opportunity = _syncEngine!
+        .runAfterCurrent(accountId)
+        .then((report) async {
+          if (report.farmResultsChanged) {
+            await _commandQueuedScheduler?.call(accountId);
+            if (!_farmChanges.isClosed && wellId != null) _farmChanges.add(wellId);
+          }
           if (!paymentOnly &&
               projectionGeneration != _syncProjectionGeneration) {
             return;
@@ -2769,6 +3055,7 @@ class OfflineSessionCoordinator {
           }
         })
         .catchError((_) {});
+    if (waitForCompletion) await opportunity;
   }
 
   /// جلب عدد العمليات المعلقة في الطابور المتين (القرار 563 / القرار 578)
@@ -2941,6 +3228,7 @@ class OfflineSessionCoordinator {
   }
 
   void dispose() {
+    if (!_farmChanges.isClosed) _farmChanges.close();
     _tickerTimer?.cancel();
     _tickerTimer = null;
     _initialized = false;

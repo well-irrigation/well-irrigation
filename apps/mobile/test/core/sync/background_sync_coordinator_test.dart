@@ -15,6 +15,7 @@ import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
 import 'fake_background_sync_scheduler.dart';
+import '../../support/human_command_fixture.dart';
 import 'fake_command_transport.dart';
 import 'sync_test_support.dart';
 
@@ -242,7 +243,7 @@ void main() {
       // التمريرة الأولى تُنجز ما استطاعت، والثانية تُنجز الباقي — بلا
       // انتظار نافذة تراجع جديدة لكل أمر.
       for (final well in [wellOne, wellTwo, 'well-0000-0000-0003']) {
-        await repository.enqueue(
+        final start = await repository.enqueue(
           accountId: accountA,
           type: CommandType.startIrrigationSession,
           payload: startSessionPayload(
@@ -253,15 +254,19 @@ void main() {
           occurredAt: testNow,
           wellId: well,
         );
+        await recordTestHumanAction(store, start);
       }
 
       transport.scheduleNetworkFailure(CommandType.startIrrigationSession);
 
       final decision = await coordinator.runFromWorker(accountA);
 
-      expect(coordinator.passesInLastRun, greaterThan(1));
-      expect(transport.executionCount, 3);
-      expect(decision.outcome, BackgroundSyncOutcome.allSent);
+      expect(coordinator.passesInLastRun, 1);
+      expect(transport.executionCount, 2);
+      expect(decision.outcome, isNot(BackgroundSyncOutcome.allSent));
+      expect(transport.requests,hasLength(3));
+      await coordinator.runFromWorker(accountA);
+      expect(transport.requests,hasLength(3));
     });
 
     test('بلا تقدّم لا تتكرر التمريرة', () async {

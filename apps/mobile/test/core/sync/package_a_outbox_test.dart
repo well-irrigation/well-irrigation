@@ -1,3 +1,9 @@
+import 'dart:convert';
+
+import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
+
+import '../../support/human_command_fixture.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/core/session/active_session_record.dart';
@@ -18,14 +24,27 @@ class PackageTransport implements CommandTransport {
     requests.add(request);
     if (request.type == CommandType.completeIrrigationSession) {
       return completionResult ??
-          const DispatchAccepted(
-            response: {'session_charge_id': 'charge'},
+          DispatchAccepted(
+            response: {
+              'session_charge_id': 'charge',
+              'session_id': request.arguments['p_session_id'],
+              'status': 'closed',
+              'ended_at': request.arguments['p_ended_at'],
+              'actual_seconds': 0,
+              'billable_seconds': 0,
+              'amount_minor': 0,
+              'weighted_price_per_hour_minor': 0,
+              'segments': <Object?>[],
+            },
             entityId: 'charge',
           );
     }
     return normalizeAcceptedResponse(
       request.type,
-      startResponse ?? {'session_id': 'server-B'},
+      startResponse ?? {'session_id': 'server-B', 'booking_id': 'B', 'well_id': 'well',
+        'session_status': 'open', 'booking_status': 'confirmed',
+        'started_at': request.arguments['p_started_at'], 'booked_duration_minutes': 10,
+        'operational_end_at': DateTime.parse(request.arguments['p_started_at'] as String).add(const Duration(minutes: 10)).toIso8601String()},
     );
   }
 }
@@ -47,11 +66,71 @@ CommandEnvelope command(
   createdLocalAt: instant,
   wellId: well,
   prerequisites: prerequisites,
-  localContext: const {'p_farm_id': 'farm', 'p_energy_source': 'well_diesel'},
+  aggregateLocalId: type == CommandType.completeIrrigationSession
+      ? 'root-A'
+      : null,
+  localContext: {
+    'p_farm_id': 'farm',
+    'p_energy_source': 'well_diesel',
+    if (type == CommandType.startBookingSession) 'manual_start': true,
+    if (type == CommandType.startBookingSession) 'booking_id': 'B',
+  },
   payload: type == CommandType.startBookingSession
       ? {'p_booking_id': 'B', 'p_crops': <String>[]}
+      : type == CommandType.completeIrrigationSession
+      ? {
+          'p_session_id': {r'$ref': 'root-A', r'$kind': 'session'},
+        }
       : {'p_session_id': 'server-A'},
 );
+Future<void> seedPackageHumanActions(OutboxStore store) async {
+  final rows = await store.allCommands('account');
+  for (final row in rows) {
+    if (row.type == CommandType.completeIrrigationSession &&
+        row.aggregateLocalId == 'root-A' &&
+        await store.commandByLocalId('account', 'root-A') == null) {
+      await store.insert(
+        CommandEnvelope(
+          localId: 'root-A',
+          commandId: 'root-command',
+          accountId: 'account',
+          wellId: row.wellId,
+          type: CommandType.startIrrigationSession,
+          sequence: 0,
+          occurredAt: instant,
+          createdLocalAt: instant,
+          payload: {'p_well_id': row.wellId},
+          status: CommandStatus.confirmed,
+          serverResponse: {'id': 'server-A'},
+        ),
+      );
+      await store.putMapping(
+        'account',
+        IdMapping(
+          localId: 'root-A',
+          kind: EntityKind.session,
+          serverId: 'server-A',
+          resolvedAt: instant,
+        ),
+      );
+    }
+    if (row.type == CommandType.startBookingSession) {
+      await store.insertBundle(
+        accountId: 'account',
+        key:
+            'booking.manual_start.v1.${row.wellId}.${row.payload['p_booking_id']}',
+        value: jsonEncode({
+          'start_local_id': row.localId,
+          'start_command_id': row.commandId,
+        }),
+        commands: [],
+      );
+    } else {
+      await recordTestHumanAction(store, row);
+    }
+  }
+}
+
 void main() {
   test('booking contract dispatch excludes local context and dependencies and maps session', () async {
     final store = InMemoryOutboxStore();
@@ -59,6 +138,7 @@ void main() {
     await store.insert(
       command('B', CommandType.startBookingSession, 2, prerequisites: ['A']),
     );
+    await seedPackageHumanActions(store);
     final transport = PackageTransport();
     await SyncEngine(store: store, transport: transport).run('account');
     expect(transport.requests.map((r) => r.type.rpcName), [
@@ -100,6 +180,7 @@ void main() {
         await store.insert(
           command('C', CommandType.startBookingSession, 3, well: 'other-well'),
         );
+        await seedPackageHumanActions(store);
         final transport = PackageTransport();
         if (mode == 'retry') {
           transport.completionResult = const DispatchFailed(
@@ -118,9 +199,7 @@ void main() {
         expect(transport.requests.any((r) => r.commandId == 'uuid-C'), isTrue);
         expect(
           (await store.commandByLocalId('account', 'B'))!.status,
-          ['review', 'missing'].contains(mode)
-              ? CommandStatus.review
-              : CommandStatus.pending,
+          CommandStatus.pending,
         );
       },
     );

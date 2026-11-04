@@ -40,7 +40,7 @@ void main() {
   sqfliteFfiInit();
   for (final gap in [false, true]) {
     testWidgets(
-      'fresh online snapshot transitions to B without modal or duplicate; gap=$gap',
+      'fresh booking schedule never creates operational commands; gap=$gap',
       (tester) async {
         tester.view.physicalSize = const Size(720, 1600);
         tester.view.devicePixelRatio = 2;
@@ -113,34 +113,22 @@ void main() {
         clock.now = f.at(47);
         await tester.pump(const Duration(minutes: 4));
         await flush();
-        if (gap) {
-          expect(coordinator.currentActiveSession, isNull);
-          expect(find.byType(Dialog), findsNothing);
-          expect(find.byType(BottomSheet), findsNothing);
-          clock.now = f.at(48);
-          await tester.pump(const Duration(minutes: 1));
-          await flush();
-        }
-        expect(coordinator.currentActiveSession?.bookingId, 'B');
-        expect(
-          find.byType(Dialog),
-          findsNothing,
-          reason: 'الانتقال التلقائي لا يفتح حوار مالية',
-        );
+        clock.now = f.at(gap ? 49 : 48);
+        await tester.pump(const Duration(minutes: 2));
+        await flush();
+        expect(coordinator.currentActiveSession?.bookingId, isNot('B'));
+        expect(find.byType(Dialog), findsNothing);
         expect(find.byType(BottomSheet), findsNothing);
         expect(find.text('انتهت الجلسة'), findsNothing);
-        expect(find.text('إيقاف مؤقت'), findsOneWidget);
-        expect(
-          find.byKey(const Key('server-booking-session-notice')),
-          findsNothing,
-        );
-        clock.now = f.at(gap ? 49 : 48);
-        await tester.pump(const Duration(minutes: 1));
-        await flush();
         await tester.runAsync(() async {
-          expect(await store.allCommands('account'), hasLength(2));
+          expect(await store.allCommands('account'), isEmpty);
+          final original = await coordinator.restoreServerBookingSession(
+            accountId: 'account',
+            wellId: 'well',
+          );
+          expect(original?.sessionId, 'server-A');
         });
-        expect(scheduled, 1);
+        expect(scheduled, 0);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
         coordinator.dispose();
@@ -228,14 +216,8 @@ void main() {
         find.byKey(const Key('server-booking-session-notice')),
         findsNothing,
       );
-      expect(
-        find.text('إيقاف مؤقت'),
-        completed ? findsNothing : findsOneWidget,
-      );
-      expect(
-        find.text('إنهاء الجلسة'),
-        completed ? findsNothing : findsOneWidget,
-      );
+      expect(find.text('إيقاف مؤقت'), findsOneWidget);
+      expect(find.text('إنهاء الجلسة'), findsOneWidget);
       if (!completed) {
         final pauseButton = find.ancestor(
           of: find.text('إيقاف مؤقت'),

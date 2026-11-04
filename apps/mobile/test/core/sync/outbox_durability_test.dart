@@ -12,6 +12,7 @@ import 'package:well_irrigation_mobile/core/sync/outbox_repository.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
+import '../../support/human_command_fixture.dart';
 import 'fake_command_transport.dart';
 import 'sync_test_support.dart';
 
@@ -35,7 +36,7 @@ void main() {
   });
 
   group('ثبات معرّف العملية', () {
-    test('ثلاث محاولات إرسال بمعرّف واحد وتنفيذ واحد', () async {
+    test('محاولة مجهولة النتيجة لا ترسل مجددًا مع بقاء الهوية', () async {
       final command = await repository.enqueue(
         accountId: accountA,
         type: CommandType.startIrrigationSession,
@@ -47,6 +48,7 @@ void main() {
         wellId: wellOne,
       );
 
+      await recordTestHumanAction(store, command);
       transport.scheduleNetworkFailure(
         CommandType.startIrrigationSession,
         times: 2,
@@ -60,7 +62,7 @@ void main() {
 
       expect(
         transport.requestsFor(CommandType.startIrrigationSession),
-        hasLength(3),
+        hasLength(1),
       );
       expect(
         transport.requests
@@ -68,14 +70,14 @@ void main() {
             .toSet(),
         {command.commandId},
       );
-      expect(transport.executionCount, 1);
-      expect(report.confirmed, 1);
+      expect(transport.executionCount, 0);
+      expect(report.confirmed, 0);
 
       final stored = await repository.byLocalId(accountA, command.localId);
 
-      expect(stored!.status, CommandStatus.confirmed);
+      expect(stored!.status, CommandStatus.dispatching);
       expect(stored.commandId, command.commandId);
-      expect(stored.retryCount, 2);
+      expect(stored.retryCount, 0);
     });
 
     test('كل عملية ميدانية تحمل معرّفًا مختلفًا', () async {
@@ -195,7 +197,7 @@ void main() {
   group('وقت الحدث', () {
     test('المُرسَل هو وقت الحقل لا وقت المزامنة', () async {
       final fieldTime = DateTime.utc(2026, 8, 22, 5, 30);
-      await repository.enqueue(
+      final command = await repository.enqueue(
         accountId: accountA,
         type: CommandType.startIrrigationSession,
         payload: startSessionPayload(
@@ -206,6 +208,7 @@ void main() {
         wellId: wellOne,
       );
 
+      await recordTestHumanAction(store, command);
       // المزامنة جرت بعد خمس ساعات ونصف.
       testNow = DateTime.utc(2026, 8, 22, 11);
 

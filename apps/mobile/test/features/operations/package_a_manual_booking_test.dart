@@ -17,8 +17,6 @@ import 'package:well_irrigation_mobile/features/operations/operations_screen.dar
 import '../../core/session/local_booking_transition_regression_test.dart' as f;
 import '../../support/identity_fixture.dart';
 
-import 'package:well_irrigation_mobile/features/operations/widgets/today_bookings_panel.dart';
-
 import 'package_a_live_session_test.dart' as ui;
 
 class ManualRepo extends ui.FreshRepo {
@@ -163,36 +161,15 @@ void main() {
       clock.now = f.at(47).add(const Duration(seconds: 23));
       await tester.pump(const Duration(minutes: 4));
       await flush();
-      expect(coordinator.currentActiveSession, isNull);
-      expect(find.text('إيقاف مؤقت'), findsNothing);
-      expect(
-        find.byKey(const Key('server-booking-session-notice')),
-        findsNothing,
-      );
-      clock.now = f.at(48);
-      await tester.pump(const Duration(seconds: 37));
-      await flush();
-      expect(coordinator.currentActiveSession?.bookingId, 'B');
+      expect(coordinator.currentActiveSession?.localId, active.localId);
+      expect(coordinator.currentActiveSession?.completedAt, isNull);
       expect(find.text('إيقاف مؤقت'), findsOneWidget);
-      final panel = tester.widget<TodayBookingsPanel>(
-        find.byType(TodayBookingsPanel),
-      );
-      expect(panel.requiresReview, isFalse);
-      expect(panel.timeIntegrityRequiresReview, isFalse);
       clock.now = f.at(51);
-      await tester.pump(const Duration(minutes: 3));
+      await tester.pump(const Duration(minutes: 4));
       await flush();
-      expect(coordinator.currentActiveSession, isNull);
-      expect(find.text('إيقاف مؤقت'), findsNothing);
+      expect(coordinator.currentActiveSession?.bookingId, 'A');
       await tester.runAsync(() async {
-        final commands = await store.allCommands('account');
-        expect(commands, hasLength(5));
-        expect(
-          commands[1].occurredAt,
-          f.at(47).add(const Duration(seconds: 23)),
-        );
-        expect(commands[2].occurredAt, f.at(48));
-        expect(commands[3].occurredAt, f.at(51));
+        expect(await store.allCommands('account'), hasLength(1));
       });
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

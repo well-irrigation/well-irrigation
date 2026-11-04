@@ -124,25 +124,26 @@ begin
   v_cycle_feb := finance.calculate_profit_distribution(
     v_well, timestamptz '2026-02-01 00:00:00+00', timestamptz '2026-03-01 00:00:00+00', v_profile, 0
   );
-  -- يثبت هذا الفحص سلوكين موثقين معًا: احتجاز مستحقات الشركاء المعتمدة غير المدفوعة قبل توزيع جديد (withhold_liabilities)،
-  -- وخصم سقي الشريك من الأرباح بصاف سالب.
+  -- R6-C2B adopted policy: consume only available share; remainder stays debt.
+  -- With prior approved liabilities reserved, February has no available share.
   if exists (
     select 1 from finance.profit_distribution_lines
-    where distribution_cycle_id = v_cycle_feb and partner_id = v_partner
-      and gross_share_minor = 0 and irrigation_deductions_minor = 6000
-      and net_payable_minor = -6000
-  ) then
-    raise notice 'PASS 3: حُجزت مستحقات يناير المعتمدة غير المدفوعة 9000 فصار متاح فبراير صفرًا، وخُصم سقي الشريك 6000 فظهر صافيه -6000';
-  else raise notice 'FAIL 3: لم تُحجز مستحقات يناير 9000 أو لم يصبح متاح فبراير صفرًا أو لم يظهر خصم السقي 6000 بصاف -6000'; end if;
+    where distribution_cycle_id=v_cycle_feb and partner_id=v_partner
+      and gross_share_minor=0 and irrigation_deductions_minor=0
+      and net_payable_minor=0
+  ) and (select collectible_minor=6000 from billing.invoice_effective_balances where invoice_id=v_invoice)
+    and not exists(select 1 from finance.distribution_source_consumptions where invoice_id=v_invoice) then
+    raise notice 'PASS 3: حُجزت مستحقات يناير 9000 وبقي دين السقي 6000 دون خصم فوق الحصة المتاحة';
+  else raise notice 'FAIL 3: حجز المستحقات أو حفظ دين السقي غير المستهلك غير صحيح';end if;
 
-  begin
-    perform finance.approve_profit_distribution(v_cycle_feb, v_profile);
-    raise notice 'FAIL 4: سُمح باعتماد أرباح أقل من استقطاعات الشريك';
-  exception when others then
-    if position('صافي مستحقه سالب' in sqlerrm) > 0 then
-      raise notice 'PASS 4: رُفض اعتماد دورة أرباح أقل من استقطاعات الشريك';
-    else raise notice 'FAIL 4: سبب رفض الدورة السالبة غير متوقع: %', sqlerrm; end if;
-  end;
+  perform finance.approve_profit_distribution(v_cycle_feb,v_profile);
+  if exists(select 1 from finance.profit_distribution_cycles where id=v_cycle_feb and status='approved')
+    and (select collectible_minor=6000 from billing.invoice_effective_balances where invoice_id=v_invoice)
+    and not exists(select 1 from finance.distribution_source_consumptions where invoice_id=v_invoice)
+    and not exists(select 1 from finance.journal_entries j join finance.profit_distribution_lines l on l.id=j.source_id
+      where l.distribution_cycle_id=v_cycle_feb and j.source_type='profit_distribution') then
+    raise notice 'PASS 4: اعتماد الدورة الصفرية لا يستهلك الدين ولا ينشئ قيد توزيع وهميًا';
+  else raise notice 'FAIL 4: اعتماد الدورة الصفرية غيّر الدين أو أنشأ أثرًا غير مستحق';end if;
 
   begin
     insert into core.ownership_share_versions

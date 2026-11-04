@@ -1,8 +1,78 @@
--- Package A: إنهاء السلسلة الأخيرة دون كسر فجوة اليوم.
+-- Q137: رفض إنهاء جديد، وإعادة إقرارات تاريخية مصرح بها فقط.
+\set ON_ERROR_STOP on
 begin;
 
 set local timezone to 'UTC';
 
+
+-- مساعدات مؤقتة داخل معاملة الاختبار؛ لا تعديل لأي عقد إنتاج.
+create function pg_temp.q137_check(ok boolean,label text)
+returns void language plpgsql as $qcheck$
+begin
+  if ok is distinct from true then raise exception 'FAIL %',label; end if;
+  raise notice 'PASS %',label;
+end;
+$qcheck$;
+
+-- Q137-REFERENCE-CLASS: EXPECTED_NEGATIVE_TEST
+-- مقارنة الصفوف كاملة، بما فيها بيانات المحاسبة والتدقيق ومحاولات التنفيذ.
+create function pg_temp.q137_snapshot()
+returns jsonb language plpgsql as $qsnapshot$
+declare r record; rows_json jsonb; result jsonb := '{}'::jsonb;
+begin
+  for r in
+    select n.nspname,c.relname
+    from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid=c.relnamespace
+    where c.relkind in ('r','p') and not c.relispartition
+      and (n.nspname in ('billing','finance','inventory','audit','sync')
+        or (n.nspname='core' and c.relname in ('wells','well_settings'))
+        or (n.nspname='ops' and c.relname in (
+          'irrigation_bookings','irrigation_sessions','session_segments',
+          'booking_transition_chains','booking_transition_decisions',
+          'booking_status_history','resource_reservations',
+          'booking_automation_control','booking_automation_execution_contexts')))
+    order by n.nspname,c.relname
+  loop
+    execute format(
+      'select coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),''[]''::jsonb) from %I.%I t',
+      r.nspname,r.relname) into rows_json;
+    result := result || jsonb_build_object(r.nspname||'.'||r.relname,rows_json);
+  end loop;
+  perform pg_temp.q137_check(result ?& array[
+    'ops.irrigation_bookings','ops.irrigation_sessions',
+    'ops.booking_transition_chains','ops.booking_transition_decisions',
+    'sync.processed_commands','audit.booking_automation_attempts',
+    'billing.session_charges','finance.journal_entries','finance.journal_lines'],
+    'snapshot covers operational, execution, command and financial authorities');
+  return result;
+end;
+$qsnapshot$;
+
+-- النجاح غير المتوقع أو خطأ مختلف يفشل الاختبار؛ لا ابتلاع للأخطاء.
+create function pg_temp.q137_refused(
+  statement text,label text,expected_state text,
+  as_role text default 'authenticated',expected_message text default null)
+returns void language plpgsql as $qrefused$
+declare before_state jsonb; caught_state text; caught_message text;
+begin
+  before_state := pg_temp.q137_snapshot();
+  begin
+    if as_role is not null then execute format('set local role %I',as_role); end if;
+    execute statement;
+  exception when others then
+    get stacked diagnostics caught_state=returned_sqlstate,caught_message=message_text;
+  end;
+  execute 'reset role';
+  perform pg_temp.q137_check(
+    caught_state=expected_state
+    and (expected_message is null or caught_message=expected_message),label);
+  perform pg_temp.q137_check(pg_temp.q137_snapshot()=before_state,
+    label||' / zero partial effects');
+end;
+$qrefused$;
+
+-- Q137-REFERENCE-CLASS: EXPECTED_HISTORICAL_READ_FIXTURE
 create temporary table terminal_seed (
   tenant_id uuid not null,
   owner_id uuid not null,
@@ -76,7 +146,15 @@ begin
   if p_close then
     perform api.complete_irrigation_session(s,started+interval '4 minutes 23 seconds',p_command_id=>gen_random_uuid());
   end if;
-  select id into c from ops.booking_transition_chains where well_id=w and status<>'ended';
+  perform pg_temp.check_terminal(not exists(
+    select 1 from ops.booking_transition_chains where well_id=w),
+    'manual fixture operations do not create a chain');
+  -- historical fixture for retained Q137 read/replay contract.
+  insert into ops.booking_transition_chains(
+    tenant_id,well_id,status,opened_by_session_id,opened_at,
+    current_session_id,decision_revision,created_by)
+  values(t.tenant_id,w,case when p_close then 'decision_required' else 'active' end,
+    s,started+interval '23 seconds',s,0,t.operator_id) returning id into c;
   return jsonb_build_object('well',w,'booking',b,'session',s,'chain',c,'start',started,
     'account',a,'farm',f,'tenant',t.tenant_id);
 end $f$;
@@ -92,29 +170,33 @@ begin
   return b;
 end $f$;
 
+-- Q137-REFERENCE-CLASS: EXPECTED_HISTORICAL_REPLAY
 create function pg_temp.call_terminal(p_case jsonb,p_command uuid)
 returns jsonb language plpgsql as $f$
 begin
   return api.end_booking_transition_chain((p_case->>'session')::uuid,p_command);
 end $f$;
 
-create function pg_temp.rejected_unchanged(p_case jsonb,p_reason text)
-returns void language plpgsql as $f$
-declare before_row jsonb; response jsonb; after_row jsonb;
+-- Q137-REFERENCE-CLASS: EXPECTED_NEGATIVE_TEST
+create function pg_temp.rejected_unchanged(p_case jsonb,p_label text)
+returns void language plpgsql as $reject$
 begin
-  select to_jsonb(c) into before_row from ops.booking_transition_chains c where id=(p_case->>'chain')::uuid;
-  execute 'set local role authenticated';
-  response:=pg_temp.call_terminal(p_case,gen_random_uuid());
-  execute 'reset role';
-  select to_jsonb(c) into after_row from ops.booking_transition_chains c where id=(p_case->>'chain')::uuid;
-  perform pg_temp.check_terminal(response->>'status'='rejected' and response->>'reason_code'=p_reason,
-    'reject '||p_reason);
-  perform pg_temp.check_terminal(before_row=after_row,'rejection preserves every chain field: '||p_reason);
-end $f$;
+  perform pg_temp.q137_refused(format(
+    'select api.end_booking_transition_chain(%L::uuid,%L::uuid)',
+    p_case->>'session',gen_random_uuid()),'new terminal request / '||p_label,
+    case when p_label='unauthorized' then '42501' else '0A000' end,
+    'authenticated',case when p_label='unauthorized' then null
+      else 'legacy_booking_automation_disabled' end);
+end;
+$reject$;
 
 do $tests$
 declare
   x jsonb; y jsonb; response jsonb; replay jsonb; before_row jsonb;
+  historical_case jsonb;
+  stored_response jsonb;
+  historical_state jsonb;
+  original_command jsonb;
   command uuid:=gen_random_uuid(); b uuid; next_session uuid; actor uuid; st text; plan jsonb;
 begin
   perform pg_temp.check_terminal(to_regprocedure('api.end_booking_transition_chain(uuid,uuid)') is not null,'API exists');
@@ -130,25 +212,75 @@ begin
     and not has_function_privilege('anon','ops.end_booking_transition_chain(uuid,uuid,uuid)','execute'),'no direct application ops execute');
   perform pg_temp.check_terminal(not has_table_privilege('authenticated','ops.booking_transition_chains','update'),'no direct table update');
 
-  x:=pg_temp.terminal_case('SUCCESS');
+  perform pg_temp.check_terminal(not exists(
+    select 1 from pg_catalog.pg_proc p
+    join pg_catalog.pg_namespace n on n.oid=p.pronamespace
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) acl
+    where ((n.nspname in ('api','ops') and p.proname='end_booking_transition_chain')
+      or (n.nspname='sync' and p.proname='end_booking_transition_chain_command'))
+      and acl.grantee=0 and acl.privilege_type='EXECUTE'),
+    'PUBLIC has no terminal/replay executor grant');
+
+  -- Q137-REFERENCE-CLASS: EXPECTED_HISTORICAL_REPLAY
+  -- historical fixture for retained Q137 read/replay contract.
+  -- الإقرار موجود مسبقًا؛ لا طلب إنهاء جديد يُستخدم لإنشائه.
+  x:=pg_temp.terminal_case('HISTORICAL');
+  historical_case:=x;
+  select operator_id into actor from terminal_seed limit 1;
+  update ops.booking_transition_chains set status='ended',
+    ended_at=(select ended_at from ops.irrigation_sessions where id=(x->>'session')::uuid),
+    ended_reason='final_booking_completed'
+    where id=(x->>'chain')::uuid;
+  stored_response:=jsonb_build_object(
+    'contract','end_booking_transition_chain','version',1,'status','ended',
+    'session_id',x->>'session','chain_id',x->>'chain',
+    'reason_code','final_booking_completed');
+  insert into sync.processed_commands(
+    tenant_id,command_id,command_type,entity_id,status,request_payload,response_payload)
+  values((x->>'tenant')::uuid,command,'end_booking_transition_chain',
+    (x->>'session')::uuid,'accepted',
+    jsonb_build_object('version',1,'session_id',(x->>'session')::uuid),stored_response);
+  select to_jsonb(pc) into strict original_command from sync.processed_commands pc
+    where tenant_id=(x->>'tenant')::uuid and command_id=command;
+  historical_state:=pg_temp.q137_snapshot();
   execute 'set local role authenticated';
   response:=pg_temp.call_terminal(x,command);
   replay:=pg_temp.call_terminal(x,command);
   execute 'reset role';
-  perform pg_temp.check_terminal(response->>'contract'='end_booking_transition_chain' and response->>'version'='1'
-    and response->>'status'='ended','final settled booking ends chain');
-  perform pg_temp.check_terminal(response=replay,'same command exact stored response replay');
-  perform pg_temp.check_terminal((select count(*)=1 from sync.processed_commands where command_id=command),'one processed command');
+  perform pg_temp.check_terminal(response=stored_response and replay=stored_response,
+    'historical accepted acknowledgement replays the exact preexisting response');
+  perform pg_temp.check_terminal(pg_temp.q137_snapshot()=historical_state
+    and (select to_jsonb(pc) from sync.processed_commands pc
+      where tenant_id=(x->>'tenant')::uuid and command_id=command)=original_command
+    and (select count(*)=1 from sync.processed_commands where command_id=command),
+    'historical replay changes no row, command or financial identity');
   perform pg_temp.check_terminal((select c.status='ended' and c.ended_at=s.ended_at
     and c.ended_reason='final_booking_completed' and c.current_session_id=s.id and c.opened_by_session_id=s.id
     from ops.booking_transition_chains c join ops.irrigation_sessions s on s.id=c.current_session_id
-    where c.id=(x->>'chain')::uuid),'end timestamp/reason and session identities preserved');
-  perform pg_temp.rejected_unchanged(x,'no_non_ended_chain');
+    where c.id=(x->>'chain')::uuid),'historical timestamps and session identities preserved');
+  -- rejected/conflict التاريخيتان مسموحتان أيضًا، دون إعادة حسمهما.
+  foreach st in array array['rejected','conflict'] loop
+    update sync.processed_commands set status=st,
+      response_payload=jsonb_build_object('status',st,'historical',true)
+      where tenant_id=(x->>'tenant')::uuid and command_id=command;
+    historical_state:=pg_temp.q137_snapshot();
+    execute 'set local role authenticated';
+    response:=pg_temp.call_terminal(x,command);
+    execute 'reset role';
+    perform pg_temp.check_terminal(
+      response=jsonb_build_object('status',st,'historical',true)
+      and pg_temp.q137_snapshot()=historical_state,
+      'historical '||st||' acknowledgement remains unchanged');
+  end loop;
+
+  -- Q137-REFERENCE-CLASS: EXPECTED_NEGATIVE_TEST
+  perform pg_temp.rejected_unchanged(x,'fresh request despite existing history');
   y:=pg_temp.terminal_case('PAYLOAD');
-  begin
-    perform pg_temp.call_terminal(y,command);
-    raise exception 'FAIL reused command with another session accepted';
-  exception when sqlstate '22023' then raise notice 'PASS different payload rejected'; end;
+  perform pg_temp.q137_refused(format(
+    'select api.end_booking_transition_chain(%L::uuid,%L::uuid)',
+    y->>'session',command),'historical command cannot target a different session',
+    '22023','authenticated','command_identity_mismatch');
 
   x:=pg_temp.terminal_case('OPEN',false);perform pg_temp.rejected_unchanged(x,'session_not_closed');
   x:=pg_temp.terminal_case('FREE');
@@ -165,11 +297,12 @@ begin
   perform api.complete_irrigation_session(next_session,(x->>'start')::timestamptz+interval '8 minutes',p_command_id=>gen_random_uuid());
   perform pg_temp.rejected_unchanged(x,'session_not_chain_current');
   y:=x||jsonb_build_object('session',next_session);
-  response:=pg_temp.call_terminal(y,gen_random_uuid());
-  perform pg_temp.check_terminal(response->>'status'='ended' and
-    (select current_session_id=next_session and opened_by_session_id=(x->>'session')::uuid
+  perform pg_temp.rejected_unchanged(y,'manual next session does not authorize chain termination');
+  perform pg_temp.check_terminal(
+    (select current_session_id=(x->>'session')::uuid
+      and opened_by_session_id=(x->>'session')::uuid
       from ops.booking_transition_chains where id=(x->>'chain')::uuid),
-    'A gap rejects terminal close; final B ends chain preserving A opening identity');
+    'manual start/complete of B leaves historical A chain untouched');
   foreach st in array array['active','waiting','pending_start','blocked'] loop
     x:=pg_temp.terminal_case('STATE-'||st);
     update ops.booking_transition_chains set status=st where id=(x->>'chain')::uuid;
@@ -181,27 +314,46 @@ begin
   x:=pg_temp.terminal_case('GAP');perform pg_temp.terminal_next(x,'GAP-NEXT');
   perform pg_temp.rejected_unchanged(x,'next_booking_exists');
   x:=pg_temp.terminal_case('CANCELLED');perform pg_temp.terminal_next(x,'CANCELLED-NEXT','cancelled');
-  perform pg_temp.check_terminal(pg_temp.call_terminal(x,gen_random_uuid())->>'status'='ended','cancelled later booking does not block');
+  perform pg_temp.rejected_unchanged(x,'cancelled later booking still cannot authorize new terminal request');
   x:=pg_temp.terminal_case('NEXT-DAY');b:=pg_temp.terminal_next(x,'NEXT-DAY-NEXT','confirmed',1);
   -- 00:30 في عدن لليوم التالي = 21:30 UTC من تاريخ حجز A نفسه.
-  -- يكشف هذا الحد خطأ استعمال UTC بدل يوم Asia/Aden.
+  -- بيانات تاريخية تعبر منتصف ليل عدن؛ رفض الطلب الجديد مستقل عن يوم الحجز.
   update ops.irrigation_bookings set scheduled_start=(x->>'start')::timestamptz+interval '18 hours 30 minutes',
     scheduled_end=(x->>'start')::timestamptz+interval '18 hours 33 minutes' where id=b;
-  perform pg_temp.check_terminal(pg_temp.call_terminal(x,gen_random_uuid())->>'status'='ended','next day booking does not block');
+  perform pg_temp.rejected_unchanged(x,'next day booking still cannot authorize new terminal request');
   x:=pg_temp.terminal_case('OTHER-WELL');y:=pg_temp.terminal_case('OTHER-WELL-2');
   perform pg_temp.terminal_next(y,'OTHER-WELL-NEXT');
-  perform pg_temp.check_terminal(pg_temp.call_terminal(x,gen_random_uuid())->>'status'='ended','another well does not block');
+  perform pg_temp.rejected_unchanged(x,'other well still cannot authorize new terminal request');
   x:=pg_temp.terminal_case('UNAUTHORIZED');
   perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
   perform pg_temp.rejected_unchanged(x,'unauthorized');
   perform set_config('request.jwt.claim.sub',actor::text,true);
-  perform pg_temp.check_terminal(ops.end_booking_transition_chain((x->>'session')::uuid,gen_random_uuid(),gen_random_uuid())->>'reason_code'='actor_mismatch','actor must equal auth.uid');
-  execute 'set local role authenticated';
-  begin
-    perform ops.end_booking_transition_chain((x->>'session')::uuid,actor,gen_random_uuid());
-    raise exception 'FAIL direct ops execute allowed';
-  exception when insufficient_privilege then raise notice 'PASS direct ops call denied'; end;
-  execute 'reset role';
+  perform pg_temp.q137_refused(format(
+    'select ops.end_booking_transition_chain(%L::uuid,%L::uuid,%L::uuid)',
+    x->>'session',gen_random_uuid(),gen_random_uuid()),
+    'actor must equal auth.uid','42501',null,'unauthorized');
+  perform pg_temp.q137_refused(format(
+    'select ops.end_booking_transition_chain(%L::uuid,%L::uuid,%L::uuid)',
+    x->>'session',actor,gen_random_uuid()),'direct ops call denied','42501');
+  perform pg_temp.q137_refused(format(
+    'select api.end_booking_transition_chain(%L::uuid,%L::uuid)',
+    x->>'session',gen_random_uuid()),'anonymous terminal API denied','42501','anon');
+  perform set_config('request.jwt.claim.sub','',true);
+  perform pg_temp.q137_refused(format(
+    'select api.end_booking_transition_chain(%L::uuid,%L::uuid)',
+    x->>'session',gen_random_uuid()),'service role alone has no human identity',
+    '42501','service_role','unauthorized');
+  perform set_config('request.jwt.claim.sub',actor::text,true);
+  perform pg_temp.q137_refused(format(
+    'update ops.booking_transition_chains set decision_revision=decision_revision+1 where id=%L::uuid',
+    x->>'chain'),'direct chain DML denied','42501');
+
+  -- هوية لا تملك تعيينًا على البئر لا تقرأ حتى الإقرار التاريخي.
+  perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+  perform pg_temp.q137_refused(format(
+    'select api.end_booking_transition_chain(%L::uuid,%L::uuid)',
+    historical_case->>'session',command),'unauthorized historical replay denied','42501');
+  perform set_config('request.jwt.claim.sub',actor::text,true);
   x:=pg_temp.terminal_case('OTHER-OPEN');
   select id into b from core.pumps where well_id=(x->>'well')::uuid and status='active';
   perform ops.start_irrigation_session((x->>'well')::uuid,b,(x->>'farm')::uuid,(x->>'account')::uuid,actor,'well_diesel',clock_timestamp()-interval '1 minute');

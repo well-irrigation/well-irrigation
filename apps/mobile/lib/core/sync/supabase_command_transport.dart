@@ -11,12 +11,89 @@ library;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'command_transport.dart';
+import 'booking_start_receipt.dart';
 import 'retry_classification.dart';
 
-class SupabaseCommandTransport implements CommandTransport {
+class SupabaseCommandTransport implements CommandTransport, CompletionReceiptTransport, BookingStartReceiptTransport {
   const SupabaseCommandTransport(this._client);
 
   final SupabaseClient _client;
+
+  @override
+  Future<BookingStartReceiptRead> readBookingStartReceipt(
+    BookingStartReceiptRequest request,
+  ) async {
+    final session = _client.auth.currentSession;
+    if (session == null ||
+        session.isExpired ||
+        session.user.id != request.accountId) {
+      return const BookingStartReceiptFailure(
+        BookingStartReceiptFailureKind.authentication,
+      );
+    }
+    try {
+      final raw = await _client
+          .schema('api')
+          .rpc('get_booking_start_receipt', params: request.arguments)
+          .timeout(const Duration(seconds: 20));
+      return parseBookingStartReceipt(request, raw);
+    } on PostgrestException catch (error) {
+      return BookingStartReceiptFailure(switch (error.code) {
+        '42501' => BookingStartReceiptFailureKind.forbidden,
+        '28000' ||
+        'PGRST301' ||
+        'PGRST302' => BookingStartReceiptFailureKind.authentication,
+        '22023' => BookingStartReceiptFailureKind.malformed,
+        _ => BookingStartReceiptFailureKind.network,
+      });
+    } on AuthException {
+      return const BookingStartReceiptFailure(
+        BookingStartReceiptFailureKind.authentication,
+      );
+    } on Object {
+      return const BookingStartReceiptFailure(
+        BookingStartReceiptFailureKind.network,
+      );
+    }
+  }
+
+  @override
+  Future<CompletionReceiptRead> readCompletionReceipt(
+    CompletionReceiptRequest request,
+  ) async {
+    final session = _client.auth.currentSession;
+    if (session == null ||
+        session.isExpired ||
+        session.user.id != request.accountId) {
+      return const CompletionReceiptFailure(
+        CompletionReceiptFailureKind.authentication,
+      );
+    }
+    try {
+      final raw = await _client
+          .schema('api')
+          .rpc('get_completion_receipt', params: request.arguments)
+          .timeout(const Duration(seconds: 20));
+      return parseCompletionReceipt(request, raw);
+    } on PostgrestException catch (error) {
+      return CompletionReceiptFailure(switch (error.code) {
+        '42501' => CompletionReceiptFailureKind.forbidden,
+        '28000' ||
+        'PGRST301' ||
+        'PGRST302' => CompletionReceiptFailureKind.authentication,
+        '22023' => CompletionReceiptFailureKind.malformed,
+        _ => CompletionReceiptFailureKind.network,
+      });
+    } on AuthException {
+      return const CompletionReceiptFailure(
+        CompletionReceiptFailureKind.authentication,
+      );
+    } on Object {
+      return const CompletionReceiptFailure(
+        CompletionReceiptFailureKind.network,
+      );
+    }
+  }
 
   @override
   Future<DispatchResult> dispatch(DispatchRequest request) async {
@@ -26,6 +103,7 @@ class SupabaseCommandTransport implements CommandTransport {
     final session = _client.auth.currentSession;
     if (session == null || session.isExpired) {
       return const DispatchFailed(
+        executionNotStarted: true,
         disposition: FailureDisposition.retry,
         message: 'لا توجد جلسة دخول؛ يُعاد الإرسال بعد الدخول',
       );
@@ -33,6 +111,7 @@ class SupabaseCommandTransport implements CommandTransport {
 
     if (request.accountId.isEmpty || session.user.id != request.accountId) {
       return const DispatchFailed(
+        executionNotStarted: true,
         disposition: FailureDisposition.retry,
         message: 'هوية جلسة الدخول لا تطابق مالك الأمر المحلي',
       );

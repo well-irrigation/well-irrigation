@@ -18,9 +18,12 @@ library;
 
 import '../sync/command_envelope.dart';
 import '../sync/command_type.dart';
+import '../sync/command_transport.dart';
 import '../sync/outbox_store.dart';
 import '../sync/sync_status.dart';
 import 'active_session_record.dart';
+import 'manual_stop_request_store.dart';
+import 'session_business_state.dart';
 import 'session_crop_snapshot.dart';
 import 'session_segment.dart';
 import 'time_integrity.dart';
@@ -194,7 +197,7 @@ class ActiveSessionProjector {
         )) {
       return null;
     }
-    return _project(
+    final result = _project(
       accountId: start.accountId,
       start: start,
       events: snapshot.commands
@@ -206,6 +209,9 @@ class ActiveSessionProjector {
       lastSync: null,
       prerequisiteRequiresReview: false,
     );
+    return result.completedAt != null && result.approvedAmountMinor != null
+        ? result
+        : null;
   }
 
   /// يُسقِط كل جلسات الحساب من الطابور.
@@ -297,6 +303,7 @@ class ActiveSessionProjector {
           accountId: accountId,
           start: start,
           events: entry.value,
+          recordedStop: await _recordedManualStop(start),
           now: now,
           timeContext: timeContext,
           serverIdByLocalId: serverIdByLocalId,
@@ -335,6 +342,88 @@ class ActiveSessionProjector {
     return false;
   }
 
+  /// Exact durable intent read; a read failure is not evidence of absence.
+  Future<ManualStopRequest?> _recordedManualStop(CommandEnvelope start) async {
+    final well = start.wellId;
+    if (well == null) return null;
+    final request = await ManualStopRequestStore(store).read(
+      accountId: start.accountId,
+      wellId: well,
+      sessionLocalId: start.localId,
+    );
+    if (request != null && request.sessionCommandId != start.commandId) {
+      throw StateError('recorded_stop_start_identity_changed');
+    }
+    return request;
+  }
+
+  Map<String, Object?>? _validatedCompletion(
+    CommandEnvelope start,
+    CommandEnvelope completion,
+    Map<String, IdMapping> mappings,
+  ) {
+    if (completion.status != CommandStatus.confirmed) return null;
+    final response = completion.serverResponse;
+    final startId = start.status == CommandStatus.confirmed
+        ? (start.serverResponse?['session_id'] ?? start.serverResponse?['id'])
+        : null;
+    final serverId = mappings[start.localId]?.serverId ?? startId;
+    final well = start.wellId ?? start.payload['p_well_id'];
+    if (serverId is! String ||
+        serverId.isEmpty ||
+        well is! String ||
+        well.isEmpty ||
+        response == null ||
+        completion.accountId != start.accountId ||
+        completion.wellId != well ||
+        completion.aggregateLocalId != start.localId) {
+      return null;
+    }
+    final target = completion.payload['p_session_id'];
+    if (target != serverId &&
+        target != start.localId &&
+        !(target is Map &&
+            target.length == 2 &&
+            target[r'$ref'] == start.localId &&
+            target[r'$kind'] == 'session')) {
+      return null;
+    }
+    for (final pair in [
+      ('command_id', completion.commandId),
+      ('command_type', completion.type.rpcName),
+      ('well_id', well),
+    ]) {
+      if (response.containsKey(pair.$1) && response[pair.$1] != pair.$2) {
+        return null;
+      }
+    }
+    final request = CompletionReceiptRequest(
+      accountId: start.accountId,
+      wellId: well,
+      sessionId: serverId,
+      commandId: completion.commandId,
+      commandType: completion.type.rpcName,
+    );
+    final checked = parseCompletionReceipt(request, {
+      'contract': 'get_completion_receipt',
+      'version': 1,
+      'retry_authorized': false,
+      'status': 'accepted',
+      'well_id': well,
+      'session_id': serverId,
+      'command_id': completion.commandId,
+      'command_type': completion.type.rpcName,
+      'receipt': response,
+    });
+    if (checked is! CompletionReceiptResponse ||
+        checked.state != CompletionReceiptState.accepted ||
+        DateTime.parse(response['ended_at'] as String)
+            .isBefore(start.occurredAt)) {
+      return null;
+    }
+    return checked.receipt;
+  }
+
   ActiveSessionRecord _project({
     required String accountId,
     required CommandEnvelope start,
@@ -344,6 +433,7 @@ class ActiveSessionProjector {
     required Map<String, IdMapping> serverIdByLocalId,
     required DateTime? lastSync,
     required bool prerequisiteRequiresReview,
+    ManualStopRequest? recordedStop,
   }) {
     final ordered = [...events]
       ..sort((a, b) => a.sequence.compareTo(b.sequence));
@@ -371,6 +461,26 @@ class ActiveSessionProjector {
 
     DateTime? completedAt;
     CommandEnvelope? completion;
+    Map<String, Object?>? acceptedCompletion;
+    CommandEnvelope? acceptedCommand;
+    var invalidConfirmedCompletion = false;
+    for (final command in ordered.where(
+      (c) => c.type == CommandType.completeIrrigationSession,
+    )) {
+      final receipt = _validatedCompletion(start, command, serverIdByLocalId);
+      if (receipt != null) {
+        acceptedCompletion = receipt;
+        acceptedCommand = command;
+      } else if (command.status == CommandStatus.confirmed) {
+        invalidConfirmedCompletion = true;
+      }
+    }
+    final pendingStopAt = acceptedCompletion == null
+        ? recordedStop?.requestedAt
+        : null;
+    if (pendingStopAt != null && pendingStopAt.isBefore(start.occurredAt)) {
+      flags.add(TimeIntegrityFlag.impossibleEventOrdering);
+    }
     final context = start.type == CommandType.startBookingSession
         ? start.localContext
         : start.payload;
@@ -413,6 +523,16 @@ class ActiveSessionProjector {
 
     for (final command in ordered) {
       final at = command.occurredAt.toUtc();
+      if (pendingStopAt != null &&
+          at.isAfter(pendingStopAt) &&
+          const {
+            CommandType.pauseIrrigationSession,
+            CommandType.resumeIrrigationSession,
+            CommandType.changeSessionEnergySource,
+          }.contains(command.type)) {
+        flags.add(TimeIntegrityFlag.impossibleEventOrdering);
+        continue;
+      }
 
       switch (command.type) {
         case CommandType.startIrrigationSession:
@@ -447,9 +567,14 @@ class ActiveSessionProjector {
           openSegment(previousKind, at);
 
         case CommandType.completeIrrigationSession:
-          closeOpenSegment(at);
-          completedAt = at;
           completion = command;
+          if (command.localId == acceptedCommand?.localId) {
+            final endedAt = DateTime.parse(
+              acceptedCompletion!['ended_at'] as String,
+            );
+            closeOpenSegment(endedAt);
+            completedAt = endedAt;
+          }
 
         case CommandType.recordPayment:
           final mapping = serverIdByLocalId[command.localId];
@@ -473,14 +598,19 @@ class ActiveSessionProjector {
             ),
           );
 
+        case CommandType.createBooking:
         case CommandType.createFarmer:
         case CommandType.createFarm:
         case CommandType.resolveFarmerIdentity:
+        case CommandType.recordBookingTransitionDecision:
+        case CommandType.executePendingBookingStart:
         case CommandType.endBookingTransitionChain:
           // كيانات مرجعية، ليست أحداث جلسة. لا تُنشئ مقطعًا.
           break;
       }
     }
+
+    if (pendingStopAt != null) closeOpenSegment(pendingStopAt);
 
     final pendingCommands = ordered
         .where((command) => command.status != CommandStatus.confirmed)
@@ -511,21 +641,29 @@ class ActiveSessionProjector {
       startedAt: start.occurredAt.toUtc(),
       completedAt: completedAt,
       completionCommandLocalId: completion?.localId,
-      approvedAmountMinor:
-          completion?.status == CommandStatus.confirmed &&
-              completion?.serverResponse?['session_charge_id'] is String &&
-              completion?.serverResponse?['amount_minor'] is num
-          ? (completion!.serverResponse!['amount_minor'] as num).toInt()
-          : null,
-      businessState: stateFromSegments(
-        segments,
-        completed: completedAt != null,
-      ),
-      syncState: prerequisiteRequiresReview
+      stopRequestedAt: pendingStopAt,
+      approvedAmountMinor: acceptedCompletion?['amount_minor'] as int?,
+      businessState: pendingStopAt != null
+          ? SessionBusinessState.stopRequested
+          : stateFromSegments(segments, completed: completedAt != null),
+      syncState: prerequisiteRequiresReview || invalidConfirmedCompletion
           ? SessionSyncState.conflict
+          : pendingStopAt != null && pendingCommands.isEmpty
+          ? SessionSyncState.localOnly
           : _syncStateOf(ordered, serverIdByLocalId[start.localId]?.serverId),
       segments: List.unmodifiable(segments),
-      totals: summarize(segments, effectiveNow),
+      totals: acceptedCompletion == null
+          ? summarize(segments, effectiveNow)
+          : SessionTotals(
+              billableSeconds: acceptedCompletion['billable_seconds'] as int,
+              wallClockSeconds: acceptedCompletion['actual_seconds'] as int,
+              totalPausedSeconds:
+                  (acceptedCompletion['actual_seconds'] as int) -
+                  (acceptedCompletion['billable_seconds'] as int),
+              currentPauseSeconds: 0,
+              accruedMinor: acceptedCompletion['amount_minor'] as int,
+              pricingPending: false,
+            ),
       payments: List.unmodifiable(payments),
       timeIntegrityFlags: Set.unmodifiable(flags),
       pendingCommandCount: pendingCommands.length,

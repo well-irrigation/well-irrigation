@@ -1,3 +1,5 @@
+import '../../core/widgets/farmer_create_dialog.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +9,7 @@ import '../../core/sync/entity_reference.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/tafqeet_utils.dart';
 import '../../core/widgets/currency_display.dart';
+import '../../core/widgets/farm_create_dialog.dart';
 import '../finance/farmer_financial_account_screen.dart';
 import '../history/session_detail_screen.dart';
 
@@ -20,6 +23,8 @@ class FarmerDetailScreen extends StatefulWidget {
     this.accountId,
     this.repository,
     this.coordinator,
+    this.initialFarmer,
+    this.canCreateFarmer = false,
     super.key,
   });
 
@@ -27,16 +32,18 @@ class FarmerDetailScreen extends StatefulWidget {
   final String farmerAccountId;
   final String wellName;
   final bool canCreateFarm;
+  final bool canCreateFarmer;
   final String? accountId;
   final OperationsRepository? repository;
   final OfflineSessionCoordinator? coordinator;
+  final FarmerAccount? initialFarmer;
 
   @override
   State<FarmerDetailScreen> createState() => _FarmerDetailScreenState();
 }
 
 class _FarmerDetailScreenState extends State<FarmerDetailScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late OperationsRepository _repo;
   late TabController _tabController;
 
@@ -44,6 +51,10 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
   String? _loadError;
   FarmerDetailData? _detailData;
   List<Farm> _pendingFarms = [];
+  FarmerAccount? _knownFarmer;
+  StreamSubscription<String>? _farmSubscription;
+  OfflineSessionCoordinator get _coordinator => widget.coordinator ?? OfflineSessionCoordinator.instance;
+
 
   String get _effectiveAccountId {
     if (widget.accountId != null && widget.accountId!.isNotEmpty) {
@@ -62,25 +73,33 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
     _tabController = TabController(length: 3, vsync: this);
 
     _repo = widget.repository ?? const OperationsRepository();
+    _knownFarmer=widget.initialFarmer;
+    WidgetsBinding.instance.addObserver(this);
+    if(_effectiveAccountId.isNotEmpty) _farmSubscription=_coordinator.farmChanges.where((w)=>w==widget.wellId).listen((_)=>_refreshDetailQuietly());
     _loadDetail();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _farmSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if(state==AppLifecycleState.resumed) unawaited(_refreshDetailQuietly());
+  }
   Future<void> _loadPendingFarms() async {
     final coordinator =
         widget.coordinator ?? OfflineSessionCoordinator.instance;
     final accountId = _effectiveAccountId;
     if (accountId.isEmpty) return;
     try {
-      final pending = await coordinator.pendingFarms(
-        accountId: accountId,
-        wellId: widget.wellId,
-        farmerReference: ServerEntityReference(widget.farmerAccountId),
+      _knownFarmer=await coordinator.farmFarmerIdentity(accountId:accountId,wellId:widget.wellId,farmerId:widget.farmerAccountId,current:_detailData?.account??_knownFarmer);
+      final pending = await coordinator.farmChoices(
+        accountId:accountId,wellId:widget.wellId,farmerReference:ServerEntityReference(widget.farmerAccountId),canonical:_detailData?.farms??const [],
       );
       if (mounted) {
         setState(() {
@@ -91,6 +110,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
   }
 
   Future<void> _refreshDetailQuietly() async {
+    await _loadPendingFarms();
     try {
       final data = await _repo.fetchFarmerDetail(
         wellId: widget.wellId,
@@ -112,6 +132,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
       _isLoading = true;
       _loadError = null;
     });
+    await _loadPendingFarms();
     try {
       final data = await _repo.fetchFarmerDetail(
         wellId: widget.wellId,
@@ -128,7 +149,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
       // م-41C1: لا ملف مزارع وهمي — الفشل يظهر مع إعادة المحاولة.
       if (mounted) {
         setState(() {
-          _detailData = null;
+          // إبقاء البيانات المعروفة عند فشل التحديث.
           _isLoading = false;
           _loadError =
               'تعذّر تحميل ملف المزارع. تحقق من الاتصال ثم أعد المحاولة.';
@@ -137,160 +158,35 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
     }
   }
 
-  void _showAddFarmDialog() {
-    final nameController = TextEditingController();
-    final distinguishingLabelController = TextEditingController();
-    bool isSubmitting = false;
+  Future<void> _showAddFarmerDialog() async {
+    if (!widget.canCreateFarmer || _effectiveAccountId.isEmpty) return;
+    final accountId = _effectiveAccountId;
+    final farmer = await showFarmerCreateDialog(context: context, save: (name, phone) =>
+      _coordinator.enqueueFarmer(accountId: accountId, wellId: widget.wellId,
+        fullName: name, phone: phone, waitForCanonical: true));
+    if (!mounted || farmer == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+      farmer.status == 'requires_resolution' ? 'تحتاج بيانات المزارع إلى مراجعة.' :
+      farmer.isPending ? 'تم حفظ المزارع. يمكنك الرجوع إلى دليل المزارعين.' : 'تم حفظ المزارع')));
+    if (farmer.isPending) { await Navigator.of(context).maybePop(); return; }
+    await Navigator.of(context).pushReplacement(MaterialPageRoute<void>(builder: (_) =>
+      FarmerDetailScreen(wellId: widget.wellId, farmerAccountId: farmer.id,
+        wellName: widget.wellName, canCreateFarm: widget.canCreateFarm,
+        canCreateFarmer: widget.canCreateFarmer, accountId: accountId,
+        repository: _repo, coordinator: _coordinator, initialFarmer: farmer)));
+  }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: const [
-              Icon(
-                Icons.landscape_outlined,
-                color: AppColors.agriculturalGreen,
-              ),
-              SizedBox(width: 8),
-              Text(
-                'إضافة أرض زراعية جديدة',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'سيتم ربط الأرض بالمزارع: ${_detailData?.account.fullName ?? ""}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'اسم الأرض أو القطعة الزراعية *',
-                  hintText: 'مثال: مزرعة الوادي الشرقي',
-                  prefixIcon: Icon(Icons.terrain, size: 20),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: distinguishingLabelController,
-                decoration: const InputDecoration(
-                  labelText: 'المميز التوضيحي (اختياري)',
-                  hintText: 'مثال: القطعة الغربية / جوار الطريق',
-                  prefixIcon: Icon(Icons.bookmark_outline, size: 20),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting
-                  ? null
-                  : () => Navigator.of(dialogCtx).pop(),
-              child: const Text(
-                'إلغاء',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.agriculturalGreen,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
-                      final name = nameController.text.trim();
-                      if (name.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('يرجى إدخال اسم الأرض')),
-                        );
-                        return;
-                      }
+  List<Widget> get _farmerActions => [if (widget.canCreateFarmer)
+    IconButton(tooltip: 'إضافة مزارع جديد', onPressed: _showAddFarmerDialog,
+      icon: const Icon(Icons.person_add_outlined))];
 
-                      setDialogState(() => isSubmitting = true);
-                      try {
-                        final distinguishingLabel =
-                            distinguishingLabelController.text.trim();
-                        final coordinator =
-                            widget.coordinator ??
-                            OfflineSessionCoordinator.instance;
-                        final effectiveAccountId = _effectiveAccountId;
-                        final enqueuedFarm = await coordinator.enqueueFarm(
-                          accountId: effectiveAccountId,
-                          wellId: widget.wellId,
-                          name: name,
-                          distinguishingLabel: distinguishingLabel.isNotEmpty
-                              ? distinguishingLabel
-                              : null,
-                          farmerReference: ServerEntityReference(
-                            widget.farmerAccountId,
-                          ),
-                        );
-
-                        if (dialogCtx.mounted) {
-                          Navigator.of(dialogCtx).pop();
-                        }
-                        if (mounted) {
-                          setState(() {
-                            _pendingFarms = [
-                              ..._pendingFarms.where(
-                                (f) => f.reference != enqueuedFarm.reference,
-                              ),
-                              enqueuedFarm,
-                            ];
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'تم حفظ الأرض محلياً وقيد المزامنة ⏳',
-                              ),
-                            ),
-                          );
-                        }
-                        _refreshDetailQuietly();
-                      } catch (e) {
-                        setDialogState(() => isSubmitting = false);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('حدث خطأ أثناء الإضافة: $e'),
-                            ),
-                          );
-                        }
-                      }
-                    },
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Text('حفظ الأرض'),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _showAddFarmDialog() async {
+    final farmer=_detailData?.account??_knownFarmer;
+    if(!widget.canCreateFarm||farmer==null||farmer.isPending||farmer.status!='active'||_effectiveAccountId.isEmpty)return;
+    final farm=await showFarmCreateDialog(context:context,farmerName:farmer.fullName,save:(name,label)=>_coordinator.enqueueFarm(accountId:_effectiveAccountId,wellId:widget.wellId,name:name,distinguishingLabel:label,farmerReference:ServerEntityReference(widget.farmerAccountId)));
+    if(farm==null||!mounted)return;
+    await _loadPendingFarms();
+    unawaited(_refreshDetailQuietly());
   }
 
   String _formatDuration(int seconds) {
@@ -307,14 +203,17 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('ملف المزارع')),
+        appBar: AppBar(title: const Text('ملف المزارع'), actions: _farmerActions),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
+    if(_detailData==null&&_knownFarmer!=null) {
+      return Scaffold(appBar:AppBar(title:Text(_knownFarmer!.fullName), actions: _farmerActions),body:Column(children:[const Padding(padding:EdgeInsets.all(12),child:Text('تعذر تحديث البيانات. الأراضي المحفوظة متاحة.')),Expanded(child:_buildFarmsTab(const []))]));
+    }
     if (_detailData == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('ملف المزارع')),
+        appBar: AppBar(title: const Text('ملف المزارع'), actions: _farmerActions),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -351,6 +250,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
     return Scaffold(
       backgroundColor: AppColors.splashBackground,
       appBar: AppBar(
+        actions: _farmerActions,
         backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(
@@ -368,7 +268,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
           indicatorColor: AppColors.deepBlue,
           indicatorWeight: 3,
           tabs: [
-            Tab(text: 'الأراضي (${data.farms.length})'),
+            const Tab(text: 'الأراضي'),
             Tab(text: 'الجلسات (${data.totalSessionsCount})'),
             const Tab(text: 'كشف الحساب'),
           ],
@@ -481,11 +381,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
   }
 
   Widget _buildFarmsTab(List<Farm> serverFarms) {
-    final serverFarmIds = serverFarms.map((f) => f.id).toSet();
-    final combinedFarms = [
-      ...serverFarms,
-      ..._pendingFarms.where((f) => !serverFarmIds.contains(f.id)),
-    ];
+    final combinedFarms = _effectiveAccountId.isEmpty ? serverFarms : _pendingFarms;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -495,7 +391,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add_location_alt_outlined),
               label: const Text(
-                'إضافة أرض',
+                'إضافة أرض جديدة',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               onPressed: _showAddFarmDialog,
@@ -556,7 +452,7 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
                     ),
                     subtitle: Text(
                       farm.isPending
-                          ? 'محفوظ على الجهاز (قيد المزامنة)'
+                          ? 'محفوظ على الجهاز'
                           : 'أرض زراعية نشطة',
                       style: const TextStyle(
                         fontSize: 12,

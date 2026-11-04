@@ -4,6 +4,7 @@ import '../api/booking_repository.dart';
 import '../session/active_session_record.dart';
 import '../theme/app_colors.dart';
 import 'booking_reactivity.dart';
+import 'local_booking_request.dart';
 
 enum BookingPresentationState {
   current,
@@ -18,6 +19,11 @@ enum BookingPresentationState {
   ready,
   draft,
   unknown,
+  localSaved,
+  localAccepted,
+  localUnavailable,
+  localRejected,
+  localReview,
 }
 
 class BookingPresentation {
@@ -48,8 +54,15 @@ class BookingPresentation {
     BookingPresentationState.ready => 'جاهز',
     BookingPresentationState.draft => 'مسودة غير مكتملة',
     BookingPresentationState.unknown => 'غير محدد',
+    BookingPresentationState.localSaved => 'تم الحفظ',
+    BookingPresentationState.localAccepted => 'تم تثبيت الحجز',
+    BookingPresentationState.localUnavailable => 'هذا الموعد لم يعد متاحًا',
+    BookingPresentationState.localRejected => 'يحتاج الحجز إلى تعديل',
+    BookingPresentationState.localReview => 'راجع الحجز',
   };
-  String? get syncLabel => switch (syncState) {
+  String? get syncLabel => state == BookingPresentationState.localSaved
+      ? 'سيتم تثبيته تلقائيًا'
+      : switch (syncState) {
     null || SessionSyncState.synced => null,
     SessionSyncState.localOnly =>
       state == BookingPresentationState.executed
@@ -93,7 +106,17 @@ BookingPresentation presentBooking({
   BookingScope? scope,
   String? currentBookingId,
   String? nextBookingId,
+  LocalBookingRequest? localRequest,
 }) {
+  if (localRequest != null) {
+    return BookingPresentation(localRequest.isConfirmed
+        ? BookingPresentationState.localAccepted
+        : switch (localRequest.response?['status']) {
+            'conflict' => BookingPresentationState.localUnavailable,
+            'rejected' => BookingPresentationState.localRejected,
+            _ => localRequest.reviewRequired ? BookingPresentationState.localReview : BookingPresentationState.localSaved,
+          });
+  }
   final local = scope?.sessions[id];
   final completed =
       local?.completedAt != null ||

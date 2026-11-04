@@ -18,13 +18,22 @@ import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 
+import '../booking/local_booking_request.dart';
+import '../booking/booking_reactivity.dart';
+import '../notifications/app_notification_event.dart';
+import '../notifications/booking_notification_event_factory.dart';
+import '../notifications/notification_event_store.dart';
+import '../notifications/operational_notification_event_factory.dart';
+import 'command_id_generator.dart';
+import 'command_intent_evidence_reader.dart';
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'outbox_database.dart';
 import 'outbox_store.dart';
+import 'outbox_repository.dart';
 import 'sync_status.dart';
 
-class SqliteOutboxStore implements OutboxStore {
+class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
   SqliteOutboxStore({
     this.databasePath,
     this.singleInstance = true,
@@ -38,12 +47,14 @@ class SqliteOutboxStore implements OutboxStore {
 
   final DatabaseFactory? _factory;
 
-  static const int schemaVersion = 3;
+  static const int schemaVersion = 11;
   static const String commandsTable = 'outbox_commands';
   static const String mappingsTable = 'id_mappings';
   static const String metaTable = 'sync_meta';
   static const String _sequenceKey = 'sequence_counter';
   static const String _lastSyncKey = 'last_successful_sync_at';
+
+  SqliteNotificationEventStore get notificationEvents => SqliteNotificationEventStore(_db);
 
   Database? _database;
   Future<void>? _initFuture;
@@ -109,8 +120,27 @@ class SqliteOutboxStore implements OutboxStore {
             );
           }
           if (oldVersion < 3) await _createSessionIndexes(db);
+          if (oldVersion < 4) await _createBookingRequests(db);
+          if (oldVersion < 5) {
+            await db.execute(
+              'alter table $commandsTable add column next_attempt_at text',
+            );
+            await _createBookingDispatchIndexes(db);
+          }
+          if (oldVersion < 6) await _createBookingLinkage(db);
+          if (oldVersion < 7) await _createBookingReplacement(db);
+          if (oldVersion < 9) {
+            await SqliteNotificationEventStore.createSchema(db);
+          } else if (oldVersion < 10) {
+            await SqliteNotificationEventStore.upgradeFrom9(db);
+          }
+          await _upgradeTo11(db);
         },
         onCreate: (db, version) async {
+          await SqliteNotificationEventStore.createSchema(db);
+          await _createBookingRequests(db);
+          await _createBookingLinkage(db);
+          await _createBookingReplacement(db);
           await db.execute('''
             create table $commandsTable (
               local_id           text primary key,
@@ -129,7 +159,13 @@ class SqliteOutboxStore implements OutboxStore {
               retry_count        integer not null default 0,
               last_error         text,
               last_attempt_at    text,
-              server_response    text
+              next_attempt_at    text,
+              server_response    text,
+              farmer_ref_kind text,
+              farmer_ref_id text,
+              farm_name text,
+              farm_distinguishing_label text,
+              booking_farm_local_id text
             )
           ''');
 
@@ -155,6 +191,8 @@ class SqliteOutboxStore implements OutboxStore {
           ''');
 
           await _createSessionIndexes(db);
+          await _createBookingDispatchIndexes(db);
+          await _createFarmIndexes(db);
           await db.execute('''
             create table $metaTable (
               account_id text not null,
@@ -168,6 +206,755 @@ class SqliteOutboxStore implements OutboxStore {
     );
   }
 
+  static const migrationPageSize = 200;
+
+  /// Runs inside sqflite's version-change transaction. Payloads are never rewritten.
+  static Future<void> _upgradeTo11(DatabaseExecutor db) async {
+    await db.execute('drop index if exists outbox_farm_selection_idx');
+    final columns = (await db.rawQuery('pragma table_info(outbox_commands)'))
+        .map((row) => row['name'])
+        .toSet();
+    for (final name in const [
+      'farmer_ref_kind',
+      'farmer_ref_id',
+      'farm_name',
+      'farm_distinguishing_label',
+      'booking_farm_local_id',
+    ]) {
+      if (!columns.contains(name)) {
+        await db.execute('alter table outbox_commands add column $name text');
+      }
+    }
+    // One-time migration only: keyset traversal of relevant rows, never OFFSET.
+    // The temporary index bounds each command type traversal, including old files.
+    await db.execute(
+      'create index outbox_projection_backfill_idx on outbox_commands(command_type,local_id)',
+    );
+    for (final type in CommandType.values.where(
+      (type) => type.scope == CommandScope.well,
+    )) {
+      String? cursor;
+      while (true) {
+        final projected =
+            type == CommandType.createFarm || type == CommandType.createBooking;
+        final rows = await db.query(
+          commandsTable,
+          columns: ['local_id', 'payload', 'well_id'],
+          where:
+              'command_type=? ${projected ? '' : 'and well_id is null'} ${cursor == null ? '' : 'and local_id>?'}',
+          whereArgs: [type.storageValue, ?cursor],
+          orderBy: 'local_id',
+          limit: migrationPageSize,
+        );
+        if (rows.isEmpty) break;
+        for (final row in rows) {
+          final payload =
+              jsonDecode(row['payload'] as String) as Map<String, dynamic>;
+          final values = <String, Object?>{
+            if (projected) ..._projections(type.storageValue, payload),
+            if (row['well_id'] == null && payload['p_well_id'] != null)
+              'well_id': payload['p_well_id'] as String,
+          };
+          if (values.isNotEmpty) {
+            await db.update(
+              commandsTable,
+              values,
+              where: 'local_id=?',
+              whereArgs: [row['local_id']],
+            );
+          }
+        }
+        cursor = rows.last['local_id'] as String;
+      }
+    }
+    await db.execute('drop index outbox_projection_backfill_idx');
+    await SqliteNotificationEventStore.upgradeTo11(db);
+    await _createFarmIndexes(db);
+  }
+
+  /// Indexed projections only; the original envelope remains the audit truth.
+  static Map<String, Object?> _projections(
+    String type,
+    Map<String, dynamic> payload,
+  ) {
+    final values = <String, Object?>{
+      'farmer_ref_kind': null,
+      'farmer_ref_id': null,
+      'farm_name': null,
+      'farm_distinguishing_label': null,
+      'booking_farm_local_id': null,
+    };
+    if (type == CommandType.createFarm.storageValue) {
+      final farmer = payload['p_farmer_well_account_id'];
+      if (farmer is String) {
+        values['farmer_ref_kind'] = 'server';
+        values['farmer_ref_id'] = farmer;
+      } else if (farmer != null) {
+        final ref = farmer as Map;
+        if (ref[r'$kind'] != 'farmerWellAccount' ||
+            ref[r'$ref'] is! String ||
+            (ref[r'$ref'] as String).isEmpty) {
+          throw const FormatException('Invalid farmer reference projection');
+        }
+        values['farmer_ref_kind'] = 'local';
+        values['farmer_ref_id'] = ref[r'$ref'];
+      }
+      values['farm_name'] = payload['p_name'] as String?;
+      values['farm_distinguishing_label'] =
+          payload['p_distinguishing_label'] as String?;
+    } else if (type == CommandType.createBooking.storageValue) {
+      final farm = payload['p_farm_id'];
+      if (farm != null && farm is! String) {
+        final ref = farm as Map;
+        if (ref[r'$kind'] != 'farm' ||
+            ref[r'$ref'] is! String ||
+            (ref[r'$ref'] as String).isEmpty) {
+          throw const FormatException('Invalid farm reference projection');
+        }
+        values['booking_farm_local_id'] = ref[r'$ref'];
+      }
+    }
+    return values;
+  }
+
+  static Future<void> _createBookingDispatchIndexes(DatabaseExecutor db) async {
+    await db.execute(
+      "create index outbox_booking_dispatch_idx on $commandsTable(account_id, status, sequence, local_id) where command_type = 'createBooking'",
+    );
+    await db.execute(
+      "create index outbox_booking_well_idx on $commandsTable(account_id, well_id, status, sequence) where command_type = 'createBooking'",
+    );
+    await db.execute(
+      "create index outbox_booking_due_idx on $commandsTable(account_id, status, next_attempt_at) where command_type = 'createBooking'",
+    );
+    await db.execute(
+      "create index outbox_booking_stale_idx on $commandsTable(account_id, status, last_attempt_at) where command_type = 'createBooking'",
+    );
+  }
+
+  /// الاستعلام نفسه متاح لإثبات خطة التنفيذ؛ لا يقرأ أوامر العائلات الأخرى.
+
+  static Future<void> _createFarmIndexes(DatabaseExecutor db) async {
+    await db.execute(
+      "create index if not exists outbox_farm_selection_idx on outbox_commands(account_id, well_id, farmer_ref_kind, farmer_ref_id, sequence, local_id) where command_type = 'createFarm'",
+    );
+    await db.execute(
+      "create index if not exists farm_parent_mapping_idx on id_mappings(account_id,server_id,local_id) where entity_kind='farmerWellAccount'",
+    );
+  }
+
+  static const farmSelectionSql = r"""
+    with farmer_refs(kind,id) as (
+      select ?,? union all
+      select 'local',pm.local_id from id_mappings pm indexed by farm_parent_mapping_idx
+      where pm.account_id=? and pm.entity_kind='farmerWellAccount' and pm.server_id=? and ?='server'
+    )
+    select c.*, fm.server_id as farm_server_id
+    from farmer_refs r cross join outbox_commands c indexed by outbox_farm_selection_idx
+    left join id_mappings fm on fm.account_id=c.account_id and fm.local_id=c.local_id and fm.entity_kind='farm'
+    where c.farmer_ref_kind=r.kind and c.farmer_ref_id=r.id
+      and c.command_type='createFarm' and c.account_id=? and c.well_id=?
+      and c.status!='review'
+      and (?='' or instr(c.farm_name,?)>0 or instr(coalesce(c.farm_distinguishing_label,''),?)>0)
+    order by c.sequence desc, c.local_id limit ?
+  """;
+  @override
+  Future<List<FarmCommandRow>> farmCommands({
+    required String accountId,
+    required String wellId,
+    required Object farmer,
+    int limit = 50,
+    String query = '',
+  }) async {
+    if (limit < 1 || limit > 100) throw ArgumentError('حد الأراضي غير صالح');
+    await initialize();
+    final kind = farmer is String ? 'server' : 'local';
+    final value = farmer is String
+        ? farmer
+        : (farmer as Map)[r'$ref'] as String;
+    final rows = await _db.rawQuery(farmSelectionSql, [
+      kind,
+      value,
+      accountId,
+      value,
+      kind,
+      accountId,
+      wellId,
+      query.trim(),
+      query.trim(),
+      query.trim(),
+      limit,
+    ]);
+    return rows
+        .map(
+          (r) => FarmCommandRow(
+            command: _fromRow(r),
+            serverId: r['farm_server_id'] as String?,
+            farmerId: farmer is String
+                ? farmer
+                : farmer is Map
+                ? farmer[r'$ref'] as String?
+                : null,
+          ),
+        )
+        .toList();
+  }
+
+  static const bookingFarmReadySql = r"""
+    (c.booking_farm_local_id is null
+     or exists(select 1 from id_mappings m where m.account_id=c.account_id and m.local_id=c.booking_farm_local_id and m.entity_kind='farm')
+     or not exists(select 1 from outbox_commands p where p.account_id=c.account_id and p.local_id=c.booking_farm_local_id and p.status!='review'))
+  """;
+  static const bookingReadySql =
+      """
+    select c.* from outbox_commands c indexed by outbox_booking_dispatch_idx
+    where c.account_id = ? and c.command_type = 'createBooking' and c.status = 'pending'
+      and $bookingFarmReadySql
+      and (c.next_attempt_at is null or c.next_attempt_at <= ?)
+      and not exists (
+        select 1 from outbox_commands earlier indexed by outbox_booking_well_idx
+        where earlier.account_id = c.account_id and earlier.command_type = 'createBooking'
+          and earlier.well_id = c.well_id and earlier.sequence < c.sequence
+          and (earlier.status = 'dispatching' or
+            (earlier.status = 'pending' and earlier.next_attempt_at > ?))
+      )
+    order by c.sequence, c.local_id limit ?
+  """;
+
+  @override
+  Future<List<CommandEnvelope>> pendingLegacyCommands(String accountId) async {
+    final rows = await _db.query(
+      commandsTable,
+      where:
+          "account_id = ? and status != ? and command_type != 'createBooking'",
+      whereArgs: [accountId, CommandStatus.confirmed.storageValue],
+      orderBy: 'sequence asc',
+    );
+    return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<List<CommandEnvelope>> bookingCreatesReady(
+    String accountId, {
+    required DateTime now,
+    int limit = 20,
+  }) async {
+    if (limit < 1 || limit > 20) throw ArgumentError.value(limit, 'limit');
+    await _recoverBookingRegistrations(accountId);
+    final rows = await _db.rawQuery(bookingReadySql, [
+      accountId,
+      _encodeTime(now),
+      _encodeTime(now),
+      limit,
+    ]);
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<List<CommandEnvelope>> bookingCreatesStale(
+    String accountId, {
+    required DateTime before,
+    int limit = 20,
+  }) async {
+    if (limit < 1 || limit > 20) throw ArgumentError.value(limit, 'limit');
+    final rows = await _db.query(
+      commandsTable,
+      where: "account_id = ? and command_type = 'createBooking' and status = 'dispatching' and (last_attempt_at is null or last_attempt_at <= ?)",
+      whereArgs: [accountId, _encodeTime(before)],
+      orderBy: 'last_attempt_at, local_id',
+      limit: limit,
+    );
+    return rows.map(_fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<bool> claimBookingCreate(
+    String accountId,
+    String localId, {
+    required DateTime attemptedAt,
+  }) async {
+    // جملة ذرية واحدة بين اتصالات SQLite: لا بئران في المسار نفسه، ولا أكثر من ثلاث آبار.
+    final changed = await _db.rawUpdate(
+      """
+      update outbox_commands set status = 'dispatching', last_attempt_at = ?
+      where account_id = ? and local_id = ? and command_type = 'createBooking' and status = 'pending'
+        and well_id is not null and well_id != ''
+        and (next_attempt_at is null or next_attempt_at <= ?)
+        and not exists (
+          select 1 from outbox_commands e indexed by outbox_booking_well_idx
+          where e.account_id = outbox_commands.account_id and e.command_type = 'createBooking'
+            and e.well_id = outbox_commands.well_id
+            and (e.status = 'dispatching' or (e.status = 'pending' and e.sequence < outbox_commands.sequence))
+        )
+        and (select count(*) from outbox_commands a indexed by outbox_booking_dispatch_idx
+          where a.account_id = ? and a.command_type = 'createBooking' and a.status = 'dispatching') < 3
+    """,
+      [
+        _encodeTime(attemptedAt),
+        accountId,
+        localId,
+        _encodeTime(attemptedAt),
+        accountId,
+      ],
+    );
+    return changed == 1;
+  }
+
+  @override
+  Future<bool> finishBookingCreate(
+    String accountId,
+    String localId, {
+    required DateTime claimedAt,
+    required CommandStatus status,
+    DateTime? nextAttemptAt,
+    String? error,
+    Map<String, Object?>? response,
+    String? entityId,
+  }) async {
+    if (status == CommandStatus.dispatching) {
+      throw ArgumentError('نتيجة غير نهائية للمحاولة');
+    }
+    // المعاملة لا تحتوي شبكة. انشغال اتصال آخر يعاد محليًا بعد تحرير الحدث، بلا قفل عام.
+    for (var attempt = 0; ; attempt++) {
+      try {
+        AppNotificationEvent? committedEvent;
+        final applied = await _db.transaction((txn) async {
+          final changed = await txn.rawUpdate(
+            """
+            update outbox_commands set status = ?, next_attempt_at = ?, last_error = ?,
+              retry_count = retry_count + ?, server_response = ?
+            where account_id = ? and local_id = ? and command_type = 'createBooking'
+              and status = 'dispatching' and last_attempt_at = ?
+          """,
+            [
+              status.storageValue,
+              nextAttemptAt == null ? null : _encodeTime(nextAttemptAt),
+              error,
+              status == CommandStatus.pending ? 1 : 0,
+              response == null ? null : jsonEncode(response),
+              accountId,
+              localId,
+              _encodeTime(claimedAt),
+            ],
+          );
+          if (changed != 1) return false;
+          if (status == CommandStatus.confirmed ||
+              (status == CommandStatus.review &&
+                  const {
+                    'conflict',
+                    'rejected',
+                  }.contains(response?['status']))) {
+            await txn.rawUpdate(
+              """
+              update local_booking_requests set response = ?
+              where account_id = ? and command_id = (
+                select command_id from outbox_commands where account_id = ? and local_id = ?
+              ) and response is null
+            """,
+              [jsonEncode(response), accountId, accountId, localId],
+            );
+          }
+
+          if (status == CommandStatus.confirmed && entityId != null) {
+            await txn.insert(mappingsTable, {
+              'account_id': accountId,
+              'local_id': localId,
+              'entity_kind': EntityKind.booking.storageValue,
+              'server_id': entityId,
+              'resolved_at': _encodeTime(claimedAt),
+              'matched_existing': 0,
+            }, conflictAlgorithm: ConflictAlgorithm.replace);
+          }
+          if (status == CommandStatus.confirmed ||
+              status == CommandStatus.review) {
+            final commands = await txn.query(
+              commandsTable,
+              where: 'account_id=? and local_id=?',
+              whereArgs: [accountId, localId],
+              limit: 1,
+            );
+            final command = commands.single;
+            final requests = await txn.query(
+              'local_booking_requests',
+              where: 'account_id=? and command_id=?',
+              whereArgs: [accountId, command['command_id']],
+              limit: 1,
+            );
+            final request = requests.isEmpty ? null : requests.single;
+            final scheduled =
+                request?['scheduled_day'] as String? ??
+                DateTime.parse(
+                      (jsonDecode(command['payload'] as String)
+                              as Map)['p_scheduled_start']
+                          as String,
+                    )
+                    .toUtc()
+                    .add(const Duration(hours: 3))
+                    .toIso8601String()
+                    .substring(0, 10);
+            final event = bookingNotificationEvent(
+              accountId: accountId,
+              wellId: command['well_id'] as String,
+              commandId: command['command_id'] as String,
+              requestId:
+                  request?['request_id'] as String? ??
+                  command['command_id'] as String,
+              scheduledDay: scheduled,
+              at: claimedAt,
+              status: status,
+              response: response,
+              supersededBy: request?['superseded_by_request_id'] as String?,
+            );
+            if (event != null) {
+              await SqliteNotificationEventStore.insertEventTx(
+                txn,
+                event.event,
+                suppression: event.suppression,
+              );
+              committedEvent = event.event;
+            }
+          }
+          return true;
+        });
+        final event = committedEvent;
+        if (applied &&
+            event != null &&
+            status == CommandStatus.review &&
+            !const {'conflict', 'rejected'}.contains(response?['status'])) {
+          BookingReactivity.instance
+              .scope(accountId, event.wellId!)
+              .mutation(days: {event.routePayload['day'] as String});
+        }
+        return applied;
+      } on DatabaseException catch (error) {
+        if (attempt >= 9 || !error.toString().contains('database is locked')) {
+          rethrow;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 5 * (attempt + 1)));
+      }
+    }
+  }
+
+  @override
+  Future<DateTime?> bookingCreateNextWake(
+    String accountId, {
+    required DateTime now,
+    required Duration staleClaimTimeout,
+  }) async {
+    final pending = await _db.rawQuery(
+      "select c.next_attempt_at from outbox_commands c indexed by outbox_booking_due_idx where c.account_id=? and c.command_type='createBooking' and c.status='pending' and $bookingFarmReadySql order by c.next_attempt_at limit 1",
+      [accountId],
+    );
+    final active = await _db.query(
+      commandsTable,
+      columns: ['last_attempt_at'],
+      where: "account_id = ? and command_type = 'createBooking' and status = 'dispatching'",
+      whereArgs: [accountId],
+      orderBy: 'last_attempt_at',
+      limit: 1,
+    );
+    final unregistered = await _db.query(
+      'local_booking_requests',
+      columns: ['request_id'],
+      where: 'account_id = ? and dispatch_registered = 0',
+      whereArgs: [accountId],
+      limit: 1,
+    );
+    DateTime? wake = unregistered.isEmpty ? null : now;
+    if (pending.isNotEmpty) {
+      final due = pending.single['next_attempt_at'] == null
+          ? now
+          : _decodeTime(pending.single['next_attempt_at'] as String);
+      if (wake == null || due.isBefore(wake)) wake = due;
+    }
+    if (active.isNotEmpty) {
+      final expiry = active.single['last_attempt_at'] == null
+          ? now
+          : _decodeTime(active.single['last_attempt_at'] as String)
+                .add(staleClaimTimeout);
+      if (wake == null || expiry.isBefore(wake)) wake = expiry;
+    }
+    return wake;
+  }
+
+  static Future<void> _createBookingRequests(DatabaseExecutor db) async {
+    await db.execute('''
+      create table local_booking_requests (
+        account_id text not null,
+        well_id text not null,
+        request_id text not null,
+        command_id text not null unique,
+        created_local_at text not null,
+        scheduled_day text not null,
+        payload text not null,
+        display_context text not null,
+        response text,
+        primary key (account_id, well_id, request_id)
+      )
+    ''');
+    await db.execute(
+      'create index booking_requests_day_idx on local_booking_requests (account_id, well_id, scheduled_day, request_id)',
+    );
+  }
+
+  static Future<void> _createBookingLinkage(DatabaseExecutor db) async {
+    await db.execute(
+      'alter table local_booking_requests add column dispatch_registered integer not null default 0',
+    );
+    await db.execute(
+      'create index booking_requests_registration_idx on local_booking_requests (account_id, dispatch_registered, created_local_at, request_id)',
+    );
+    // نتائج C1 السابقة محفوظة بالفعل ولا تُرسل مرة أخرى.
+    await db.update('local_booking_requests', {
+      'dispatch_registered': 1,
+    }, where: 'response is not null');
+  }
+
+  static Future<void> _createBookingReplacement(DatabaseExecutor db) async {
+    await db.execute(
+      'alter table local_booking_requests add column replaces_request_id text',
+    );
+    await db.execute(
+      'alter table local_booking_requests add column superseded_by_request_id text',
+    );
+    await db.execute(
+      'create index booking_requests_current_day_idx on local_booking_requests (account_id, well_id, scheduled_day, request_id) where superseded_by_request_id is null',
+    );
+  }
+
+  Future<void> _registerBooking(
+    DatabaseExecutor txn,
+    LocalBookingRequest request,
+  ) async {
+    final existing = await txn.query(
+      commandsTable,
+      columns: ['command_id'],
+      where: 'command_id = ?',
+      whereArgs: [request.commandId],
+      limit: 1,
+    );
+    if (existing.isEmpty) {
+      final sequenceRows = await txn.query(
+        metaTable,
+        columns: ['value'],
+        where: 'account_id = ? and key = ?',
+        whereArgs: [request.accountId, _sequenceKey],
+        limit: 1,
+      );
+      final sequence =
+          (sequenceRows.isEmpty
+              ? 0
+              : int.parse(sequenceRows.single['value'] as String)) +
+          1;
+      await txn.insert(metaTable, {
+        'account_id': request.accountId,
+        'key': _sequenceKey,
+        'value': '$sequence',
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      final envelope = CommandEnvelope(
+        localId: request.commandId,
+        commandId: request.commandId,
+        type: CommandType.createBooking,
+        accountId: request.accountId,
+        wellId: request.wellId,
+        sequence: sequence,
+        occurredAt: request.createdLocalAt,
+        createdLocalAt: request.createdLocalAt,
+        payload: request.payload,
+        localContext: {
+          'scheduled_day': request.scheduledDay,
+          'request_id': request.requestId,
+        },
+      );
+      await txn.insert(commandsTable, {
+        ..._toRow(envelope),
+        'payload': request.payloadJson,
+      });
+    }
+    await txn.update(
+      'local_booking_requests',
+      {'dispatch_registered': 1},
+      where: 'account_id = ? and well_id = ? and request_id = ?',
+      whereArgs: [request.accountId, request.wellId, request.requestId],
+    );
+  }
+
+  Future<T> _bookingTransaction<T>(
+    Future<T> Function(Transaction txn) action,
+  ) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await _db.transaction(action);
+      } on DatabaseException catch (error) {
+        if (attempt >= 9 || !error.toString().contains('database is locked')) {
+          rethrow;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 5 * (attempt + 1)));
+      }
+    }
+  }
+
+  /// إصلاح محدود لطلبات C1 السابقة فقط؛ الكتابات الجديدة ذرية دائمًا.
+  Future<void> _recoverBookingRegistrations(String accountId) async {
+    await _bookingTransaction((txn) async {
+      final rows = await txn.query(
+        'local_booking_requests',
+        where: 'account_id = ? and dispatch_registered = 0',
+        whereArgs: [accountId],
+        orderBy: 'created_local_at, request_id',
+        limit: 20,
+      );
+      for (final row in rows) {
+        await _registerBooking(txn, LocalBookingRequest.fromRow(row));
+      }
+    });
+  }
+
+  /// الطلب وأمره يُعتمدان معًا؛ أول كتابة لنفس هوية الطلب تفوز.
+  Future<LocalBookingRequest> saveBookingRequest(
+    LocalBookingRequest request,
+  ) async {
+    await initialize();
+    return _bookingTransaction((txn) async {
+      final raw = request.payload['p_farm_id'];
+      if (raw is Map) {
+        final rows = await txn.query(
+          commandsTable,
+          where: 'account_id=? and local_id=? and well_id=? and command_type=?',
+          whereArgs: [
+            request.accountId,
+            raw[r'$ref'],
+            request.wellId,
+            'createFarm',
+          ],
+          limit: 1,
+        );
+        if (rows.isEmpty ||
+            _fromRow(rows.single).payload['p_farmer_well_account_id'] !=
+                request.payload['p_farmer_well_account_id'] ||
+            _fromRow(rows.single).status == CommandStatus.review) {
+          throw ArgumentError('اختر أرضًا محفوظة لهذا المزارع.');
+        }
+      }
+      await txn.insert(
+        'local_booking_requests',
+        request.toRow(),
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+      final rows = await txn.query(
+        'local_booking_requests',
+        where: 'account_id = ? and well_id = ? and request_id = ?',
+        whereArgs: [request.accountId, request.wellId, request.requestId],
+        limit: 1,
+      );
+      if (rows.isEmpty) throw StateError('معرّف طلب مستخدم');
+      final stored = LocalBookingRequest.fromRow(rows.single);
+      if (stored.payloadJson != request.payloadJson) {
+        throw StateError('محتوى الطلب المحفوظ لا يُستبدل');
+      }
+      if (stored.replacesRequestId != request.replacesRequestId ||
+          request.supersededByRequestId != null) {
+        throw StateError('علاقة الطلب المحفوظ لا تُستبدل');
+      }
+      final previousId = stored.replacesRequestId;
+      if (previousId != null) {
+        final previousRows = await txn.query(
+          'local_booking_requests',
+          where: 'account_id = ? and well_id = ? and request_id = ?',
+          whereArgs: [stored.accountId, stored.wellId, previousId],
+          limit: 1,
+        );
+        if (previousRows.isEmpty || previousId == stored.requestId) {
+          throw StateError('الحجز المطلوب تعديله غير متاح');
+        }
+        final previous = LocalBookingRequest.fromRow(previousRows.single);
+        if (!const {
+              'conflict',
+              'rejected',
+            }.contains(previous.response?['status']) ||
+            (previous.supersededByRequestId != null &&
+                previous.supersededByRequestId != stored.requestId)) {
+          throw StateError('تم تعديل هذا الحجز مسبقًا');
+        }
+        if (previous.response?['status'] == 'conflict' &&
+            previous.payload['p_scheduled_start'] ==
+                stored.payload['p_scheduled_start'] &&
+            previous.payload['p_scheduled_end'] ==
+                stored.payload['p_scheduled_end']) {
+          throw ArgumentError('اختر موعدًا آخر للحجز.');
+        }
+        if (previous.supersededByRequestId == null) {
+          final count = await txn.update(
+            'local_booking_requests',
+            {'superseded_by_request_id': stored.requestId},
+            where: 'account_id = ? and well_id = ? and request_id = ? and superseded_by_request_id is null',
+            whereArgs: [stored.accountId, stored.wellId, previousId],
+          );
+          if (count != 1) throw StateError('تم تعديل هذا الحجز مسبقًا');
+          await txn.rawUpdate(
+            """update notification_events set state='suppressed',
+            suppressed_reason='superseded',suppressed_at=?,lease_until=null
+            where account_id=? and event_key in (?,?,?) and state in ('pending','presenting')""",
+            [
+              _encodeTime(stored.createdLocalAt),
+              stored.accountId,
+              'booking-result/${previous.commandId}/time_unavailable',
+              'booking-result/${previous.commandId}/rejected',
+              'booking-result/${previous.commandId}/review_required',
+            ],
+          );
+        }
+      }
+      if (rows.single['dispatch_registered'] == 0) {
+        await _registerBooking(txn, stored);
+      }
+      return stored;
+    });
+  }
+
+  Future<LocalBookingRequest?> bookingRequest(
+    String accountId,
+    String wellId,
+    String requestId,
+  ) async {
+    await initialize();
+    final rows = await _db.query(
+      'local_booking_requests',
+      columns: [
+        '*',
+        "(select count(*) from outbox_commands c where c.command_id=local_booking_requests.command_id and c.account_id=local_booking_requests.account_id and c.status='review' and local_booking_requests.response is null) as review_required",
+      ],
+      where: 'account_id = ? and well_id = ? and request_id = ?',
+      whereArgs: [accountId, wellId, requestId],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : LocalBookingRequest.fromRow(rows.single);
+  }
+
+  Future<List<LocalBookingRequest>> bookingRequestsForDay(
+    String accountId,
+    String wellId,
+    String day, {
+    int limit = 50,
+    String afterRequestId = '',
+  }) async {
+    if (limit < 1 || limit > 100) throw ArgumentError.value(limit, 'limit');
+    await initialize();
+    final rows = await _db.query(
+      'local_booking_requests',
+      columns: [
+        '*',
+        "(select count(*) from outbox_commands c where c.command_id=local_booking_requests.command_id and c.account_id=local_booking_requests.account_id and c.status='review' and local_booking_requests.response is null) as review_required",
+      ],
+      where: 'account_id = ? and well_id = ? and scheduled_day = ? and superseded_by_request_id is null and request_id > ?',
+      whereArgs: [accountId, wellId, day, afterRequestId],
+      orderBy: 'request_id',
+      limit: limit,
+    );
+    return rows.map(LocalBookingRequest.fromRow).toList(growable: false);
+  }
+
+  /// يحفظ النتيجة فقط؛ لا يبدّل الطلب الأصلي أو توقيته أو هويته.
   static Future<void> _createSessionIndexes(DatabaseExecutor db) async {
     await db.execute(
       'create index if not exists ${commandsTable}_session_idx on $commandsTable (account_id, aggregate_local_id, sequence)',
@@ -200,7 +987,7 @@ class SqliteOutboxStore implements OutboxStore {
         "on m.account_id = c.account_id and m.local_id = c.local_id and m.entity_kind = 'session' "
         'where c.account_id = ? and '
         '${localSessionId == null ? 'm.server_id = ?' : 'c.local_id = ?'} '
-        "and coalesce(c.well_id, json_extract(c.payload, '\$.p_well_id')) = ? limit 2",
+        "and c.well_id = ? limit 2",
         [accountId, localSessionId ?? serverSessionId, wellId],
       );
       if (roots.length != 1) return null;
@@ -302,6 +1089,22 @@ class SqliteOutboxStore implements OutboxStore {
     return rows.isEmpty ? null : rows.single['value'] as String;
   }
 
+  Future<Map<String, String>> readLocalValuesByKeys(
+    String accountId,
+    List<String> keys,
+  ) async {
+    if (keys.length > 20) throw ArgumentError('metadata_page_too_large');
+    if (keys.isEmpty) return {};
+    await initialize();
+    final rows = await _db.rawQuery(
+      'select key,value from $metaTable where account_id=? and key in (${List.filled(keys.length, '?').join(',')}) limit 20',
+      [accountId, ...keys],
+    );
+    return {
+      for (final row in rows) row['key'] as String: row['value'] as String,
+    };
+  }
+
   Future<void> deleteLocalValue(String accountId, String key) async {
     await initialize();
     await _db.delete(
@@ -398,6 +1201,7 @@ class SqliteOutboxStore implements OutboxStore {
 
   /// قراءة مفاتيح المجال المحلي فقط ضمن الحساب نفسه. تستخدم المصالحة
   /// مفاتيح دفتر الحجوزات ولا تخلطها بصفوف طابور الأوامر.
+  @override
   Future<List<String>> readLocalValuesByPrefix(
     String accountId,
     String prefix,
@@ -416,6 +1220,20 @@ class SqliteOutboxStore implements OutboxStore {
   @override
   Future<String?> readBundle(String accountId, String key) =>
       readLocalValue(accountId, key);
+
+  @override
+  Future<String> insertLocalRecordOnce({
+    required String accountId,
+    required String key,
+    required String value,
+  }) => _withExecutionContentionRetry(
+    () => insertBundle(
+      accountId: accountId,
+      key: key,
+      value: value,
+      commands: const [],
+    ),
+  );
 
   @override
   Future<String> insertBundle({
@@ -551,6 +1369,584 @@ class SqliteOutboxStore implements OutboxStore {
       orderBy: 'sequence asc',
     );
     return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<DispatchClaimResult> claimDispatch({
+    required String accountId,
+    required String wellId,
+    required String localId,
+    required String commandId,
+    required DateTime attemptedAt,
+    required DispatchClaimPolicy policy,
+  }) async {
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        Future<CommandEnvelope?> readCommand(String account, String id) async {
+          final rows = await tx.query(
+            commandsTable,
+            where: 'account_id=? and local_id=?',
+            whereArgs: [account, id],
+            limit: 1,
+          );
+          if (rows.isEmpty) return null;
+          try {
+            return _fromRow(rows.single);
+          } on FormatException {
+            return null;
+          } on TypeError {
+            return null;
+          } on StateError {
+            // A corrupt dependency cannot authorize dispatch or abort an
+            // independent command. The original row remains untouched.
+            return null;
+          }
+        }
+
+        Future<String?> readBundle(String account, String key) async {
+          final rows = await tx.query(
+            metaTable,
+            columns: ['value'],
+            where: 'account_id=? and key=?',
+            whereArgs: [account, key],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : rows.single['value'] as String;
+        }
+
+        Future<IdMapping?> readMapping(
+          String account,
+          String id,
+          EntityKind kind,
+        ) async {
+          final rows = await tx.query(
+            mappingsTable,
+            where: 'account_id=? and local_id=? and entity_kind=?',
+            whereArgs: [account, id, kind.storageValue],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : _mappingFromRow(rows.single);
+        }
+
+        final reader = CommandIntentEvidenceReader.fromReads(
+          readCommand,
+          readBundle,
+        );
+        final (decision, context) = await inspectDispatchClaim(
+          accountId: accountId,
+          wellId: wellId,
+          localId: localId,
+          commandId: commandId,
+          readCommand: readCommand,
+          readBundle: readBundle,
+          readMapping: readMapping,
+          classify: () => reader.read(
+            accountId: accountId,
+            wellId: wellId,
+            localId: localId,
+          ),
+          policy: policy,
+        );
+        if (decision != DispatchClaimDecision.allow) {
+          return DispatchClaimResult(decision, context: context);
+        }
+        final row = context!.command;
+        final token = DispatchAttempt(
+          accountId: accountId,
+          wellId: wellId,
+          localId: localId,
+          commandId: commandId,
+          commandType: row.type,
+          attemptId: SecureIdGenerator().newId(),
+          startedAt: attemptedAt.toUtc(),
+        );
+        final affected = await tx.update(
+          commandsTable,
+          {
+            'status': CommandStatus.dispatching.storageValue,
+            'last_attempt_at': _encodeTime(token.startedAt),
+          },
+          where: 'account_id=? and local_id=? and command_id=? and status=?',
+          whereArgs: [
+            accountId,
+            localId,
+            commandId,
+            CommandStatus.pending.storageValue,
+          ],
+        );
+        if (affected != 1) {
+          return DispatchClaimResult(DispatchClaimDecision.concurrentChange);
+        }
+        final value = jsonEncode(token.toJson());
+        await tx.insert(metaTable, {
+          'account_id': accountId,
+          'key': dispatchAttemptHistoryKey(localId, token.attemptId),
+          'value': value,
+        });
+        await tx.insert(metaTable, {
+          'account_id': accountId,
+          'key': dispatchAttemptCurrentKey(localId),
+          'value': value,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        return DispatchClaimResult(
+          DispatchClaimDecision.allow,
+          context: context,
+          attempt: token,
+          command: row.copyWith(
+            status: CommandStatus.dispatching,
+            lastAttemptAt: token.startedAt,
+          ),
+        );
+      }),
+    );
+  }
+
+  @override
+  Future<bool> releaseDispatchAttempt(
+    DispatchAttempt attempt, {
+    required String reason,
+  }) => _finishOwnedDispatch(attempt, reason: reason);
+
+  @override
+  Future<bool> finishDispatchAttempt(
+    DispatchAttempt attempt, {
+    required CommandStatus status,
+    Map<String, Object?>? serverResponse,
+    String? error,
+    String? entityId,
+  }) {
+    if (!const {
+          CommandStatus.confirmed,
+          CommandStatus.review,
+        }.contains(status) ||
+        (status == CommandStatus.confirmed && serverResponse == null)) {
+      throw ArgumentError('invalid_dispatch_result');
+    }
+    return _finishOwnedDispatch(
+      attempt,
+      status: status,
+      response: freezeDispatchReceipt(serverResponse),
+      reason: error,
+      entityId: entityId,
+    );
+  }
+
+  Future<bool> _finishOwnedDispatch(
+    DispatchAttempt attempt, {
+    CommandStatus? status,
+    Map<String, Object?>? response,
+    String? reason,
+    String? entityId,
+  }) async {
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        final rows = await tx.query(
+          commandsTable,
+          where: 'account_id=? and local_id=?',
+          whereArgs: [attempt.accountId, attempt.localId],
+          limit: 1,
+        );
+        final row = rows.isEmpty ? null : _fromRow(rows.single);
+        Future<String?> meta(String key) async {
+          final values = await tx.query(
+            metaTable,
+            columns: ['value'],
+            where: 'account_id=? and key=?',
+            whereArgs: [attempt.accountId, key],
+            limit: 1,
+          );
+          return values.isEmpty ? null : values.single['value'] as String;
+        }
+
+        final currentKey = dispatchAttemptCurrentKey(attempt.localId);
+        final historyKey = dispatchAttemptHistoryKey(
+          attempt.localId,
+          attempt.attemptId,
+        );
+        final current = await meta(currentKey);
+        if (!ownsDispatchAttempt(row, current, attempt) ||
+            await meta(historyKey) != current) {
+          return false;
+        }
+        final result = status ?? CommandStatus.pending;
+        final changed = await tx.update(
+          commandsTable,
+          {
+            'status': result.storageValue,
+            'last_error': reason,
+            if (status == null) 'retry_count': row!.retryCount + 1,
+            if (response != null) 'server_response': jsonEncode(response),
+          },
+          where: 'account_id=? and local_id=? and command_id=? and status=? and last_attempt_at=?',
+          whereArgs: [
+            attempt.accountId,
+            attempt.localId,
+            attempt.commandId,
+            CommandStatus.dispatching.storageValue,
+            _encodeTime(attempt.startedAt),
+          ],
+        );
+        if (changed != 1) {
+          return false;
+        }
+        if (status == CommandStatus.confirmed &&
+            entityId != null &&
+            row!.type.produces != null) {
+          await tx.insert(mappingsTable, {
+            'account_id': attempt.accountId,
+            'local_id': attempt.localId,
+            'entity_kind': row.type.produces!.storageValue,
+            'server_id': entityId,
+            'resolved_at': _encodeTime(attempt.startedAt),
+            'matched_existing': 0,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        if (status == CommandStatus.confirmed &&
+            row!.type == CommandType.startBookingSession) {
+          final accepted = row.copyWith(status: CommandStatus.confirmed, serverResponse: response);
+          await SqliteNotificationEventStore.insertEventTx(tx, operationalEvent(
+            accountId: accepted.accountId, wellId: accepted.wellId!,
+            eventType: 'session.started', identity: accepted.commandId,
+            entityType: 'session', entityId: accepted.aggregateLocalId ?? accepted.localId,
+            at: accepted.occurredAt,
+          ));
+          await SqliteNotificationEventStore.cancelSchedulesTx(tx,
+            accepted.accountId, accepted.wellId, 'booking',
+            accepted.payload['p_booking_id'] as String, 'session_started', accepted.occurredAt);
+        }
+        if (status == CommandStatus.confirmed &&
+            row!.type == CommandType.completeIrrigationSession) {
+          final accepted = row.copyWith(
+            status: CommandStatus.confirmed,
+            serverResponse: response,
+          );
+          final event = acceptedCompletionNotificationEvent(accepted);
+          if (event != null) {
+            await SqliteNotificationEventStore.insertEventTx(tx, event);
+          }
+          await SqliteNotificationEventStore.cancelSchedulesTx(
+            tx, accepted.accountId, accepted.wellId, 'session',
+            accepted.aggregateLocalId, 'session_completed', accepted.occurredAt,
+          );
+        }
+        final value = jsonEncode(
+          attempt.toJson(
+            state: status == null
+                ? DispatchAttemptState.retryRequested
+                : status == CommandStatus.confirmed
+                ? DispatchAttemptState.confirmed
+                : DispatchAttemptState.review,
+            reason: reason,
+          ),
+        );
+        for (final key in [currentKey, historyKey]) {
+          await tx.update(
+            metaTable,
+            {'value': value},
+            where: 'account_id=? and key=?',
+            whereArgs: [attempt.accountId, key],
+          );
+        }
+        return true;
+      }),
+    );
+  }
+
+  @override
+  Future<bool> reconcileBookingStartReceipt(
+    CommandEnvelope observed,
+    Map<String, Object?> receipt,
+  ) async {
+    receipt = freezeDispatchReceipt(receipt)!;
+    observed = freezeDispatchCommand(observed);
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        final rows = await tx.query(
+          commandsTable,
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+          limit: 1,
+        );
+        final maps = await tx.query(
+          mappingsTable,
+          where: 'account_id=? and local_id=? and entity_kind=?',
+          whereArgs: [
+            observed.accountId,
+            observed.localId,
+            EntityKind.session.storageValue,
+          ],
+          limit: 1,
+        );
+        final proofs = await tx.query(
+          metaTable,
+          columns: ['value'],
+          where: 'account_id=? and key=?',
+          whereArgs: [
+            observed.accountId,
+            'booking.manual_start.v1.${observed.wellId}.${observed.payload['p_booking_id']}',
+          ],
+          limit: 1,
+        );
+        if (!canReconcileBookingStartReceipt(
+          observed: observed,
+          current: rows.isEmpty ? null : _fromRow(rows.single),
+          manualRecord: proofs.isEmpty
+              ? null
+              : proofs.single['value'] as String,
+          mapping: maps.isEmpty ? null : _mappingFromRow(maps.single),
+          receipt: receipt,
+        )) {
+          return false;
+        }
+        await tx.update(
+          commandsTable,
+          {
+            'status': CommandStatus.confirmed.storageValue,
+            'server_response': jsonEncode(receipt),
+            'last_error': null,
+          },
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+        );
+        // An existing different session mapping was rejected above, never replaced.
+        if (maps.isEmpty) {
+          await tx.insert(mappingsTable, {
+            'account_id': observed.accountId,
+            'local_id': observed.localId,
+            'entity_kind': EntityKind.session.storageValue,
+            'server_id': receipt['session_id'],
+            'resolved_at': _encodeTime(
+              DateTime.parse(receipt['started_at'] as String),
+            ),
+            'matched_existing': 0,
+          });
+        }
+        final accepted = observed.copyWith(
+          status: CommandStatus.confirmed,
+          serverResponse: receipt,
+        );
+        await SqliteNotificationEventStore.insertEventTx(
+          tx,
+          operationalEvent(
+            accountId: accepted.accountId,
+            wellId: accepted.wellId!,
+            eventType: 'session.started',
+            identity: accepted.commandId,
+            entityType: 'session',
+            entityId: accepted.aggregateLocalId ?? accepted.localId,
+            at: accepted.occurredAt,
+          ),
+        );
+        await SqliteNotificationEventStore.cancelSchedulesTx(
+          tx,
+          accepted.accountId,
+          accepted.wellId,
+          'booking',
+          accepted.payload['p_booking_id'] as String,
+          'session_started',
+          accepted.occurredAt,
+        );
+
+        return true;
+      }),
+    );
+  }
+
+  @override
+  Future<bool> reconcileCompletionReceipt(
+    CommandEnvelope observed,
+    String sessionId,
+    Map<String, Object?> receipt,
+  ) async {
+    receipt = freezeDispatchReceipt(receipt)!;
+    observed = freezeDispatchCommand(observed);
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        Future<CommandEnvelope?> command(String? local) async {
+          final rows = await tx.query(
+            commandsTable,
+            where: 'account_id=? and local_id=?',
+            whereArgs: [observed.accountId, local],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : _fromRow(rows.single);
+        }
+
+        Future<IdMapping?> mapping(String? local, EntityKind kind) async {
+          final rows = await tx.query(
+            mappingsTable,
+            where: 'account_id=? and local_id=? and entity_kind=?',
+            whereArgs: [observed.accountId, local, kind.storageValue],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : _mappingFromRow(rows.single);
+        }
+
+        final charge = await mapping(
+          observed.localId,
+          EntityKind.sessionCharge,
+        );
+        if (!canReconcileCompletionReceipt(
+          observed: observed,
+          current: await command(observed.localId),
+          root: await command(observed.aggregateLocalId),
+          sessionMapping: await mapping(
+            observed.aggregateLocalId,
+            EntityKind.session,
+          ),
+          chargeMapping: charge,
+          sessionId: sessionId,
+          receipt: receipt,
+        )) {
+          return false;
+        }
+        await tx.update(
+          commandsTable,
+          {
+            'status': CommandStatus.confirmed.storageValue,
+            'server_response': jsonEncode(receipt),
+            'last_error': null,
+          },
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+        );
+        if (charge == null) {
+          await tx.insert(mappingsTable, {
+            'account_id': observed.accountId,
+            'local_id': observed.localId,
+            'entity_kind': EntityKind.sessionCharge.storageValue,
+            'server_id': receipt['session_charge_id'],
+            'resolved_at': _encodeTime(
+              DateTime.parse(receipt['ended_at'] as String),
+            ),
+            'matched_existing': 0,
+          });
+        }
+        final accepted = observed.copyWith(
+          status: CommandStatus.confirmed,
+          serverResponse: receipt,
+        );
+        final event = acceptedCompletionNotificationEvent(accepted);
+        if (event != null) {
+          await SqliteNotificationEventStore.insertEventTx(tx, event);
+        }
+        await SqliteNotificationEventStore.cancelSchedulesTx(
+          tx,
+          accepted.accountId,
+          accepted.wellId,
+          'session',
+          accepted.aggregateLocalId,
+          'session_completed',
+          accepted.occurredAt,
+        );
+        return true;
+      }),
+    );
+  }
+
+  @override
+  Future<CommandEnvelope> prepareSessionExecutionCommand({
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required CommandType type,
+    required DateTime at,
+    required Map<String, Object?> payload,
+  }) => _withExecutionContentionRetry(
+    () => OutboxRepository(store: this).prepare(
+      accountId: accountId,
+      wellId: wellId,
+      aggregateLocalId: sessionLocalId,
+      type: type,
+      occurredAt: at,
+      payload: payload,
+    ),
+  );
+
+  @override
+  Future<T> sessionExecutionTransaction<T>({
+    required String accountId,
+    required String wellId,
+    required String sessionLocalId,
+    required SessionExecutionWrite<T> Function(SessionExecutionSnapshot) decide,
+  }) async {
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        Future<String?> meta(String key) async {
+          final rows = await tx.query(
+            metaTable,
+            columns: ['value'],
+            where: 'account_id=? and key=?',
+            whereArgs: [accountId, key],
+            limit: 1,
+          );
+          return rows.isEmpty ? null : rows.single['value'] as String;
+        }
+
+        final roots = await tx.query(
+          commandsTable,
+          where: 'account_id=? and well_id=? and local_id=?',
+          whereArgs: [accountId, wellId, sessionLocalId],
+          limit: 1,
+        );
+        final root = roots.isEmpty ? null : _fromRow(roots.single);
+        final rows = await tx.query(
+          commandsTable,
+          where: 'account_id=? and well_id=? and aggregate_local_id=?',
+          whereArgs: [accountId, wellId, sessionLocalId],
+          orderBy: 'sequence',
+        );
+        final events = rows.map(_fromRow).toList();
+        final mappings = await tx.query(
+          mappingsTable,
+          where: 'account_id=? and local_id=? and entity_kind=?',
+          whereArgs: [
+            accountId,
+            sessionLocalId,
+            EntityKind.session.storageValue,
+          ],
+          limit: 1,
+        );
+        final write = decide(
+          SessionExecutionSnapshot(root: root, events: events),
+        );
+        validateManualStopMaterialization(
+          account: accountId,
+          well: wellId,
+          local: sessionLocalId,
+          root: root,
+          events: events,
+          savedRequest: await meta(
+            'session.manual_stop.request.v1/${Uri.encodeComponent(wellId)}/${Uri.encodeComponent(sessionLocalId)}',
+          ),
+          previousLink: await meta(
+            manualStopMaterializationKey(wellId, sessionLocalId),
+          ),
+          previousEffect: await meta(
+            'session.completion.v1.$wellId.$sessionLocalId',
+          ),
+          mapping: mappings.isEmpty ? null : _mappingFromRow(mappings.single),
+          write: write,
+        );
+        // Pending human intent only. Acceptance owns notifications and cancellation.
+        for (final command in write.commands) {
+          await tx.insert(commandsTable, _toRow(command));
+        }
+        for (final entry in write.values.entries) {
+          await tx.insert(metaTable, {
+            'account_id': accountId,
+            'key': entry.key,
+            'value': entry.value,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+        return write.result;
+      }),
+    );
   }
 
   @override
@@ -715,7 +2111,8 @@ class SqliteOutboxStore implements OutboxStore {
     'command_id': envelope.commandId,
     'command_type': envelope.type.storageValue,
     'account_id': envelope.accountId,
-    'well_id': envelope.wellId,
+    'well_id': envelope.wellId ?? envelope.payload['p_well_id'] as String?,
+    ..._projections(envelope.type.storageValue, envelope.payload),
     'aggregate_local_id': envelope.aggregateLocalId,
     'sequence': envelope.sequence,
     'occurred_at': _encodeTime(envelope.occurredAt),
@@ -726,6 +2123,9 @@ class SqliteOutboxStore implements OutboxStore {
     'status': envelope.status.storageValue,
     'retry_count': envelope.retryCount,
     'last_error': envelope.lastError,
+    'next_attempt_at': envelope.nextAttemptAt == null
+        ? null
+        : _encodeTime(envelope.nextAttemptAt!),
     'last_attempt_at': envelope.lastAttemptAt == null
         ? null
         : _encodeTime(envelope.lastAttemptAt!),
@@ -756,6 +2156,9 @@ class SqliteOutboxStore implements OutboxStore {
       status: CommandStatus.fromStorage(row['status']! as String),
       retryCount: row['retry_count']! as int,
       lastError: row['last_error'] as String?,
+      nextAttemptAt: row['next_attempt_at'] == null
+          ? null
+          : _decodeTime(row['next_attempt_at'] as String),
       lastAttemptAt: lastAttemptAt == null ? null : _decodeTime(lastAttemptAt),
       serverResponse: serverResponse == null
           ? null
@@ -776,4 +2179,19 @@ class SqliteOutboxStore implements OutboxStore {
   static String _encodeTime(DateTime at) => at.toUtc().toIso8601String();
 
   static DateTime _decodeTime(String value) => DateTime.parse(value).toUtc();
+
+  // حصر إعادة محاولة SQLITE_BUSY في الأساس الجديد؛ سياسة المزامنة لا تتغير.
+  Future<T> _withExecutionContentionRetry<T>(
+    Future<T> Function() operation,
+  ) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await operation();
+      } on DatabaseException catch (error) {
+        final code = error.getResultCode();
+        if (attempt >= 4 || (code != 5 && code != 6)) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 10 << attempt));
+      }
+    }
+  }
 }

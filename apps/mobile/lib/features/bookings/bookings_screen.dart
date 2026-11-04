@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+import '../../core/booking/local_booking_request.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api/app_bootstrap_repository.dart';
@@ -25,9 +28,15 @@ class BookingsScreen extends StatefulWidget {
     this.operationsRepository,
     this.onOpenOperations,
     this.onlineOverride,
+    this.initialDay,
+    this.initialRequestId,
+    this.initialBookingId,
     super.key,
   });
 
+  final DateTime? initialDay;
+  final String? initialRequestId;
+  final String? initialBookingId;
   final AppIdentity identity;
   final BookingRepository? bookingRepository;
   final OperationsRepository? operationsRepository;
@@ -46,6 +55,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   late final BookingRepository _repo;
   late WellSummary _well;
   String? _runningBookingId;
+  String? _focusBookingId;
   WellDaySchedule? _schedule;
   BookingAutomationState? _automation;
   late BookingScope _scope;
@@ -60,6 +70,23 @@ class _BookingsScreenState extends State<BookingsScreen> {
       _loadRunning();
     }
     setState(() {});
+  }
+
+  void _resolveNotificationTarget() {
+    final target = widget.initialRequestId;
+    if (target == null) return;
+    final account = widget.identity.accountId;
+    final well = _well.id;
+    unawaited(() async {
+      try {
+        final request = await _repo.localBooking(accountId: account, wellId: well, requestId: target);
+        if (!mounted || widget.identity.accountId != account || _well.id != well ||
+            widget.initialRequestId != target || request?.bookingId == null) {
+          return;
+        }
+        setState(() => _focusBookingId = request!.bookingId);
+      } catch (_) { /* اليوم يبقى وجهة صالحة عند تعذر قراءة الطلب. */ }
+    }());
   }
 
   @override
@@ -83,15 +110,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
     super.initState();
     _repo = widget.bookingRepository ?? BookingRepository();
     _well = widget.identity.activeWell;
+    _focusBookingId = widget.initialBookingId;
     final now = DateTime.now();
     _canonicalToday = DateTime(now.year, now.month, now.day);
-    _displayedDay = _canonicalToday;
+    _displayedDay = widget.initialDay ?? _canonicalToday;
+    _userMovedDay = widget.initialDay != null;
     _scope = BookingReactivity.instance.scope(
       widget.identity.accountId,
       _well.id,
     );
     _scope.addListener(_changed);
     _loadRunning();
+    _resolveNotificationTarget();
     if (widget.bookingRepository == null) {
       _restoreLocalFacts();
     }
@@ -288,6 +318,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
             const Divider(height: 1),
             Expanded(
               child: _DayBookingList(
+                focusRequestId: widget.initialRequestId,
+                focusBookingId: _focusBookingId,
                 key: ValueKey(
                   '${widget.identity.accountId}-${_well.id}-day-${_displayedDay.toIso8601String()}',
                 ),
@@ -576,6 +608,8 @@ class _DateHeadline extends StatelessWidget {
 /// تبويب اليوم: يحوّل اليوم المعروض إلى نطاق [00:00, اليوم التالي) ويعرضه.
 class _DayBookingList extends StatelessWidget {
   const _DayBookingList({
+    this.focusRequestId,
+    this.focusBookingId,
     required this.accountId,
     required this.scope,
     required this.schedule,
@@ -589,6 +623,7 @@ class _DayBookingList extends StatelessWidget {
     super.key,
   });
 
+  final String? focusRequestId, focusBookingId;
   final String accountId;
   final BookingScope scope;
   final WellDaySchedule? schedule;
@@ -604,6 +639,8 @@ class _DayBookingList extends StatelessWidget {
   Widget build(BuildContext context) {
     final start = DateTime(day.year, day.month, day.day);
     return _BookingList(
+      focusRequestId: focusRequestId,
+      focusBookingId: focusBookingId,
       accountId: accountId,
       scope: scope,
       schedule: schedule,
@@ -627,6 +664,8 @@ class _DayBookingList extends StatelessWidget {
 /// (listWellBookings) فلا تفاصيل لكل بطاقة ولا N+1.
 class _BookingList extends StatefulWidget {
   const _BookingList({
+    this.focusRequestId,
+    this.focusBookingId,
     required this.accountId,
     required this.scope,
     required this.schedule,
@@ -644,6 +683,7 @@ class _BookingList extends StatefulWidget {
     required this.emptyHint,
   });
 
+  final String? focusRequestId, focusBookingId;
   final String accountId;
   final BookingScope scope;
   final WellDaySchedule? schedule;
@@ -668,6 +708,8 @@ class _BookingListState extends State<_BookingList> {
   bool _loading = true;
   Object? _error;
   List<WellBookingListItem> _items = const [];
+  List<WellBookingListItem> _canonicalItems = const [];
+  List<LocalBookingRequest> _localRequests = const [];
   int _generation = 0;
   WellDaySchedule? _dayFacts;
   void _applyDayFacts(WellDaySchedule schedule) {
@@ -696,6 +738,8 @@ class _BookingListState extends State<_BookingList> {
               ),
             )
             .toList();
+        _canonicalItems = _items;
+        _items = mergeBookingRequests(_canonicalItems, _localRequests);
         _error = null;
       }
     });
@@ -726,6 +770,7 @@ class _BookingListState extends State<_BookingList> {
     return presentBooking(
       id: b.id,
       status: b.status,
+      localRequest: b.localRequest,
       scope: widget.scope,
       session: schedule?.bookings
           .where((item) => item.id == b.id)
@@ -776,10 +821,21 @@ class _BookingListState extends State<_BookingList> {
   Future<void> _load() async {
     final generation = ++_generation;
     setState(() {
-      _loading = true;
+      _loading = _items.isEmpty;
       _error = null;
     });
     try {
+      // A local-cache read failure must not hide a live canonical list.
+      List<LocalBookingRequest> local = const [];
+      try {
+        local = await widget.repo.localBookingsForDay(widget.accountId, widget.wellId, widget.from);
+      } catch (_) { /* Canonical reading remains available. */ }
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _localRequests = local;
+        _items = mergeBookingRequests(_canonicalItems, local);
+        if (_items.isNotEmpty) _loading = false;
+      });
       final list = await widget.scope.read(
         'list-${BookingScope.dayKey(widget.from)}',
         () => widget.repo.listWellBookings(
@@ -792,13 +848,14 @@ class _BookingListState extends State<_BookingList> {
       final items = [...list.bookings];
       if (!mounted || generation != _generation) return;
       setState(() {
-        _items = items;
+        _canonicalItems = items;
+        _items = mergeBookingRequests(items, _localRequests);
         _loading = false;
       });
     } catch (error) {
       if (!mounted || generation != _generation) return;
       setState(() {
-        _error = error;
+        _error = _items.isEmpty ? error : null;
         _loading = false;
       });
       await _loadDayFacts();
@@ -857,11 +914,12 @@ class _BookingListState extends State<_BookingList> {
       ),
     );
     Widget card(WellBookingListItem b) => _BookingCard(
+      highlighted: (widget.focusRequestId != null && b.localRequest?.requestId == widget.focusRequestId) || (widget.focusBookingId != null && b.id == widget.focusBookingId),
       booking: b,
       presentation: _present(b),
       running: _present(b).isCurrent,
       showDate: widget.showDate,
-      onTap: () => widget.onOpen(b),
+      onTap: b.localRequest == null ? () => widget.onOpen(b) : null,
     );
     return RefreshIndicator(
       onRefresh: () async {
@@ -968,13 +1026,15 @@ class _BookingCard extends StatelessWidget {
     required this.running,
     required this.showDate,
     required this.onTap,
+    this.highlighted = false,
   });
 
   final WellBookingListItem booking;
   final BookingPresentation presentation;
   final bool running;
   final bool showDate;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -999,15 +1059,16 @@ class _BookingCard extends StatelessWidget {
         : null;
 
     return Container(
+      key: highlighted ? const ValueKey("notification-target-booking") : null,
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: running
+          color: highlighted ? AppColors.waterBlue : running
               ? AppColors.agriculturalGreen.withValues(alpha: 0.5)
               : AppColors.border.withValues(alpha: 0.5),
-          width: running ? 1.4 : 1,
+          width: highlighted || running ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
@@ -1063,6 +1124,7 @@ class _BookingCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (highlighted) const Text("الحجز المطلوب", style: TextStyle(fontWeight: FontWeight.bold)),
         Row(
           children: [
             Expanded(
@@ -1078,7 +1140,7 @@ class _BookingCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            _StatusChip(style: style),
+            Flexible(flex: 2, child: _StatusChip(style: style)),
           ],
         ),
         if (presentation.isNext) const Text('مؤكد'),
@@ -1244,3 +1306,41 @@ SolarAssessment assessSolarWindow({
 /// دقيقة اليوم (0..1439) من القيم الاسمية لموعد مختار؛ `hour`/`minute`
 /// لِـ `DateTime` المبنيّ بمكوّنات صريحة ثابتان مهما كانت منطقة الجهاز.
 int solarStartMinuteOfDay(DateTime start) => start.hour * 60 + start.minute;
+
+/// إسقاط عرض فقط؛ هوية الطلب المحلية ليست هوية حجز تشغيلية.
+List<WellBookingListItem> mergeBookingRequests(
+  List<WellBookingListItem> canonical,
+  List<LocalBookingRequest> requests,
+) {
+  final ids = canonical.map((b) => b.id).toSet();
+  return [
+    ...canonical,
+    for (final request in requests)
+      if (request.supersededByRequestId == null &&
+          (request.bookingId == null || !ids.contains(request.bookingId)))
+        _project(request),
+  ];
+}
+
+WellBookingListItem _project(LocalBookingRequest request) {
+  final p = request.payload;
+  final context = jsonDecode(request.contextJson) as Map;
+  return WellBookingListItem(
+    id: 'local-request:${request.commandId}',
+    publicCode: request.publicCode ?? '',
+    farmerWellAccountId: p['p_farmer_well_account_id'] as String,
+    farmerName: context['farmer_name'] as String? ?? '',
+    farmId: p['p_farm_id'] is String ? p['p_farm_id'] as String : '',
+    farmName: context['farm_name'] as String? ?? '',
+    scheduledStart: DateTime.parse(p['p_scheduled_start'] as String),
+    scheduledEnd: DateTime.parse(p['p_scheduled_end'] as String),
+    scheduledDay: request.scheduledDay,
+    expectedDurationMinutes: context['duration_minutes'] as int?,
+    status: 'local_request',
+    priority: p['p_priority'] as int? ?? 0,
+    expectedEnergySource: p['p_expected_energy_source'] as String?,
+    alternativeEnergySource: p['p_alternative_energy_source'] as String?,
+    notes: p['p_notes'] as String?,
+    localRequest: request,
+  );
+}

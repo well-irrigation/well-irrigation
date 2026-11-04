@@ -15,7 +15,7 @@ import 'session_test_support.dart';
 
 void main() {
   test(
-    'تفاصيل A تستقبل إقرارها بعد إغلاق B دون أحداث للسجل غير المركب',
+    'تفاصيل A تقرأ إقرارها السابق بعد إغلاق B دون أحداث للسجل غير المركب',
     () async {
       final store = InMemoryOutboxStore();
       final coordinator = OfflineSessionCoordinator(store: store);
@@ -30,25 +30,27 @@ void main() {
           energySource: 'solar',
           startedAt: startAt,
         );
-        await coordinator.completeSession(
+        final completion = await coordinator.completeSession(
           accountId: 'a',
           sessionLocalId: start.localId,
           completedAt: startAt.add(const Duration(minutes: 2)),
+        );
+        // Acceptance releases the well before B starts; only A's local
+        // observation is delayed until after B, never its acceptance.
+        final isA = farmer == 'farmer-a';
+        await acceptTestCompletion(
+          store,
+          root: start,
+          completion: completion,
+          serverId: isA ? 'server-A' : 'server-B',
+          chargeId: isA ? 'charge-A' : 'charge-B',
+          amountMinor: isA ? 50 : 125,
         );
         return start.localId;
       }
 
       final a = await close('farmer-a', at);
-      await close('farmer-b', at.add(const Duration(minutes: 3)));
-      await store.putMapping(
-        'a',
-        IdMapping(
-          localId: a,
-          kind: EntityKind.session,
-          serverId: 'server-A',
-          resolvedAt: at,
-        ),
-      );
+      final b = await close('farmer-b', at.add(const Duration(minutes: 3)));
       final observed = <ActiveSessionRecord>[];
       final unrelated = <ActiveSessionRecord>[];
       final sub = coordinator
@@ -71,15 +73,20 @@ void main() {
             c.aggregateLocalId == a &&
             c.type == CommandType.completeIrrigationSession,
       );
-      await store.markConfirmed(
-        'a',
-        completion.localId,
-        serverResponse: {'session_charge_id': 'charge-A', 'amount_minor': 50},
-        attemptedAt: at,
-      );
+      final originalAcceptedResponse = completion.serverResponse;
       await coordinator.freshProjectActiveSession(accountId: 'a', wellId: 'w');
       await Future<void>.delayed(Duration.zero);
       expect(observed.single.approvedAmountMinor, 50);
+      expect(observed.single.localId, a);
+      expect(observed.single.completedAt, at.add(const Duration(minutes: 2)));
+      final records = await ActiveSessionProjector(store: store).projectAll(
+        'a', wellId: 'w', now: at.add(const Duration(minutes: 6)),
+      );
+      expect(records.singleWhere((r) => r.localId == b).approvedAmountMinor, 125);
+      expect(records.singleWhere((r) => r.localId == a).approvedAmountMinor, 50);
+      expect((await store.commandByLocalId('a', completion.localId))!.serverResponse,
+          originalAcceptedResponse);
+      expect(await store.allCommands('a'), hasLength(4));
       expect(unrelated, isEmpty);
       await sub.cancel();
       await other.cancel();
@@ -124,11 +131,52 @@ void main() {
         sessionLocalId: start.localId,
         sessionCompletionLocalId: end.localId,
       );
-      await store.markConfirmed(
+      final pending = (await ActiveSessionProjector(store: store)
+          .projectSession(
+            'a',
+            start.localId,
+            now: at.add(const Duration(hours: 1)),
+          ))!;
+      expect(pending.completedAt, isNull);
+      expect(pending.approvedAmountMinor, isNull);
+      expect(pending.businessState.isActive, isTrue);
+      expect(pending.payments.single.localId, payment.localId);
+      expect(pending.payments.single.isPosted, isFalse);
+      expect(
+        await store.mapping('a', end.localId, EntityKind.sessionCharge),
+        isNull,
+      );
+      expect(
+        await coordinator.restoreCompletedSession(
+          accountId: 'a',
+          wellId: 'w',
+          serverSessionId: 'accepted-session',
+        ),
+        isNull,
+      );
+      await acceptTestCompletion(
+        store,
+        root: start,
+        completion: end,
+        chargeId: 'charge',
+        amountMinor: 125,
+      );
+      await store.putMapping(
         'a',
-        end.localId,
-        serverResponse: {'session_charge_id': 'charge', 'amount_minor': 125},
-        attemptedAt: at,
+        IdMapping(
+          localId: end.localId,
+          kind: EntityKind.sessionCharge,
+          serverId: 'charge',
+          resolvedAt: at,
+        ),
+      );
+      expect(
+        (await store.mapping(
+          'a',
+          end.localId,
+          EntityKind.sessionCharge,
+        ))!.serverId,
+        'charge',
       );
       await store.markConfirmed(
         'a',
@@ -169,6 +217,17 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       final restored = records.single;
       expect(restored.approvedAmountMinor, 125);
+      expect(restored.payments.single.localId, payment.localId);
+      expect(restored.payments.single.serverId, 'payment-server');
+      expect(restored.payments.single.isPosted, isTrue);
+      expect(
+        (await store.commandByLocalId('a', payment.localId))!.commandId,
+        payment.commandId,
+      );
+      expect(
+        (await store.commandByLocalId('a', payment.localId))!.occurredAt,
+        payment.occurredAt,
+      );
       expect(restored.farmerName, 'غانم');
       expect(restored.farmName, 'الوادي');
       expect(restored.pumpName, 'الشرقية');
@@ -210,11 +269,12 @@ void main() {
             now: at.add(const Duration(minutes: 3)),
           ))!;
       expect(record.approvedAmountMinor, isNull);
-      await store.markConfirmed(
-        sessionAccount,
-        end.localId,
-        serverResponse: {'session_charge_id': 'charge-1', 'amount_minor': 125},
-        attemptedAt: at,
+      await acceptTestCompletion(
+        store,
+        root: start,
+        completion: end,
+        chargeId: 'charge-1',
+        amountMinor: 125,
       );
       record = (await ActiveSessionProjector(store: store).projectSession(
         sessionAccount,

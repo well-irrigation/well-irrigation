@@ -116,6 +116,20 @@ class BackgroundSyncPolicy {
     return Duration(microseconds: micros);
   }
 
+  /// توزيع حتمي لإعادة إنشاء الحجز فقط: 0..25% تضاف إلى الأساس.
+  /// لا يعتمد على String.hashCode المتغير أو مصدر عشوائية خارجي.
+  Duration bookingCreateDelay(String commandId, int attempt) {
+    if (attempt < 1) throw ArgumentError.value(attempt, 'attempt');
+    final base = delayForAttempt(attempt);
+    var hash = 2166136261;
+    for (final unit in '$commandId:$attempt'.codeUnits) {
+      hash = ((hash ^ unit) * 16777619) & 0xffffffff;
+    }
+    final basisPoints = hash % 2501;
+    return Duration(microseconds: base.inMicroseconds +
+        base.inMicroseconds * basisPoints ~/ 10000);
+  }
+
   /// هل نعيد تشغيل الحلقة فورًا داخل نفس التشغيل الخلفي؟
   ///
   /// شرطه تقدّمٌ فعلي: أمرٌ واحد على الأقل قَبِله الخادم، وبقي عملٌ قد
@@ -143,9 +157,9 @@ class BackgroundSyncPolicy {
         attempt: attempt,
         // تقدَّمنا فعلًا؟ إذن الشبكة تعمل والطابور طويل فقط: نعود سريعًا
         // بأول انتظار بدل مواصلة التراجع الأُسّي.
-        retryDelay: report.confirmed > 0
+        retryDelay: report.bookingRetryDelay ?? (report.confirmed > 0
             ? firstDelay
-            : delayForAttempt(attempt),
+            : delayForAttempt(attempt)),
       );
     }
 

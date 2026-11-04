@@ -31,9 +31,11 @@ class _FakeCropsRepo extends OperationsRepository {
   ];
 
   @override
-  Future<List<Farm>> fetchFarms(
+  Future<List<Farm>> searchFarms(
     String wellId, {
-    String? farmerAccountId,
+    required String farmerAccountId,
+    String query = '',
+    int limit = 50,
   }) async => const [
     Farm(
       id: 'farm-1',

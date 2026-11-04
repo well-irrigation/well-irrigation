@@ -1,14 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:well_irrigation_mobile/core/api/booking_repository.dart';
+import 'package:well_irrigation_mobile/core/api/booking_local_ledger.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
+import 'package:well_irrigation_mobile/core/sync/sqlite_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/booking/booking_reactivity.dart';
 import 'package:well_irrigation_mobile/features/bookings/bookings_screen.dart';
 
 import '../../support/identity_fixture.dart';
 
 class ReactiveRepo extends BookingRepository {
+  ReactiveRepo()
+    : super(
+        null,
+        null,
+        BookingLocalLedger(
+          SqliteOutboxStore(
+            databasePath: inMemoryDatabasePath,
+            singleInstance: false,
+            sqfliteFactory: databaseFactoryFfiNoIsolate,
+          ),
+        ),
+      );
   final List<WellBookingListItem> items = [];
   int listCalls = 0;
   int scheduleCalls = 0;
@@ -88,21 +103,7 @@ class ReactiveRepo extends BookingRepository {
         wellTimezone: 'Asia/Aden',
       );
   @override
-  Future<BookingMutationResult> createBooking({
-    required String wellId,
-    required String farmerWellAccountId,
-    required String farmId,
-    required DateTime scheduledStart,
-    required DateTime scheduledEnd,
-    required String commandId,
-    String? expectedEnergySource,
-    String? alternativeEnergySource,
-    int priority = 0,
-    String? notes,
-  }) async {
-    items.add(item('NEW', scheduledStart));
-    return const BookingMutationResult(status: 'confirmed', bookingId: 'NEW');
-  }
+  Future<void> requestBookingConfirmation(String accountId) async {}
 
   @override
   Future<BookingMutationResult> cancelBooking({
@@ -142,13 +143,23 @@ class FormOps extends OperationsRepository {
     const FarmerAccount(id: 'farmer', fullName: 'أحمد', publicCode: 'F'),
   ];
   @override
-  Future<List<Farm>> fetchFarms(
+  Future<List<Farm>> searchFarms(
     String wellId, {
-    String? farmerAccountId,
-  }) async => [Farm(id: 'farm', wellId: wellId, name: 'الأرض')];
+    required String farmerAccountId,
+    String query = '',
+    int limit = 50,
+  }) async => [
+    Farm(
+      id: 'farm',
+      wellId: wellId,
+      name: 'الأرض',
+      farmerAccountId: farmerAccountId,
+    ),
+  ];
 }
 
 void main() {
+  sqfliteFfiInit();
   testWidgets(
     'Save creates immediately in sorted position; cancel moves to history without recreating list',
     (tester) async {
@@ -193,17 +204,17 @@ void main() {
       await tester.tap(find.text('حفظ الحجز'));
       await tester.pumpAndSettle();
       expect(identical(tester.state(find.byType(BookingsScreen)), state), true);
-      expect(find.text('مزارع NEW'), findsOneWidget);
+      expect(find.text('أحمد'), findsOneWidget);
       expect(
         tester.getTopLeft(find.text('مزارع early')).dy,
-        lessThan(tester.getTopLeft(find.text('مزارع NEW')).dy),
+        lessThan(tester.getTopLeft(find.text('أحمد')).dy),
       );
       expect(
-        tester.getTopLeft(find.text('مزارع NEW')).dy,
+        tester.getTopLeft(find.text('أحمد')).dy,
         lessThan(tester.getTopLeft(find.text('مزارع late')).dy),
       );
       final calls = repo.listCalls;
-      await tester.tap(find.text('مزارع NEW'));
+      await tester.tap(find.text('مزارع late'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('إلغاء الحجز').last);
       await tester.pumpAndSettle();
@@ -212,12 +223,13 @@ void main() {
       Navigator.of(tester.element(find.text('تفاصيل الحجز'))).pop();
       await tester.pumpAndSettle();
       expect(repo.listCalls, calls + 1);
-      expect(find.text('مزارع NEW'), findsNothing);
+      expect(find.text('مزارع late'), findsNothing);
+      expect(find.text('أحمد'), findsOneWidget);
       expect(find.text('السجل المنتهي لليوم (1)'), findsOneWidget);
       await tester.tap(find.text('السجل المنتهي لليوم (1)'));
       await tester.pumpAndSettle();
       expect(find.text('ملغى'), findsOneWidget);
-      expect(find.text('مزارع NEW'), findsOneWidget);
+      expect(find.text('مزارع late'), findsOneWidget);
     },
   );
   testWidgets(

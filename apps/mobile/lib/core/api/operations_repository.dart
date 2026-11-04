@@ -751,6 +751,19 @@ class OperationsRepository {
     return _contractItems(response).map(Farm.fromJson).toList();
   }
 
+  Future<FarmSearchPage> searchFarmPage(String wellId,{required String farmerAccountId,String query='',int limit=50,Map<String,Object?>? after}) async {
+    if(wellId.isEmpty||farmerAccountId.isEmpty||limit<1||limit>100) throw ArgumentError('اختر المزارع والبئر');
+    final client=_effectiveClient;
+    if(client==null) throw StateError('تعذر تحميل الأراضي');
+    final raw=await client.schema('api').rpc('search_well_farms',params:{'p_well_id':wellId,'p_farmer_well_account_id':farmerAccountId,'p_query':query,'p_limit':limit,'p_after':after});
+    if(raw is! Map||raw['contract']!='search_well_farms'||raw['version']!=1||raw['items'] is! List) throw StateError('تعذر تحميل الأراضي');
+    final farms=(raw['items'] as List).map((v)=>Farm.fromJson(Map<String,dynamic>.from(v as Map))).toList();
+    if(farms.length>limit||farms.any((f)=>f.wellId!=wellId||f.farmerAccountId!=farmerAccountId||f.status!='active'||f.id.isEmpty)) throw StateError('تعذر تحميل الأراضي');
+    return FarmSearchPage(farms,raw['next_cursor'] is Map?Map<String,Object?>.from(raw['next_cursor'] as Map):null);
+  }
+  Future<List<Farm>> searchFarms(String wellId,{required String farmerAccountId,String query='',int limit=50}) async =>
+    (await searchFarmPage(wellId,farmerAccountId:farmerAccountId,query:query,limit:limit)).items;
+
   /// جلب مضخات البئر عبر عقد `api.list_well_pumps`
   Future<List<Pump>> fetchPumps(String wellId) async {
     final client = _effectiveClient;
@@ -1131,7 +1144,7 @@ class OperationsRepository {
       orElse: () => throw StateError('حساب المزارع غير موجود في هذا البئر'),
     );
 
-    final farms = await fetchFarms(wellId, farmerAccountId: farmerAccountId);
+    final farms = await searchFarms(wellId, farmerAccountId: farmerAccountId);
     final sessions = await fetchSessionHistory(
       wellId: wellId,
       farmerAccountId: farmerAccountId,
@@ -1154,4 +1167,10 @@ class OperationsRepository {
       recentSessions: sessions,
     );
   }
+}
+
+class FarmSearchPage {
+ const FarmSearchPage(this.items,this.nextCursor);
+ final List<Farm> items;
+ final Map<String,Object?>? nextCursor;
 }

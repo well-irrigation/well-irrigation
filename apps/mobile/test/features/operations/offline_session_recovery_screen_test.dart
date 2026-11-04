@@ -1,3 +1,4 @@
+import '../../core/session/session_test_support.dart' show acceptTestCompletion;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
@@ -109,6 +110,7 @@ void main() {
       accountId: 'account-a',
       sessionLocalId: localId,
     );
+    await acceptTestCompletion(store, root: (await store.commandByLocalId('account-a', localId))!, completion: (await store.allCommands('account-a')).last, amountMinor: 0);
     await show(tester);
     expect(find.text('إنهاء الجلسة'), findsNothing);
     expect(find.text('استئناف'), findsNothing);
@@ -123,8 +125,7 @@ void main() {
       attemptedAt: DateTime.now(),
     );
     await show(tester);
-    await tester.tap(find.text('جلسة 2'));
-    await tester.pumpAndSettle();
+    // The accepted previous session no longer participates in the active choice.
     expect(
       find.text('تحتاج الجلسة مراجعة — السجل المحلي محفوظ'),
       findsOneWidget,

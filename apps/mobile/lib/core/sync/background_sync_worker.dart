@@ -19,6 +19,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../config/app_config.dart';
+import '../notifications/operational_notification_scheduler.dart';
+import '../notifications/notification_presenter.dart';
+import '../notifications/notification_delivery_coordinator.dart';
+import '../notifications/operational_notification_event_factory.dart';
+import '../notifications/local_notification_presenter.dart';
 import 'background_sync_coordinator.dart';
 import 'background_sync_policy.dart';
 import 'background_sync_scheduler.dart';
@@ -95,6 +100,7 @@ Future<bool> runBackgroundSyncTask(
         transport: SupabaseCommandTransport(Supabase.instance.client),
       ),
       scheduler: WorkmanagerSyncScheduler(),
+      notifications: createBackgroundNotificationDelivery(store, isAccountActive: (account) => canRunBackgroundAccount(Supabase.instance.client, account)),
     );
 
     final decision = await coordinator.runFromWorker(
@@ -128,3 +134,12 @@ bool canRunBackgroundAccount(SupabaseClient client, String accountId) {
 
 /// السياسة المستخدمة في العامل — مكشوفة للاختبار والتوثيق.
 const BackgroundSyncPolicy backgroundSyncWorkerPolicy = BackgroundSyncPolicy();
+
+/// يهيّئ العرض داخل عملية العامل نفسها؛ لا يطلب صلاحية ولا ينفذ تنقلًا.
+NotificationDeliveryCoordinator createBackgroundNotificationDelivery(SqliteOutboxStore store,{NotificationPresenter? presenter,bool Function(String)? isAccountActive}) {
+  final platform=presenter??LocalNotificationPresenter();
+  final scheduling=platform is ScheduledNotificationPresenter?OperationalNotificationScheduler(
+    store:store.notificationEvents,presenter:platform,isAccountActive:isAccountActive):null;
+  return NotificationDeliveryCoordinator(store:store.notificationEvents,presenter:platform,
+    policies:appNotificationPolicies,isAccountActive:isAccountActive,scheduledCleanup:scheduling?.cancelPending);
+}

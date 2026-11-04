@@ -1,4 +1,6 @@
--- P2 mobile reconciliation contract: read-only, tenant-scoped receipt lookup.
+-- Q137 retained historical reconciliation: قراءة فقط لإقرارات سابقة مع عزل الجهة.
+\set ON_ERROR_STOP on
+-- Q137-REFERENCE-CLASS: EXPECTED_HISTORICAL_READ_FIXTURE
 begin;
 
 set local timezone to 'UTC';
@@ -95,13 +97,21 @@ begin
     'well_diesel', 'confirmed'
   ) returning id into v_next_booking;
   perform set_config('request.jwt.claim.sub', v_seed.operator_id::text, true);
-  perform api.set_well_booking_automation(v_well, true, 0, gen_random_uuid());
   v_started := ops.start_booking_session_core(
     v_current_booking, v_seed.operator_id, v_now - interval '130 minutes'
   );
   v_current_session := (v_started ->> 'session_id')::uuid;
-  select id into v_chain from ops.booking_transition_chains
-  where well_id = v_well and status = 'active';
+  if exists(select 1 from ops.booking_transition_chains where well_id=v_well) then
+    raise exception 'FAIL manual start unexpectedly created a chain';
+  end if;
+  -- historical fixture for retained Q137 read/replay contract.
+  -- تُدرج بهوية الجهة والبئر والجلسة الفعلية داخل المعاملة فقط.
+  insert into ops.booking_transition_chains(
+    tenant_id,well_id,status,opened_by_session_id,opened_at,
+    current_session_id,next_booking_id,decision_revision,created_by)
+  values(v_seed.tenant_id,v_well,'active',v_current_session,
+    v_now-interval '130 minutes',v_current_session,v_next_booking,0,v_seed.operator_id)
+  returning id into v_chain;
   select booking_auto_transition_revision into v_auto_revision
   from core.well_settings where well_id = v_well;
   select policy_version into v_policy_version
@@ -109,28 +119,88 @@ begin
   return jsonb_build_object(
     'tenant_id', v_seed.tenant_id, 'well_id', v_well, 'chain_id', v_chain,
     'current_session_id', v_current_session, 'next_booking_id', v_next_booking,
-    'decision_revision', 0, 'automation_revision', v_auto_revision,
-    'policy_version', v_policy_version
+    'decision_revision', 0, 'automation_revision', coalesce(v_auto_revision,0),
+    'policy_version', coalesce(v_policy_version,1),
+    'current_end',v_now-interval '10 minutes','next_start',v_now-interval '5 minutes'
   );
 end;
 $function$;
 
-create function pg_temp.call_executor(p_ctx jsonb, p_command uuid)
-returns jsonb
-language plpgsql
-as $function$
+-- historical fixture for retained Q137 read/replay contract.
+-- إنشاء جلسات صالحة بالعقود اليدوية، ثم تجهيز إقرار قديم صريح.
+-- لا استدعاء لمنفذ انتقال، ولا محاكاة نجاح طلب runtime جديد.
+create function pg_temp.seed_historical_receipt(p_ctx jsonb,p_command uuid)
+returns void language plpgsql as $fixture$
+declare
+  seed reconciliation_seed%rowtype;
+  completed jsonb;
+  started jsonb;
+  chain_before jsonb;
 begin
-  return ops.execute_booking_transition_automation(
-    (p_ctx ->> 'well_id')::uuid, (p_ctx ->> 'chain_id')::uuid,
-    (p_ctx ->> 'current_session_id')::uuid,
-    (p_ctx ->> 'next_booking_id')::uuid,
-    (p_ctx ->> 'decision_revision')::bigint,
-    (p_ctx ->> 'automation_revision')::bigint,
-    (p_ctx ->> 'policy_version')::bigint,
-    p_command, gen_random_uuid(), gen_random_uuid()
-  );
+  select * into seed from reconciliation_seed limit 1;
+  select to_jsonb(c) into strict chain_before from ops.booking_transition_chains c
+    where c.id=(p_ctx->>'chain_id')::uuid;
+  perform set_config('request.jwt.claim.sub',seed.operator_id::text,true);
+  completed := api.complete_booking_session(
+    (p_ctx->>'current_session_id')::uuid,(p_ctx->>'current_end')::timestamptz,
+    gen_random_uuid(),null,null,null);
+  started := api.start_irrigation_session_from_booking(
+    (p_ctx->>'next_booking_id')::uuid,(p_ctx->>'next_start')::timestamptz,
+    gen_random_uuid(),null);
+  if completed->>'status' is distinct from 'closed'
+    or started->>'session_id' is null
+    or (select to_jsonb(c) from ops.booking_transition_chains c
+      where c.id=(p_ctx->>'chain_id')::uuid) is distinct from chain_before then
+    raise exception 'FAIL manual fixture operations must not move the historical chain';
+  end if;
+  -- التغيير التالي بيانات تاريخية صريحة للقراءة، وليس ناتج runtime.
+  update ops.booking_transition_chains
+    set current_session_id=(started->>'session_id')::uuid,next_booking_id=null
+    where id=(p_ctx->>'chain_id')::uuid;
+  insert into ops.booking_transition_decisions(
+    tenant_id,well_id,chain_id,prev_session_id,next_booking_id,decision,decided_by,command_id)
+  values((p_ctx->>'tenant_id')::uuid,(p_ctx->>'well_id')::uuid,
+    (p_ctx->>'chain_id')::uuid,(p_ctx->>'current_session_id')::uuid,
+    (p_ctx->>'next_booking_id')::uuid,'run_now',seed.operator_id,p_command);
+  insert into sync.processed_commands(
+    tenant_id,command_id,command_type,entity_id,status,request_payload,
+    response_payload,intent_fingerprint)
+  values((p_ctx->>'tenant_id')::uuid,p_command,'execute_booking_transition',
+    (p_ctx->>'well_id')::uuid,'accepted','{}'::jsonb,
+    jsonb_build_object('well_id',p_ctx->>'well_id',
+      'closed_session_id',p_ctx->>'current_session_id',
+      'started_session_id',started->>'session_id',
+      'started_booking_id',p_ctx->>'next_booking_id'),
+    jsonb_build_object('tenant_id',(p_ctx->>'tenant_id')::uuid,
+      'well_id',(p_ctx->>'well_id')::uuid,'chain_id',(p_ctx->>'chain_id')::uuid,
+      'current_session_id',(p_ctx->>'current_session_id')::uuid,
+      'next_booking_id',(p_ctx->>'next_booking_id')::uuid,
+      'decision_revision',(p_ctx->>'decision_revision')::bigint,
+      'automation_revision',(p_ctx->>'automation_revision')::bigint,
+      'policy_version',(p_ctx->>'policy_version')::bigint,
+      'actor_kind','system','actor_ref','booking_automation_system'));
 end;
-$function$;
+$fixture$;
+
+-- مقارنة كاملة للصفوف حول قراءة الإقرار في R5، بما فيها الأوامر والتدقيق والمال.
+create function pg_temp.reconciliation_snapshot()
+returns jsonb language plpgsql as $read_snapshot$
+declare r record; rows_json jsonb; result jsonb := '{}'::jsonb;
+begin
+  for r in select n.nspname,c.relname from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid=c.relnamespace
+    where c.relkind in ('r','p') and not c.relispartition
+      and n.nspname in ('ops','sync','audit','billing','finance','core')
+    order by n.nspname,c.relname
+  loop
+    execute format(
+      'select coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),''[]''::jsonb) from %I.%I t',
+      r.nspname,r.relname) into rows_json;
+    result:=result||jsonb_build_object(r.nspname||'.'||r.relname,rows_json);
+  end loop;
+  return result;
+end;
+$read_snapshot$;
 
 create function pg_temp.read_reconciliation(p_ctx jsonb, p_command uuid)
 returns jsonb
@@ -165,11 +235,9 @@ declare
   v_before_sessions integer;
   v_other_user uuid := gen_random_uuid();
   v_fp jsonb;
+  before_read jsonb;
 begin
   select * into v_seed from reconciliation_seed limit 1;
-  update ops.booking_automation_control
-  set execution_enabled = true, policy_version = policy_version + 1
-  where control_key = 'global';
 
   -- Function shape, volatility, search path, and tightly scoped grants.
   if exists (
@@ -233,10 +301,10 @@ begin
 
   v_ctx := pg_temp.make_reconciliation_case('REC-FOUND');
   perform set_config('request.jwt.claim.sub', '', true);
-  execute 'set local role booking_automation_executor';
-  perform pg_temp.call_executor(v_ctx, v_command);
+  perform pg_temp.seed_historical_receipt(v_ctx, v_command);
   execute 'reset role';
 
+  before_read := pg_temp.reconciliation_snapshot();
   select count(*) into v_before_commands from sync.processed_commands;
   select count(*) into v_before_audit from audit.booking_automation_attempts;
   select count(*) into v_before_sessions from ops.irrigation_sessions;
@@ -252,18 +320,29 @@ begin
      and v_result::text !~ '(credential_ref|executor_id|attempt_id|runtime_run_id|authorization_revision|operator_profile_id)' then
     raise notice 'PASS R4: exact command returns a minimal canonical receipt';
   else raise notice 'FAIL R4: exact canonical receipt invalid: %', v_result; end if;
-  if (select count(*) from sync.processed_commands) = v_before_commands
+  if pg_temp.reconciliation_snapshot()=before_read
+     and (select count(*) from sync.processed_commands) = v_before_commands
      and (select count(*) from audit.booking_automation_attempts) = v_before_audit
      and (select count(*) from ops.irrigation_sessions) = v_before_sessions then
     raise notice 'PASS R5: read reconciliation has no mutation side effects';
   else raise notice 'FAIL R5: read reconciliation changed canonical rows'; end if;
 
-  -- Replaying canonical executor evidence is setup only; the following read
-  -- must expose its canonical replay result without adding any phone command.
-  perform set_config('request.jwt.claim.sub', '', true);
-  execute 'set local role booking_automation_executor';
-  v_result := pg_temp.call_executor(v_ctx, v_command);
-  execute 'reset role';
+  -- historical fixture for retained Q137 read/replay contract.
+  -- R6 يحتاج أثر replay قديمًا فقط؛ لا إعادة تنفيذ لأي انتقال.
+  insert into audit.booking_automation_attempts(
+    actor_kind,actor_ref,executor_id,credential_ref,authorization_source,
+    tenant_id,well_id,chain_id,current_session_id,next_booking_id,
+    command_id,attempt_id,runtime_run_id,decision_revision,automation_revision,
+    policy_version,observed_at,attempted_at,decided_at,result,business_receipt)
+  values('system','booking_automation_system','historical-test-executor',
+    'historical-test-credential','historical fixture',
+    (v_ctx->>'tenant_id')::uuid,(v_ctx->>'well_id')::uuid,
+    (v_ctx->>'chain_id')::uuid,(v_ctx->>'current_session_id')::uuid,
+    (v_ctx->>'next_booking_id')::uuid,v_command,gen_random_uuid(),gen_random_uuid(),
+    (v_ctx->>'decision_revision')::bigint,(v_ctx->>'automation_revision')::bigint,
+    (v_ctx->>'policy_version')::bigint,now(),now(),now(),'replayed',
+    (select response_payload from sync.processed_commands
+      where tenant_id=(v_ctx->>'tenant_id')::uuid and command_id=v_command));
   perform set_config('request.jwt.claim.sub', v_seed.owner_id::text, true);
   execute 'set local role authenticated';
   v_result := pg_temp.read_reconciliation(v_ctx, v_command);
@@ -368,8 +447,7 @@ begin
   -- A later accepted command for the same logical intent wins over old exact
   -- rejected audit evidence and keeps the two command identities separate.
   perform set_config('request.jwt.claim.sub', '', true);
-  execute 'set local role booking_automation_executor';
-  perform pg_temp.call_executor(v_rejected_ctx, v_accepted_after_rejection_command);
+  perform pg_temp.seed_historical_receipt(v_rejected_ctx, v_accepted_after_rejection_command);
   execute 'reset role';
   perform set_config('request.jwt.claim.sub', v_seed.owner_id::text, true);
   execute 'set local role authenticated';
@@ -386,8 +464,7 @@ begin
   -- different session was closed than the local current session.
   v_mismatched_receipt_ctx := pg_temp.make_reconciliation_case('REC-MISMATCHED-CLOSED');
   perform set_config('request.jwt.claim.sub', '', true);
-  execute 'set local role booking_automation_executor';
-  perform pg_temp.call_executor(v_mismatched_receipt_ctx, v_mismatched_receipt_command);
+  perform pg_temp.seed_historical_receipt(v_mismatched_receipt_ctx, v_mismatched_receipt_command);
   execute 'reset role';
   update sync.processed_commands
   set response_payload = jsonb_set(
@@ -442,6 +519,7 @@ begin
   exception when sqlstate '22023' then raise notice 'PASS R16: invalid required inputs fail closed'; end;
   execute 'reset role';
 
+  -- Q137-REFERENCE-CLASS: EXPECTED_NEGATIVE_TEST
   if not exists (
     select 1
     from (

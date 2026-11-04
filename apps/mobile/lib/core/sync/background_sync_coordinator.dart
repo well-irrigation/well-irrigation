@@ -14,6 +14,8 @@
 ///   خلفيًا صريحًا. هذا ما يجعل «سجّلت ثم أغلقت التطبيق» يصل.
 library;
 
+import '../notifications/notification_delivery_coordinator.dart';
+import '../notifications/notification_services.dart';
 import 'background_sync_policy.dart';
 import 'background_sync_scheduler.dart';
 import 'sync_engine.dart';
@@ -23,8 +25,10 @@ class BackgroundSyncCoordinator {
     required this._engine,
     required this._scheduler,
     this.policy = const BackgroundSyncPolicy(),
-  });
+    NotificationDeliveryCoordinator? notifications,
+  }) : _notifications = notifications ?? NotificationServices.current?.delivery;
 
+  final NotificationDeliveryCoordinator? _notifications;
   final SyncEngine _engine;
   final BackgroundSyncScheduler _scheduler;
   final BackgroundSyncPolicy policy;
@@ -61,12 +65,49 @@ class BackgroundSyncCoordinator {
     return decision;
   }
 
-  Future<BackgroundSyncDecision> _drain(
+  /// يسجّل الإيقاظ الدائم أولًا ثم يطلب مرورًا واحدًا من المسار الموجود.
+  /// المتصل لا ينتظر الشبكة لإتمام حفظه المحلي.
+  Future<BackgroundSyncDecision> bookingSaved(String accountId) async {
+    await _scheduler.scheduleSync(accountId);
+    return runFromApp(accountId);
+  }
+
+  Future<BackgroundSyncDecision> _drain(String accountId, {required int attempt}) async {
+    final decision = await _drainBusiness(accountId, attempt:attempt);
+    final notifications = _notifications;
+    if (notifications != null && await notifications.deliver(accountId) && !decision.shouldRetry) {
+      return BackgroundSyncDecision(outcome:BackgroundSyncOutcome.retryLater,attempt:attempt,retryDelay:const Duration(minutes:1));
+    }
+    return decision;
+  }
+
+  Future<BackgroundSyncDecision> _drainBusiness(
     String accountId, {
     required int attempt,
   }) async {
+    // مرور حجوزات واحد فقط لكل إيقاظ؛ تصريف العائلات القديمة لا يعيد تشغيله.
+    final bookingRun = _engine.runBookingCreates(accountId);
+    final (legacy,farmResultsChanged) = await _drainLegacy(accountId, attempt: attempt);
+    final booking = policy.decide(report: await bookingRun, attempt: attempt);
+    // نتيجة الأرض قد تكون وصلت بعد قراءة صفحة الحجز؛ موعد عادي واحد، بلا تصريف إضافي.
+    if(farmResultsChanged && await _engine.hasReadyBookingCreates(accountId)) {
+      return BackgroundSyncDecision(outcome:BackgroundSyncOutcome.retryLater,attempt:attempt,retryDelay:policy.firstDelay);
+    }
+
+    if (booking.shouldRetry) {
+      if (!legacy.shouldRetry || booking.retryDelay! < legacy.retryDelay!) return booking;
+      return legacy;
+    }
+    if (legacy.shouldRetry) return legacy;
+    if (booking.outcome == BackgroundSyncOutcome.awaitsHumanDecision) return booking;
+    if (legacy.outcome == BackgroundSyncOutcome.nothingToSend) return booking;
+    return legacy;
+  }
+
+  Future<(BackgroundSyncDecision,bool)> _drainLegacy(String accountId, {required int attempt}) async {
     var report = await _engine.run(accountId);
     var passes = 1;
+    var farmResultsChanged=report.farmResultsChanged;
 
     // طابور طويل يجب أن يُفرَّغ في نافذة واحدة. شرط الاستمرار هو تقدّمٌ
     // فعلي في التمريرة السابقة، فلا تصير هذه حلقة مشدودة بلا شبكة.
@@ -77,12 +118,13 @@ class BackgroundSyncCoordinator {
         break;
       }
 
+      farmResultsChanged=farmResultsChanged||next.farmResultsChanged;
       report = next;
       passes += 1;
     }
 
     _passesInLastRun = passes;
 
-    return policy.decide(report: report, attempt: attempt);
+    return (policy.decide(report: report, attempt: attempt),farmResultsChanged);
   }
 }

@@ -40,6 +40,26 @@ class _FakeStatusRepo extends OperationsRepository {
   }) async => List<FarmerAccount>.from(farmers);
 
   @override
+  Future<List<Farm>> searchFarms(
+    String wellId, {
+    required String farmerAccountId,
+    String query = '',
+    int limit = 50,
+  }) async {
+    if (wellId.isEmpty || farmerAccountId.isEmpty || limit < 1 || limit > 100) {
+      throw ArgumentError('invalid farm search scope');
+    }
+    final farms = await fetchFarms(wellId, farmerAccountId: farmerAccountId);
+    return farms
+        .where((farm) => farm.wellId == wellId &&
+            farm.farmerAccountId == farmerAccountId &&
+            farm.status == 'active' && farm.id.isNotEmpty &&
+            farm.displayName.contains(query.trim()))
+        .take(limit)
+        .toList();
+  }
+
+  @override
   Future<List<Farm>> fetchFarms(
     String wellId, {
     String? farmerAccountId,

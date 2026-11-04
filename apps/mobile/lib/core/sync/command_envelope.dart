@@ -37,8 +37,14 @@ class CommandEnvelope {
     this.lastError,
     this.lastAttemptAt,
     this.serverResponse,
+    this.nextAttemptAt,
   }) {
     _assertPayloadDoesNotOwnReservedArguments(type, payload);
+    if (type == CommandType.createBooking &&
+        (wellId == null || wellId!.isEmpty || payload['p_well_id'] != wellId ||
+         !validBookingFarmPayload(payload) || prerequisites.isNotEmpty)) {
+      throw ArgumentError('طلب الحجز يحتاج نطاق بئر وهوية محسومة');
+    }
   }
 
   /// معرّف الصفّ المحلي. تشير إليه المراجع في حمولات الأوامر التابعة.
@@ -93,6 +99,9 @@ class CommandEnvelope {
   final String? lastError;
   final DateTime? lastAttemptAt;
 
+  /// موعد محاولة حجز فقط؛ الأنواع القديمة لا تستخدم هذا الحقل.
+  final DateTime? nextAttemptAt;
+
   /// ردّ الخادم المخزَّن بعد القبول.
   final Map<String, Object?>? serverResponse;
 
@@ -115,6 +124,8 @@ class CommandEnvelope {
     bool clearLastError = false,
     DateTime? lastAttemptAt,
     Map<String, Object?>? serverResponse,
+    DateTime? nextAttemptAt,
+    bool clearNextAttemptAt = false,
   }) {
     return CommandEnvelope(
       localId: localId,
@@ -134,6 +145,7 @@ class CommandEnvelope {
       lastError: clearLastError ? null : (lastError ?? this.lastError),
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
       serverResponse: serverResponse ?? this.serverResponse,
+      nextAttemptAt: clearNextAttemptAt ? null : (nextAttemptAt ?? this.nextAttemptAt),
     );
   }
 
@@ -181,4 +193,15 @@ void _assertPayloadDoesNotOwnReservedArguments(
       'الحمولة تفتقد ${type.scopeArgument} الذي يحدد جهة الأمر',
     );
   }
+}
+
+/// الاستثناء الوحيد للحجز: مرجع أرض مباشر، لا مرجع مزارع أو مرجع متداخل.
+bool validBookingFarmPayload(Map<String,Object?> payload) {
+  if(payload['p_farmer_well_account_id'] is! String || (payload['p_farmer_well_account_id'] as String).isEmpty) return false;
+  final farm=payload['p_farm_id'];
+  final others=Map<String,Object?>.from(payload)..remove('p_farm_id');
+  if(collectReferences(others).isNotEmpty) return false;
+  if(farm is String) return farm.isNotEmpty;
+  if(farm is! Map || farm.length!=2 || farm[CommandReference.refKey] is! String || (farm[CommandReference.refKey] as String).isEmpty || farm[CommandReference.kindKey]!= 'farm') return false;
+  return payload['p_farmer_well_account_id'] is String && (payload['p_farmer_well_account_id'] as String).isNotEmpty;
 }

@@ -19,8 +19,6 @@ import 'local_booking_transition_regression_test.dart' as f;
 import '../sync/package_a_outbox_test.dart' as sync_fixture;
 
 import 'package:well_irrigation_mobile/core/session/active_session_projector.dart';
-import 'package:well_irrigation_mobile/core/sync/command_transport.dart';
-import 'package:well_irrigation_mobile/core/sync/retry_classification.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 
 class LifecycleClock implements TimeIntegritySource {
@@ -111,74 +109,54 @@ void main() {
     await store.close();
     await dir.delete(recursive: true);
   });
-  test('E1: pending payment and completion results never gate B or final chain ending', () async {
-    final results = <String>[];
-    final subscription = coordinator.completionResultStream.listen(
-      (r) => results.add(r.bookingId!),
-    );
-    await start();
-    final root = coordinator.currentActiveSession!;
+  Future<void> expectPendingStop({bool reopen = false}) async {
+    final original = coordinator.currentActiveSession!;
     clock.elapsed = const Duration(minutes: 4, seconds: 23);
     await run();
-    final completeA = (await store.allCommands('account')).last;
-    await coordinator.recordPayment(
+    final commands = await store.allCommands('account');
+    expect(commands.map((c) => c.type), [
+      CommandType.startBookingSession,
+      CommandType.completeIrrigationSession,
+    ]);
+    expect(commands.last.aggregateLocalId, original.localId);
+    expect(commands.last.payload['p_session_id'], {
+      r'$ref': original.localId,
+      r'$kind': 'session',
+    });
+    if (reopen) {
+      coordinator.dispose();
+      await store.close();
+      await open();
+    }
+    final active = await coordinator.freshProjectActiveSession(
       accountId: 'account',
       wellId: 'well',
-      farmerAccountId: root.farmerReference!,
-      amountMinor: 100,
-      paymentMethod: 'cash',
-      sessionLocalId: root.localId,
-      sessionCompletionLocalId: completeA.localId,
     );
-    final pendingPayment = (await store.allCommands('account')).last;
-    await store.markNeedsReview(
-      'account',
-      pendingPayment.localId,
-      error: 'payment_rejected',
-      attemptedAt: clock.base.add(clock.elapsed),
-    );
+    expect(active?.localId, original.localId);
+    expect(active?.completedAt, isNull);
+    expect(active?.approvedAmountMinor, isNull);
     clock.elapsed = const Duration(minutes: 5);
-    await run();
-    final b = coordinator.currentActiveSession!;
-    expect(b.bookingId, 'B');
-    final startB = (await store.allCommands('account'))
-        .singleWhere((c) => c.localId == b.localId);
-    expect(startB.prerequisites, [completeA.localId]);
-    await expectLater(
-      coordinator.recordPayment(
-        accountId: 'account',
-        wellId: 'well',
-        farmerAccountId: root.farmerReference!,
-        amountMinor: 50,
-        paymentMethod: 'cash',
-        sessionLocalId: root.localId,
-        sessionCompletionLocalId: completeA.localId,
-      ),
-      throwsStateError,
-    );
+    await expectLater(action(), throwsStateError);
     expect(
-      (await store.allCommands('account'))
-          .where((c) => c.type == CommandType.recordPayment),
-      hasLength(1),
+      (await store.allCommands('account')).map((c) => c.commandId),
+      commands.map((c) => c.commandId),
     );
-    expect(coordinator.currentActiveSession?.bookingId, 'B');
-    clock.elapsed = const Duration(minutes: 8);
-    await run();
-    final commands = await store.allCommands('account');
-    final end = commands.singleWhere(
-      (c) => c.type == CommandType.endBookingTransitionChain,
-    );
-    final completeB = commands.singleWhere(
-      (c) =>
-          c.type == CommandType.completeIrrigationSession &&
-          c.aggregateLocalId == b.localId,
-    );
-    expect(end.prerequisites, [completeB.localId]);
-    expect(coordinator.currentActiveSession, isNull);
-    await Future<void>.delayed(Duration.zero);
-    expect(results, containsAll(['A', 'B']));
-    await subscription.cancel();
-  });
+  }
+
+  test(
+    'pending stop keeps original occupied and emits no accepted completion',
+    () async {
+      final results = <Object>[];
+      final subscription = coordinator.completionResultStream.listen(
+        results.add,
+      );
+      await start();
+      await expectPendingStop();
+      await Future<void>.delayed(Duration.zero);
+      expect(results, isEmpty);
+      await subscription.cancel();
+    },
+  );
 
   test(
     'manual start is durable locally before ACK with exact RPC-only args',
@@ -208,109 +186,27 @@ void main() {
       expect(restored?.startedAt, first.occurredAt);
     },
   );
+  test('pump identity survives pending stop and SQLite restart', () async {
+    await coordinator.cacheBookingPumps('account', 'well', const [
+      Pump(id: 'pump', wellId: 'well', name: 'المضخة الشرقية', publicCode: 'P'),
+    ]);
+    await start();
+    await expectPendingStop(reopen: true);
+    expect(coordinator.currentActiveSession?.pumpId, 'pump');
+    expect(coordinator.currentActiveSession?.pumpName, 'المضخة الشرقية');
+  });
   test(
-    'pump identity survives gap automatic start SQLite restart and ACK',
+    'scheduled boundary cannot declare completion or start a successor',
     () async {
-      await coordinator.cacheBookingPumps('account', 'well', const [
-        Pump(
-          id: 'pump',
-          wellId: 'well',
-          name: 'المضخة الشرقية',
-          publicCode: 'P',
-        ),
-      ]);
       await start();
-      expect(coordinator.currentActiveSession?.pumpId, 'pump');
-      expect(coordinator.currentActiveSession?.pumpName, 'المضخة الشرقية');
-      clock.elapsed = const Duration(minutes: 4, seconds: 23);
-      await run();
-      coordinator.dispose();
-      await store.close();
-      await open();
-      clock.elapsed = const Duration(minutes: 5);
-      await run();
-      final b = coordinator.currentActiveSession!;
-      expect(b.bookingId, 'B');
-      expect(b.pumpId, 'pump');
-      expect(b.pumpName, 'المضخة الشرقية');
-      final command = (await store.allCommands('account'))
-          .singleWhere((c) => c.localId == b.localId);
-      expect(command.payload, {'p_booking_id': 'B', 'p_crops': <String>[]});
-      await store.markConfirmed(
-        'account',
-        command.localId,
-        serverResponse: {'session_id': 'server-B'},
-        attemptedAt: clock.base.add(clock.elapsed),
+      expect(
+        (await action())?.dueAt,
+        f.at(47).add(const Duration(seconds: 23)),
       );
-      coordinator.dispose();
-      await store.close();
-      await open();
-      final restored = await coordinator.freshProjectActiveSession(
-        accountId: 'account',
-        wellId: 'well',
-      );
-      expect(restored?.pumpId, 'pump');
-      expect(restored?.pumpName, 'المضخة الشرقية');
+      await expectPendingStop(reopen: true);
+      expect(coordinator.currentActiveSession?.bookingId, 'A');
     },
   );
-  test('real field: actual+4m closes A, idle gap, trusted B start, final+3m closes B', () async {
-    await start();
-    expect((await action())?.dueAt, f.at(47).add(const Duration(seconds: 23)));
-    clock.elapsed = const Duration(minutes: 4, seconds: 23);
-    await run();
-    expect(coordinator.currentActiveSession, isNull);
-    var rows = await store.allCommands('account');
-    expect(rows.map((r) => r.type), [
-      CommandType.startBookingSession,
-      CommandType.completeIrrigationSession,
-    ]);
-    expect(rows.last.occurredAt, f.at(47).add(const Duration(seconds: 23)));
-    expect((await action())?.dueAt, f.at(48));
-    expect((await run()).outcome, LocalBookingTransitionOutcome.notDue);
-    coordinator.dispose();
-    await store.close();
-    await open();
-    expect((await action())?.dueAt, f.at(48));
-    clock.elapsed = const Duration(minutes: 5);
-    final armed = (await action())!;
-    await run();
-    await coordinator.runBookedSessionAction(
-      accountId: 'account',
-      wellId: 'well',
-      cachedSchedule: cached,
-      automation: automation,
-      action: armed,
-      scheduledCallback: true,
-    );
-    rows = await store.allCommands('account');
-    expect(rows, hasLength(3));
-    expect(rows.last.prerequisites, [rows[1].localId]);
-    expect(coordinator.currentActiveSession?.bookingId, 'B');
-    expect((await action())?.dueAt, f.at(51));
-    clock.elapsed = const Duration(minutes: 8);
-    final finalAction = (await action())!;
-    await run();
-    await coordinator.runBookedSessionAction(
-      accountId: 'account',
-      wellId: 'well',
-      cachedSchedule: cached,
-      automation: automation,
-      action: finalAction,
-      scheduledCallback: true,
-    );
-    expect(coordinator.currentActiveSession, isNull);
-    rows = await store.allCommands('account');
-    expect(rows, hasLength(5));
-    expect(rows[3].type, CommandType.completeIrrigationSession);
-    expect(rows[4].type, CommandType.endBookingTransitionChain);
-    expect(rows[4].prerequisites, [rows[3].localId]);
-    expect(rows.last.occurredAt, f.at(51));
-    coordinator.dispose();
-    await store.close();
-    await open();
-    expect(await action(), isNull);
-    expect(await store.allCommands('account'), hasLength(5));
-  });
   test(
     'due next booking starts atomically at same actual completion instant',
     () async {
@@ -390,8 +286,12 @@ void main() {
         clock.elapsed = const Duration(minutes: 6);
         final before = (await store.allCommands('account')).length;
         expect(
-          (await run(callback: false)).outcome,
-          LocalBookingTransitionOutcome.missedRequiresReview,
+          stage == 'gap'
+              ? await action().then((_) => false, onError: (_) => true)
+              : (await run(callback: false)).outcome,
+          stage == 'gap'
+              ? true
+              : LocalBookingTransitionOutcome.missedRequiresReview,
         );
         expect(await store.allCommands('account'), hasLength(before));
       },
@@ -402,8 +302,12 @@ void main() {
     () async {
       await start();
       clock.elapsed = const Duration(minutes: 4, seconds: 23);
-      await run();
-      final complete = (await store.allCommands('account')).last;
+      final original = coordinator.currentActiveSession!;
+      final complete = await coordinator.completeSession(
+        accountId: 'account',
+        sessionLocalId: original.localId,
+        completedAt: clock.base.add(clock.elapsed),
+      );
       await store.markNeedsReview(
         'account',
         complete.localId,
@@ -411,9 +315,27 @@ void main() {
         attemptedAt: f.at(47),
       );
       clock.elapsed = const Duration(minutes: 5);
-      await expectLater(action(), throwsStateError);
+      final before = await store.allCommands('account');
+      await expectLater(
+        coordinator.startBookedSession(
+          accountId: 'account',
+          wellId: 'well',
+          bookingId: 'B',
+          cachedSchedule: cached,
+          automation: automation,
+        ),
+        throwsStateError,
+      );
+      final active = coordinator.currentActiveSession!;
+      expect(active.localId, original.localId);
+      expect(active.businessState.isActive, isTrue);
+      expect(active.completedAt, isNull);
+      expect(active.approvedAmountMinor, isNull);
       expect(await store.allCommands('account'), hasLength(2));
-      expect(coordinator.currentActiveSession, isNull);
+      expect(
+        (await store.allCommands('account')).map(dispatchCommandFingerprint),
+        before.map(dispatchCommandFingerprint),
+      );
     },
   );
   test('invalid anchor/boot cannot authorize automatic writes', () async {
@@ -477,8 +399,12 @@ void main() {
       () async {
         await start();
         clock.elapsed = const Duration(minutes: 4, seconds: 23);
-        await run();
-        final complete = (await store.allCommands('account')).last;
+        final original = coordinator.currentActiveSession!;
+        final complete = await coordinator.completeSession(
+          accountId: 'account',
+          sessionLocalId: original.localId,
+          completedAt: clock.base.add(clock.elapsed),
+        );
         final db = await databaseFactoryFfi.openDatabase(
           '${dir.path}/outbox.db',
         );
@@ -497,60 +423,52 @@ void main() {
           );
         }
         clock.elapsed = const Duration(minutes: 5);
-        await expectLater(action(), throwsStateError);
-        expect(coordinator.currentActiveSession, isNull);
+        final before = await store.allCommands('account');
+        await expectLater(
+          coordinator.startBookedSession(
+            accountId: 'account',
+            wellId: 'well',
+            bookingId: 'B',
+            cachedSchedule: cached,
+            automation: automation,
+          ),
+          throwsStateError,
+        );
+        final active = coordinator.currentActiveSession!;
+        expect(active.localId, original.localId);
+        expect(active.businessState.isActive, isTrue);
+        expect(active.completedAt, isNull);
+        expect(active.approvedAmountMinor, isNull);
+        expect(
+          (await store.allCommands('account')).map(dispatchCommandFingerprint),
+          before.map(dispatchCommandFingerprint),
+        );
       },
     );
   }
   test(
-    'offline gap B operates locally while retry blocks its server dispatch',
+    'legacy callback stop has no human authority to dispatch or free the well',
     () async {
       await start();
-      clock.elapsed = const Duration(minutes: 4, seconds: 23);
-      await run();
-      clock.elapsed = const Duration(minutes: 5);
-      await run();
-      final commands = await store.allCommands('account');
+      await expectPendingStop();
       final transport = sync_fixture.PackageTransport();
-      transport.completionResult = const DispatchFailed(
-        disposition: FailureDisposition.retry,
-        message: 'offline',
-      );
       final engine = SyncEngine(store: store, transport: transport);
       await engine.run('account');
-      expect(
-        transport.requests.any((r) => r.commandId == commands[2].commandId),
-        isFalse,
-      );
-      expect(coordinator.currentActiveSession?.bookingId, 'B');
-      transport.completionResult = null;
-      // The retry deadline is advanced by the engine's injected clock.
-      await SyncEngine(
-        store: store,
-        transport: transport,
-        clock: () => DateTime.utc(2030),
-      ).run('account');
-      expect(
-        transport.requests.any((r) => r.commandId == commands[2].commandId),
-        isTrue,
-      );
-      final before = transport.requests.length;
       await engine.run('account');
-      expect(transport.requests, hasLength(before));
       expect(
-        (await store.mapping(
-          'account',
-          commands[2].localId,
-          EntityKind.session,
-        ))?.serverId,
-        'server-B',
+        transport.requests.where(
+          (r) => r.type == CommandType.completeIrrigationSession,
+        ),
+        isEmpty,
       );
-      final restored = await coordinator.projectActiveSession(
-        accountId: 'account',
-        wellId: 'well',
+      expect(
+        (await coordinator.freshProjectActiveSession(
+          accountId: 'account',
+          wellId: 'well',
+        ))?.completedAt,
+        isNull,
       );
-      expect(restored?.localId, commands[2].localId);
-      expect(restored?.startedAt, f.at(48));
+      expect(await store.allCommands('account'), hasLength(2));
     },
   );
   test('transaction invalidation rolls back commands and lifecycle pointer together', () async {
@@ -634,33 +552,23 @@ void main() {
       expect((await action())?.dueAt, DateTime.utc(2026, 10, 13, 21, 4, 23));
       clock.elapsed = const Duration(minutes: 4, seconds: 23);
       await run();
-      expect(coordinator.currentActiveSession, isNull);
+      expect(coordinator.currentActiveSession?.bookingId, 'A');
+      expect(coordinator.currentActiveSession?.completedAt, isNull);
       expect(
         (await store.allCommands('account')).last.occurredAt,
         DateTime.utc(2026, 10, 13, 21, 4, 23),
       );
       clock.elapsed = const Duration(minutes: 5);
-      await run();
-      expect(
-        coordinator.currentActiveSession?.startedAt,
-        DateTime.utc(2026, 10, 13, 21, 5),
-      );
-      expect((await action())?.dueAt, DateTime.utc(2026, 10, 13, 21, 8));
-      clock.elapsed = const Duration(minutes: 8);
-      await run();
-      final commands = await store.allCommands('account');
-      expect(commands, hasLength(5));
-      expect(commands.last.occurredAt, DateTime.utc(2026, 10, 13, 21, 8));
-      expect(coordinator.currentActiveSession, isNull);
+      await expectLater(action(), throwsStateError);
+      expect(await store.allCommands('account'), hasLength(2));
     },
   );
   test(
-    'ACK mapping arriving during the gap preserves its predecessor identity',
+    'start ACK during pending stop does not fabricate completion or start B',
     () async {
       await start();
       final root = (await store.allCommands('account')).single;
-      clock.elapsed = const Duration(minutes: 4, seconds: 23);
-      await run();
+      await expectPendingStop();
       await store.putMapping(
         'account',
         IdMapping(
@@ -670,100 +578,25 @@ void main() {
           resolvedAt: f.at(47),
         ),
       );
-      final old = cached.schedule;
-      cached = f.cached(
-        WellDaySchedule(
-          wellId: old.wellId,
-          requestedDay: old.requestedDay,
-          serverTime: old.serverTime,
-          timezone: old.timezone,
-          wellTimezone: old.wellTimezone,
-          dayStart: old.dayStart,
-          dayEnd: old.dayEnd,
-          bookings: old.bookings,
-          currentSession: CurrentBookingSession(
-            sessionId: 'server-A',
-            status: 'open',
-            startedAt: root.occurredAt,
-            wellId: 'well',
-            bookingId: 'A',
-          ),
-        ),
+      final restored = await coordinator.freshProjectActiveSession(
+        accountId: 'account',
+        wellId: 'well',
       );
-      clock.elapsed = const Duration(minutes: 5);
-      await run();
-      expect(coordinator.currentActiveSession?.bookingId, 'B');
-      expect((await action())?.dueAt, f.at(51));
-      expect(await store.allCommands('account'), hasLength(3));
+      expect(restored?.localId, root.localId);
+      expect(restored?.serverSessionId, 'server-A');
+      expect(restored?.completedAt, isNull);
+      await expectLater(action(), throwsStateError);
     },
   );
-  test('final end-chain rejection retains closed facts and durable review across restart', () async {
+  test('pending closure never manufactures final end-chain evidence across restart', () async {
     await start();
-    clock.elapsed = const Duration(minutes: 4, seconds: 23);
-    await run();
+    await expectPendingStop(reopen: true);
     expect(
       (await store.allCommands('account'))
           .where((c) => c.type == CommandType.endBookingTransitionChain),
       isEmpty,
     );
-    clock.elapsed = const Duration(minutes: 5);
-    await run();
-    clock.elapsed = const Duration(minutes: 8);
-    await run();
-    final commands = await store.allCommands('account');
-    final end = commands.last;
-    final complete = commands[commands.length - 2];
-    expect(end.type, CommandType.endBookingTransitionChain);
-    expect(end.prerequisites, [complete.localId]);
-    expect(end.payload, complete.payload);
-    expect(coordinator.currentActiveSession, isNull);
-    final before = await BookingLocalLedger.loadBookedLifecycle(
-      store,
-      'account',
-      'well',
-    );
-    expect(before?['server_chain_state'], 'pending');
-    await store.markNeedsReview(
-      'account',
-      end.localId,
-      error: 'next_booking_exists',
-      attemptedAt: f.at(51),
-      serverResponse: {
-        'contract': 'end_booking_transition_chain',
-        'version': 1,
-        'status': 'rejected',
-        'reason_code': 'next_booking_exists',
-      },
-    );
-    coordinator.dispose();
-    await store.close();
-    await open();
-    final restored = await BookingLocalLedger.loadBookedLifecycle(
-      store,
-      'account',
-      'well',
-    );
-    expect(restored?['state'], 'requires_review');
-    expect(restored?['review_reason'], 'next_booking_exists');
-    expect(
-      await coordinator.projectActiveSession(
-        accountId: 'account',
-        wellId: 'well',
-      ),
-      isNull,
-    );
-    expect(
-      (await store.allCommands('account')).map((c) => c.commandId),
-      commands.map((c) => c.commandId),
-    );
-    automation = const BookingAutomationState(
-      wellId: 'well',
-      enabled: false,
-      revision: 2,
-      settingsRowExists: true,
-      firstSession: 'manual',
-    );
-    await expectLater(action(), throwsStateError);
+    expect(coordinator.currentActiveSession?.bookingId, 'A');
   });
   test(
     'ordinary manual completion never creates an end-chain command',
@@ -781,53 +614,40 @@ void main() {
     },
   );
 
-  test('final-close transaction rollback leaves neither completion nor end-chain visible', () async {
-    await start();
-    clock.elapsed = const Duration(minutes: 4, seconds: 23);
-    await run();
-    clock.elapsed = const Duration(minutes: 5);
-    await run();
-    final before = await store.allCommands('account');
-    final pointer = await store.readLocalValue(
-      'account',
-      BookingLocalLedger.bookedLifecycleKey('well'),
-    );
-    clock.elapsed = const Duration(minutes: 8);
-    final armed = (await action())!;
-    var checks = 0;
-    await expectLater(
-      coordinator.runBookedSessionAction(
+  test(
+    'invalidated callback preserves commands and lifecycle pointer',
+    () async {
+      await start();
+      clock.elapsed = const Duration(minutes: 4, seconds: 23);
+      final before = await store.allCommands('account');
+      final pointer = await store.readLocalValue(
+        'account',
+        BookingLocalLedger.bookedLifecycleKey('well'),
+      );
+      final result = await coordinator.runBookedSessionAction(
         accountId: 'account',
         wellId: 'well',
         cachedSchedule: cached,
         automation: automation,
-        action: armed,
+        action: (await action())!,
         scheduledCallback: true,
-        isCurrent: () => ++checks < 4,
-      ),
-      throwsStateError,
-    );
-    expect(
-      (await store.allCommands('account')).map((c) => c.commandId),
-      before.map((c) => c.commandId),
-    );
-    expect(
-      await store.readLocalValue(
-        'account',
-        BookingLocalLedger.bookedLifecycleKey('well'),
-      ),
-      pointer,
-    );
-    expect(coordinator.currentActiveSession?.bookingId, 'B');
-    await run();
-    expect((await store.allCommands('account')).map((c) => c.type), [
-      CommandType.startBookingSession,
-      CommandType.completeIrrigationSession,
-      CommandType.startBookingSession,
-      CommandType.completeIrrigationSession,
-      CommandType.endBookingTransitionChain,
-    ]);
-  });
+        isCurrent: () => false,
+      );
+      expect(result.outcome, LocalBookingTransitionOutcome.blocked);
+      expect(
+        (await store.allCommands('account')).map((c) => c.commandId),
+        before.map((c) => c.commandId),
+      );
+      expect(
+        await store.readLocalValue(
+          'account',
+          BookingLocalLedger.bookedLifecycleKey('well'),
+        ),
+        pointer,
+      );
+      expect(coordinator.currentActiveSession?.bookingId, 'A');
+    },
+  );
   test('known later confirmed booking with incomplete context is not treated as final', () async {
     final old = cached.schedule;
     cached = f.cached(
@@ -865,7 +685,8 @@ void main() {
       CommandType.startBookingSession,
       CommandType.completeIrrigationSession,
     ]);
-    expect(coordinator.currentActiveSession, isNull);
+    expect(coordinator.currentActiveSession?.bookingId, 'A');
+    expect(coordinator.currentActiveSession?.completedAt, isNull);
     final state = await BookingLocalLedger.loadBookedLifecycle(
       store,
       'account',

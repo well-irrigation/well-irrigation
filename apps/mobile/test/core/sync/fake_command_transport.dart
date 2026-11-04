@@ -48,8 +48,10 @@ class FakeCommandTransport implements CommandTransport {
 
     if (scheduledRaw != null && scheduledRaw.isNotEmpty) {
       final raw = scheduledRaw.removeAt(0);
-      return executed[request.commandId] =
-          normalizeAcceptedResponse(request.type, raw);
+      return executed[request.commandId] = normalizeAcceptedResponse(
+        request.type,
+        raw,
+      );
     }
 
     final scheduled = failures[request.type.rpcName];
@@ -131,8 +133,16 @@ class FakeCommandTransport implements CommandTransport {
 
     return normalizeAcceptedResponse(type, {
       type.resultKey!: id,
-      if (type == CommandType.completeIrrigationSession)
+      if (type == CommandType.completeIrrigationSession) ...{
         'session_id': request.arguments['p_session_id'],
+        'status': 'closed',
+        'ended_at': request.arguments['p_ended_at'],
+        'actual_seconds': 0,
+        'billable_seconds': 0,
+        'weighted_price_per_hour_minor': 0,
+        'amount_minor': 0,
+        'segments': <Object?>[],
+      },
       if (type == CommandType.createFarmer)
         'already_exists': matchExistingFarmer,
     });

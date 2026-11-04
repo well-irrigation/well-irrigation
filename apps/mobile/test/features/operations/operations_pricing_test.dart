@@ -1,3 +1,5 @@
+import '../../support/accepted_completion_fixture.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -118,6 +120,7 @@ void main() {
   /// المنسّق يُبنى في `setUp` خارج جسم الاختبار: مؤقّته الدوري حقيقي لا
   /// `FakeTimer`، وإلا اعترض إطار الاختبار على مؤقّت معلّق بعد التخلص.
   late _RecordingCoordinator coordinator;
+  late InMemoryOutboxStore store;
 
   Future<void> startActiveSession() async {
     await coordinator.startSession(
@@ -151,7 +154,8 @@ void main() {
   }
 
   setUp(() async {
-    coordinator = _RecordingCoordinator(store: InMemoryOutboxStore());
+    store = InMemoryOutboxStore();
+    coordinator = _RecordingCoordinator(store: store);
     await coordinator.initialize();
   });
 
@@ -486,6 +490,14 @@ void main() {
     await tester.tap(find.text('تأكيد الإنهاء'));
     await tester.pumpAndSettle();
 
+    await acceptTestCompletion(
+      store: store,
+      coordinator: coordinator,
+      accountId: 'owner-1',
+      wellId: 'well-1',
+      amountMinor: 3493,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('3,493'), findsWidgets);
     expect(find.text('انتهت الجلسة'), findsNothing);
     expect(find.text('دفعة مؤجلة'), findsOneWidget);

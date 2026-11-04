@@ -13,6 +13,8 @@
          العمل «المستعجل» (expedited) وهو غير مستخدم هنا، وأول واحدة
          تحتاجها الإشعارات لاحقًا على أندرويد 13+. تُراجع قبل النشر على
          المتجر بقراءة المانيفست المدموج الفعلي. -->
+    <!-- نتائج الحجوزات؛ الطلب وقت التشغيل بعد اختيار المستخدم فقط. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- READ_CONTACTS: أيقونة اختيار جهة اتصال لحقل رقم العضو في الدعوة
@@ -23,6 +25,9 @@
         android:label="إدارة تشغيل البئر والسقي"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

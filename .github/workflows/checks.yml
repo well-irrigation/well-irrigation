@@ -66,7 +66,66 @@ jobs:
         run: npm ci
 
       - name: تشغيل Supabase المحلية
-        run: npx supabase start
+        run: |
+          docker ps --format 'table {{.Names}}\t{{.Ports}}'
+          if command -v ss >/dev/null 2>&1; then
+            ss -ltn '( sport = :54322 )'
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import socket
+          import tomllib
+
+          path = Path('supabase/config.toml')
+          content = path.read_text(encoding='utf-8')
+          config = tomllib.loads(content)
+          original_port = config['db']['port']
+
+          with socket.socket() as probe:
+              try:
+                  probe.bind(('0.0.0.0', original_port))
+              except OSError:
+                  print(f'CI_DEFAULT_DB_PORT_AVAILABLE=NO ({original_port})')
+              else:
+                  print(f'CI_DEFAULT_DB_PORT_AVAILABLE=YES ({original_port})')
+
+          def configured_ports(section):
+              for key, value in section.items():
+                  if key in ('port', 'shadow_port') and isinstance(value, int):
+                      yield value
+                  elif isinstance(value, dict):
+                      yield from configured_ports(value)
+
+          reserved = set(configured_ports(config))
+          while True:
+              with socket.socket() as probe:
+                  probe.bind(('0.0.0.0', 0))
+                  selected = probe.getsockname()[1]
+              if selected not in reserved:
+                  break
+
+          section_start = content.index('[db]\n')
+          section_end = content.find('\n[', section_start + 1)
+          if section_end < 0:
+              section_end = len(content)
+          section = content[section_start:section_end]
+          updated, count = re.subn(
+              r'(?m)^(port[ \t]*=[ \t]*)[0-9]+([ \t]*(?:#.*)?)$',
+              lambda match: f'{match.group(1)}{selected}{match.group(2)}',
+              section,
+          )
+          if count != 1:
+              raise RuntimeError('Expected exactly one db.port in config.toml')
+          path.write_text(
+              content[:section_start] + updated + content[section_end:],
+              encoding='utf-8',
+          )
+          if tomllib.loads(path.read_text(encoding='utf-8'))['db']['port'] != selected:
+              raise RuntimeError('CI database port was not applied')
+          print(f'CI_DB_PORT={selected}')
+          PY
+          npx supabase start
 
       - name: npm run c:db
         run: npm run c:db
