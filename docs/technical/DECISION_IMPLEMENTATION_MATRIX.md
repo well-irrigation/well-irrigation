@@ -2,6 +2,8 @@
 
 **آخر تحديث:** 2026-10-03
 
+خادم R6 منشور ومتحقق سحابيًا بتاريخ 2026-11-05؛ لا يعني ذلك تنفيذ واجهة الهاتف.
+
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
 
@@ -636,3 +638,19 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | O — الأقدم أولًا | `docs/memory/DECISIONS.md` ملحق R6 O | `supabase/migrations/20261108001900_partner_distribution_source_settlement.sql` | `supabase/tests/20261108001900_partner_distribution_source_settlement.test.sql` | SERVER VERIFIED LOCAL + COMMITTED `4ef062afecd53773546955cefa29b810c560e17a` | DEFERRED؛ لا UI claim |
 | P — الحدود الخمسة؛ لكل هجرة اختبار باسمها | `docs/memory/DECISIONS.md` ملحق R6 P | `supabase/migrations/20261108002000_global_financial_write_boundaries.sql`، `supabase/migrations/20261108002100_partner_irrigation_policy_boundary.sql`، `supabase/migrations/20261108002200_partner_share_schedule_boundary.sql`، `supabase/migrations/20261108002300_partner_administration_boundary.sql`، `supabase/migrations/20261108002400_farmer_account_status_boundary.sql` | `supabase/tests/20261108002000_global_financial_write_boundaries.test.sql`، `supabase/tests/20261108002100_partner_irrigation_policy_boundary.test.sql`، `supabase/tests/20261108002200_partner_share_schedule_boundary.test.sql`، `supabase/tests/20261108002300_partner_administration_boundary.test.sql`، `supabase/tests/20261108002400_farmer_account_status_boundary.test.sql` | SERVER VERIFIED LOCAL + COMMITTED `4ef062afecd53773546955cefa29b810c560e17a` | DEFERRED؛ لا UI claim |
 | Q — C3: قراءة المتبقي والتاريخ فقط | `docs/memory/DECISIONS.md` ملحق R6 Q | `supabase/migrations/20261108002500_distribution_carry_forward_read_model.sql` | `supabase/tests/20261108001900_partner_distribution_source_settlement.test.sql` | SERVER VERIFIED LOCAL + COMMITTED `a1eda8520d112e4ab438983e1406dbb478bdea47` | DEFERRED؛ لا UI claim |
+
+
+## وجهة الواجهة المعتمدة — 2026-11-05
+
+PLACEMENT ADOPTED / IMPLEMENTATION PENDING؛ التفاصيل في `../design/UX_UI_SPEC.md`.
+
+| المجموعة | الوجهة |
+|---|---|
+| A/B | العمليات |
+| C/C2 | تفاصيل الجلسة |
+| C0/C0.1/C0.2 | الحساب المالي للمزارع |
+| F/G | الإعدادات المالية |
+| H/I/J/N/O/Q | الشركاء والأرباح / دورة التوزيع |
+| K/L | المصروفات |
+| M | مخزون الوقود |
+| E/P | حماية داخلية؛ لا عنصر واجهة مستقل |
