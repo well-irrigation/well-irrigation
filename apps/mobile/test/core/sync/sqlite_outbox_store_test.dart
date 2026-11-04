@@ -9,6 +9,8 @@
 @TestOn('vm')
 library;
 
+import '../../support/human_command_fixture.dart';
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -416,6 +418,12 @@ void main() {
         aggregateLocalId: start.localId,
       );
 
+      for (final command in await store.allCommands(accountA)) {
+        if (command.type == CommandType.startIrrigationSession ||
+            command.type == CommandType.completeIrrigationSession) {
+          await recordTestHumanAction(store, command);
+        }
+      }
       // التطبيق مات قبل أي إرسال.
       await store.close();
 

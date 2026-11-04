@@ -137,11 +137,19 @@ void main() {
             serverResponse: {'session_id': 'server'},
             attemptedAt: at,
           );
-          await store.markConfirmed(
-            'account',
-            end.localId,
-            serverResponse: {'session_charge_id': 'charge', 'amount_minor': 86},
-            attemptedAt: at,
+          expect(
+            await store.reconcileCompletionReceipt(end, 'server', {
+              'session_id': 'server',
+              'session_charge_id': 'charge',
+              'status': 'closed',
+              'ended_at': end.occurredAt.toIso8601String(),
+              'actual_seconds': 600,
+              'billable_seconds': 600,
+              'weighted_price_per_hour_minor': 516,
+              'amount_minor': 86,
+              'segments': <Object?>[],
+            }),
+            isTrue,
           );
           if (['partial', 'settled', 'pending', 'review'].contains(scenario)) {
             final payment = await c.recordPayment(

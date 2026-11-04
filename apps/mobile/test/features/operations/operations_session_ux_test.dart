@@ -1,3 +1,5 @@
+import '../../support/accepted_completion_fixture.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -39,9 +41,11 @@ class _FakeOperationsRepo extends OperationsRepository {
   }) async => farmers;
 
   @override
-  Future<List<Farm>> fetchFarms(
+  Future<List<Farm>> searchFarms(
     String wellId, {
-    String? farmerAccountId,
+    required String farmerAccountId,
+    String query = '',
+    int limit = 50,
   }) async => farms;
 
   @override
@@ -761,6 +765,14 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('تأكيد الإنهاء'));
         await tester.pumpAndSettle();
+        await acceptTestCompletion(
+          store: store,
+          coordinator: coordinator,
+          accountId: accountId,
+          wellId: 'well-1',
+          amountMinor: 2600,
+        );
+        await tester.pumpAndSettle();
 
         // 34. تذكير صغير؛ الملخص لا يظهر إلا بطلب المستخدم.
         expect(find.text('دفعة مؤجلة'), findsOneWidget);
@@ -771,7 +783,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('انتهت الجلسة'), findsOneWidget);
         expect(find.byType(Dialog), findsNothing);
-        expect(find.text('المبلغ التقديري'), findsOneWidget);
+        expect(find.text('المبلغ المعتمد'), findsOneWidget);
         expect(find.text('منتهي'), findsNothing);
         expect(find.text('المحاصيل: قات'), findsNothing);
         expect(find.text('تسجيل دفعة'), findsOneWidget);
@@ -814,18 +826,6 @@ void main() {
           findsOneWidget,
         ); // الطاقة مفرغة
         expect(find.text('المضخة 1'), findsOneWidget); // المضخة الوحيدة محفوظة
-        final completion = (await store.allCommands(
-          accountId,
-        )).singleWhere((c) => c.type == CommandType.completeIrrigationSession);
-        await store.markConfirmed(
-          accountId,
-          completion.localId,
-          serverResponse: {
-            'session_charge_id': 'charge-1',
-            'amount_minor': 2600,
-          },
-          attemptedAt: t0,
-        );
         await coordinator.freshProjectActiveSession(
           accountId: accountId,
           wellId: 'well-1',
@@ -1080,6 +1080,14 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('تأكيد الإنهاء'));
         await tester.pumpAndSettle();
+        await acceptTestCompletion(
+          store: store,
+          coordinator: coordinator,
+          accountId: accountId,
+          wellId: 'well-1',
+          amountMinor: 5000,
+        );
+        await tester.pumpAndSettle();
 
         if (find.text('تسجيل دفعة').evaluate().isEmpty) {
           await tester.ensureVisible(find.text('دفعة مؤجلة'));
@@ -1250,6 +1258,14 @@ void main() {
 
         // الملخص
         await tester.tap(find.text('تأكيد الإنهاء'));
+        await tester.pumpAndSettle();
+        await acceptTestCompletion(
+          store: store,
+          coordinator: coordinator,
+          accountId: accountId,
+          wellId: 'well-1',
+          amountMinor: 3493,
+        );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         expect(find.text('3,493'), findsWidgets);

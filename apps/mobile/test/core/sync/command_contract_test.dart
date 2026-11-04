@@ -212,6 +212,9 @@ void main() {
           type.scopeArgument,
           type == CommandType.startBookingSession
               ? 'p_booking_id'
+              : type == CommandType.recordBookingTransitionDecision ||
+                    type == CommandType.executePendingBookingStart
+              ? 'p_chain_id'
               : type.scope == CommandScope.session
               ? 'p_session_id'
               : 'p_well_id',
@@ -224,7 +227,10 @@ void main() {
       for (final type in CommandType.values) {
         expect(
           type.resultKey != null,
-          type.returnsJson && type != CommandType.endBookingTransitionChain,
+          type.returnsJson &&
+              type != CommandType.recordBookingTransitionDecision &&
+              type != CommandType.executePendingBookingStart &&
+              type != CommandType.endBookingTransitionChain,
           reason: type.rpcName,
         );
       }
@@ -262,11 +268,13 @@ void main() {
       };
 
       expect(producers, {
+        CommandType.createBooking: EntityKind.booking,
         CommandType.createFarmer: EntityKind.farmerWellAccount,
         CommandType.createFarm: EntityKind.farm,
         CommandType.startIrrigationSession: EntityKind.session,
         CommandType.startAdhocSession: EntityKind.session,
         CommandType.startBookingSession: EntityKind.session,
+        CommandType.executePendingBookingStart: EntityKind.session,
         CommandType.recordPayment: EntityKind.payment,
         CommandType.completeIrrigationSession: EntityKind.sessionCharge,
       });

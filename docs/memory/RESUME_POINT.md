@@ -1,4 +1,4 @@
-# نقطة الاستئناف — إغلاق بوابة توثيق R6 (2026-11-04)
+# نقطة الاستئناف — إصلاح انحدار الهاتف في PR #65 (2026-11-04)
 
 **الحالة:** نافذ · **القرارات الحاكمة:** ق-93، ق-127، ق-128، ق-129، ق-130، ق-131، ق-132، ق-133، ق-134، ق-135، ق-136، ق-137 وملحق R6 في `DECISIONS.md` · **السرد الزمني:** `RESUME_HISTORY.md`
 
@@ -7,7 +7,32 @@
 `docs/memory/RESUME_HISTORY.md` ويُقرأ عند الحاجة وحدها. ما بقي هنا ليس
 تاريخًا — هو ما يُلزم الجولة القادمة.
 
-## CURRENT / NEXT — إغلاق بوابة التوثيق
+## CURRENT / NEXT — مراجعة إصلاح الهاتف وCI في PR #65
+
+```text
+HEAD = 262846b2643d6c60f377829e4a7238279a72b8fa
+BRANCH = reconcile/q137-local-20261030
+MOBILE_REPAIR = IMPLEMENTED + VERIFIED locally
+ANALYZE = PASS issues=0
+TESTS = PASS=1780 FAIL=0
+C_APP_RESULT = SUCCESS
+WORKTREE = intentional mobile/test/docs changes + existing CI fix
+STAGE / COMMIT / PUSH = NOT_RUN_THIS_ROUND
+```
+
+**CURRENT:** نجح `npm run c:app` كاملًا بعد إصلاح المؤقّت التشغيلي
+القديم وتصفير نموذج الجلسة عند قبول إنهاء جذرها نفسه، ومصالحة الاختبارات
+مع الحفظ المحلي الدائم والإيصالات المعتمدة. R6-C1/C2/C3 باقية مختومة
+وملتزمًا بها؛ لا تعديل SQL أو تحقق قاعدة جديد في هذه الجولة.
+
+**NEXT:** مراجعة المالك لفروق الهاتف والاختبارات والتوثيق، مع إصلاح CI
+السابق في `.github/workflows/checks.yml`؛ لا stage/commit/push تلقائي.
+لا تُعلن نتيجة GitHub Actions جديدة قبل تشغيلها، ولا قبول جهاز أو نشر
+سحابي/إنتاجي. واجهات R6 المالية والتفعيل العام ومهام التزامن المؤجلة
+باقية مؤجلة. الدليل وتصنيف الفشل في
+[`PR65_MOBILE_REGRESSION_REPAIR.md`](../technical/PR65_MOBILE_REGRESSION_REPAIR.md).
+
+## HISTORICAL — لقطة بوابة التوثيق قبل التزامها
 
 ```text
 R6-C1 = VERIFIED + COMMITTED

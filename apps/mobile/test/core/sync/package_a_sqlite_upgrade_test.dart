@@ -10,6 +10,7 @@ import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 import 'package:well_irrigation_mobile/core/sync/command_transport.dart';
+import 'package:well_irrigation_mobile/core/sync/booking_start_receipt.dart';
 import 'package:well_irrigation_mobile/core/sync/retry_classification.dart';
 
 import 'package_a_outbox_test.dart' as f;
@@ -165,13 +166,6 @@ void main() {
         serverResponse: {},
         attemptedAt: f.instant,
       );
-      final db = await databaseFactoryFfi.openDatabase(path);
-      await db.update(
-        'outbox_commands',
-        {'command_type': 'corrupt'},
-        where: 'local_id = ?',
-        whereArgs: ['A'],
-      );
       await store.insert(
         f.command(
           'B',
@@ -180,13 +174,43 @@ void main() {
           prerequisites: ['A'],
         ),
       );
-      await store.insert(f.command('C', CommandType.startBookingSession, 3));
-      final transport = f.PackageTransport();
+      await store.insert(
+        f.command('C', CommandType.startBookingSession, 3, well: 'other-well'),
+      );
+      await f.seedPackageHumanActions(store);
+      final db = await databaseFactoryFfi.openDatabase(path);
+      await db.update(
+        'outbox_commands',
+        {'command_type': 'corrupt'},
+        where: 'local_id = ?',
+        whereArgs: ['A'],
+      );
+      final transport = f.PackageTransport()
+        ..startResponse = {
+          'session_id': 'server-C',
+          'booking_id': 'B',
+          'well_id': 'other-well',
+          'session_status': 'open',
+          'booking_status': 'confirmed',
+          'started_at': f.instant.toIso8601String(),
+          'booked_duration_minutes': 10,
+          'operational_end_at': f.instant
+              .add(const Duration(minutes: 10))
+              .toIso8601String(),
+        };
       await SyncEngine(store: store, transport: transport).run('account');
       expect(transport.requests.map((r) => r.commandId), ['uuid-C']);
       expect(
+        (await store.commandByLocalId('account', 'C'))?.status,
+        CommandStatus.confirmed,
+      );
+      expect(
         (await store.commandByLocalId('account', 'B'))?.status,
-        CommandStatus.review,
+        CommandStatus.pending,
+      );
+      expect(
+        (await store.commandByLocalId('account', 'B'))?.lastAttemptAt,
+        isNull,
       );
     },
   );
@@ -198,13 +222,15 @@ void main() {
     await store.insert(
       f.command('B', CommandType.startBookingSession, 2, prerequisites: ['A']),
     );
+    await f.seedPackageHumanActions(store);
     final transport = ReplayTransport();
     final engine = SyncEngine(store: store, transport: transport);
     await engine.run('account');
     await store.close();
     await open();
     await SyncEngine(store: store, transport: transport).run('account');
-    expect(transport.starts, 2);
+    expect(transport.starts, 1);
+    expect(transport.receiptReads, 1);
     expect(transport.executions, 1);
     expect(
       (await store.mapping('account', 'B', EntityKind.session))?.serverId,
@@ -214,33 +240,65 @@ void main() {
       (await store.commandByLocalId('account', 'B'))?.occurredAt,
       f.instant,
     );
-    expect(await store.mappings('account'), hasLength(2));
+    expect(await store.mappings('account'), hasLength(3));
   });
 }
 
-class ReplayTransport implements CommandTransport {
+class ReplayTransport
+    implements CommandTransport, BookingStartReceiptTransport {
   int starts = 0;
+  int receiptReads = 0;
   int executions = 0;
-  final accepted = <String, DispatchResult>{};
+  final accepted = <String, Map<String, Object?>>{};
   @override
   Future<DispatchResult> dispatch(DispatchRequest request) async {
     if (request.type == CommandType.completeIrrigationSession) {
-      return const DispatchAccepted(
-        response: {'session_charge_id': 'charge'},
+      return DispatchAccepted(
+        response: {
+          'session_id': request.arguments['p_session_id'],
+          'session_charge_id': 'charge',
+          'status': 'closed',
+          'ended_at': request.arguments['p_ended_at'],
+          'actual_seconds': 0,
+          'billable_seconds': 0,
+          'weighted_price_per_hour_minor': 0,
+          'amount_minor': 0,
+          'segments': <Object?>[],
+        },
         entityId: 'charge',
       );
     }
     starts++;
     if (!accepted.containsKey(request.commandId)) {
       executions++;
-      accepted[request.commandId] = normalizeAcceptedResponse(request.type, {
+      accepted[request.commandId] = {
         'session_id': 'server-B',
-      });
+        'booking_id': 'B',
+        'well_id': 'well',
+        'session_status': 'open',
+        'booking_status': 'confirmed',
+        'started_at': request.arguments['p_started_at'],
+        'booked_duration_minutes': 10,
+        'operational_end_at': DateTime.parse(
+          request.arguments['p_started_at'] as String,
+        ).add(const Duration(minutes: 10)).toIso8601String(),
+      };
       return const DispatchFailed(
         disposition: FailureDisposition.retry,
         message: 'lost ack',
       );
     }
-    return accepted[request.commandId]!;
+    return normalizeAcceptedResponse(request.type, accepted[request.commandId]);
+  }
+
+  @override
+  Future<BookingStartReceiptRead> readBookingStartReceipt(
+    BookingStartReceiptRequest request,
+  ) async {
+    receiptReads++;
+    return BookingStartReceiptResponse(
+      BookingStartReceiptState.accepted,
+      accepted[request.commandId],
+    );
   }
 }

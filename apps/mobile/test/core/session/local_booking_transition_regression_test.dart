@@ -513,53 +513,52 @@ void main() {
       expect(await ledger.loadProvisionalSessions('account', 'well'), isEmpty);
     },
   );
-  testWidgets(
-    'foreground timer arms active null-next and invokes callback only at operational due',
-    (tester) async {
-      final probe = TimerProbeCoordinator(clock);
-      clock.now = at(43);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: OperationsScreen(
-            identity: testIdentity(
-              accountId: 'account',
-              wells: [
-                testWell(id: 'well', roles: ['operator']),
-              ],
-            ),
-            coordinator: probe,
-            bookingRepository: FieldBookingRepository(
-              ledger,
-              clock,
-              fieldSchedule(),
-            ),
-            repository: EmptyFieldOperations(),
-            priceRepository: EmptyFieldPrices(),
-            timeIntegritySource: clock,
+  testWidgets('booking due time never invokes retired operational callback', (
+    tester,
+  ) async {
+    final probe = TimerProbeCoordinator(clock);
+    clock.now = at(43);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OperationsScreen(
+          identity: testIdentity(
+            accountId: 'account',
+            wells: [
+              testWell(id: 'well', roles: ['operator']),
+            ],
           ),
+          coordinator: probe,
+          bookingRepository: FieldBookingRepository(
+            ledger,
+            clock,
+            fieldSchedule(),
+          ),
+          repository: EmptyFieldOperations(),
+          priceRepository: EmptyFieldPrices(),
+          timeIntegritySource: clock,
         ),
-      );
-      for (var i = 0; i < 10; i++) {
-        await tester.pump();
-      }
-      clock.now = at(44);
-      await tester.pump(const Duration(minutes: 1));
-      expect(probe.calls, 0);
-      clock.now = at(47);
-      await tester.pump(const Duration(minutes: 3));
-      for (var i = 0; i < 10; i++) {
-        await tester.pump();
-      }
-      expect(probe.calls, 1);
-      expect(probe.observed?.nextBooking.id, 'B');
-      expect(probe.observed?.dueAt, at(47));
-      expect(probe.scheduled, isTrue);
-      await tester.pump(const Duration(minutes: 1));
-      expect(probe.calls, 1);
-      await tester.pumpWidget(const SizedBox());
-      probe.dispose();
-    },
-  );
+      ),
+    );
+    for (var i = 0; i < 10; i++) {
+      await tester.pump();
+    }
+    clock.now = at(44);
+    await tester.pump(const Duration(minutes: 1));
+    expect(probe.calls, 0);
+    clock.now = at(47);
+    await tester.pump(const Duration(minutes: 3));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump();
+    }
+    expect(probe.calls, 0);
+    expect(probe.observed, isNull);
+    expect(probe.evidence, isNull);
+    expect(probe.scheduled, isNull);
+    await tester.pump(const Duration(minutes: 1));
+    expect(probe.calls, 0);
+    await tester.pumpWidget(const SizedBox());
+    probe.dispose();
+  });
   for (final scenario in [
     'before',
     'at_due',
@@ -569,92 +568,90 @@ void main() {
     'pause',
     'restart',
   ]) {
-    testWidgets('foreground arm refresh provenance: $scenario', (tester) async {
-      final probe = TimerProbeCoordinator(clock)..complete = true;
-      final repo = FieldBookingRepository(ledger, clock, fieldSchedule());
-      Widget screen() => MaterialApp(
-        home: OperationsScreen(
-          identity: testIdentity(
-            accountId: 'account',
-            wells: [
-              testWell(id: 'well', roles: ['operator']),
-            ],
+    testWidgets(
+      'retired callback remains inactive after refresh/lifecycle: $scenario',
+      (tester) async {
+        final probe = TimerProbeCoordinator(clock)..complete = true;
+        final repo = FieldBookingRepository(ledger, clock, fieldSchedule());
+        Widget screen() => MaterialApp(
+          home: OperationsScreen(
+            identity: testIdentity(
+              accountId: 'account',
+              wells: [
+                testWell(id: 'well', roles: ['operator']),
+              ],
+            ),
+            coordinator: probe,
+            bookingRepository: repo,
+            repository: EmptyFieldOperations(),
+            priceRepository: EmptyFieldPrices(),
+            timeIntegritySource: clock,
           ),
-          coordinator: probe,
-          bookingRepository: repo,
-          repository: EmptyFieldOperations(),
-          priceRepository: EmptyFieldPrices(),
-          timeIntegritySource: clock,
-        ),
-      );
-      Future<void> settle() async {
-        for (var i = 0; i < 12; i++) {
-          await tester.pump();
-        }
-      }
-
-      void refresh() => tester
-          .widget<TodayBookingsPanel>(find.byType(TodayBookingsPanel))
-          .onRefresh();
-      clock.now = at(43);
-      await tester.pumpWidget(screen());
-      await settle();
-      if (scenario == 'pause') {
-        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-        clock.now = at(48);
-        await tester.pump(const Duration(minutes: 5));
-        tester.binding.handleAppLifecycleStateChanged(
-          AppLifecycleState.resumed,
         );
-      } else if (scenario == 'restart') {
-        await tester.pumpWidget(const SizedBox());
-        clock.now = at(48);
+        Future<void> settle() async {
+          for (var i = 0; i < 12; i++) {
+            await tester.pump();
+          }
+        }
+
+        void refresh() => tester
+            .widget<TodayBookingsPanel>(find.byType(TodayBookingsPanel))
+            .onRefresh();
+        clock.now = at(43);
         await tester.pumpWidget(screen());
-      } else {
-        clock.now = scenario == 'before'
-            ? at(45)
-            : scenario == 'after_due'
-            ? at(48)
-            : at(47);
-        if (scenario == 'changed') {
-          repo.snapshot = fieldSchedule(
-            bookings: [booking('A', 40), booking('C', 44)],
-          );
-        }
-        if (scenario == 'revision') {
-          repo.automationSnapshot = automation(decisionRevision: 1);
-        }
-        // Start refresh before pumping expired timers: reproduces cancellation race.
-        refresh();
-      }
-      await settle();
-      if (scenario == 'before') {
-        expect(probe.calls, 0);
-        for (var i = 0; i < 3; i++) {
-          refresh();
-          await settle();
-        }
-        clock.now = at(47);
-        await tester.pump(const Duration(minutes: 2));
         await settle();
-      }
-      if (['pause', 'restart', 'changed', 'revision'].contains(scenario)) {
-        expect(probe.scheduled, isFalse);
+        if (scenario == 'pause') {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.paused,
+          );
+          clock.now = at(48);
+          await tester.pump(const Duration(minutes: 5));
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+        } else if (scenario == 'restart') {
+          await tester.pumpWidget(const SizedBox());
+          clock.now = at(48);
+          await tester.pumpWidget(screen());
+        } else {
+          clock.now = scenario == 'before'
+              ? at(45)
+              : scenario == 'after_due'
+              ? at(48)
+              : at(47);
+          if (scenario == 'changed') {
+            repo.snapshot = fieldSchedule(
+              bookings: [booking('A', 40), booking('C', 44)],
+            );
+          }
+          if (scenario == 'revision') {
+            repo.automationSnapshot = automation(decisionRevision: 1);
+          }
+          // Start refresh before pumping expired timers: reproduces cancellation race.
+          refresh();
+        }
+        await settle();
+        if (scenario == 'before') {
+          expect(probe.calls, 0);
+          for (var i = 0; i < 3; i++) {
+            refresh();
+            await settle();
+          }
+          clock.now = at(47);
+          await tester.pump(const Duration(minutes: 2));
+          await settle();
+        }
+        expect(probe.calls, 0);
+        expect(probe.scheduled, isNull);
         expect(probe.evidence, isNull);
-      } else {
-        expect(probe.calls, 1);
-        expect(probe.scheduled, isTrue);
-        expect(probe.evidence, isNotNull);
-        final command = probe.evidence!.commandId;
         for (var i = 0; i < 3; i++) {
           refresh();
           await settle();
         }
-        expect(probe.calls, 1);
-        expect(probe.evidence!.commandId, command);
-      }
-      await tester.pumpWidget(const SizedBox());
-      probe.dispose();
-    });
+        expect(probe.calls, 0);
+        await tester.pumpWidget(const SizedBox());
+        probe.dispose();
+      },
+    );
   }
 }

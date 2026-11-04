@@ -18,7 +18,6 @@ import 'local_booking_transition_regression_test.dart' as f;
 import '../sync/package_a_outbox_test.dart' as sync_fixture;
 
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
-import 'package:well_irrigation_mobile/core/session/active_session_record.dart';
 
 void main() {
   sqfliteFfiInit();
@@ -120,13 +119,18 @@ void main() {
       // The shared fixture imported an old server link; this manual case has
       // a fresh idle schedule and does not invoke an automatic transition.
       await coordinator.reconcileServerBookingSession(
-        accountId: 'account', wellId: 'well', current: null,
+        accountId: 'account',
+        wellId: 'well',
+        current: null,
       );
       clock.now = f.at(47);
       final manualSchedule = f.cached(copySchedule(f.fieldSchedule(), null));
       final original = await coordinator.startBookedSession(
-        accountId: 'account', wellId: 'well', bookingId: 'B',
-        cachedSchedule: manualSchedule, automation: f.automation(),
+        accountId: 'account',
+        wellId: 'well',
+        bookingId: 'B',
+        cachedSchedule: manualSchedule,
+        automation: f.automation(),
       );
       final id = original.localId;
       await coordinator.pauseSession(
@@ -167,8 +171,11 @@ void main() {
       );
       await expectLater(
         coordinator.startBookedSession(
-          accountId: 'account', wellId: 'well', bookingId: 'A',
-          cachedSchedule: manualSchedule, automation: f.automation(),
+          accountId: 'account',
+          wellId: 'well',
+          bookingId: 'A',
+          cachedSchedule: manualSchedule,
+          automation: f.automation(),
         ),
         throwsStateError,
       );
@@ -234,7 +241,7 @@ void main() {
     expect(legacy.commandId, 'legacy-command');
     expect(await store.allCommands('account'), isEmpty);
   });
-  test('local outbox A completion references its real start root and only B remains active', () async {
+  test('legacy transition retains root reference but cannot fabricate a unique active session', () async {
     final a = await coordinator.startSession(
       accountId: 'account',
       wellId: 'well',
@@ -262,11 +269,16 @@ void main() {
       CommandReference(localId: a.localId, kind: EntityKind.session).toJson(),
     );
     expect(rows[1].aggregateLocalId, a.localId);
-    expect(coordinator.currentActiveSession?.bookingId, 'B');
+    expect(coordinator.currentActiveSession, isNull);
+    expect(
+      await store.mapping('account', rows.last.localId, EntityKind.session),
+      isNull,
+    );
+    expect(coordinator.currentActiveSession?.completedAt, isNull);
     expect(
       (await coordinator.unresolvedSessions('account'))
           .where((s) => s.businessState.isActive),
-      hasLength(1),
+      hasLength(2),
     );
   });
   test('idle well cannot automatically start first booking', () async {
@@ -313,37 +325,39 @@ void main() {
       expect(await store.allCommands('account'), isEmpty);
     });
   }
-  test(
-    'second offline boundary completes local B by reference and starts C once',
-    () async {
-      final base = f.fieldSchedule(
-        bookings: [f.booking('A', 40), f.booking('B', 44), f.booking('C', 49)],
-      );
-      await run(schedule: base);
-      final b = coordinator.currentActiveSession!;
-      final derived = coordinator.phoneOwnedBookingSchedule(
-        base,
-        automation: f.automation(),
-      )!;
-      expect(derived.currentSession?.sessionId, b.localId);
-      clock.now = f.at(51);
-      expect((await run(due: false, schedule: derived)).transitioned, isTrue);
-      final rows = await store.allCommands('account');
-      expect(rows, hasLength(4));
-      expect(
-        rows[2].payload['p_session_id'],
-        CommandReference(localId: b.localId, kind: EntityKind.session).toJson(),
-      );
-      expect(rows[3].payload['p_booking_id'], 'C');
-      expect(rows[3].prerequisites, [rows[2].localId]);
-      expect(coordinator.currentActiveSession?.bookingId, 'C');
-      expect(
-        (await run(due: false, schedule: derived)).outcome,
-        LocalBookingTransitionOutcome.alreadyRecorded,
-      );
-      expect(await store.allCommands('account'), hasLength(4));
-    },
-  );
+  test('legacy second boundary retains references without accepted execution evidence', () async {
+    final base = f.fieldSchedule(
+      bookings: [f.booking('A', 40), f.booking('B', 44), f.booking('C', 49)],
+    );
+    await run(schedule: base);
+    final b = coordinator.currentActiveSession!;
+    final derived = coordinator.phoneOwnedBookingSchedule(
+      base,
+      automation: f.automation(),
+    )!;
+    expect(derived.currentSession?.sessionId, b.localId);
+    clock.now = f.at(51);
+    expect((await run(due: false, schedule: derived)).transitioned, isTrue);
+    final rows = await store.allCommands('account');
+    expect(rows, hasLength(4));
+    expect(
+      rows[2].payload['p_session_id'],
+      CommandReference(localId: b.localId, kind: EntityKind.session).toJson(),
+    );
+    expect(rows[3].payload['p_booking_id'], 'C');
+    expect(rows[3].prerequisites, [rows[2].localId]);
+    expect(coordinator.currentActiveSession, isNull);
+    expect(
+      await store.mapping('account', rows.last.localId, EntityKind.session),
+      isNull,
+    );
+    expect(coordinator.currentActiveSession?.completedAt, isNull);
+    expect(
+      (await run(due: false, schedule: derived)).outcome,
+      LocalBookingTransitionOutcome.alreadyRecorded,
+    );
+    expect(await store.allCommands('account'), hasLength(4));
+  });
   test(
     'revised stale intent cannot duplicate an already committed boundary',
     () async {
@@ -367,35 +381,30 @@ void main() {
     expect(await store.allCommands('account'), hasLength(2));
     expect(scheduled, 1);
   });
-  test('server conflict is dispatched once, retains local B and observes durable review', () async {
-    await run();
-    final transport = sync_fixture.PackageTransport()
-      ..startResponse = {'status': 'conflict', 'session_id': 'another-session'};
-    final engine = SyncEngine(store: store, transport: transport);
-    await engine.run('account');
-    await engine.run('account');
-    expect(
-      transport.requests.where(
-        (r) => r.type == CommandType.startBookingSession,
-      ),
-      hasLength(1),
-    );
-    final record = await coordinator.restorePhoneOwnedTransition(
-      accountId: 'account',
-      wellId: 'well',
-      transitionKey: resultKey(),
-    );
-    expect(record?.reconciliationState, 'requires_review');
-    final active = await coordinator.projectActiveSession(
-      accountId: 'account',
-      wellId: 'well',
-    );
-    expect(active?.bookingId, 'B');
-    expect(active?.syncState, SessionSyncState.conflict);
-    expect(active?.startedAt, f.at(47));
-    expect(active?.serverSessionId, isNull);
-    expect(await store.allCommands('account'), hasLength(2));
-  });
+  test(
+    'legacy transition never dispatches a successor without a human action',
+    () async {
+      await run();
+      final before = (await store.allCommands('account'))
+          .map((c) => c.commandId)
+          .toList();
+      final transport = sync_fixture.PackageTransport();
+      final engine = SyncEngine(store: store, transport: transport);
+      await engine.run('account');
+      await engine.run('account');
+      expect(transport.requests, isEmpty);
+      expect(
+        (await store.allCommands('account')).map((c) => c.commandId),
+        before,
+      );
+      final active = await coordinator.projectActiveSession(
+        accountId: 'account',
+        wellId: 'well',
+      );
+      expect(active?.completedAt, isNull);
+      expect(active?.serverSessionId, isNull);
+    },
+  );
   test(
     'wall clock jump never replaces trusted actual transition instant',
     () async {

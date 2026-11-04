@@ -3,8 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:well_irrigation_mobile/core/api/booking_repository.dart';
+import 'package:well_irrigation_mobile/core/api/booking_local_ledger.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
+import 'package:well_irrigation_mobile/core/sync/sqlite_outbox_store.dart';
+import 'package:well_irrigation_mobile/core/booking/local_booking_request.dart';
 import 'package:well_irrigation_mobile/features/bookings/booking_form_screen.dart';
 import 'package:well_irrigation_mobile/features/bookings/bookings_screen.dart';
 
@@ -22,40 +26,67 @@ class _FakeOps extends OperationsRepository {
   }) async => farmer == null ? const [] : [farmer!];
 
   @override
-  Future<List<Farm>> fetchFarms(
+  Future<List<Farm>> searchFarms(
     String wellId, {
-    String? farmerAccountId,
+    required String farmerAccountId,
+    String query = '',
+    int limit = 50,
   }) async => farm == null ? const [] : [farm!];
 }
 
 class _FakeBookingRepo extends BookingRepository {
-  _FakeBookingRepo({this.result, this.future, this.throwError = false})
-    : super(null);
-  final BookingMutationResult? result;
-  final Future<BookingMutationResult>? future;
+  _FakeBookingRepo({this.future, this.throwError = false})
+    : super(
+        null,
+        null,
+        BookingLocalLedger(
+          SqliteOutboxStore(
+            databasePath: inMemoryDatabasePath,
+            singleInstance: false,
+            sqfliteFactory: databaseFactoryFfiNoIsolate,
+          ),
+        ),
+      );
+  final Future<void>? future;
   final bool throwError;
-  int createCalls = 0;
+  int saveCalls = 0;
 
   @override
-  Future<BookingMutationResult> createBooking({
+  Future<LocalBookingRequest> saveLocalBooking({
+    required String accountId,
     required String wellId,
-    required String farmerWellAccountId,
-    required String farmId,
+    required String requestId,
+    required FarmerAccount farmer,
+    required Farm farm,
     required DateTime scheduledStart,
     required DateTime scheduledEnd,
-    required String commandId,
-    String? expectedEnergySource,
+    required String expectedEnergySource,
     String? alternativeEnergySource,
     int priority = 0,
     String? notes,
-  }) {
-    createCalls++;
-    if (throwError) throw StateError('transport');
-    if (future != null) return future!;
-    return Future.value(
-      result ?? const BookingMutationResult(status: 'created', bookingId: 'b1'),
+    LocalBookingRequest? replaces,
+  }) async {
+    saveCalls++;
+    if (throwError) throw StateError('storage');
+    if (future != null) await future;
+    return super.saveLocalBooking(
+      accountId: accountId,
+      wellId: wellId,
+      requestId: requestId,
+      farmer: farmer,
+      farm: farm,
+      scheduledStart: scheduledStart,
+      scheduledEnd: scheduledEnd,
+      expectedEnergySource: expectedEnergySource,
+      alternativeEnergySource: alternativeEnergySource,
+      priority: priority,
+      notes: notes,
+      replaces: replaces,
     );
   }
+
+  @override
+  Future<void> requestBookingConfirmation(String accountId) async {}
 }
 
 const _farmer = FarmerAccount(
@@ -63,7 +94,12 @@ const _farmer = FarmerAccount(
   fullName: 'أحمد المزارع',
   publicCode: 'F-1',
 );
-const _farm = Farm(id: 'farm1', wellId: 'well-1', name: 'الأرض الشمالية');
+const _farm = Farm(
+  id: 'farm1',
+  wellId: 'well-1',
+  name: 'الأرض الشمالية',
+  farmerAccountId: 'f1',
+);
 
 Future<void> _pickFarmerAndFarm(WidgetTester tester) async {
   await tester.tap(find.text('ابحث بالاسم أو الرمز'));
@@ -77,6 +113,7 @@ Future<void> _pickFarmerAndFarm(WidgetTester tester) async {
 }
 
 void main() {
+  sqfliteFfiInit();
   Widget wrap(Widget child) => MaterialApp(
     locale: const Locale('ar'),
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -208,10 +245,12 @@ void main() {
     await tester.tap(find.text('حفظ الحجز'));
     await tester.pump();
     expect(find.text('اختر المزارع.'), findsOneWidget);
-    expect(repo.createCalls, 0);
+    expect(repo.saveCalls, 0);
   });
 
-  testWidgets('الإنشاء دون اتصال محجوب بلا ادعاء نجاح', (tester) async {
+  testWidgets('الحفظ دون اختيار المزارع لا ينشئ طلبًا حتى دون اتصال', (
+    tester,
+  ) async {
     sizeLarge(tester);
     final repo = _FakeBookingRepo();
     await tester.pumpWidget(
@@ -228,7 +267,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ الحجز'));
     await tester.pump();
-    expect(repo.createCalls, 0);
+    expect(repo.saveCalls, 0);
   });
 
   testWidgets('المدة الافتراضية 08:00 والشريحة «ساعتان» تحسب نهاية 10:00', (
@@ -292,16 +331,11 @@ void main() {
     expect(find.byType(DatePickerDialog), findsOneWidget);
   });
 
-  testWidgets('تعارض الوقت يظهر كرسالة أعمال عربية مع بقاء القيم', (
+  testWidgets('الحفظ المحلي لا ينتظر قرار الخادم ويحفظ القيم للمراجعة', (
     tester,
   ) async {
     sizeLarge(tester);
-    final repo = _FakeBookingRepo(
-      result: const BookingMutationResult(
-        status: 'conflict',
-        message: 'هذا الوقت محجوز بالفعل.',
-      ),
-    );
+    final repo = _FakeBookingRepo();
     await tester.pumpWidget(
       wrap(
         BookingFormScreen(
@@ -328,15 +362,22 @@ void main() {
     await tester.tap(find.text('حفظ الحجز'));
     await tester.pumpAndSettle();
 
-    expect(repo.createCalls, 1);
-    expect(find.textContaining('هذا الوقت محجوز بالفعل'), findsOneWidget);
-    // القيم محفوظة بعد التعارض.
+    expect(repo.saveCalls, 1);
+    expect(find.text('تم حفظ الحجز'), findsOneWidget);
+    final saved = await repo.localBookingsForDay(
+      testIdentity().accountId,
+      'well-1',
+      fixedDate,
+    );
+    expect(saved, hasLength(1));
+    expect(saved.single.response, isNull);
+    // الطلب دائم، ولا يدعي قبول الخادم قبل المزامنة.
     expect(find.text('أحمد المزارع'), findsWidgets);
   });
 
   testWidgets('منع الإرسال المزدوج أثناء تنفيذ الحفظ', (tester) async {
     sizeLarge(tester);
-    final completer = Completer<BookingMutationResult>();
+    final completer = Completer<void>();
     final repo = _FakeBookingRepo(future: completer.future);
     await tester.pumpWidget(
       wrap(
@@ -367,11 +408,9 @@ void main() {
     expect(find.text('جارٍ الحفظ...'), findsOneWidget);
     await tester.tap(find.text('جارٍ الحفظ...'), warnIfMissed: false);
     await tester.pump();
-    expect(repo.createCalls, 1);
+    expect(repo.saveCalls, 1);
 
-    completer.complete(
-      const BookingMutationResult(status: 'conflict', message: 'x'),
-    );
+    completer.complete();
     await tester.pumpAndSettle();
   });
 
@@ -400,14 +439,14 @@ void main() {
     expect(find.textContaining('نافذة الطاقة الشمسية'), findsOneWidget);
     await tester.tap(find.text('حفظ الحجز'));
     await tester.pumpAndSettle();
-    expect(repo.createCalls, 0);
+    expect(repo.saveCalls, 0);
   });
 
-  testWidgets('ديزل البئر عند 01:00: يمضي للخادم (لا حجب شمسي)', (
+  testWidgets('ديزل البئر عند 01:00: يحفظ محليًا (لا حجب شمسي)', (
     tester,
   ) async {
     sizeLarge(tester);
-    final completer = Completer<BookingMutationResult>();
+    final completer = Completer<void>();
     final repo = _FakeBookingRepo(future: completer.future);
     await tester.pumpWidget(
       wrap(
@@ -425,14 +464,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ الحجز'));
     await tester.pump();
-    expect(repo.createCalls, 1);
-    completer.complete(const BookingMutationResult(status: 'conflict'));
+    expect(repo.saveCalls, 1);
+    completer.complete();
     await tester.pumpAndSettle();
   });
 
-  testWidgets('شمسية نهارًا داخل النافذة: تمضي للخادم', (tester) async {
+  testWidgets('شمسية نهارًا داخل النافذة: تحفظ محليًا', (tester) async {
     sizeLarge(tester);
-    final completer = Completer<BookingMutationResult>();
+    final completer = Completer<void>();
     final repo = _FakeBookingRepo(future: completer.future);
     await tester.pumpWidget(
       wrap(
@@ -450,21 +489,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ الحجز'));
     await tester.pump();
-    expect(repo.createCalls, 1);
-    completer.complete(const BookingMutationResult(status: 'conflict'));
+    expect(repo.saveCalls, 1);
+    completer.complete();
     await tester.pumpAndSettle();
   });
 
-  testWidgets('رفض أعمال منظّم برسالة محددة لا عموم «لم يكتمل»', (
+  testWidgets('الحفظ لا يدعي قبول الخادم أو رفضه قبل وصول الرد', (
     tester,
   ) async {
     sizeLarge(tester);
-    final repo = _FakeBookingRepo(
-      result: const BookingMutationResult(
-        status: 'rejected',
-        reasonCode: 'active_pump_missing',
-      ),
-    );
+    final repo = _FakeBookingRepo();
     await tester.pumpWidget(
       wrap(
         BookingFormScreen(
@@ -481,12 +515,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ الحجز'));
     await tester.pumpAndSettle();
-    expect(repo.createCalls, 1);
-    expect(find.textContaining('لا توجد مضخة فعّالة'), findsWidgets);
+    expect(repo.saveCalls, 1);
+    expect(find.text('تم حفظ الحجز'), findsOneWidget);
+    expect(find.textContaining('لا توجد مضخة فعّالة'), findsNothing);
     expect(find.textContaining('لم يكتمل'), findsNothing);
   });
 
-  testWidgets('فشل النقل يُظهر رسالة إعادة محاولة عامة', (tester) async {
+  testWidgets('فشل التخزين لا يدعي حفظ الطلب', (tester) async {
     sizeLarge(tester);
     final repo = _FakeBookingRepo(throwError: true);
     await tester.pumpWidget(
@@ -505,6 +540,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ الحجز'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('تعذّر إتمام الحفظ'), findsOneWidget);
+    expect(find.text('تم حفظ الحجز'), findsNothing);
+    expect(
+      await repo.localBookingsForDay(
+        testIdentity().accountId,
+        'well-1',
+        DateTime(2026, 10, 11),
+      ),
+      isEmpty,
+    );
+    expect(find.text('حفظ الحجز'), findsOneWidget);
   });
 }

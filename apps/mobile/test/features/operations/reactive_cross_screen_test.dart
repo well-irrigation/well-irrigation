@@ -1,3 +1,5 @@
+import '../../support/accepted_completion_fixture.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/booking_local_ledger.dart';
@@ -155,7 +157,7 @@ class Repo extends BookingRepository {
 
 void main() {
   testWidgets(
-    '03:13 A -> 03:15:04 gap -> 03:16 B -> 03:18 complete; both mounted, offline, reconnect and ACK',
+    'explicit stops + accepted receipts and manual B start refresh both mounted screens',
     (tester) async {
       tester.view.physicalSize = const Size(1800, 2600);
       tester.view.devicePixelRatio = 1;
@@ -223,29 +225,26 @@ void main() {
         identical(tester.widget<TodayBookingsPanel>(panel), initialPanel),
         true,
       );
-      Future<void> runAt(DateTime now) async {
+      Future<void> finishAt(DateTime now) async {
         clock.now = now;
-        final action = await coordinator.prepareBookedSessionAction(
+        final root = coordinator.currentActiveSession!;
+        await coordinator.completeSession(
+          accountId: identity.accountId,
+          sessionLocalId: root.localId,
+          completedAt: now,
+        );
+        expect(coordinator.currentActiveSession?.completedAt, isNull);
+        await acceptTestCompletion(
+          store: store,
+          coordinator: coordinator,
           accountId: identity.accountId,
           wellId: 'well',
-          cachedSchedule: snapshot(),
-          automation: automation,
         );
-        expect(action, isNotNull);
-        final result = await coordinator.runBookedSessionAction(
-          accountId: identity.accountId,
-          wellId: 'well',
-          cachedSchedule: snapshot(),
-          automation: automation,
-          action: action!,
-          scheduledCallback: true,
-        );
-        expect(result.transitioned, true);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 100));
       }
 
-      await runAt(DateTime.utc(2026, 10, 14, 0, 15, 4));
+      await finishAt(DateTime.utc(2026, 10, 14, 0, 15, 4));
       expect(coordinator.currentActiveSession, isNull);
       expect(inBookings('جاري'), findsNothing);
       expect(inPanel('جاري'), findsNothing);
@@ -254,13 +253,44 @@ void main() {
       expect(inPanel('السجل المنتهي لليوم (1)'), findsOneWidget);
       expect(find.textContaining('الجلسة الجارية من الحجز A'), findsNothing);
       expect(find.byKey(const Key('start-booking-A')), findsNothing);
-      await runAt(DateTime.utc(2026, 10, 14, 0, 16));
+      clock.now = DateTime.utc(2026, 10, 14, 0, 16);
+      await coordinator.startBookedSession(
+        accountId: identity.accountId,
+        wellId: 'well',
+        bookingId: 'B',
+        displayPump: pump,
+        cachedSchedule: snapshot(),
+        automation: automation,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       expect(inBookings('جاري'), findsOneWidget);
       expect(inPanel('جاري'), findsOneWidget);
       expect(coordinator.currentActiveSession?.pumpId, 'pump');
       expect(coordinator.currentActiveSession?.pumpName, pump.name);
       expect(find.text('المضخة الشرقية'), findsWidgets);
-      await runAt(DateTime.utc(2026, 10, 14, 0, 18));
+      // A late ACK for A must not clear B's live controls or identity.
+      final currentB = coordinator.currentActiveSession!;
+      final startA = (await store.allCommands(identity.accountId)).singleWhere(
+        (row) =>
+            row.type == CommandType.startBookingSession &&
+            row.payload['p_booking_id'] == 'A',
+      );
+      await store.markConfirmed(
+        identity.accountId,
+        startA.localId,
+        serverResponse: {'session_id': 'accepted-${startA.localId}'},
+        attemptedAt: clock.now,
+      );
+      await coordinator.freshProjectActiveSession(
+        accountId: identity.accountId,
+        wellId: 'well',
+      );
+      await tester.pump();
+      expect(coordinator.currentActiveSession?.localId, currentB.localId);
+      expect(inPanel('جاري'), findsOneWidget);
+      expect(find.text('إيقاف مؤقت'), findsOneWidget);
+      await finishAt(DateTime.utc(2026, 10, 14, 0, 18));
       expect(inBookings('جاري'), findsNothing);
       expect(inPanel('جاري'), findsNothing);
       expect(inBookings('السجل المنتهي لليوم (2)'), findsOneWidget);
@@ -277,6 +307,7 @@ void main() {
       expect(inBookings('جاري'), findsNothing);
       expect(inPanel('جاري'), findsNothing);
       for (final row in await store.allCommands(identity.accountId)) {
+        if (row.type == CommandType.completeIrrigationSession) continue;
         await store.markConfirmed(
           identity.accountId,
           row.localId,
@@ -286,7 +317,18 @@ void main() {
                   'version': 1,
                   'status': 'ended',
                 }
-              : {},
+              : {
+                  'session_id': 'accepted-${row.localId}',
+                  'booking_id': row.payload['p_booking_id'],
+                  'well_id': row.wellId,
+                  'session_status': 'open',
+                  'booking_status': 'confirmed',
+                  'started_at': row.occurredAt.toIso8601String(),
+                  'booked_duration_minutes': 2,
+                  'operational_end_at': row.occurredAt
+                      .add(const Duration(minutes: 2))
+                      .toIso8601String(),
+                },
           attemptedAt: clock.now,
         );
         if (row.type == CommandType.startBookingSession) {
@@ -295,7 +337,7 @@ void main() {
             IdMapping(
               localId: row.localId,
               kind: EntityKind.session,
-              serverId: 'server-${row.localId}',
+              serverId: 'accepted-${row.localId}',
               resolvedAt: clock.now,
             ),
           );

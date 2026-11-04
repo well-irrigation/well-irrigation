@@ -1,8 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/command_transport.dart';
-import 'package:well_irrigation_mobile/core/sync/command_reference.dart';
 import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
@@ -61,19 +59,11 @@ void main() {
   });
   for (final mode in ['pending', 'retry', 'review', 'accepted']) {
     test(
-      'completion $mode gates end-chain without blocking another well',
+      'retired end-chain held with completion $mode and another well dispatches',
       () async {
         final store = InMemoryOutboxStore();
         await store.insert(
           f.command('complete', CommandType.completeIrrigationSession, 1),
-        );
-        await store.insert(
-          f.command(
-            'end',
-            CommandType.endBookingTransitionChain,
-            2,
-            prerequisites: ['complete'],
-          ),
         );
         await store.insert(
           f.command(
@@ -83,10 +73,31 @@ void main() {
             well: 'other',
           ),
         );
+        await f.seedPackageHumanActions(store);
+        await store.insert(
+          f.command(
+            'end',
+            CommandType.endBookingTransitionChain,
+            2,
+            prerequisites: ['complete'],
+          ),
+        );
         if (mode == 'pending') {
           await store.claim('account', 'complete', attemptedAt: DateTime.now());
         }
-        final transport = EndChainTransport();
+        final transport = EndChainTransport()
+          ..startResponse = {
+            'session_id': 'server-unrelated',
+            'booking_id': 'B',
+            'well_id': 'other',
+            'session_status': 'open',
+            'booking_status': 'confirmed',
+            'started_at': f.instant.toIso8601String(),
+            'booked_duration_minutes': 10,
+            'operational_end_at': f.instant
+                .add(const Duration(minutes: 10))
+                .toIso8601String(),
+          };
         if (mode == 'retry') {
           transport.completionResult = const DispatchFailed(
             disposition: FailureDisposition.retry,
@@ -102,98 +113,78 @@ void main() {
         await SyncEngine(store: store, transport: transport).run('account');
         expect(
           transport.requests.any((r) => r.commandId == 'uuid-end'),
-          mode == 'accepted',
+          isFalse,
         );
         expect(
           transport.requests.any((r) => r.commandId == 'uuid-unrelated'),
           isTrue,
         );
         expect(
-          (await store.commandByLocalId('account', 'end'))?.status,
-          mode == 'review'
-              ? CommandStatus.review
-              : mode == 'accepted'
-              ? CommandStatus.confirmed
-              : CommandStatus.pending,
+          (await store.commandByLocalId('account', 'unrelated'))?.status,
+          CommandStatus.confirmed,
         );
+        final row = (await store.commandByLocalId('account', 'end'))!;
+        expect(row.status, CommandStatus.pending);
+        expect(row.lastAttemptAt, isNull);
+        expect(row.commandId, 'uuid-end');
       },
     );
   }
-  test('local session reference resolves and replay does not dispatch a second end', () async {
-    final store = InMemoryOutboxStore();
-    await store.putMapping(
-      'account',
-      IdMapping(
-        localId: 'local-session',
-        kind: EntityKind.session,
-        serverId: 'server-B',
-        resolvedAt: f.instant,
-      ),
-    );
-    await store.insert(
-      f.command('complete', CommandType.completeIrrigationSession, 1),
-    );
-    final end = CommandEnvelope(
-      localId: 'end',
-      commandId: 'uuid-end',
-      type: CommandType.endBookingTransitionChain,
-      accountId: 'account',
-      sequence: 2,
-      occurredAt: f.instant,
-      createdLocalAt: f.instant,
-      wellId: 'well',
-      prerequisites: ['complete'],
-      payload: {
-        'p_session_id': const CommandReference(
+  test(
+    'resolved reference does not reactivate retired end-chain on replay',
+    () async {
+      final store = InMemoryOutboxStore();
+      await store.putMapping(
+        'account',
+        IdMapping(
           localId: 'local-session',
           kind: EntityKind.session,
-        ).toJson(),
-      },
-    );
-    await store.insert(end);
-    final transport = EndChainTransport();
-    final engine = SyncEngine(store: store, transport: transport);
-    await engine.run('account');
-    await engine.run('account');
-    final requests = transport.requests
-        .where((r) => r.type == CommandType.endBookingTransitionChain)
-        .toList();
-    expect(requests, hasLength(1));
-    expect(requests.single.arguments, {
-      'p_session_id': 'server-B',
-      'p_command_id': 'uuid-end',
-    });
-    expect(await store.mapping('account', 'end', EntityKind.session), isNull);
-    expect(await store.mappings('account'), hasLength(2));
-  });
+          serverId: 'server-B',
+          resolvedAt: f.instant,
+        ),
+      );
+      await store.insert(
+        f.command('end', CommandType.endBookingTransitionChain, 1),
+      );
+      final before = (await store.commandByLocalId('account', 'end'))!;
+      final transport = EndChainTransport();
+      final engine = SyncEngine(store: store, transport: transport);
+      await engine.run('account');
+      await engine.run('account');
+      expect(transport.requests, isEmpty);
+      expect(
+        (await store.commandByLocalId('account', 'end'))?.payload,
+        before.payload,
+      );
+      expect(await store.mapping('account', 'end', EntityKind.session), isNull);
+      expect(await store.mappings('account'), hasLength(1));
+    },
+  );
   test(
-    'next booking rejection is durable review and never blindly retried',
+    'legacy rejection history survives without retrying retired end-chain',
     () async {
       final store = InMemoryOutboxStore();
       await store.insert(
-        f.command('complete', CommandType.completeIrrigationSession, 1),
+        f.command('end', CommandType.endBookingTransitionChain, 1),
       );
-      await store.insert(
-        f.command(
-          'end',
-          CommandType.endBookingTransitionChain,
-          2,
-          prerequisites: ['complete'],
-        ),
+      await store.markNeedsReview(
+        'account',
+        'end',
+        error: 'next_booking_exists',
+        attemptedAt: f.instant,
+        serverResponse: {
+          'status': 'rejected',
+          'reason_code': 'next_booking_exists',
+        },
       );
-      final transport = EndChainTransport()..rejectEnd = true;
+      final transport = EndChainTransport();
       final engine = SyncEngine(store: store, transport: transport);
       await engine.run('account');
       await engine.run('account');
       final row = (await store.commandByLocalId('account', 'end'))!;
       expect(row.status, CommandStatus.review);
       expect(row.serverResponse?['reason_code'], 'next_booking_exists');
-      expect(
-        transport.requests.where(
-          (r) => r.type == CommandType.endBookingTransitionChain,
-        ),
-        hasLength(1),
-      );
+      expect(transport.requests, isEmpty);
     },
   );
 }

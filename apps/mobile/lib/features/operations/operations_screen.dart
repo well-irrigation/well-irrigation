@@ -115,6 +115,22 @@ class _OperationsScreenState extends State<OperationsScreen>
       _completionResult = record;
       _latestCompletionAt = record.completedAt;
       _completionFingerprint = fingerprint;
+      // Only accepted completion of this exact local root clears its form.
+      // A late receipt for a previous session must not reset a new session.
+      if (_activeSessionId == record.localId) {
+        _timer?.cancel();
+        _timer = null;
+        _activeSession = null;
+        _activeSessionId = null;
+        _isSessionActive = false;
+        _isPaused = false;
+        _secondsElapsed = 0;
+        _selectedFarmer = null;
+        _selectedFarm = null;
+        _energySourceCode = null;
+        _resetCropSelection();
+        _resetFarmerStatus();
+      }
     });
     final generation = ++_completionDetailGeneration;
     _restoreCompletionPaymentPresentation(record, generation);
@@ -712,7 +728,15 @@ class _OperationsScreenState extends State<OperationsScreen>
     );
   }
 
+  // ق-137 / R6-A: booking times are reminders, never operational authority.
+  // Keep legacy recovery helpers unreachable from current runtime callbacks.
+  bool get _bookingOperationalAutomationEnabled => false;
+
   Future<void> _scheduleCachedBookingTransitionCheck() async {
+    if (!_bookingOperationalAutomationEnabled) {
+      _invalidateBookingTransitionTimer();
+      return;
+    }
     if (_bookedActionInFlight) return;
     _suspendBookingTransitionTimer();
     if (_isLoadingDaySchedule || _isLoadingBookingAutomation) return;
@@ -793,7 +817,11 @@ class _OperationsScreenState extends State<OperationsScreen>
     required bool scheduledCallback,
     required bool Function() isCurrent,
   }) async {
-    if (_bookedActionInFlight || !isCurrent()) return;
+    if (!_bookingOperationalAutomationEnabled ||
+        _bookedActionInFlight ||
+        !isCurrent()) {
+      return;
+    }
     final cached = _rawCachedBookingSchedule;
     if (cached == null) return;
     _bookedActionInFlight = true;
@@ -838,6 +866,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   void _scheduleLegacyBookingTransitionCheck() {
+    if (!_bookingOperationalAutomationEnabled) return;
     _suspendBookingTransitionTimer();
     // An overlapping reload has not produced a decision yet. Preserve its
     // previous arm until the complete snapshot can be compared.
@@ -997,6 +1026,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     int? expectedGeneration,
     ResolvedLocalBookingTransitionCandidate? expectedCandidate,
   }) async {
+    if (!_bookingOperationalAutomationEnabled) return;
     final wellId = _activeWellId;
     final accountId = _accountId;
     if (!mounted ||
