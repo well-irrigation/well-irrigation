@@ -1,5 +1,7 @@
 # R6-C0 — أساس التصحيح المالي
 
+> الحالة الحاكمة الحالية: ADOPTED + DOCUMENTED + IMPLEMENTED + VERIFIED LOCAL + COMMITTED في `1e084c5cde33e5ce51b47a40536981a3f67c753b`. تحقق المالك السابق ثم انحدار C2/C3؛ Pending أدناه تاريخي ولا يعني Cloud/Production verified. المرجع الحالي: `../memory/RESUME_POINT.md`.
+
 الحالة: Implemented محليًا / Static reviewed / Owner DB Verification Pending.
 خط الأساس: `reconcile/q137-local-20261030` عند
 `595ad67e596d51cae7fddec7114d029fd433a16c`.

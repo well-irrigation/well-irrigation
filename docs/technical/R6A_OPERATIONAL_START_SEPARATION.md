@@ -1,5 +1,7 @@
 # R6-A — فصل الحجز عن التنفيذ الفعلي
 
+> الحالة الحاكمة الحالية: ADOPTED + DOCUMENTED + IMPLEMENTED + VERIFIED LOCAL + COMMITTED في `f8c6e353685ac47cb6b6633a146264aa5b1e0b48`. تحقق المالك السابق مع انحدار C2/C3 اللاحق؛ لا عدد مستقل قديم مخترع. سطر Pending أدناه لقطة وقت تأليف الهجرة؛ UI/الإطلاق مؤجلان. المرجع الحالي: `../memory/RESUME_POINT.md`.
+
 الحالة: Implemented / Static reviewed فقط؛ اختبارات PostgreSQL غير مشغلة.
 الخطوة التالية الوحيدة: تحقق المالك من قاعدة محلية؛ لا نشر ولا تحقق سحابي.
 خط الأساس: `reconcile/q137-local-20261030` عند

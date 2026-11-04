@@ -1,5 +1,23 @@
 # سجل التقدم
 
+## 2026-11-04 — إغلاق مراحل R6-A/B وC0–C3 محليًا
+
+| المرحلة | الحالة النهائية للخادم | الالتزام | حد الإثبات |
+| --- | --- | --- | --- |
+| R6-A — فصل الحجز والتشغيل | IMPLEMENTED + VERIFIED LOCAL + COMMITTED | `f8c6e353685ac47cb6b6633a146264aa5b1e0b48` | تحقق المالك السابق وانحدار C2/C3؛ لا عدد مستقل مخترع |
+| R6-B — إقرار البدء | IMPLEMENTED + VERIFIED LOCAL + COMMITTED | `595ad67e596d51cae7fddec7114d029fd433a16c` | تحقق المالك السابق وانحدار C2/C3 |
+| R6-C0 — أساس الائتمان | IMPLEMENTED + VERIFIED LOCAL + COMMITTED | `1e084c5cde33e5ce51b47a40536981a3f67c753b` | تحقق المالك السابق وانحدار C2/C3 |
+| R6-C0.1 — تحرير التطبيق | IMPLEMENTED + VERIFIED LOCAL + COMMITTED | `2478c4eb0698e243c09883051352684724c54f5c` | تحقق المالك السابق وانحدار C2/C3 |
+| R6-C0.2 — سلطة الدفع | IMPLEMENTED + VERIFIED LOCAL + COMMITTED | `9b1885a331083a4e4b1828c6ffb6744e5598e383` | تحقق المالك السابق وانحدار C2/C3 |
+| R6-C1 — تصحيح التشغيل | IMPLEMENTED + VERIFIED LOCAL + COMMITTED | `d6b4ef7566d633bc290fc3e633cf8e6fd799e96a` | تحقق المالك وفق التسليم وانحدار C2/C3 |
+| R6-C2 — الحدود المالية | IMPLEMENTED + VERIFIED LOCAL + COMMITTED | `4ef062afecd53773546955cefa29b810c560e17a` | تطبيق 01000–02400؛ المركزة كلها PASS؛ C2 الأساسي 50؛ 83 ملفًا/2497 PASS؛ التزامن 553؛ reset نهائي PASS |
+| R6-C3 — قراءة المتبقي | IMPLEMENTED + VERIFIED LOCAL + COMMITTED | `a1eda8520d112e4ab438983e1406dbb478bdea47` | تطبيق 02500؛ المركّز 38؛ 83 ملفًا/2505 PASS؛ التزامن 553؛ reset ونظافة PASS |
+
+كل أعداد C2/C3 أعلاه FAIL=0 وERROR=0؛ التزامن باتصالين مستقلين
+ودليل انتظار تحت READ COMMITTED. لا Cloud/Production claim؛ UI/C4/C5
+مؤجلة. السجل التاريخي أدناه يصف حالة كل جولة عند حدوثها، ولا ينسخ
+الحالة النهائية هنا. نقطة العمل في `RESUME_POINT.md`.
+
 ## 2026-10-14 — Package E1: نتيجة إكمال الجلسة والدفع المؤجل والقبول المرئي (COMPLETE)
 
 - **الحالة الحاكمة:**

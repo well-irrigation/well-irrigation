@@ -1,5 +1,7 @@
 # R6-B — إقرار البدء التشغيلي الحر
 
+> الحالة الحاكمة الحالية: ADOPTED + DOCUMENTED + IMPLEMENTED + VERIFIED LOCAL + COMMITTED في `595ad67e596d51cae7fddec7114d029fd433a16c`. تحقق المالك السابق مع انحدار C2/C3؛ Pending أدناه تاريخي. إقرار الهاتف العام/الإطلاق مؤجلان. المرجع الحالي: `../memory/RESUME_POINT.md`.
+
 الحالة: Implemented محليًا / Static reviewed / DB Verification Pending.
 خط الأساس: `reconcile/q137-local-20261030` عند
 `f8c6e353685ac47cb6b6633a146264aa5b1e0b48` وشجرة نظيفة.

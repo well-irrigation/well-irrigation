@@ -1,5 +1,7 @@
 # R6-C0.2 — سلطة اقتصادية واحدة لقيمة الدفع
 
+> الحالة الحاكمة الحالية: ADOPTED + DOCUMENTED + IMPLEMENTED + VERIFIED LOCAL + COMMITTED في `9b1885a331083a4e4b1828c6ffb6744e5598e383`. تحقق المالك السابق ثم انحدار C2/C3؛ Pending أدناه تاريخي. المرجع الحالي: `../memory/RESUME_POINT.md`.
+
 الحالة: Implemented / Static reviewed / Owner DB Verification Pending.
 HEAD: `2478c4eb0698e243c09883051352684724c54f5c`.
 الفرع: `reconcile/q137-local-20261030`.

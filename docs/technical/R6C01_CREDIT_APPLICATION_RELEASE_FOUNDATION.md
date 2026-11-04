@@ -1,5 +1,7 @@
 # R6-C0.1 — أساس تحرير تطبيق الرصيد
 
+> الحالة الحاكمة الحالية: ADOPTED + DOCUMENTED + IMPLEMENTED + VERIFIED LOCAL + COMMITTED في `2478c4eb0698e243c09883051352684724c54f5c`. تحقق المالك السابق ثم انحدار C2/C3؛ Pending أدناه تاريخي. المرجع الحالي: `../memory/RESUME_POINT.md`.
+
 الحالة: Implemented / Static reviewed / Owner DB Verification Pending.
 HEAD: `1e084c5cde33e5ce51b47a40536981a3f67c753b`.
 الفرع: `reconcile/q137-local-20261030`.

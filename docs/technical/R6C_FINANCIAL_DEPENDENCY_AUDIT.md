@@ -1,5 +1,7 @@
 # R6-C — خريطة التبعيات ومانع النموذج المالي
 
+> الحالة الحاكمة الحالية: موانع C0.1/C0.2 المبينة أدناه **CLOSED / VERIFIED LOCAL / COMMITTED**؛ C1/C2/C3 مثبتة بالالتزامات `d6b4ef7566d633bc290fc3e633cf8e6fd799e96a` و`4ef062afecd53773546955cefa29b810c560e17a` و`a1eda8520d112e4ab438983e1406dbb478bdea47`. الأدلة الحالية في `R6C2_SESSION_FINANCIAL_RECONCILIATION.md`، والمسائل المؤجلة في `../memory/OPEN_ISSUES.md`. كل BLOCKED/Pending/HEAD أدناه تاريخ لحظة التدقيق ولا ينسخ هذا الرأس.
+
 ## التدقيق النافذ بعد R6-C0 المتحقق — 2026-11-02
 
 STATUS: BLOCKED
