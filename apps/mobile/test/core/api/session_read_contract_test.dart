@@ -7,6 +7,8 @@ import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 /// لا حساب مال محلي، ولا ترجمة بالتخمين، ولا تحويل الجلسة غير المفوترة
 /// إلى «مدفوعة» أو «صفر مستحق».
 void main() {
+  _correctionDetailContractTests();
+  _strictCorrectionTimestampTests();
   group('historyWindow', () {
     final now = DateTime(2026, 8, 31, 14, 30);
 
@@ -269,5 +271,404 @@ void main() {
       expect(seg.totalChargeYER, 0);
       expect(seg.notes, 'operator_pause');
     });
+  });
+}
+
+Map<String, dynamic> _correctionDetail({int revision = 1}) => {
+  'id': 'session-1',
+  'well_id': 'well-1',
+  'status': 'closed',
+  'original_started_at': '2026-11-01T08:00:00Z',
+  'original_ended_at': '2026-11-01T10:00:00Z',
+  'effective_started_at': revision == 0
+      ? '2026-11-01T08:00:00Z'
+      : '2026-11-01T08:15:00Z',
+  'effective_ended_at': revision == 0
+      ? '2026-11-01T10:00:00Z'
+      : '2026-11-01T10:30:00Z',
+  'started_at': revision == 0 ? '2026-11-01T08:00:00Z' : '2026-11-01T08:15:00Z',
+  'ended_at': revision == 0 ? '2026-11-01T10:00:00Z' : '2026-11-01T10:30:00Z',
+  'operational_revision': revision,
+  'financial_status': revision == 0 ? 'not_applicable' : 'pending',
+  'financial_applied_revision': revision == 0 ? null : 0,
+  'billable_seconds': 7200,
+  'total_amount_minor': 12345,
+};
+
+// Dynamic access keeps RED executable before the new properties exist.
+// A missing property fails explicitly, rather than preventing test discovery.
+T _detailField<T>(String name, T Function() read) {
+  try {
+    return read();
+  } on NoSuchMethodError {
+    fail('Missing correction read model property: $name');
+  }
+}
+
+void _correctionDetailContractTests() {
+  group('R6C-3B explicit correction detail', () {
+    for (final revision in [0, 1, 3]) {
+      test('preserves explicit facts and revision $revision with aliases', () {
+        final json = _correctionDetail(revision: revision);
+        final dynamic item = SessionHistoryItem.fromContract(json);
+        expect(
+          _detailField('originalStartedAt', () => item.originalStartedAt),
+          DateTime.parse(json['original_started_at'] as String).toLocal(),
+        );
+        expect(
+          _detailField('originalEndedAt', () => item.originalEndedAt),
+          DateTime.parse(json['original_ended_at'] as String).toLocal(),
+        );
+        expect(
+          _detailField('effectiveStartedAt', () => item.effectiveStartedAt),
+          item.startedAt,
+        );
+        expect(
+          _detailField('effectiveEndedAt', () => item.effectiveEndedAt),
+          item.endedAt,
+        );
+        expect(
+          _detailField('operationalRevision', () => item.operationalRevision),
+          revision,
+        );
+        expect(
+          item.startedAt,
+          DateTime.parse(json['effective_started_at'] as String).toLocal(),
+        );
+        expect(
+          item.endedAt,
+          DateTime.parse(json['effective_ended_at'] as String).toLocal(),
+        );
+      });
+    }
+    for (final field in [
+      'original_started_at',
+      'original_ended_at',
+      'effective_started_at',
+      'effective_ended_at',
+    ]) {
+      for (final mode in ['missing', 'malformed']) {
+        test('$field $mode cannot become device time or alias fallback', () {
+          final json = _correctionDetail();
+          if (mode == 'missing') {
+            json.remove(field);
+          } else {
+            json[field] = 'not-a-time';
+          }
+          expect(
+            () => SessionHistoryItem.fromContract(json),
+            throwsA(isA<FormatException>()),
+          );
+        });
+      }
+    }
+    for (final value in <Object?>[null, '1', 1.5, -1]) {
+      test('rejects invalid operational revision $value', () {
+        final json = _correctionDetail()..['operational_revision'] = value;
+        expect(
+          () => SessionHistoryItem.fromContract(json),
+          throwsA(isA<FormatException>()),
+        );
+      });
+    }
+    for (final state in [
+      'not_applicable',
+      'pending',
+      'applied',
+      'financial_review_required',
+    ]) {
+      test('preserves financial state $state without deriving money', () {
+        final json =
+            _correctionDetail(revision: state == 'not_applicable' ? 0 : 1)
+              ..['financial_status'] = state
+              ..['financial_applied_revision'] = state == 'applied' ? 1 : 0;
+        final dynamic item = SessionHistoryItem.fromContract(json);
+        expect(
+          _detailField('financialStatus', () => item.financialStatus),
+          state,
+        );
+        expect(
+          _detailField(
+            'financialAppliedRevision',
+            () => item.financialAppliedRevision,
+          ),
+          json['financial_applied_revision'],
+        );
+        expect(item.totalAmountYER, 12345);
+        expect(item.billableSeconds, 7200);
+      });
+    }
+    test(
+      'preserves nullable financial revision for uncharged legacy session',
+      () {
+        final dynamic item = SessionHistoryItem.fromContract(
+          _correctionDetail(revision: 0),
+        );
+        expect(
+          _detailField(
+            'financialAppliedRevision',
+            () => item.financialAppliedRevision,
+          ),
+          isNull,
+        );
+      },
+    );
+    for (final state in <Object?>[null, 'accepted', 'success', 'unknown']) {
+      test('rejects invalid correction financial state $state', () {
+        expect(
+          () => SessionHistoryItem.fromContract(
+            _correctionDetail()..['financial_status'] = state,
+          ),
+          throwsA(isA<FormatException>()),
+        );
+      });
+    }
+    for (final value in <Object?>[-1, '1', 1.5]) {
+      test('rejects invalid financial applied revision $value', () {
+        expect(
+          () => SessionHistoryItem.fromContract(
+            _correctionDetail()..['financial_applied_revision'] = value,
+          ),
+          throwsA(isA<FormatException>()),
+        );
+      });
+    }
+    test('operational revision can exceed financial applied revision', () {
+      final dynamic item = SessionHistoryItem.fromContract(
+        _correctionDetail(revision: 3)..['financial_applied_revision'] = 1,
+      );
+      expect(
+        _detailField('operationalRevision', () => item.operationalRevision),
+        3,
+      );
+      expect(
+        _detailField(
+          'financialAppliedRevision',
+          () => item.financialAppliedRevision,
+        ),
+        1,
+      );
+      expect(item.totalAmountYER, 12345);
+    });
+    test(
+      'segment preserves original evidence separately from current timeline',
+      () {
+        final dynamic segment = SessionSegmentItem.fromContract({
+          'sequence_number': 1,
+          'segment_type': 'solar_run',
+          'original_started_at': '2026-11-01T08:00:00Z',
+          'original_ended_at': '2026-11-01T10:00:00Z',
+          'started_at': '2026-11-01T08:15:00.100Z',
+          'ended_at': '2026-11-01T10:30:00.800Z',
+          'financial_evidence_basis': 'original_execution',
+          'financial_evidence_revision': 0,
+          'actual_seconds': 8101,
+          'billable_seconds': 7200,
+          'total_charge_minor': 12345,
+        });
+        expect(
+          segment.startedAt,
+          DateTime.parse('2026-11-01T08:15:00.100Z').toLocal(),
+        );
+        expect(
+          segment.endedAt,
+          DateTime.parse('2026-11-01T10:30:00.800Z').toLocal(),
+        );
+        expect(
+          _detailField(
+            'segment.originalStartedAt',
+            () => segment.originalStartedAt,
+          ),
+          DateTime.parse('2026-11-01T08:00:00Z').toLocal(),
+        );
+        expect(
+          _detailField(
+            'segment.originalEndedAt',
+            () => segment.originalEndedAt,
+          ),
+          DateTime.parse('2026-11-01T10:00:00Z').toLocal(),
+        );
+        expect(
+          _detailField(
+            'financialEvidenceBasis',
+            () => segment.financialEvidenceBasis,
+          ),
+          'original_execution',
+        );
+        expect(
+          _detailField(
+            'financialEvidenceRevision',
+            () => segment.financialEvidenceRevision,
+          ),
+          0,
+        );
+        expect(segment.actualSeconds, 8101);
+        expect(segment.billableSeconds, 7200);
+        expect(segment.totalChargeYER, 12345);
+      },
+    );
+    test('segment keeps applied evidence provenance without repricing', () {
+      final dynamic segment = SessionSegmentItem.fromContract({
+        'sequence_number': 1,
+        'segment_type': 'solar_run',
+        'started_at': '2026-11-01T08:15:00Z',
+        'ended_at': '2026-11-01T10:30:00Z',
+        'original_started_at': '2026-11-01T08:00:00Z',
+        'original_ended_at': '2026-11-01T10:00:00Z',
+        'financial_evidence_basis': 'applied_reconciliation',
+        'financial_evidence_revision': 1,
+        'billable_seconds': 8100,
+        'total_charge_minor': 15001,
+      });
+      expect(
+        _detailField(
+          'financialEvidenceBasis',
+          () => segment.financialEvidenceBasis,
+        ),
+        'applied_reconciliation',
+      );
+      expect(
+        _detailField(
+          'financialEvidenceRevision',
+          () => segment.financialEvidenceRevision,
+        ),
+        1,
+      );
+      expect(segment.totalChargeYER, 15001);
+      expect(segment.billableSeconds, 8100);
+    });
+  });
+}
+
+void _strictCorrectionTimestampTests() {
+  const detailFields = {
+    'original_started_at': 'originalStartedAt',
+    'original_ended_at': 'originalEndedAt',
+    'effective_started_at': 'effectiveStartedAt',
+    'effective_ended_at': 'effectiveEndedAt',
+  };
+  const segmentFields = {
+    'original_started_at': 'originalStartedAt',
+    'original_ended_at': 'originalEndedAt',
+    'started_at': 'startedAt',
+    'ended_at': 'endedAt',
+  };
+  Map<String, dynamic> segment() => {
+    'sequence_number': 1,
+    'segment_type': 'solar_run',
+    'original_started_at': '2026-11-01T08:00:00Z',
+    'original_ended_at': '2026-11-01T10:00:00Z',
+    'started_at': '2026-11-01T08:15:00Z',
+    'ended_at': '2026-11-01T10:30:00Z',
+    'financial_evidence_basis': 'original_execution',
+    'financial_evidence_revision': 0,
+  };
+  DateTime? time(dynamic model, String property) => switch (property) {
+    'originalStartedAt' => model.originalStartedAt as DateTime?,
+    'originalEndedAt' => model.originalEndedAt as DateTime?,
+    'effectiveStartedAt' => model.effectiveStartedAt as DateTime?,
+    'effectiveEndedAt' => model.effectiveEndedAt as DateTime?,
+    'startedAt' => model.startedAt as DateTime?,
+    'endedAt' => model.endedAt as DateTime?,
+    _ => throw ArgumentError(property),
+  };
+  group('R6C-3B strict semantic timestamps', () {
+    for (final value in ['2026-11-31T08:00:00Z', '2026-11-06T08:15:00']) {
+      for (final field in detailFields.keys) {
+        test('detail rejects $field = $value', () {
+          final json = _correctionDetail()..[field] = value;
+          expect(
+            () => SessionHistoryItem.fromContract(json),
+            throwsA(isA<FormatException>()),
+          );
+        });
+      }
+      for (final field in segmentFields.keys) {
+        test('segment rejects $field = $value', () {
+          final json = segment()..[field] = value;
+          expect(
+            () => SessionSegmentItem.fromContract(json),
+            throwsA(isA<FormatException>()),
+          );
+        });
+      }
+    }
+    for (final value in [
+      '2026-02-29T08:00:00Z',
+      '2026-13-01T08:00:00Z',
+      '2026-00-10T08:00:00Z',
+    ]) {
+      test('detail rejects calendar overflow $value', () {
+        expect(
+          () => SessionHistoryItem.fromContract(
+            _correctionDetail()..['original_started_at'] = value,
+          ),
+          throwsA(isA<FormatException>()),
+        );
+      });
+    }
+    final valid = <String, DateTime>{
+      '2026-11-06T08:15:00Z': DateTime.utc(2026, 11, 6, 8, 15),
+      '2026-11-06T11:15:00+03:00': DateTime.utc(2026, 11, 6, 8, 15),
+      '2026-11-06T02:45:00-05:30': DateTime.utc(2026, 11, 6, 8, 15),
+      '2026-11-06T08:15:00.100Z': DateTime.utc(2026, 11, 6, 8, 15, 0, 100),
+      '2026-11-06T11:15:00.123456+03:00': DateTime.utc(
+        2026,
+        11,
+        6,
+        8,
+        15,
+        0,
+        123,
+        456,
+      ),
+      '2028-02-29T08:00:00Z': DateTime.utc(2028, 2, 29, 8),
+    };
+    for (final entry in valid.entries) {
+      test('detail accepts absolute instant ${entry.key}', () {
+        // Move the complete fixture together, preserving valid start/end pairs.
+        final end = entry.value.add(const Duration(hours: 2)).toIso8601String();
+        final json = _correctionDetail()
+          ..['original_started_at'] = entry.key
+          ..['effective_started_at'] = entry.key
+          ..['started_at'] = entry.key
+          ..['original_ended_at'] = end
+          ..['effective_ended_at'] = end
+          ..['ended_at'] = end;
+        final model = SessionHistoryItem.fromContract(json);
+        for (final field in detailFields.entries) {
+          final actual = time(model, field.value)!;
+          final expected = field.key.endsWith('started_at')
+              ? entry.value
+              : entry.value.add(const Duration(hours: 2));
+          expect(
+            actual.toUtc().microsecondsSinceEpoch,
+            expected.microsecondsSinceEpoch,
+            reason: field.key,
+          );
+        }
+        expect(model.startedAt.toUtc(), entry.value);
+      });
+      test('segment accepts absolute instant ${entry.key}', () {
+        final end = entry.value.add(const Duration(hours: 2)).toIso8601String();
+        final json = segment()
+          ..['original_started_at'] = entry.key
+          ..['started_at'] = entry.key
+          ..['original_ended_at'] = end
+          ..['ended_at'] = end;
+        final model = SessionSegmentItem.fromContract(json);
+        for (final field in segmentFields.entries) {
+          final actual = time(model, field.value)!;
+          final expected = field.key.endsWith('started_at')
+              ? entry.value
+              : entry.value.add(const Duration(hours: 2));
+          expect(
+            actual.toUtc().microsecondsSinceEpoch,
+            expected.microsecondsSinceEpoch,
+            reason: field.key,
+          );
+        }
+      });
+    }
   });
 }
