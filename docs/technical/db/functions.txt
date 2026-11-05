@@ -64,6 +64,8 @@ api.get_operational_start_receipt(p_well_id uuid, p_command_id uuid, p_expected_
 api.get_partner_distribution_sources(p_cycle_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.get_partner_irrigation_policy(p_partner_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.get_reports_summary(p_well_id uuid, p_period text, p_start timestamp with time zone, p_end timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_session_correction_status(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_session_corrections(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_session_detail(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_booking_automation(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_day_schedule(p_well_id uuid, p_day date)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
