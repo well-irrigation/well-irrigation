@@ -1,6 +1,7 @@
 import 'package:well_irrigation_mobile/core/session/manual_stop_request_store.dart';
 import 'dart:async';
 
+import 'package:well_irrigation_mobile/core/sync/command_intent_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/session/active_session_projector.dart';
 import 'package:well_irrigation_mobile/core/session/active_session_record.dart';
@@ -227,6 +228,38 @@ void main() {
     c.dispose();
   });
 
+  test('operational start persists intent and excludes planning facts', () async {
+    final store = InMemoryOutboxStore();
+    final coordinator = OfflineSessionCoordinator(store:store);
+    var checked = false;
+    coordinator.setCommandQueuedScheduler((account) async {
+      final rows = await store.allCommands(account);
+      expect(rows,hasLength(1));
+      expect(await store.readBundle(account,humanCommandIntentBundleKey(rows.single.localId)),humanCommandIntentRecord(rows.single));
+      checked = true;
+      return true;
+    });
+    final started = DateTime.utc(2026,1,1);
+    final c = await coordinator.startSession(accountId:'a',wellId:'w',pumpId:'p',farmId:'f',farmerAccountId:'fa',energySource:'solar',startedAt:started,plannedDurationMinutes:25);
+    expect(c.type,CommandType.startOperationalSession);
+    expect(c.payload['p_well_id'],'w');
+    expect(c.payload['p_pump_id'],'p');
+    expect(c.payload['p_farm_id'],'f');
+    expect(c.payload['p_farmer_well_account_id'],'fa');
+    expect(c.payload['p_energy_source'],'solar');
+    expect(c.occurredAt,started);
+    expect(c.payload.containsKey('p_source_booking_id'),isFalse);
+    expect(c.payload.containsKey('p_planned_duration_minutes'),isFalse);
+    expect(c.payload.containsKey('p_scheduled_end'),isFalse);
+    expect(checked,isTrue);
+    final duplicate = await coordinator.startSession(accountId:'a',wellId:'w',pumpId:'p',farmId:'f',farmerAccountId:'fa',energySource:'solar');
+    expect(duplicate.commandId,c.commandId);
+    final rows = await store.allCommands('a');
+    expect(rows,hasLength(1));
+    expect(rows.single.commandId,c.commandId);
+    coordinator.dispose();
+  });
+
   group('OfflineSessionCoordinator Tests (ق-89 / ق-90 / ق-114)', () {
     late InMemoryOutboxStore store;
     late OfflineSessionCoordinator coordinator;
@@ -287,7 +320,7 @@ void main() {
         pumpId: 'pump-01',
         farmId: 'farm-01',
         farmerAccountId: 'farmer-01',
-        energySource: 'طاقة شمسية',
+        energySource: 'solar',
         startedAt: now,
       );
 
@@ -309,7 +342,7 @@ void main() {
         pumpId: 'pump-01',
         farmId: 'farm-01',
         farmerAccountId: 'farmer-01',
-        energySource: 'طاقة شمسية',
+        energySource: 'solar',
         startedAt: start,
       );
 
@@ -335,7 +368,7 @@ void main() {
         pumpId: 'pump-01',
         farmId: 'farm-01',
         farmerAccountId: 'farmer-01',
-        energySource: 'طاقة شمسية',
+        energySource: 'solar',
         startedAt: start,
       );
 
@@ -371,7 +404,7 @@ void main() {
         pumpId: 'pump-01',
         farmId: 'farm-01',
         farmerAccountId: 'farmer-01',
-        energySource: 'طاقة شمسية',
+        energySource: 'solar',
         startedAt: start,
       );
 
@@ -396,7 +429,7 @@ void main() {
         pumpId: 'pump-01',
         farmId: 'farm-01',
         farmerAccountId: 'farmer-01',
-        energySource: 'طاقة شمسية',
+        energySource: 'solar',
         startedAt: start,
       );
 
@@ -502,7 +535,7 @@ void main() {
       );
       expect(completionMapping, isNotNull);
       expect(transport.calledFunctions, [
-        'start_irrigation_session',
+        'start_operational_session',
         'complete_irrigation_session',
         'record_payment',
       ]);
@@ -773,7 +806,7 @@ void main() {
       final transport = FakeCommandTransport(idPrefix: 'canonical');
       await SyncEngine(store: store, transport: transport).run('acc-01');
       final serverSessionId = transport.requests.first.commandId.isNotEmpty
-          ? 'canonical-start_irrigation_session-1'
+          ? 'canonical-start_operational_session-1'
           : fail('لم يرسل البدء');
       expect(serverSessionId, isNot(start.localId));
       for (final type in [
@@ -824,14 +857,15 @@ void main() {
       );
 
       final transport = FakeCommandTransport()
-        ..scheduleNetworkFailure(CommandType.startIrrigationSession);
+        ..scheduleNetworkFailure(CommandType.startOperationalSession);
       final report = await SyncEngine(
         store: store,
         transport: transport,
       ).run('acc-01');
 
-      expect(transport.calledFunctions, ['start_irrigation_session']);
-      expect(report.retryScheduled, 0);
+      expect(transport.calledFunctions, ['start_operational_session']);
+      expect(report.retryScheduled, 1);
+      expect(report.awaitsHumanDecision,isFalse);
       expect(report.skipped, 3);
     });
 
@@ -1085,7 +1119,7 @@ void main() {
         pumpId: 'pump-02',
         farmId: 'farm-02',
         farmerAccountId: 'farmer-02',
-        energySource: 'diesel',
+        energySource: 'well_diesel',
       );
 
       // 3. نشغل إسقاطاً جديداً للبئر الثاني (جيل 2)
@@ -1199,7 +1233,7 @@ void main() {
             pumpId: 'pump-02',
             farmId: 'farm-02',
             farmerAccountId: 'farmer-02',
-            energySource: 'diesel',
+            energySource: 'well_diesel',
           );
 
           final res = await coordinator.projectActiveSession(

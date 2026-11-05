@@ -64,6 +64,7 @@ class CommandIntentEvidenceReader {
               await load('session.successor.v1.$wellId.$previous')) {
             await load('session.completion.v1.$wellId.$previous');
           }
+        case CommandType.startOperationalSession:
         case CommandType.startIrrigationSession:
         case CommandType.startAdhocSession:
           await load(humanCommandIntentBundleKey(localId));

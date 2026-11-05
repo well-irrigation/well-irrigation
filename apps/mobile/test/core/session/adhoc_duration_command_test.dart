@@ -1,11 +1,5 @@
-/// انحدار توافق أمر البدء الحرّ مع قاعدة المدة المشروطة (ق-132/750 /
-/// M113-E2-e-c2): النوع القديم يبقى حرفيًا كما هو، والمدة الصريحة تسافر
-/// إلى `start_adhoc_session` ببصمتها المستقلة، والأوامر المُسلسَلة قبل
-/// التغيير تُحفظ دون إرسال عند غياب دليل بشري، ورفض المدة يصير مراجعة لا
-/// حلقة إعادة.
-///
-/// الاختبارات على السلوك لا على نصّ الكود: المزيَّف يسجّل ما أُرسل
-/// إليه، وقاعدة SQLite حقيقية تُفتح وتُغلق لإثبات الاستمرارية.
+/// الإنشاء الحالي لا يحمل مدة مخططة؛ الأوامر التاريخية المُسلسلة تبقى
+/// قابلة للقراءة والإرسال بدليلها البشري، وبمددها ورفض الخادم الأصليين.
 @TestOn('vm')
 library;
 
@@ -21,56 +15,36 @@ import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 import 'package:well_irrigation_mobile/core/sync/command_transport.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
+import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/retry_classification.dart';
 import 'package:well_irrigation_mobile/core/sync/sqlite_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_engine.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
+import '../../support/historical_session_fixture.dart';
 import '../../support/human_command_fixture.dart';
 import '../sync/fake_command_transport.dart';
 
 void main() {
-  setUpAll(() {
-    sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
-  });
+  setUpAll(sqfliteFfiInit);
 
   const String accountA = 'account-adhoc-a';
   const String wellOne = 'well-adhoc-0001';
   const String pumpOne = 'pump-adhoc-0001';
 
-  /// تجميعة اختبار واحدة: مخزن ذاكرة جديد ومنسق موصول بمزيَّف.
-  /// المؤقّت اللحظي يُستصاف تلقائيًا بعد كل اختبار.
-  Future<(InMemoryOutboxStore, OfflineSessionCoordinator)> harness(
-    FakeCommandTransport transport,
-  ) async {
+  /// المزامنة يديرها الاختبار وحده؛ لا حلقة منسق تلقائية تنافس محركه.
+  Future<(InMemoryOutboxStore, OfflineSessionCoordinator)> harness() async {
     final store = InMemoryOutboxStore();
-    final coordinator = OfflineSessionCoordinator(
-      store: store,
-      commandTransport: transport,
-    );
+    final coordinator = OfflineSessionCoordinator(store: store);
+    addTearDown(store.close);
     addTearDown(coordinator.dispose);
     await coordinator.initialize();
     return (store, coordinator);
   }
 
-  Future<CommandEnvelope> startLegacy(
+  Future<CommandEnvelope> startCurrent(
     OfflineSessionCoordinator coordinator, {
-    DateTime? startedAt,
-  }) => coordinator.startSession(
-    accountId: accountA,
-    wellId: wellOne,
-    pumpId: pumpOne,
-    farmId: 'farm-adhoc-0001',
-    farmerAccountId: 'fwa-adhoc-0001',
-    energySource: 'well_diesel',
-    crops: const ['سمسم'],
-    startedAt: startedAt ?? DateTime.utc(2026, 10, 3, 6),
-  );
-
-  Future<CommandEnvelope> startWithDuration(
-    OfflineSessionCoordinator coordinator, {
-    required int minutes,
+    int? minutes,
   }) => coordinator.startSession(
     accountId: accountA,
     wellId: wellOne,
@@ -83,14 +57,65 @@ void main() {
     plannedDurationMinutes: minutes,
   );
 
-  group('البدء الحرّ بلا مدة — العقد القديم حرفيًا', () {
-    test('ينشئ النوع التاريخي نفسه والحمولة نفسها بلا أي مدة ضمنية', () async {
-      final (store, coordinator) = await harness(FakeCommandTransport());
+  Future<CommandEnvelope> historicalWithDuration(
+    OutboxStore store, {
+    required int minutes,
+  }) async {
+    final command = await persistHistoricalStart(
+      store: store,
+      type: CommandType.startAdhocSession,
+      accountId: accountA,
+      wellId: wellOne,
+      startedAt: DateTime.utc(2026, 10, 3, 6),
+      payload: {
+        'p_well_id': wellOne,
+        'p_pump_id': pumpOne,
+        'p_farm_id': 'farm-adhoc-0001',
+        'p_farmer_well_account_id': 'fwa-adhoc-0001',
+        'p_energy_source': 'well_diesel',
+        'p_crops': <String>['سمسم'],
+        'p_planned_duration_minutes': minutes,
+      },
+    );
+    await recordTestHumanAction(store, command);
+    return command;
+  }
 
-      final envelope = await startLegacy(coordinator);
+  void expectNoPlanningFacts(CommandEnvelope command) {
+    expect(command.type, CommandType.startOperationalSession);
+    expect(command.localContext, isEmpty);
+    expect(
+      command.payload.keys,
+      unorderedEquals([
+        'p_well_id',
+        'p_pump_id',
+        'p_farm_id',
+        'p_farmer_well_account_id',
+        'p_energy_source',
+        'p_crops',
+      ]),
+    );
+  }
 
-      expect(envelope.type, CommandType.startIrrigationSession);
-      expect(envelope.type.rpcName, 'start_irrigation_session');
+  group('الإنشاء التشغيلي الحالي بلا حقائق تخطيط', () {
+    test('المدة الموجبة لا تبدل نوع البدء الحالي أو حمولته', () async {
+      final (store, coordinator) = await harness();
+      final command = await startCurrent(coordinator, minutes: 90);
+      expectNoPlanningFacts(command);
+      expect(command.type.rpcName, 'start_operational_session');
+      expect(
+        (await store.allCommands(accountA)).single.payload,
+        command.payload,
+      );
+    });
+
+    test('ينشئ start_operational_session بوقائع التشغيل فقط', () async {
+      final (store, coordinator) = await harness();
+
+      final envelope = await startCurrent(coordinator);
+
+      expectNoPlanningFacts(envelope);
+      expect(envelope.type.rpcName, 'start_operational_session');
       expect(envelope.payload, {
         'p_well_id': wellOne,
         'p_pump_id': pumpOne,
@@ -106,26 +131,36 @@ void main() {
       expect(await store.allCommands(accountA), hasLength(1));
     });
 
-    test('المدة الصفرية والسالبة تُرفض محليًا قبل التسجيل', () async {
-      final (store, coordinator) = await harness(FakeCommandTransport());
-
-      await expectLater(
-        startWithDuration(coordinator, minutes: 0),
-        throwsArgumentError,
-      );
-      await expectLater(
-        startWithDuration(coordinator, minutes: -5),
-        throwsArgumentError,
-      );
-      expect(await store.allCommands(accountA), isEmpty);
+    test('وسيط المدة القديم لا يدخل الإنشاء أو الإرسال التشغيلي', () async {
+      for (final minutes in [0, -5, 90]) {
+        final transport = FakeCommandTransport();
+        final (store, coordinator) = await harness();
+        final command = await startCurrent(coordinator, minutes: minutes);
+        expectNoPlanningFacts(command);
+        await SyncEngine(store: store, transport: transport).run(accountA);
+        final request = transport.lastRequestFor(
+          CommandType.startOperationalSession,
+        );
+        expect(request.arguments, {
+          ...command.payload,
+          'p_command_id': command.commandId,
+          'p_started_at': command.occurredAt.toIso8601String(),
+        });
+        expect(transport.calledFunctions, ['start_operational_session']);
+        expect(await store.allCommands(accountA), hasLength(1));
+      }
     });
   });
 
-  group('البدء الحرّ بمدة صريحة — عقد start_adhoc_session', () {
-    test('ينشئ النوع الجديد بحمولة تحمل المدة فوق حقول العقد القديم', () async {
-      final (_, coordinator) = await harness(FakeCommandTransport());
+  group('الأمر التاريخي بمدة صريحة — عقد start_adhoc_session', () {
+    test('يقرأ النوع التاريخي وحمولته المحتوية على المدة كما حُفظا', () async {
+      final (store, _) = await harness();
 
-      final envelope = await startWithDuration(coordinator, minutes: 90);
+      final original = await historicalWithDuration(store, minutes: 90);
+      final envelope = (await store.commandByLocalId(
+        accountA,
+        original.localId,
+      ))!;
 
       expect(envelope.type, CommandType.startAdhocSession);
       expect(envelope.type.rpcName, 'start_adhoc_session');
@@ -140,9 +175,9 @@ void main() {
 
     test('يُرسَل إلى start_adhoc_session بوسيط المدة ومعرّف العملية', () async {
       final transport = FakeCommandTransport();
-      final (store, coordinator) = await harness(transport);
+      final (store, _) = await harness();
 
-      final envelope = await startWithDuration(coordinator, minutes: 60);
+      final envelope = await historicalWithDuration(store, minutes: 60);
       await SyncEngine(store: store, transport: transport).run(accountA);
 
       final request = transport.lastRequestFor(CommandType.startAdhocSession);
@@ -157,9 +192,9 @@ void main() {
     test('إعادة المحاولة تحمل معرّف العملية الأصلي نفسه', () async {
       final transport = FakeCommandTransport();
       transport.swallowAckOnce.add(CommandType.startAdhocSession.rpcName);
-      final (store, coordinator) = await harness(transport);
+      final (store, _) = await harness();
 
-      final envelope = await startWithDuration(coordinator, minutes: 45);
+      final envelope = await historicalWithDuration(store, minutes: 45);
       final engine = SyncEngine(store: store, transport: transport);
       final first = await engine.run(accountA);
       final retry = await engine.run(accountA);
@@ -196,15 +231,9 @@ void main() {
         databasePath: databasePath,
         sqfliteFactory: databaseFactoryFfi,
       );
+      addTearDown(writer.close);
       await writer.initialize();
-
-      final coordinator = OfflineSessionCoordinator(
-        store: writer,
-        commandTransport: FakeCommandTransport(),
-      );
-      await coordinator.initialize();
-      final envelope = await startWithDuration(coordinator, minutes: 120);
-      coordinator.dispose();
+      final envelope = await historicalWithDuration(writer, minutes: 120);
       await writer.close();
 
       // إعادة فتح كقاعدة موجودة بنفس الإصدار: بلا onCreate وبلا ترقية.
@@ -380,10 +409,10 @@ void main() {
 
     test('الرفض يصير مراجعة بلا إعادة تلقائية وبلا ربط خادمي', () async {
       final transport = rejectionTransport();
-      final (store, coordinator) = await harness(transport);
+      final (store, _) = await harness();
       final engine = SyncEngine(store: store, transport: transport);
 
-      final envelope = await startWithDuration(coordinator, minutes: 180);
+      final envelope = await historicalWithDuration(store, minutes: 180);
       await engine.run(accountA);
       await engine.run(accountA);
 
@@ -403,10 +432,10 @@ void main() {
 
     test('الأمر المرفوض يبقى محفوظًا ولا يُحذف، والتابعون محجوبون', () async {
       final transport = rejectionTransport();
-      final (store, coordinator) = await harness(transport);
+      final (store, coordinator) = await harness();
       final engine = SyncEngine(store: store, transport: transport);
 
-      final start = await startWithDuration(coordinator, minutes: 180);
+      final start = await historicalWithDuration(store, minutes: 180);
       // أمر تابع لأمر البدء: إنهاء يشير إلى جلسته المحلية.
       await coordinator.completeSession(
         accountId: accountA,
@@ -431,22 +460,24 @@ void main() {
 
     test('الإكمال التابع يتحرك بعد قبول البدء — لا حظر أبدى', () async {
       final transport = FakeCommandTransport();
-      final (store, coordinator) = await harness(transport);
+      final (store, coordinator) = await harness();
       final engine = SyncEngine(store: store, transport: transport);
 
-      final start = await startWithDuration(coordinator, minutes: 30);
+      final start = await historicalWithDuration(store, minutes: 30);
       await coordinator.completeSession(
         accountId: accountA,
         sessionLocalId: start.localId,
         completedAt: DateTime.utc(2026, 10, 3, 7),
       );
 
-      await engine.run(accountA);
+      final report = await engine.run(accountA);
 
-      expect(transport.calledFunctions, [
-        'start_adhoc_session',
-        'complete_irrigation_session',
-      ]);
+      expect(
+        transport.calledFunctions,
+        ['start_adhoc_session', 'complete_irrigation_session'],
+        reason:
+            '$report; ${await store.readLocalValuesByPrefix(accountA, 'command.q137.hold.v1.')}',
+      );
       final completion = transport
           .requestsFor(CommandType.completeIrrigationSession)
           .single;
@@ -457,11 +488,11 @@ void main() {
     });
   });
 
-  group('الاستعادة المحلية للأمر الجديد', () {
+  group('الاستعادة المحلية للأمر التاريخي', () {
     test('المسقِط يعيد بناء جلسة جارية من أمر start_adhoc_session', () async {
-      final (store, coordinator) = await harness(FakeCommandTransport());
+      final (store, _) = await harness();
 
-      final start = await startWithDuration(coordinator, minutes: 60);
+      final start = await historicalWithDuration(store, minutes: 60);
 
       final projected = await ActiveSessionProjector(store: store)
           .unresolvedSessions(accountA, now: DateTime.utc(2026, 10, 3, 6, 5));

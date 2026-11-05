@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
+import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/core/widgets/smart_lookup_field.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
 
+import '../../support/historical_session_fixture.dart';
 import '../../support/identity_fixture.dart';
 
 class _LayoutOperationsRepository extends OperationsRepository {
@@ -89,15 +91,20 @@ void main() {
         '2. استعادة الجلسة الجارية تلقائياً فور فتح الشاشة (Active Session Recovery)',
         (tester) async {
           // محاكاة وجود جلسة جارية تم بدؤها قبل فتح الشاشة
-          final now = DateTime.now().subtract(const Duration(minutes: 15));
-          await coordinator.startSession(
+          final now = DateTime.utc(2026, 10, 3, 6);
+          await persistHistoricalStart(
+            store: store,
+            type: CommandType.startIrrigationSession,
             accountId: accountId,
             wellId: 'well-1',
-            pumpId: 'pump-1',
-            farmId: 'farm-1',
-            farmerAccountId: 'farmer-1',
-            energySource: 'طاقة شمسية',
             startedAt: now,
+            payload: {
+              'p_well_id': 'well-1',
+              'p_pump_id': 'pump-1',
+              'p_farm_id': 'farm-1',
+              'p_farmer_well_account_id': 'farmer-1',
+              'p_energy_source': 'طاقة شمسية',
+            },
           );
 
           await tester.pumpWidget(
@@ -108,6 +115,7 @@ void main() {
                   wells: const [well],
                 ),
                 coordinator: coordinator,
+                clock: () => now.add(const Duration(minutes: 15)),
               ),
             ),
           );

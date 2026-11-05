@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:well_irrigation_mobile/core/api/booking_local_ledger.dart';
 import 'package:well_irrigation_mobile/core/api/booking_repository.dart';
+import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
 import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/outbox_store.dart';
@@ -18,6 +19,13 @@ import '../../core/session/local_booking_transition_regression_test.dart' as f;
 import '../../support/identity_fixture.dart';
 
 import 'package_a_live_session_test.dart' as ui;
+
+class TrustedPumpOperations extends f.EmptyFieldOperations {
+  @override
+  Future<List<Pump>> fetchPumps(String wellId) async => [
+    Pump(id: 'pump', wellId: wellId, name: 'مضخة', publicCode: 'P'),
+  ];
+}
 
 class ManualRepo extends ui.FreshRepo {
   ManualRepo(super.ledger, super.clock, super.snapshot);
@@ -89,7 +97,7 @@ void main() {
             ),
             coordinator: coordinator,
             bookingRepository: repo,
-            repository: f.EmptyFieldOperations(),
+            repository: TrustedPumpOperations(),
             priceRepository: f.EmptyFieldPrices(),
             timeIntegritySource: clock,
           ),
@@ -104,8 +112,12 @@ void main() {
       await flush();
       expect(repo.directStarts, 0);
       final active = coordinator.currentActiveSession!;
-      expect(active.phoneOwned, isTrue);
-      expect(active.bookingId, 'A');
+      expect(active.phoneOwned, isFalse);
+      expect(active.bookingId, isNull);
+      expect(find.text('جارٍ تأكيد بدء الجلسة'), findsOneWidget);
+      expect(find.text('لا تبدأ جلسة أخرى حتى يكتمل التحقق.'), findsOneWidget);
+      expect(find.textContaining('لم يُسجَّل شيء'), findsNothing);
+      expect(find.textContaining('PostgrestException'), findsNothing);
       expect(find.text('إيقاف مؤقت'), findsOneWidget);
       expect(
         find.byKey(const Key('server-booking-session-notice')),
@@ -113,11 +125,22 @@ void main() {
       );
       await tester.runAsync(() async {
         final start = (await store.allCommands('account')).single;
-        expect(start.type, CommandType.startBookingSession);
+        await store.markNeedsReview('account',start.localId,error:'not_found',attemptedAt:active.startedAt);
+        await coordinator.freshProjectActiveSession(accountId:'account',wellId:'well');
+      });
+      await flush();
+      expect(find.text('تحتاج عملية بدء الجلسة إلى مراجعة'),findsOneWidget);
+      for (final technical in ['not_found','unresolved','retry_authorized','PostgrestException']) {
+        expect(find.textContaining(technical),findsNothing);
+      }
+      await tester.runAsync(() async {
+        final start = (await store.allCommands('account')).single;
+        expect(start.type, CommandType.startOperationalSession);
+        expect(start.payload['p_source_booking_id'], 'A');
         await store.markConfirmed(
           'account',
           start.localId,
-          serverResponse: {'session_id': 'server-A'},
+          serverResponse: {'id': 'server-A'},
           attemptedAt: f.at(43),
         );
         await store.putMapping(
@@ -138,7 +161,7 @@ void main() {
         wellTimezone: base.wellTimezone,
         dayStart: base.dayStart,
         dayEnd: base.dayEnd,
-        bookings: snapshot.bookings,
+        bookings: [f.booking('A', 50, status:'cancelled')],
         currentSession: CurrentBookingSession(
           sessionId: 'server-A',
           status: 'open',
@@ -153,6 +176,7 @@ void main() {
       expect(coordinator.currentActiveSession?.localId, active.localId);
       expect(coordinator.currentActiveSession?.startedAt, active.startedAt);
       expect(coordinator.currentActiveSession?.serverSessionId, 'server-A');
+      expect(find.text('جارٍ تأكيد بدء الجلسة'), findsNothing);
       expect(find.text('إيقاف مؤقت'), findsOneWidget);
       expect(
         find.byKey(const Key('server-booking-session-notice')),
@@ -167,7 +191,7 @@ void main() {
       clock.now = f.at(51);
       await tester.pump(const Duration(minutes: 4));
       await flush();
-      expect(coordinator.currentActiveSession?.bookingId, 'A');
+      expect(coordinator.currentActiveSession?.bookingId, isNull);
       await tester.runAsync(() async {
         expect(await store.allCommands('account'), hasLength(1));
       });

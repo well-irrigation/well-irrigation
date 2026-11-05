@@ -535,6 +535,7 @@ class ActiveSessionProjector {
       }
 
       switch (command.type) {
+        case CommandType.startOperationalSession:
         case CommandType.startIrrigationSession:
         case CommandType.startAdhocSession:
         case CommandType.startBookingSession:
@@ -687,6 +688,7 @@ class ActiveSessionProjector {
 
   /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
   static bool _isSessionStartType(CommandType type) =>
+      type == CommandType.startOperationalSession ||
       type == CommandType.startIrrigationSession ||
       type == CommandType.startAdhocSession ||
       type == CommandType.startBookingSession;

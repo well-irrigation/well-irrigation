@@ -7,6 +7,8 @@ library;
 
 import 'command_id_generator.dart';
 import 'command_intent_evidence_reader.dart';
+import 'command_intent_policy.dart';
+
 import 'dart:convert';
 
 import 'command_envelope.dart';
@@ -15,7 +17,14 @@ import 'outbox_store.dart';
 import 'outbox_repository.dart';
 import 'sync_status.dart';
 
-class InMemoryOutboxStore implements SessionExecutionStore, AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
+class InMemoryOutboxStore
+    implements
+        SessionExecutionStore,
+        AtomicCommandDispatchStore,
+        OutboxStore,
+        AtomicLocalRecordStore,
+        BookingDispatchStore,
+        FarmSelectionStore {
   final Map<String, List<CommandEnvelope>> _commands = {};
   final Map<String, Map<String, IdMapping>> _mappings = {};
   final Map<String, int> _sequences = {};
@@ -106,6 +115,10 @@ class InMemoryOutboxStore implements SessionExecutionStore, AtomicCommandDispatc
           _byLocalId.containsKey(command.localId)) {
         throw StateError('invalid_bundle');
       }
+    }
+    for (final command in commands.where((c) => c.type == CommandType.startOperationalSession)) {
+      final existing = existingOperationalStart(_commands[accountId] ?? [], command.wellId!);
+      if (existing != null) throw ExistingOperationalStart(existing);
     }
     if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
     for (final command in commands) {
@@ -456,7 +469,8 @@ class InMemoryOutboxStore implements SessionExecutionStore, AtomicCommandDispatc
     ];
     if (roots.length != 1) return null;
     final root = roots.single;
-    if (root.type != CommandType.startIrrigationSession &&
+    if (root.type != CommandType.startOperationalSession &&
+          root.type != CommandType.startIrrigationSession &&
         root.type != CommandType.startAdhocSession &&
         root.type != CommandType.startBookingSession) {
       return null;
@@ -719,6 +733,81 @@ class InMemoryOutboxStore implements SessionExecutionStore, AtomicCommandDispatc
     );
     _bundles[currentKey] = value;
     _bundles[historyKey] = value;
+    return true;
+  }
+
+  @override
+  Future<bool> reviewOperationalStart(
+    CommandEnvelope observed,
+    String reason,
+  ) async {
+    _assertOpen();
+    observed = freezeDispatchCommand(observed);
+    final mapping =
+        _mappings[observed.accountId]?[_mappingKey(
+          observed.localId,
+          EntityKind.session,
+        )];
+    if (!canReviewOperationalStart(
+      observed: observed,
+      current: _byLocalId[observed.localId],
+      humanRecord:
+          _bundles['${observed.accountId}::${humanCommandIntentBundleKey(observed.localId)}'],
+      mapping: mapping,
+    )) {
+      return false;
+    }
+    _update(
+      observed.accountId,
+      observed.localId,
+      (c) => c.copyWith(status: CommandStatus.review, lastError: reason),
+    );
+    return true;
+  }
+
+  @override
+  Future<bool> reconcileOperationalStartReceipt(
+    CommandEnvelope observed,
+    Map<String, Object?> receipt,
+  ) async {
+    _assertOpen();
+    receipt = freezeDispatchReceipt(receipt)!;
+    observed = freezeDispatchCommand(observed);
+    final mapping =
+        _mappings[observed.accountId]?[_mappingKey(
+          observed.localId,
+          EntityKind.session,
+        )];
+    if (!canReconcileOperationalStartReceipt(
+      observed: observed,
+      current: _byLocalId[observed.localId],
+      humanRecord:
+          _bundles['${observed.accountId}::${humanCommandIntentBundleKey(observed.localId)}'],
+      mapping: mapping,
+      receipt: receipt,
+    )) {
+      return false;
+    }
+    _update(
+      observed.accountId,
+      observed.localId,
+      (c) => c.copyWith(
+        status: CommandStatus.confirmed,
+        serverResponse: receipt,
+        clearLastError: true,
+      ),
+    );
+    _mappings
+        .putIfAbsent(observed.accountId, () => {})
+        .putIfAbsent(
+          _mappingKey(observed.localId, EntityKind.session),
+          () => IdMapping(
+            localId: observed.localId,
+            kind: EntityKind.session,
+            serverId: receipt['id'] as String,
+            resolvedAt: observed.occurredAt,
+          ),
+        );
     return true;
   }
 

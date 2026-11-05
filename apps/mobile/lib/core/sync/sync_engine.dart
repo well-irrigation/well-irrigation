@@ -18,8 +18,10 @@
 library;
 
 import 'dart:async';
+
 import '../session/manual_stop_request_store.dart';
 import 'booking_start_receipt.dart';
+import 'operational_start_receipt.dart';
 import 'command_intent_policy.dart';
 
 import '../booking/booking_reactivity.dart';
@@ -89,7 +91,9 @@ class SyncRunReport {
   /// هذا وحده مبرِّر إعادة الجدولة. `skipped` كلها موقوفة على إنسان
   /// يعني: لا تُوقظ الهاتف مرة أخرى بلا فائدة.
   bool get canRetryWithoutHelp =>
-      retryScheduled > 0 || skipped > blockedByReview || bookingNextWake != null;
+      retryScheduled > 0 ||
+      skipped > blockedByReview ||
+      bookingNextWake != null;
 
   /// هل يوجد ما ينتظر قرار إنسان؟ (يظهر للمستخدم، ولا يُعاد تلقائيًا.)
   bool get awaitsHumanDecision => needsReview > 0 || blockedByReview > 0;
@@ -183,7 +187,8 @@ class SyncEngine {
 
   Future<SyncRunReport> _run(String accountId) async {
     await _store.initialize();
-    final blockedStops = await ManualStopRequestStore(_store).recoverRecordedRequests(accountId);
+    final blockedStops = await ManualStopRequestStore(_store)
+        .recoverRecordedRequests(accountId);
     final recovered = await _recoverStaleClaims(accountId);
 
     var attempted = 0;
@@ -224,7 +229,7 @@ class SyncEngine {
         if (q137OperationalCommand(command.type)) {
           if (blockedAggregates.containsKey(aggregate)) {
             skipped++;
-            blockedByReview++;
+            if (blockedAggregates[aggregate] == _BlockReason.awaitingReview) blockedByReview++;
             continue;
           }
           final result = await _runOperational(command);
@@ -233,6 +238,10 @@ class SyncEngine {
           } else if (result == _OperationalResult.sent) {
             attempted++;
             confirmed++;
+          } else if (result == _OperationalResult.awaitingReceipt) {
+            skipped++;
+            retryScheduled++;
+            block(aggregate, _BlockReason.transient);
           } else if (result == _OperationalResult.rejected) {
             attempted++;
             needsReview++;
@@ -381,7 +390,9 @@ class SyncEngine {
             retryScheduled += 1;
 
           case final DispatchFailed failure:
-            if (command.type == CommandType.createFarm) farmResultsChanged = true;
+            if (command.type == CommandType.createFarm) {
+              farmResultsChanged = true;
+            }
             await _store.markNeedsReview(
               accountId,
               command.localId,
@@ -413,8 +424,11 @@ class SyncEngine {
   }
 
   Future<_OperationalResult> _runOperational(CommandEnvelope candidate) async {
-    if (const {CommandType.recordBookingTransitionDecision,
-      CommandType.executePendingBookingStart, CommandType.endBookingTransitionChain}.contains(candidate.type)) {
+    if (const {
+      CommandType.recordBookingTransitionDecision,
+      CommandType.executePendingBookingStart,
+      CommandType.endBookingTransitionChain,
+    }.contains(candidate.type)) {
       await _holdOperational(candidate, 'retired_transition_write_disabled');
       return _OperationalResult.held;
     }
@@ -436,9 +450,14 @@ class SyncEngine {
       dispatchAttemptCurrentKey(row.localId),
     );
     final previous = DispatchAttempt.parse(previousRaw);
+    if (row.type == CommandType.startOperationalSession &&
+        row.status == CommandStatus.review) {
+      return _OperationalResult.held;
+    }
     // A finalized business rejection is not an unknown execution result.
     if (row.status == CommandStatus.review &&
-        (row.serverResponse != null || previous?.state == DispatchAttemptState.review)) {
+        (row.serverResponse != null ||
+            previous?.state == DispatchAttemptState.review)) {
       await _holdOperational(row, 'terminal_result_requires_review');
       return _OperationalResult.held;
     }
@@ -460,6 +479,57 @@ class SyncEngine {
                 row.retryCount > 0 ||
                 row.serverResponse != null ||
                 previousRaw != null);
+    if (row.type == CommandType.startOperationalSession && uncertain) {
+      final terminalKey =
+          'command.operational_start.terminal.v1.${row.localId}';
+      if (await storage.readBundle(row.accountId, terminalKey) != null) {
+        return _OperationalResult.held;
+      }
+      final transport = _transport;
+      final request = OperationalStartReceiptRequest.fromCommand(row);
+      var review = request == null;
+      if (request != null && transport is OperationalStartReceiptTransport) {
+        try {
+          final response = await (transport as OperationalStartReceiptTransport)
+              .readOperationalStartReceipt(request);
+          if (response is OperationalStartReceiptResponse) {
+            if (response.state == OperationalStartReceiptState.accepted) {
+              final receipt = response.receipt;
+              if (receipt != null &&
+                  validOperationalStartReceipt(request, receipt) &&
+                  await atomic.reconcileOperationalStartReceipt(row, receipt)) {
+                return _OperationalResult.confirmed;
+              }
+              review = true;
+            } else if (response.state !=
+                OperationalStartReceiptState.processing) {
+              review = true;
+            }
+          } else if (response is OperationalStartReceiptFailure) {
+            review =
+                response.kind == OperationalStartReceiptFailureKind.forbidden ||
+                response.kind == OperationalStartReceiptFailureKind.malformed;
+          }
+        } on Object {
+          // A failed read cannot authorize another dispatch.
+        }
+      }
+      final reason = review
+          ? 'operational_start_review_required'
+          : 'operational_start_confirmation_pending';
+      if (review) {
+        final reviewed = await atomic.reviewOperationalStart(row, reason);
+        if (!reviewed && storage is AtomicLocalRecordStore) {
+          await (storage as AtomicLocalRecordStore).insertLocalRecordOnce(
+            accountId: row.accountId,
+            key: terminalKey,
+            value: reason,
+          );
+        }
+      }
+      await _holdOperational(row, reason);
+      return review ? _OperationalResult.held : _OperationalResult.awaitingReceipt;
+    }
     if (row.type == CommandType.startBookingSession && uncertain) {
       final transport = _transport;
       final request = BookingStartReceiptRequest.fromCommand(row);
@@ -470,7 +540,8 @@ class SyncEngine {
         final response = await (transport as BookingStartReceiptTransport)
             .readBookingStartReceipt(request);
         if (response case BookingStartReceiptResponse(
-          state: BookingStartReceiptState.accepted, receipt: final receipt?,
+          state: BookingStartReceiptState.accepted,
+          receipt: final receipt?,
         )) {
           if (validBookingStartReceipt(request, receipt) &&
               await atomic.reconcileBookingStartReceipt(row, receipt)) {
@@ -602,12 +673,20 @@ class SyncEngine {
       );
     } on Object {
       await _holdOperational(command, 'outcome_unknown');
-      return _OperationalResult.held;
+      return command.type == CommandType.startOperationalSession ? _OperationalResult.awaitingReceipt : _OperationalResult.held;
     }
     if (result case DispatchAccepted()) {
+      if (command.type == CommandType.startOperationalSession &&
+          (result.entityId == null || result.entityId!.trim().isEmpty ||
+           result.response['id'] != result.entityId)) {
+        await _holdOperational(command, 'operational_start_initial_result_unknown');
+        return _OperationalResult.awaitingReceipt;
+      }
+
       if (command.type == CommandType.startBookingSession) {
         final request = BookingStartReceiptRequest.fromCommand(command);
-        if (request == null || !validBookingStartReceipt(request, result.response) ||
+        if (request == null ||
+            !validBookingStartReceipt(request, result.response) ||
             result.entityId != result.response['session_id']) {
           await _holdOperational(command, 'start_receipt_invalid');
           return _OperationalResult.held;
@@ -666,7 +745,7 @@ class SyncEngine {
       if (applied) return _OperationalResult.rejected;
     }
     await _holdOperational(command, 'outcome_unknown');
-    return _OperationalResult.held;
+    return command.type == CommandType.startOperationalSession ? _OperationalResult.awaitingReceipt : _OperationalResult.held;
   }
 
   Future<void> _holdOperational(CommandEnvelope row, String reason) async {
@@ -891,98 +970,97 @@ class SyncEngine {
       ),
     );
     DispatchResult result;
-      try {
-        // timeout لا يلغي HTTP. لا يربط أي callback متأخر بالتخزين؛ الإعادة تحمل الهوية نفسها.
-        result = await _transport
-            .dispatch(request)
-            .timeout(bookingAttemptTimeout);
-      } on TimeoutException {
+    try {
+      // timeout لا يلغي HTTP. لا يربط أي callback متأخر بالتخزين؛ الإعادة تحمل الهوية نفسها.
+      result = await _transport
+          .dispatch(request)
+          .timeout(bookingAttemptTimeout);
+    } on TimeoutException {
+      result = const DispatchFailed(
+        disposition: FailureDisposition.retry,
+        message: 'booking_attempt_timeout',
+      );
+    } catch (error) {
+      result = DispatchFailed(
+        disposition: classifyThrownFailure(error),
+        message: error.toString(),
+      );
+    }
+    if (result is DispatchAccepted) {
+      result = normalizeAcceptedResponse(
+        CommandType.createBooking,
+        result.response,
+      );
+      if (result is DispatchAccepted &&
+          (result.response['well_id'] != command.wellId ||
+              DateTime.tryParse(
+                    result.response['scheduled_start']?.toString() ?? '',
+                  ) !=
+                  DateTime.tryParse(
+                    resolved['p_scheduled_start']?.toString() ?? '',
+                  ) ||
+              DateTime.tryParse(
+                    result.response['scheduled_end']?.toString() ?? '',
+                  ) !=
+                  DateTime.tryParse(
+                    resolved['p_scheduled_end']?.toString() ?? '',
+                  ))) {
         result = const DispatchFailed(
           disposition: FailureDisposition.retry,
-          message: 'booking_attempt_timeout',
-        );
-      } catch (error) {
-        result = DispatchFailed(
-          disposition: classifyThrownFailure(error),
-          message: error.toString(),
+          message: 'booking_receipt_mismatch',
         );
       }
-      if (result is DispatchAccepted) {
-        result = normalizeAcceptedResponse(
-          CommandType.createBooking,
-          result.response,
-        );
-        if (result is DispatchAccepted &&
-            (result.response['well_id'] != command.wellId ||
-                DateTime.tryParse(
-                      result.response['scheduled_start']?.toString() ?? '',
-                    ) !=
-                    DateTime.tryParse(
-                      resolved['p_scheduled_start']?.toString() ?? '',
-                    ) ||
-                DateTime.tryParse(
-                      result.response['scheduled_end']?.toString() ?? '',
-                    ) !=
-                    DateTime.tryParse(
-                      resolved['p_scheduled_end']?.toString() ?? '',
-                    ))) {
-          result = const DispatchFailed(
-            disposition: FailureDisposition.retry,
-            message: 'booking_receipt_mismatch',
+    }
+    final CommandStatus status;
+    DateTime? next;
+    String? error;
+    Map<String, Object?>? response;
+    String? entityId;
+    switch (result) {
+      case DispatchAccepted accepted:
+        status = CommandStatus.confirmed;
+        response = accepted.response;
+        entityId = accepted.entityId;
+      case DispatchFailed failure:
+        status = failure.isRetryable
+            ? CommandStatus.pending
+            : CommandStatus.review;
+        error = failure.message;
+        response = failure.serverResponse;
+        if (failure.isRetryable) {
+          next = _clock().toUtc().add(
+            const BackgroundSyncPolicy().bookingCreateDelay(
+              command.commandId,
+              command.retryCount + 1,
+            ),
           );
         }
-      }
-      final CommandStatus status;
-      DateTime? next;
-      String? error;
-      Map<String, Object?>? response;
-      String? entityId;
-      switch (result) {
-        case DispatchAccepted accepted:
-          status = CommandStatus.confirmed;
-          response = accepted.response;
-          entityId = accepted.entityId;
-        case DispatchFailed failure:
-          status = failure.isRetryable
-              ? CommandStatus.pending
-              : CommandStatus.review;
-          error = failure.message;
-          response = failure.serverResponse;
-          if (failure.isRetryable) {
-            next = _clock().toUtc().add(
-              const BackgroundSyncPolicy().bookingCreateDelay(
-                command.commandId,
-                command.retryCount + 1,
-              ),
-            );
-          }
-      }
-      final applied = await (_store as BookingDispatchStore)
-          .finishBookingCreate(
-            accountId,
-            command.localId,
-            claimedAt: attemptedAt,
-            status: status,
-            nextAttemptAt: next,
-            error: error,
-            response: response,
-            entityId: entityId,
-          );
-      if (applied &&
-          response != null &&
-          const {
-            'confirmed',
-            'conflict',
-            'rejected',
-          }.contains(response['status'])) {
-        final scheduled = DateTime.parse(
-          command.payload['p_scheduled_start'] as String,
-        ).toUtc().add(const Duration(hours: 3));
-        BookingReactivity.instance
-            .scope(accountId, command.wellId!)
-            .mutation(days: {BookingScope.dayKey(scheduled)});
-      }
-      return _ProcessedAttempt(result, applied);
+    }
+    final applied = await (_store as BookingDispatchStore).finishBookingCreate(
+      accountId,
+      command.localId,
+      claimedAt: attemptedAt,
+      status: status,
+      nextAttemptAt: next,
+      error: error,
+      response: response,
+      entityId: entityId,
+    );
+    if (applied &&
+        response != null &&
+        const {
+          'confirmed',
+          'conflict',
+          'rejected',
+        }.contains(response['status'])) {
+      final scheduled = DateTime.parse(
+        command.payload['p_scheduled_start'] as String,
+      ).toUtc().add(const Duration(hours: 3));
+      BookingReactivity.instance
+          .scope(accountId, command.wellId!)
+          .mutation(days: {BookingScope.dayKey(scheduled)});
+    }
+    return _ProcessedAttempt(result, applied);
   }
 
   /// يُعيد الحجوزات الميتة إلى الطابور.
@@ -996,7 +1074,8 @@ class SyncEngine {
     var recovered = 0;
 
     for (final command in await _legacyPending(accountId)) {
-      if (q137OperationalCommand(command.type) || command.status != CommandStatus.dispatching) {
+      if (q137OperationalCommand(command.type) ||
+          command.status != CommandStatus.dispatching) {
         continue;
       }
 
@@ -1174,4 +1253,4 @@ class _ProcessedAttempt {
   final bool applied;
 }
 
-enum _OperationalResult { sent, confirmed, held, rejected }
+enum _OperationalResult { sent, confirmed, held, rejected, awaitingReceipt }

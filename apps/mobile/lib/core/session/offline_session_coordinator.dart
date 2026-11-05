@@ -188,6 +188,7 @@ class OfflineSessionCoordinator {
       OfflineSessionCoordinator(supabaseClient: _foregroundSupabaseClient);
 
   final OutboxStore _store;
+  final Set<(String, String)> _humanStartInFlight = {};
   BookingLocalLedger? _bookingLedger;
 
   /// جسر قراءة الزمن المحلي. `null` = لا انتقال آلي موثوق أبدًا.
@@ -946,92 +947,47 @@ class OfflineSessionCoordinator {
     Pump? displayPump,
     required CachedBookingSchedule cachedSchedule,
     required BookingAutomationState? automation,
+    DateTime? startedAt,
     bool Function()? isCurrent,
   }) async {
+    final startScope = (accountId, wellId);
+    if (!_humanStartInFlight.add(startScope)) throw StateError('well_start_in_progress');
+    try {
     await initialize();
-    final key = 'booking.manual_start.v1.$wellId.$bookingId';
-    final saved = await _store.readBundle(accountId, key);
-    if (saved != null) {
-      final id = (jsonDecode(saved) as Map)['start_local_id'] as String;
-      final command = await _store.commandByLocalId(accountId, id);
-      if (command == null || command.type != CommandType.startBookingSession) {
-        throw StateError('missing_booking_start');
-      }
-      await projectActiveSession(accountId: accountId, wellId: wellId);
-      return command;
-    }
     final schedule = cachedSchedule.schedule;
     final matches = schedule.bookings.where((b) => b.id == bookingId).toList();
-    final actual = await _resolveTrustedTransitionNow(cachedSchedule);
-    if (schedule.wellId != wellId ||
-        matches.length != 1 ||
-        !_bookingExecutable(matches.single, schedule) ||
-        actual == null ||
-        actual.at.isBefore(schedule.dayStart) ||
-        !actual.at.isBefore(schedule.dayEnd) ||
+    if (schedule.wellId != wellId || matches.length != 1 || matches.single.wellId != wellId ||
         schedule.currentSession != null ||
-        await projectActiveSession(accountId: accountId, wellId: wellId) !=
-            null ||
         await _bookingLedger?.loadServerSession(accountId, wellId) != null) {
-      throw StateError('booking_start_not_authorized');
+      throw StateError('operational_start_scope_or_active_session');
     }
-    final lifecycle = await BookingLocalLedger.loadBookedLifecycle(
-      _store,
-      accountId,
-      wellId,
-    );
-    if (lifecycle?['state'] == 'waiting_for_next_due' ||
-        lifecycle?['state'] == 'requires_review' ||
-        (automation != null && automation.wellId != wellId)) {
-      throw StateError('existing_booked_chain_requires_review');
-    }
-    final legacy = await _bookingLedger?.loadProvisionalSessions(
-      accountId,
-      wellId,
-    );
-    if (legacy?.any((s) => s.reconciliationState != 'reconciled') ?? false) {
-      throw StateError('legacy_booking_requires_review');
+    final booking = matches.single;
+    final pump = await _bookingPumpContext(accountId, wellId, selected: displayPump);
+    final pumpId = pump['p_pump_id'];
+    if (pumpId is! String || pumpId.trim().isEmpty ||
+        booking.farmId == null || booking.farmId!.trim().isEmpty ||
+        booking.farmerWellAccountId.trim().isEmpty ||
+        !const {'solar', 'well_diesel', 'farmer_diesel'}.contains(booking.expectedEnergySource)) {
+      throw StateError('operational_start_facts_missing');
     }
     final start = await _outbox.prepare(
-      accountId: accountId,
-      wellId: wellId,
-      type: CommandType.startBookingSession,
-      occurredAt: actual.at,
-      payload: {'p_booking_id': bookingId, 'p_crops': <String>[]},
-      localContext: {
-        ..._bookedContext(matches.single, automation, manual: true),
-        ...await _bookingPumpContext(accountId, wellId, selected: displayPump),
-        'trusted_time_anchor': _bookedAnchor(cachedSchedule),
-      },
+      accountId: accountId, wellId: wellId, type: CommandType.startOperationalSession,
+      occurredAt: startedAt ?? DateTime.now(),
+      payload: {'p_well_id': wellId, 'p_pump_id': pumpId,
+        'p_farm_id': booking.farmId, 'p_farmer_well_account_id': booking.farmerWellAccountId,
+        'p_energy_source': booking.expectedEnergySource, 'p_source_booking_id': bookingId,
+        'p_crops': <String>[]},
+      localContext: {'farmer_name': ?booking.farmerName, 'farm_name': ?booking.farmName,
+        'pump_name': ?pump['pump_name']},
     );
-    final state = jsonEncode({
-      'version': 1,
-      'provenance': 'phone_owned_booked_lifecycle',
-      'well_id': wellId,
-      'state': 'running',
-      'start_local_id': start.localId,
-      'start_command_id': start.commandId,
-      'automation_revision': automation?.revision,
-      'chain_id': automation?.activeChainId,
-      'decision_revision': automation?.activeChainDecisionRevision,
-    });
-    final persisted = await _store.insertBundle(
-      accountId: accountId,
-      key: key,
-      value: jsonEncode({
-        'start_local_id': start.localId,
-        'start_command_id': start.commandId,
-      }),
-      localValues: {BookingLocalLedger.bookedLifecycleKey(wellId): state},
-      commands: [start],
-      isCurrent: isCurrent,
-    );
-    final id = (jsonDecode(persisted) as Map)['start_local_id'] as String;
+    if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
+    final persisted = await _persistExplicitHumanSessionCommand(start);
     await projectActiveSession(accountId: accountId, wellId: wellId);
-    if (id == start.localId) {
-      await _triggerSync(accountId, sessionLocalId: id, wellId: wellId);
+    await _triggerSync(accountId, sessionLocalId: persisted.localId, wellId: wellId);
+    return persisted;
+    } finally {
+      _humanStartInFlight.remove(startScope);
     }
-    return (await _store.commandByLocalId(accountId, id))!;
   }
 
   /// قرار محدود بالبئر؛ يُعاد بناؤه عند تحديث اللقطة، لا كل ثانية.
@@ -2349,11 +2305,8 @@ class OfflineSessionCoordinator {
   /// نفسه في الطابور المتين، فتصل إلى الخادم مع المزامنة ولا تختفي
   /// بعدها، والفراغ مسموح ولا يمنع البدء.
   ///
-  /// [plannedDurationMinutes] المدة المخطّطة (ق-132/750). `null` يعني
-  /// «لم يحدد المستخدم مدة» فيسافر الأمر بالنوع القديم وحمولته الحرفية
-  /// — لا مدة ضمنية ولا افتراض. بقيمة موجبة يسافر إلى عقد
-  /// `start_adhoc_session` الحاكم. توفّر حجوزات قادمة لا يتحقق منه
-  /// العميل إطلاقًا — الخادم وحده حاكم، والرفض يصير مراجعة بشرية.
+  /// [plannedDurationMinutes] retained for source compatibility only.
+  /// Current operational starts ignore it and have no planned-duration authority.
   Future<CommandEnvelope> startSession({
     required String accountId,
     required String wellId,
@@ -2370,19 +2323,17 @@ class OfflineSessionCoordinator {
     String? farmName,
     String? pumpName,
   }) async {
+    final startScope = (accountId, wellId);
+    if (!_humanStartInFlight.add(startScope)) throw StateError('well_start_in_progress');
+    try {
     await initialize();
 
-    if (plannedDurationMinutes != null && plannedDurationMinutes <= 0) {
-      throw ArgumentError.value(
-        plannedDurationMinutes,
-        'plannedDurationMinutes',
-        'المدة المخطّطة يجب أن تكون دقائق موجبة',
-      );
+    if (wellId.trim().isEmpty || pumpId.trim().isEmpty ||
+        !const {'solar', 'well_diesel', 'farmer_diesel'}.contains(energySource)) {
+      throw StateError('operational_start_facts_missing');
     }
-
-    if (await freshProjectActiveSession(accountId: accountId, wellId: wellId) != null) {
-      throw StateError('well_has_active_session');
-    }
+    final active = await freshProjectActiveSession(accountId: accountId, wellId: wellId);
+    if (active?.hasPendingManualStop == true) throw StateError('manual_stop_already_requested');
     final eventTime = startedAt ?? DateTime.now();
     final effectiveFarm = farmReference != null
         ? farmReference.toPayload()
@@ -2398,9 +2349,7 @@ class OfflineSessionCoordinator {
     final prepared = await _outbox.prepare(
       accountId: accountId,
       wellId: wellId,
-      type: plannedDurationMinutes == null
-          ? CommandType.startIrrigationSession
-          : CommandType.startAdhocSession,
+      type: CommandType.startOperationalSession,
       occurredAt: eventTime,
       localContext: {
         'farmer_name': ?farmerName,
@@ -2413,7 +2362,6 @@ class OfflineSessionCoordinator {
         'p_farm_id': effectiveFarm,
         'p_farmer_well_account_id': effectiveFarmer,
         'p_energy_source': energySource,
-        'p_planned_duration_minutes': ?plannedDurationMinutes,
         'p_crops': normalizeCropSnapshot(crops),
       },
     );
@@ -2427,6 +2375,9 @@ class OfflineSessionCoordinator {
       wellId: wellId,
     );
     return envelope;
+    } finally {
+      _humanStartInFlight.remove(startScope);
+    }
   }
 
   /// 2. إيقاف الجلسة مؤقتاً (ق-89 / ق-114)
@@ -2560,7 +2511,7 @@ class OfflineSessionCoordinator {
   }
 
   Future<CommandEnvelope> _persistExplicitHumanSessionCommand(CommandEnvelope command) async {
-    if (!const {CommandType.startIrrigationSession, CommandType.startAdhocSession,
+    if (!const {CommandType.startOperationalSession, CommandType.startIrrigationSession, CommandType.startAdhocSession,
       CommandType.pauseIrrigationSession, CommandType.resumeIrrigationSession,
       CommandType.changeSessionEnergySource}.contains(command.type)) {
       throw ArgumentError('unsupported_human_session_command');
@@ -2569,9 +2520,14 @@ class OfflineSessionCoordinator {
       return _store.insert(command);
     }
     final value = humanCommandIntentRecord(command);
+    try {
     final saved = await _store.insertBundle(accountId: command.accountId,
       key: humanCommandIntentBundleKey(command.localId), value: value, commands: [command]);
     if (saved != value) throw StateError('human_intent_identity_conflict');
+    } on ExistingOperationalStart catch (existing) {
+      if (!sameOperationalStartFacts(command, existing.command)) throw const OperationalStartConflict();
+      return existing.command;
+    }
     return command;
   }
 
@@ -2983,6 +2939,7 @@ class OfflineSessionCoordinator {
 
   /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
   static bool _isSessionStartType(CommandType type) =>
+      type == CommandType.startOperationalSession ||
       type == CommandType.startIrrigationSession ||
       type == CommandType.startAdhocSession ||
       type == CommandType.startBookingSession;

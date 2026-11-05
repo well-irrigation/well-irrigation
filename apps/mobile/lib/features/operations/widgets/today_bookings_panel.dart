@@ -143,11 +143,11 @@ class TodayBookingsPanel extends StatelessWidget {
         booking: booking,
         presentation: presentation(booking),
         canStart:
-            !isCachedSchedule &&
-            !requiresReview &&
             !hasAnyOpenSession &&
-            presentation(booking).canStart &&
-            booking.canStartManually,
+            presentation(booking).state != BookingPresentationState.executed &&
+            booking.farmId != null &&
+            booking.farmerWellAccountId.isNotEmpty &&
+            booking.expectedEnergySource != null,
         isStarting: startingBookingId == booking.id,
         onStart: () => onStartBooking(booking),
       ),

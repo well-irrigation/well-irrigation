@@ -231,7 +231,7 @@ void main() {
       final rows = await reopened.allCommands(sessionAccount);
       expect(rows.map((row) => row.sequence), [1, 2, 3, 4, 5]);
       expect(rows.map((row) => row.type), [
-        CommandType.startIrrigationSession,
+        CommandType.startOperationalSession,
         CommandType.pauseIrrigationSession,
         CommandType.resumeIrrigationSession,
         CommandType.changeSessionEnergySource,

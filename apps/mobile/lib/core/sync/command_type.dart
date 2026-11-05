@@ -40,11 +40,13 @@ enum EntityKind {
 /// الطابور.
 enum CommandType {
   createBooking(
-    rpcName: 'create_booking', scope: CommandScope.well,
-    scopeArgument: 'p_well_id', returnsJson: true,
-    resultKey: 'booking_id', produces: EntityKind.booking,
+    rpcName: 'create_booking',
+    scope: CommandScope.well,
+    scopeArgument: 'p_well_id',
+    returnsJson: true,
+    resultKey: 'booking_id',
+    produces: EntityKind.booking,
   ),
-
 
   createFarmer(
     rpcName: 'create_farmer',
@@ -62,6 +64,15 @@ enum CommandType {
     returnsJson: true,
     resultKey: 'farm_id',
     produces: EntityKind.farm,
+  ),
+
+  startOperationalSession(
+    rpcName: 'start_operational_session',
+    scope: CommandScope.well,
+    scopeArgument: 'p_well_id',
+    eventTimeArgument: 'p_started_at',
+    returnsJson: false,
+    produces: EntityKind.session,
   ),
 
   startIrrigationSession(
@@ -145,12 +156,17 @@ enum CommandType {
   ),
 
   recordBookingTransitionDecision(
-    rpcName: 'record_booking_transition_decision', scope: CommandScope.well,
-    scopeArgument: 'p_chain_id', returnsJson: true,
+    rpcName: 'record_booking_transition_decision',
+    scope: CommandScope.well,
+    scopeArgument: 'p_chain_id',
+    returnsJson: true,
   ),
   executePendingBookingStart(
-    rpcName: 'execute_pending_booking_start', scope: CommandScope.well,
-    scopeArgument: 'p_chain_id', returnsJson: true, produces: EntityKind.session,
+    rpcName: 'execute_pending_booking_start',
+    scope: CommandScope.well,
+    scopeArgument: 'p_chain_id',
+    returnsJson: true,
+    produces: EntityKind.session,
   ),
 
   endBookingTransitionChain(

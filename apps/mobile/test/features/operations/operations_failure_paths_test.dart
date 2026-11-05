@@ -8,6 +8,7 @@ import 'package:well_irrigation_mobile/core/sync/command_type.dart';
 import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
 import 'package:well_irrigation_mobile/features/operations/operations_screen.dart';
 
+import '../../support/historical_session_fixture.dart';
 import '../../support/identity_fixture.dart';
 
 /// منسّق يفشل في كتابتَي الإيقاف والإنهاء فقط، ويترك البدء والاستعادة سليمين،
@@ -75,14 +76,19 @@ void main() {
       coordinator = _FailingWriteCoordinator(store: store);
       await coordinator.initialize();
       // جلسة جارية فعلية في الطابور: البدء والاستعادة يعملان بلا تلفيق.
-      await coordinator.startSession(
+      await persistHistoricalStart(
+        store: store,
+        type: CommandType.startIrrigationSession,
         accountId: accountId,
         wellId: 'well-1',
-        pumpId: 'pump-1',
-        farmId: 'farm-1',
-        farmerAccountId: 'farmer-1',
-        energySource: 'طاقة شمسية',
-        startedAt: DateTime.now().subtract(const Duration(minutes: 15)),
+        startedAt: DateTime.utc(2026, 10, 3, 6),
+        payload: {
+          'p_well_id': 'well-1',
+          'p_pump_id': 'pump-1',
+          'p_farm_id': 'farm-1',
+          'p_farmer_well_account_id': 'farmer-1',
+          'p_energy_source': 'طاقة شمسية',
+        },
       );
     });
 
@@ -107,6 +113,7 @@ void main() {
             ),
             coordinator: coordinator,
             repository: _ReadableOperations(),
+            clock: () => DateTime.utc(2026, 10, 3, 6, 15),
           ),
         ),
       );

@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import '../../support/accepted_completion_fixture.dart';
+import '../../support/historical_session_fixture.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -157,7 +160,7 @@ class Repo extends BookingRepository {
 
 void main() {
   testWidgets(
-    'explicit stops + accepted receipts and manual B start refresh both mounted screens',
+    'historical booked sessions retain reactive completion and late ACK safety on both screens',
     (tester) async {
       tester.view.physicalSize = const Size(1800, 2600);
       tester.view.devicePixelRatio = 1;
@@ -169,20 +172,67 @@ void main() {
         store: store,
         timeIntegritySource: clock,
       );
+      addTearDown(coordinator.dispose);
+      addTearDown(store.close);
       final identity = testIdentity(
         accountId: 'cross-screen',
         wells: [
           testWell(id: 'well', roles: ['operator']),
         ],
       );
-      await coordinator.startBookedSession(
-        accountId: identity.accountId,
-        wellId: 'well',
-        bookingId: 'A',
-        displayPump: pump,
-        cachedSchedule: snapshot(),
-        automation: automation,
-      );
+      Future<void> restoreHistoricalBooking(String id) async {
+        final booking = schedule().bookings.singleWhere((b) => b.id == id);
+        final anchor = snapshot().timeAnchor!;
+        final start = await persistHistoricalStart(
+          store: store,
+          type: CommandType.startBookingSession,
+          accountId: identity.accountId,
+          wellId: 'well',
+          localId: 'historical-$id',
+          commandId: 'historical-command-$id',
+          startedAt: clock.now,
+          payload: {'p_booking_id': id, 'p_crops': <String>[]},
+          localContext: {
+            'booking_id': id,
+            'manual_start': true,
+            'p_pump_id': pump.id,
+            'pump_name': pump.name,
+            'p_farm_id': booking.farmId,
+            'p_farmer_well_account_id': booking.farmerWellAccountId,
+            'p_energy_source': booking.expectedEnergySource,
+            'alternative_energy_source': booking.alternativeEnergySource,
+            'farmer_name': booking.farmerName,
+            'farm_name': booking.farmName,
+            'expected_duration_minutes': booking.expectedDurationMinutes,
+            'scheduled_start': booking.scheduledStart.toIso8601String(),
+            'scheduled_end': booking.scheduledEnd.toIso8601String(),
+            'automation_revision': automation.revision,
+            'chain_id': automation.activeChainId,
+            'decision_revision': automation.activeChainDecisionRevision,
+            'trusted_time_anchor': {
+              'server_time': anchor.serverTime!.toIso8601String(),
+              'wall_clock': anchor.wallClock.toIso8601String(),
+              'monotonic_us': anchor.monotonic.inMicroseconds,
+              'boot_id': anchor.bootId,
+            },
+          },
+        );
+        await store.insertBundle(
+          accountId: identity.accountId,
+          key: 'booking.manual_start.v1.well.$id',
+          value: jsonEncode({
+            'start_local_id': start.localId,
+            'start_command_id': start.commandId,
+          }),
+          commands: const [],
+        );
+        await coordinator.freshProjectActiveSession(
+          accountId: identity.accountId,
+          wellId: 'well',
+        );
+      }
+
+      await restoreHistoricalBooking('A');
       await tester.pumpWidget(
         MaterialApp(
           home: Row(
@@ -201,6 +251,7 @@ void main() {
                   repository: Pumps(),
                   priceRepository: f.EmptyFieldPrices(),
                   timeIntegritySource: clock,
+                  clock: () => clock.now,
                 ),
               ),
             ],
@@ -254,14 +305,7 @@ void main() {
       expect(find.textContaining('الجلسة الجارية من الحجز A'), findsNothing);
       expect(find.byKey(const Key('start-booking-A')), findsNothing);
       clock.now = DateTime.utc(2026, 10, 14, 0, 16);
-      await coordinator.startBookedSession(
-        accountId: identity.accountId,
-        wellId: 'well',
-        bookingId: 'B',
-        displayPump: pump,
-        cachedSchedule: snapshot(),
-        automation: automation,
-      );
+      await restoreHistoricalBooking('B');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(inBookings('جاري'), findsOneWidget);

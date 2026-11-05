@@ -70,7 +70,8 @@ void main() {
         farmerAccountId: localFarmerId,
         farmReference: farm.entityReference,
         farmerReference: farmer.entityReference,
-        energySource: 'طاقة شمسية',
+        energySource: 'solar',
+        startedAt: DateTime.utc(2026, 10, 3, 6),
       );
 
       final commands = await store.allCommands(accountId);
@@ -82,7 +83,7 @@ void main() {
 
       expect(farmerCmd.type, CommandType.createFarmer);
       expect(farmCmd.type, CommandType.createFarm);
-      expect(sessionCmd.type, CommandType.startIrrigationSession);
+      expect(sessionCmd.type, CommandType.startOperationalSession);
 
       // Verify reference chain
       final farmFarmerRef = farmCmd.payload['p_farmer_well_account_id'] as Map;
@@ -122,7 +123,9 @@ void main() {
     });
 
     test('C. real SqliteOutboxStore reopen: enqueue -> close -> reopen same DB -> reconstruct pending farmer/farm without displaying local IDs', () async {
-      final tempDir = await Directory.systemTemp.createTemp('m21_sqlite_reopen_');
+      final tempDir = await Directory.systemTemp.createTemp(
+        'm21_sqlite_reopen_',
+      );
       final dbPath = '${tempDir.path}/outbox.db';
 
       try {
@@ -205,10 +208,7 @@ void main() {
       };
 
       // Pass real conflict JSON through production normalization path
-      transport.scheduleRawResponse(
-        CommandType.createFarmer,
-        conflictResponse,
-      );
+      transport.scheduleRawResponse(CommandType.createFarmer, conflictResponse);
 
       final farmer = await coordinator.enqueueFarmer(
         accountId: accountId,
@@ -264,31 +264,34 @@ void main() {
       expect(pending, isEmpty);
     });
 
-    test('G. rapid double submit farmer with actionToken -> one enqueue', () async {
-      const actionToken = 'action-token-submit-999';
-      final results = await Future.wait([
-        coordinator.enqueueFarmer(
-          accountId: accountId,
-          wellId: wellId,
-          fullName: 'سعيد صالح الحبيشي',
-          phone: '770000000',
-          actionToken: actionToken,
-        ),
-        coordinator.enqueueFarmer(
-          accountId: accountId,
-          wellId: wellId,
-          fullName: 'سعيد صالح الحبيشي',
-          phone: '770000000',
-          actionToken: actionToken,
-        ),
-      ]);
+    test(
+      'G. rapid double submit farmer with actionToken -> one enqueue',
+      () async {
+        const actionToken = 'action-token-submit-999';
+        final results = await Future.wait([
+          coordinator.enqueueFarmer(
+            accountId: accountId,
+            wellId: wellId,
+            fullName: 'سعيد صالح الحبيشي',
+            phone: '770000000',
+            actionToken: actionToken,
+          ),
+          coordinator.enqueueFarmer(
+            accountId: accountId,
+            wellId: wellId,
+            fullName: 'سعيد صالح الحبيشي',
+            phone: '770000000',
+            actionToken: actionToken,
+          ),
+        ]);
 
-      expect(results[0].reference, equals(results[1].reference));
-      final commands = (await store.allCommands(accountId))
-          .where((c) => c.type == CommandType.createFarmer)
-          .toList();
-      expect(commands.length, 1);
-    });
+        expect(results[0].reference, equals(results[1].reference));
+        final commands = (await store.allCommands(accountId))
+            .where((c) => c.type == CommandType.createFarmer)
+            .toList();
+        expect(commands.length, 1);
+      },
+    );
 
     test('two distinct farmers with same name without actionToken are not merged by name alone', () async {
       final f1 = await coordinator.enqueueFarmer(
