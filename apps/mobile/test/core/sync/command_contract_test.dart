@@ -271,6 +271,7 @@ void main() {
         CommandType.createBooking: EntityKind.booking,
         CommandType.createFarmer: EntityKind.farmerWellAccount,
         CommandType.createFarm: EntityKind.farm,
+        CommandType.startOperationalSession: EntityKind.session,
         CommandType.startIrrigationSession: EntityKind.session,
         CommandType.startAdhocSession: EntityKind.session,
         CommandType.startBookingSession: EntityKind.session,

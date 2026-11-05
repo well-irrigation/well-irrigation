@@ -74,6 +74,8 @@ void main() {
     bool hasProvisionalLocalTransition = false,
     bool missedTransitionRequiresReview = false,
     bool timeIntegrityRequiresReview = false,
+    bool hasLocalActiveSession = false,
+    bool isCachedSchedule = false,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -85,7 +87,8 @@ void main() {
             isLoadingAutomation: false,
             isUpdatingAutomation: false,
             canManageAutomation: canManage,
-            hasLocalActiveSession: false,
+            hasLocalActiveSession: hasLocalActiveSession,
+            isCachedSchedule: isCachedSchedule,
             awaitingReconciliation: awaitingReconciliation,
             reconciliationComplete: reconciliationComplete,
             requiresReview: requiresReview,
@@ -187,31 +190,76 @@ void main() {
     expect(find.byType(FilledButton), findsNothing);
   });
 
-  testWidgets('cached schedule is labelled and cannot start a booking', (
+  testWidgets('cached schedule alone permits the existing start action', (
     tester,
   ) async {
+    String? startedBooking;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: TodayBookingsPanel(
-            schedule: schedule(),
-            automation: automation,
-            isLoadingSchedule: false,
-            isLoadingAutomation: false,
-            isUpdatingAutomation: false,
-            canManageAutomation: true,
-            hasLocalActiveSession: false,
-            isCachedSchedule: true,
-            lastSyncedAt: DateTime.utc(2026, 10, 8, 5),
-            onRefresh: () {},
-            onToggleAutomation: (_) {},
-            onStartBooking: (_) async {},
+          body: SingleChildScrollView(
+            child: TodayBookingsPanel(
+              schedule: schedule(),
+              automation: automation,
+              isLoadingSchedule: false,
+              isLoadingAutomation: false,
+              isUpdatingAutomation: false,
+              canManageAutomation: true,
+              hasLocalActiveSession: false,
+              isCachedSchedule: true,
+              lastSyncedAt: DateTime.utc(2026, 10, 8, 5),
+              onRefresh: () {},
+              onToggleAutomation: (_) {},
+              onStartBooking: (booking) async => startedBooking = booking.id,
+            ),
           ),
         ),
       ),
     );
     expect(find.byKey(const Key('booking-cache-indicator')), findsOneWidget);
-    expect(find.byKey(const Key('start-booking-booking-1')), findsNothing);
+    final start = find.byKey(const Key('start-booking-booking-1'));
+    expect(start, findsOneWidget);
+    await tester.ensureVisible(start);
+    await tester.tap(start);
+    await tester.pump();
+    expect(startedBooking, 'booking-1');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('actual local session blocks start despite cached schedule', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        canManage: true,
+        hasLocalActiveSession: true,
+        isCachedSchedule: true,
+        onStart: (_) async => fail('second start'),
+      ),
+    );
+    expect(find.byType(FilledButton), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('actual server session blocks start in cached schedule', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        canManage: true,
+        isCachedSchedule: true,
+        currentSession: CurrentBookingSession(
+          sessionId: 'session-1',
+          status: 'open',
+          startedAt: DateTime.utc(2026, 10, 8, 5),
+          wellId: 'well-1',
+          bookingId: 'booking-1',
+        ),
+        onStart: (_) async => fail('second start'),
+      ),
+    );
+    expect(find.byType(FilledButton), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

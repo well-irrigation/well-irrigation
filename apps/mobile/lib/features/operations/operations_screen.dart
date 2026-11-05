@@ -1,3 +1,4 @@
+import '../../core/sync/outbox_store.dart' show OperationalStartConflict;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -6,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/api/app_bootstrap_repository.dart';
 import '../../core/api/booking_repository.dart';
 import '../../core/booking/booking_reactivity.dart';
-import '../../core/booking/booking_presentation.dart';
 import '../../core/api/booking_local_ledger.dart';
 import '../../core/api/operations_repository.dart';
 import '../../core/api/well_management_repository.dart';
@@ -1420,24 +1420,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   Future<void> _startBookingFromSchedule(BookingDayItem booking) async {
-    // حارس fail-closed صريح: البدء من حجز خادمي يتطلب سلطة/حالة خادم حيّة،
-    // فلا يُستدعى أثناء البدء البارد الموثوق دون اتصال. يُحتفظ بالحراس
-    // القائمة أيضًا (ليست وحدها كافية كضمان مغلق).
-    if (widget.isTrustedOfflineBootstrap ||
-        _dayScheduleCached ||
-        _serverBookingLink != null ||
-        _bookingRequiresReview) {
-      return;
-    }
-    if (_startingBookingId != null) return;
-    if (!presentBooking(
-      id: booking.id,
-      status: booking.status,
-      session: booking.session,
-      scope: _bookingScope,
-    ).canStart) {
-      return;
-    }
+    if (_startingBookingId != null || _isSessionActive || _hasPendingManualStop || _isSubmitting || _daySchedule?.currentSession != null) return;
 
     final requestedWellId = _activeWellId;
 
@@ -1455,8 +1438,8 @@ class _OperationsScreenState extends State<OperationsScreen>
         displayPump: _selectedPump,
         cachedSchedule: cached,
         automation: _bookingAutomation,
-        isCurrent: () =>
-            mounted && requestedWellId == _activeWellId && !_dayScheduleCached,
+        startedAt: _now(),
+        isCurrent: () => mounted && requestedWellId == _activeWellId,
       );
       if (!mounted || requestedWellId != _activeWellId) return;
       await _recoverActiveSession();
@@ -1468,14 +1451,13 @@ class _OperationsScreenState extends State<OperationsScreen>
         ),
       );
       _scheduleCachedBookingTransitionCheck();
-    } on PostgrestException catch (e) {
+    } on OperationalStartConflict {
       if (!mounted || requestedWellId != _activeWellId) return;
-      _showActionFailure(e.message);
-      await _loadDaySchedule();
+      _showActionFailure('توجد عملية بدء أخرى محفوظة لهذه البئر. راجع الجلسة الحالية قبل بدء جلسة جديدة.');
     } catch (_) {
       if (!mounted || requestedWellId != _activeWellId) return;
       _showActionFailure(
-        'تعذر تثبيت بدء الحجز بزمن وبيانات موثوقة. أعد تحديث البيانات ثم حاول مجددًا.',
+        'تعذر إكمال طلب البدء. راجع الجلسة الحالية وبيانات البئر والمضخة.',
       );
     } finally {
       if (mounted && requestedWellId == _activeWellId) {
@@ -2352,10 +2334,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   Future<void> _startSession() async {
     if (_isSessionActive || _hasPendingManualStop || _isSubmitting) return;
     final account = _accountId, requestedWell = _activeWellId;
-    if (_daySchedule?.currentSession != null ||
-        _serverBookingLink != null ||
-        _dayScheduleCached ||
-        _bookingRequiresReview) {
+    if (_daySchedule?.currentSession != null || _serverBookingLink != null) {
       _showActionFailure(
         'توجد جلسة محجوزة جارية على الخادم؛ لا يمكن بدء جلسة أخرى.',
       );
@@ -2393,10 +2372,15 @@ class _OperationsScreenState extends State<OperationsScreen>
         pumpName: _selectedPump?.name,
       );
       sessionLocalId = envelope.localId;
-    } catch (e) {
+    } on OperationalStartConflict {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      _showActionFailure('تعذر بدء الجلسة — لم يُسجَّل شيء: $e');
+      _showActionFailure('توجد عملية بدء أخرى محفوظة لهذه البئر. راجع الجلسة الحالية قبل بدء جلسة جديدة.');
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      _showActionFailure('تعذر إكمال طلب البدء. راجع الجلسة الحالية وبيانات البئر والمضخة.');
       return;
     }
 
@@ -3150,6 +3134,16 @@ class _OperationsScreenState extends State<OperationsScreen>
                             ),
                           ],
                         ),
+                        if (activeSession != null && activeSession.serverSessionId == null)
+                          ListTile(
+                            leading: const Icon(Icons.info_outline),
+                            title: Text(syncState == SessionSyncState.conflict
+                              ? 'تحتاج عملية بدء الجلسة إلى مراجعة'
+                              : 'جارٍ تأكيد بدء الجلسة'),
+                            subtitle: Text(syncState == SessionSyncState.conflict
+                              ? 'تعذر تأكيد نتيجة البدء تلقائيًا. راجع حالة الجلسة قبل تنفيذ بدء جديد.'
+                              : 'لا تبدأ جلسة أخرى حتى يكتمل التحقق.'),
+                          ),
                         if (_isSessionActive)
                           Wrap(
                             spacing: 6,

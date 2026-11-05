@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/app_bootstrap_repository.dart';
+import 'package:well_irrigation_mobile/core/api/booking_repository.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 import 'package:well_irrigation_mobile/core/api/well_management_repository.dart';
 import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
@@ -59,6 +60,58 @@ class _FakeCropsRepo extends OperationsRepository {
   }
 }
 
+class _CachedBookingRepo extends BookingRepository {
+  @override
+  Future<BookingScheduleView> fetchScheduleView({
+    required String accountId,
+    required String wellId,
+  }) async => BookingScheduleView(
+    schedule: WellDaySchedule(
+      wellId: wellId,
+      requestedDay: DateTime.utc(2026, 10, 3),
+      timezone: 'Asia/Aden',
+      wellTimezone: 'Asia/Aden',
+      dayStart: DateTime.utc(2026, 10, 2, 21),
+      dayEnd: DateTime.utc(2026, 10, 3, 21),
+      bookings: [
+        BookingDayItem(
+          id: 'cached-booking',
+          publicCode: 'B-CACHE',
+          wellId: wellId,
+          farmerWellAccountId: 'farmer-1',
+          farmerName: 'سعيد الحظرمي',
+          farmId: 'farm-1',
+          farmName: 'أرض الجربة',
+          scheduledStart: DateTime.utc(2026, 10, 3, 6),
+          scheduledEnd: DateTime.utc(2026, 10, 3, 7),
+          scheduledDay: '2026-10-03',
+          expectedDurationMinutes: 60,
+          expectedEnergySource: 'solar',
+          status: 'confirmed',
+          priority: 0,
+          statusGroup: 'active',
+        ),
+      ],
+    ),
+    isCached: true,
+    fetchedAt: DateTime.utc(2026, 10, 3, 5),
+  );
+
+  @override
+  Future<(BookingAutomationState, bool)> fetchAutomationView({
+    required String accountId,
+    required String wellId,
+  }) async => (
+    BookingAutomationState(
+      wellId: wellId,
+      enabled: false,
+      settingsRowExists: true,
+      firstSession: 'manual',
+    ),
+    true,
+  );
+}
+
 class _FakePriceRepo extends WellManagementRepository {
   _FakePriceRepo(this.schedule);
   final PriceScheduleModel? schedule;
@@ -111,6 +164,7 @@ void main() {
   Future<void> pumpScreen(
     WidgetTester tester, {
     required _FakeCropsRepo repo,
+    BookingRepository? bookingRepository,
   }) async {
     // سطح أطول: قسم المحاصيل والملخص في شاشة واحدة دون تمرير أعمى.
     tester.view.physicalSize = const Size(800, 1600);
@@ -126,7 +180,9 @@ void main() {
             identity: testIdentity(accountId: accountId, wells: const [well]),
             coordinator: coordinator,
             repository: repo,
+            bookingRepository: bookingRepository,
             priceRepository: _FakePriceRepo(solarSchedule()),
+            clock: () => DateTime.utc(2026, 10, 3, 6),
           ),
         ),
       ),
@@ -139,12 +195,18 @@ void main() {
   Future<void> selectFarmerAndFarm(WidgetTester tester) async {
     await tester.tap(find.text('ابحث باسم المزارع أو رقم هاتفه...'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('سعيد الحظرمي'));
+    await tester.tap(find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text('سعيد الحظرمي'),
+    ));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('ابحث باسم الأرض...'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('أرض الجربة'));
+    await tester.tap(find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text('أرض الجربة'),
+    ));
     await tester.pumpAndSettle();
   }
 
@@ -234,7 +296,7 @@ void main() {
 
       final commands = await store.allCommands(accountId);
       final start = commands.singleWhere(
-        (command) => command.type == CommandType.startIrrigationSession,
+        (command) => command.type == CommandType.startOperationalSession,
       );
       expect(start.payload['p_crops'], ['قمح', 'بصل']);
     });
@@ -266,9 +328,60 @@ void main() {
 
       final commands = await store.allCommands(accountId);
       final start = commands.singleWhere(
-        (command) => command.type == CommandType.startIrrigationSession,
+        (command) => command.type == CommandType.startOperationalSession,
       );
       expect(start.payload['p_crops'], isEmpty);
+    });
+
+    testWidgets('الجدول المخبأ وحده لا يمنع البدء الحر من الزر الموجود', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        repo: _FakeCropsRepo(),
+        bookingRepository: _CachedBookingRepo(),
+      );
+      expect(find.textContaining('بيانات محفوظة محليًا'), findsOneWidget);
+      await selectFarmerAndFarm(tester);
+      final selector = find.byType(CompactEnergySelector);
+      await tester.ensureVisible(selector);
+      await tester.tap(selector);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('طاقة شمسية'));
+      await tester.pumpAndSettle();
+      final pumpDropdown = find.byType(DropdownButtonFormField<Pump>);
+      await tester.ensureVisible(pumpDropdown);
+      await tester.tap(pumpDropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('مضخة 1').last);
+      await tester.pumpAndSettle();
+      final startButton = find.widgetWithText(
+        ElevatedButton,
+        'بدء جلسة سقي جديدة',
+      );
+      expect(startButton, findsOneWidget);
+      await tester.ensureVisible(startButton);
+      expect(tester.widget<ElevatedButton>(startButton).onPressed, isNotNull);
+      await tester.tap(startButton);
+      await tester.pumpAndSettle();
+      final command = (await store.allCommands(accountId)).single;
+      expect(command.type, CommandType.startOperationalSession);
+      expect(command.payload, {
+        'p_well_id': 'well-1',
+        'p_pump_id': 'pump-1',
+        'p_farm_id': 'farm-1',
+        'p_farmer_well_account_id': 'farmer-1',
+        'p_energy_source': 'solar',
+        'p_crops': <String>[],
+      });
+      expect(command.occurredAt, DateTime.utc(2026, 10, 3, 6));
+      expect(find.text('جارٍ تأكيد بدء الجلسة'), findsOneWidget);
+      expect(startButton, findsNothing);
+      expect(
+        find.byKey(const Key('start-booking-cached-booking')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('محصول واحد يظهر في بطاقة الجلسة النشطة بعد البدء', (
@@ -371,7 +484,7 @@ void main() {
 
       final commands = await store.allCommands(accountId);
       final start = commands.singleWhere(
-        (command) => command.type == CommandType.startIrrigationSession,
+        (command) => command.type == CommandType.startOperationalSession,
       );
       expect(start.payload['p_crops'], ['قمح', 'شعير']);
     });
@@ -389,7 +502,7 @@ void main() {
 
       final commands = await store.allCommands(accountId);
       final start = commands.singleWhere(
-        (command) => command.type == CommandType.startIrrigationSession,
+        (command) => command.type == CommandType.startOperationalSession,
       );
       expect(start.payload['p_crops'], isEmpty);
     });
@@ -411,7 +524,7 @@ void main() {
 
       expect(
         transport
-            .lastRequestFor(CommandType.startIrrigationSession)
+            .lastRequestFor(CommandType.startOperationalSession)
             .arguments['p_crops'],
         ['قات', 'قمح'],
       );

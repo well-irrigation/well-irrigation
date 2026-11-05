@@ -895,9 +895,17 @@ void main() {
       );
     }
 
+    final freeStart = source.substring(source.indexOf('Future<void> _startSession()'), source.indexOf('Future<void> _togglePause()'));
+    final bookedStart = source.substring(source.indexOf('Future<void> _startBookingFromSchedule'), source.indexOf('void _showActionFailure'));
+    for (final start in [freeStart, bookedStart]) {
+      expect(start.contains('حاول مرة أخرى'),isFalse);
+      expect(start.contains('حاول مجددًا'),isFalse);
+      expect(start.contains('لم يُسجَّل شيء'),isFalse);
+      expect(start.contains('توجد عملية بدء أخرى محفوظة لهذه البئر'),isTrue);
+    }
     for (final honest in const [
       'void _showActionFailure(String message)',
-      'تعذر بدء الجلسة — لم يُسجَّل شيء',
+      'تعذر إكمال طلب البدء. راجع الجلسة الحالية وبيانات البئر والمضخة.',
       'تعذر الإيقاف المؤقت — الجلسة ما زالت جارية',
       'تعذر إنهاء الجلسة — لم يُسجَّل شيء ولا سند',
     ]) {

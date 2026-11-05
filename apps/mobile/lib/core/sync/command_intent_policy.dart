@@ -9,6 +9,7 @@ import 'command_type.dart';
 enum CommandIntentOrigin { provenHuman, provenAutomatic, unresolved }
 
 bool q137OperationalCommand(CommandType type) => const {
+  CommandType.startOperationalSession,
   CommandType.startIrrigationSession,
   CommandType.startAdhocSession,
   CommandType.startBookingSession,
@@ -26,6 +27,7 @@ String humanCommandIntentBundleKey(String localId) =>
 
 String humanCommandIntentRecord(CommandEnvelope command) {
   final starting =
+      command.type == CommandType.startOperationalSession ||
       command.type == CommandType.startIrrigationSession ||
       command.type == CommandType.startAdhocSession;
   return jsonEncode({
@@ -100,6 +102,7 @@ CommandIntentClassification classifyCommandIntent(
   }
 
   final freeStart =
+      command.type == CommandType.startOperationalSession ||
       command.type == CommandType.startIrrigationSession ||
       command.type == CommandType.startAdhocSession;
   final humanKey = humanCommandIntentBundleKey(command.localId);

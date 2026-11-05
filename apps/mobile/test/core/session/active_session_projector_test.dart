@@ -81,6 +81,59 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
+  test(
+    'operational start projects source as metadata and review as conflict',
+    () async {
+      final store = await openStore();
+      final repo = repositoryFor(store);
+      final command = await repo.enqueue(
+        accountId: sessionAccount,
+        wellId: wellOne,
+        type: CommandType.startOperationalSession,
+        occurredAt: t0,
+        payload: {
+          ...startSessionPayload(farm: 'farm', farmerWellAccount: 'farmer'),
+          'p_source_booking_id': 'booking',
+        },
+      );
+      final projector = projectorFor(store);
+      var record = (await projector.activeSessions(
+        sessionAccount,
+        now: at(60),
+      )).single;
+      expect(record.localId, command.localId);
+      expect(record.businessState, SessionBusinessState.running);
+      expect(record.phoneOwned, isFalse);
+      expect(record.bookedDurationMinutes, isNull);
+      expect(record.bookedOperationalEnd, isNull);
+      await store.putMapping(
+        sessionAccount,
+        IdMapping(
+          localId: command.localId,
+          kind: EntityKind.session,
+          serverId: 'server',
+          resolvedAt: t0,
+        ),
+      );
+      record = (await projector.activeSessions(
+        sessionAccount,
+        now: at(60),
+      )).single;
+      expect(record.serverSessionId, 'server');
+      await store.markNeedsReview(
+        sessionAccount,
+        command.localId,
+        error: 'review',
+        attemptedAt: t0,
+      );
+      record = (await projector.activeSessions(
+        sessionAccount,
+        now: at(60),
+      )).single;
+      expect(record.syncState, SessionSyncState.conflict);
+    },
+  );
+
   group('الاستعادة بعد موت التطبيق', () {
     test('جلسة جارية تُستعاد كاملة من ملف على القرص', () async {
       final writer = await openStore();
@@ -413,7 +466,10 @@ void main() {
       // Unknown owned execution remains under verification, never reset for retry.
       expect(record.syncState, SessionSyncState.syncing);
       expect(record.syncState.text, SyncStatusText.dispatching);
-      final held = (await store.commandByLocalId(sessionAccount, session.localId))!;
+      final held = (await store.commandByLocalId(
+        sessionAccount,
+        session.localId,
+      ))!;
       expect(held.status, CommandStatus.dispatching);
       expect(held.retryCount, 0);
       expect(held.commandId, session.commandId);

@@ -12,12 +12,132 @@ library;
 import 'dart:convert';
 
 import 'booking_start_receipt.dart';
+import 'operational_start_receipt.dart';
 import 'command_transport.dart';
 import 'command_intent_policy.dart';
 import 'command_reference.dart';
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'sync_status.dart';
+
+/// A competing human start is already durably represented.
+class ExistingOperationalStart implements Exception {
+  const ExistingOperationalStart(this.command);
+  final CommandEnvelope command;
+}
+
+class OperationalStartConflict implements Exception {
+  const OperationalStartConflict();
+}
+
+bool sameOperationalStartFacts(CommandEnvelope a, CommandEnvelope b) {
+  Object? canonical(Object? v) {
+    if (v is Map) return {for (final k in (v.keys.cast<String>().toList()..sort())) k: canonical(v[k])};
+    if (v is List) return v.map(canonical).toList();
+    return v;
+  }
+  const keys = ['p_well_id','p_pump_id','p_farm_id','p_farmer_well_account_id',
+    'p_energy_source','p_fuel_owner_person_id','p_crops','p_source_booking_id'];
+  return a.accountId == b.accountId && a.wellId == b.wellId &&
+    a.type == CommandType.startOperationalSession && b.type == a.type &&
+    keys.every((k) => jsonEncode(canonical(a.payload[k])) == jsonEncode(canonical(b.payload[k])));
+}
+
+CommandEnvelope? existingOperationalStart(
+  Iterable<CommandEnvelope> rows,
+  String wellId,
+) {
+  final commands = rows.toList();
+  for (final root in commands) {
+    if (root.wellId != wellId || root.type.produces != EntityKind.session) {
+      continue;
+    }
+    final closed = commands.any(
+      (c) =>
+          c.type == CommandType.completeIrrigationSession &&
+          c.aggregateLocalId == root.localId &&
+          c.status == CommandStatus.confirmed &&
+          c.serverResponse?['status'] == 'closed',
+    );
+    if (!closed) return root;
+  }
+  return null;
+}
+
+bool canReconcileOperationalStartReceipt({
+  required CommandEnvelope observed,
+  required CommandEnvelope? current,
+  required String? humanRecord,
+  required IdMapping? mapping,
+  required Map<String, Object?> receipt,
+}) {
+  final request = OperationalStartReceiptRequest.fromCommand(observed);
+  if (request == null ||
+      observed.localId.trim().isEmpty ||
+      current == null ||
+      (dispatchCommandFingerprint(current) !=
+              dispatchCommandFingerprint(observed) &&
+          !(current.status == CommandStatus.confirmed &&
+              mapping != null &&
+              dispatchCommandFingerprint(current) ==
+                  dispatchCommandFingerprint(
+                    observed.copyWith(
+                      status: CommandStatus.confirmed,
+                      serverResponse: receipt,
+                      clearLastError: true,
+                    ),
+                  ))) ||
+      !{
+        CommandStatus.pending,
+        CommandStatus.dispatching,
+        CommandStatus.review,
+        CommandStatus.confirmed,
+      }.contains(current.status) ||
+      !validOperationalStartReceipt(request, receipt) ||
+      (mapping != null &&
+          (mapping.localId != observed.localId ||
+              mapping.kind != EntityKind.session ||
+              mapping.serverId != receipt['id'])) ||
+      (current.serverResponse != null &&
+          current.serverResponse!['id'] != receipt['id'])) {
+    return false;
+  }
+  return classifyCommandIntent(
+        observed,
+        records: humanRecord == null
+            ? {}
+            : {humanCommandIntentBundleKey(observed.localId): humanRecord},
+      ).origin ==
+      CommandIntentOrigin.provenHuman;
+}
+
+bool canReviewOperationalStart({
+  required CommandEnvelope observed,
+  required CommandEnvelope? current,
+  required String? humanRecord,
+  required IdMapping? mapping,
+}) {
+  if (OperationalStartReceiptRequest.fromCommand(observed) == null ||
+      observed.localId.trim().isEmpty ||
+      current == null ||
+      dispatchCommandFingerprint(current) !=
+          dispatchCommandFingerprint(observed) ||
+      !{
+        CommandStatus.pending,
+        CommandStatus.dispatching,
+      }.contains(current.status) ||
+      current.serverResponse != null ||
+      mapping != null) {
+    return false;
+  }
+  return classifyCommandIntent(
+        observed,
+        records: humanRecord == null
+            ? {}
+            : {humanCommandIntentBundleKey(observed.localId): humanRecord},
+      ).origin ==
+      CommandIntentOrigin.provenHuman;
+}
 
 bool canReconcileBookingStartReceipt({
   required CommandEnvelope observed,
@@ -158,6 +278,13 @@ abstract interface class AtomicCommandDispatchStore {
     String? entityId,
   });
 
+  Future<bool> reviewOperationalStart(CommandEnvelope observed, String reason);
+
+  Future<bool> reconcileOperationalStartReceipt(
+    CommandEnvelope observed,
+    Map<String, Object?> receipt,
+  );
+
   Future<bool> reconcileBookingStartReceipt(
     CommandEnvelope observed,
     Map<String, Object?> receipt,
@@ -241,10 +368,7 @@ class DispatchAttempt {
   final String? reason;
   final DispatchAttemptState state;
 
-  Map<String, Object?> toJson({
-    DispatchAttemptState? state,
-    String? reason,
-  }) =>
+  Map<String, Object?> toJson({DispatchAttemptState? state, String? reason}) =>
       {
         'version': 1,
         'account_id': accountId,
@@ -486,7 +610,6 @@ Future<(DispatchClaimDecision, DispatchClaimContext?)> inspectDispatchClaim({
   );
   return (policy(context), context);
 }
-
 
 /// المعرّف الخادمي المحسوم لكيان أُنشئ محليًا.
 class IdMapping {

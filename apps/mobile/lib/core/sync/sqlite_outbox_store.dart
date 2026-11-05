@@ -26,6 +26,7 @@ import '../notifications/notification_event_store.dart';
 import '../notifications/operational_notification_event_factory.dart';
 import 'command_id_generator.dart';
 import 'command_intent_evidence_reader.dart';
+import 'command_intent_policy.dart';
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'outbox_database.dart';
@@ -33,7 +34,14 @@ import 'outbox_store.dart';
 import 'outbox_repository.dart';
 import 'sync_status.dart';
 
-class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchStore, OutboxStore, AtomicLocalRecordStore, BookingDispatchStore, FarmSelectionStore {
+class SqliteOutboxStore
+    implements
+        SessionExecutionStore,
+        AtomicCommandDispatchStore,
+        OutboxStore,
+        AtomicLocalRecordStore,
+        BookingDispatchStore,
+        FarmSelectionStore {
   SqliteOutboxStore({
     this.databasePath,
     this.singleInstance = true,
@@ -54,7 +62,8 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
   static const String _sequenceKey = 'sequence_counter';
   static const String _lastSyncKey = 'last_successful_sync_at';
 
-  SqliteNotificationEventStore get notificationEvents => SqliteNotificationEventStore(_db);
+  SqliteNotificationEventStore get notificationEvents =>
+      SqliteNotificationEventStore(_db);
 
   Database? _database;
   Future<void>? _initFuture;
@@ -992,7 +1001,8 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
       );
       if (roots.length != 1) return null;
       final root = _fromRow(roots.single);
-      if (root.type != CommandType.startIrrigationSession &&
+      if (root.type != CommandType.startOperationalSession &&
+          root.type != CommandType.startIrrigationSession &&
           root.type != CommandType.startAdhocSession &&
           root.type != CommandType.startBookingSession) {
         return null;
@@ -1245,7 +1255,7 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
     bool Function()? isCurrent,
   }) async {
     await initialize();
-    return _db.transaction((txn) async {
+    return _withExecutionContentionRetry(() => _db.transaction((txn) async {
       final existing = await txn.query(
         metaTable,
         columns: ['value'],
@@ -1253,6 +1263,12 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
         whereArgs: [accountId, key],
       );
       if (existing.isNotEmpty) return existing.single['value'] as String;
+      for (final command in commands.where((c) => c.type == CommandType.startOperationalSession)) {
+        final rows = await txn.query(commandsTable, where: 'account_id=? and well_id=?', whereArgs: [accountId, command.wellId]);
+        final active = existingOperationalStart(rows.map(_fromRow), command.wellId!);
+        if (active != null) throw ExistingOperationalStart(active);
+      }
+
       if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
       for (final command in commands) {
         if (command.accountId != accountId) {
@@ -1274,7 +1290,7 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
       }
       if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
       return value;
-    });
+    }));
   }
 
   @override
@@ -1294,7 +1310,7 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
 
   @override
   Future<int> nextSequence(String accountId) async {
-    return _db.transaction<int>((txn) async {
+    return _withExecutionContentionRetry(() => _db.transaction<int>((txn) async {
       final rows = await txn.query(
         metaTable,
         columns: ['value'],
@@ -1314,7 +1330,7 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       return next;
-    });
+    }));
   }
 
   @override
@@ -1605,16 +1621,31 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
         }
         if (status == CommandStatus.confirmed &&
             row!.type == CommandType.startBookingSession) {
-          final accepted = row.copyWith(status: CommandStatus.confirmed, serverResponse: response);
-          await SqliteNotificationEventStore.insertEventTx(tx, operationalEvent(
-            accountId: accepted.accountId, wellId: accepted.wellId!,
-            eventType: 'session.started', identity: accepted.commandId,
-            entityType: 'session', entityId: accepted.aggregateLocalId ?? accepted.localId,
-            at: accepted.occurredAt,
-          ));
-          await SqliteNotificationEventStore.cancelSchedulesTx(tx,
-            accepted.accountId, accepted.wellId, 'booking',
-            accepted.payload['p_booking_id'] as String, 'session_started', accepted.occurredAt);
+          final accepted = row.copyWith(
+            status: CommandStatus.confirmed,
+            serverResponse: response,
+          );
+          await SqliteNotificationEventStore.insertEventTx(
+            tx,
+            operationalEvent(
+              accountId: accepted.accountId,
+              wellId: accepted.wellId!,
+              eventType: 'session.started',
+              identity: accepted.commandId,
+              entityType: 'session',
+              entityId: accepted.aggregateLocalId ?? accepted.localId,
+              at: accepted.occurredAt,
+            ),
+          );
+          await SqliteNotificationEventStore.cancelSchedulesTx(
+            tx,
+            accepted.accountId,
+            accepted.wellId,
+            'booking',
+            accepted.payload['p_booking_id'] as String,
+            'session_started',
+            accepted.occurredAt,
+          );
         }
         if (status == CommandStatus.confirmed &&
             row!.type == CommandType.completeIrrigationSession) {
@@ -1627,8 +1658,13 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
             await SqliteNotificationEventStore.insertEventTx(tx, event);
           }
           await SqliteNotificationEventStore.cancelSchedulesTx(
-            tx, accepted.accountId, accepted.wellId, 'session',
-            accepted.aggregateLocalId, 'session_completed', accepted.occurredAt,
+            tx,
+            accepted.accountId,
+            accepted.wellId,
+            'session',
+            accepted.aggregateLocalId,
+            'session_completed',
+            accepted.occurredAt,
           );
         }
         final value = jsonEncode(
@@ -1648,6 +1684,130 @@ class SqliteOutboxStore implements SessionExecutionStore, AtomicCommandDispatchS
             where: 'account_id=? and key=?',
             whereArgs: [attempt.accountId, key],
           );
+        }
+        return true;
+      }),
+    );
+  }
+
+  @override
+  Future<bool> reviewOperationalStart(
+    CommandEnvelope observed,
+    String reason,
+  ) async {
+    observed = freezeDispatchCommand(observed);
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        final rows = await tx.query(
+          commandsTable,
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+          limit: 1,
+        );
+        final maps = await tx.query(
+          mappingsTable,
+          where: 'account_id=? and local_id=? and entity_kind=?',
+          whereArgs: [
+            observed.accountId,
+            observed.localId,
+            EntityKind.session.storageValue,
+          ],
+          limit: 1,
+        );
+        final proofs = await tx.query(
+          metaTable,
+          columns: ['value'],
+          where: 'account_id=? and key=?',
+          whereArgs: [
+            observed.accountId,
+            humanCommandIntentBundleKey(observed.localId),
+          ],
+          limit: 1,
+        );
+        if (!canReviewOperationalStart(
+          observed: observed,
+          current: rows.isEmpty ? null : _fromRow(rows.single),
+          humanRecord: proofs.isEmpty ? null : proofs.single['value'] as String,
+          mapping: maps.isEmpty ? null : _mappingFromRow(maps.single),
+        )) {
+          return false;
+        }
+        await tx.update(
+          commandsTable,
+          {'status': CommandStatus.review.storageValue, 'last_error': reason},
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+        );
+        return true;
+      }),
+    );
+  }
+
+  @override
+  Future<bool> reconcileOperationalStartReceipt(
+    CommandEnvelope observed,
+    Map<String, Object?> receipt,
+  ) async {
+    receipt = freezeDispatchReceipt(receipt)!;
+    observed = freezeDispatchCommand(observed);
+    await initialize();
+    return _withExecutionContentionRetry(
+      () => _db.transaction((tx) async {
+        final rows = await tx.query(
+          commandsTable,
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+          limit: 1,
+        );
+        final maps = await tx.query(
+          mappingsTable,
+          where: 'account_id=? and local_id=? and entity_kind=?',
+          whereArgs: [
+            observed.accountId,
+            observed.localId,
+            EntityKind.session.storageValue,
+          ],
+          limit: 1,
+        );
+        final proofs = await tx.query(
+          metaTable,
+          columns: ['value'],
+          where: 'account_id=? and key=?',
+          whereArgs: [
+            observed.accountId,
+            humanCommandIntentBundleKey(observed.localId),
+          ],
+          limit: 1,
+        );
+        if (!canReconcileOperationalStartReceipt(
+          observed: observed,
+          current: rows.isEmpty ? null : _fromRow(rows.single),
+          humanRecord: proofs.isEmpty ? null : proofs.single['value'] as String,
+          mapping: maps.isEmpty ? null : _mappingFromRow(maps.single),
+          receipt: receipt,
+        )) {
+          return false;
+        }
+        await tx.update(
+          commandsTable,
+          {
+            'status': CommandStatus.confirmed.storageValue,
+            'server_response': jsonEncode(receipt),
+            'last_error': null,
+          },
+          where: 'account_id=? and local_id=?',
+          whereArgs: [observed.accountId, observed.localId],
+        );
+        if (maps.isEmpty) {
+          await tx.insert(mappingsTable, {
+            'account_id': observed.accountId,
+            'local_id': observed.localId,
+            'entity_kind': EntityKind.session.storageValue,
+            'server_id': receipt['id'],
+            'resolved_at': _encodeTime(observed.occurredAt),
+            'matched_existing': 0,
+          });
         }
         return true;
       }),

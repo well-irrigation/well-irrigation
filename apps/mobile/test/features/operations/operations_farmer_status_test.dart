@@ -51,10 +51,14 @@ class _FakeStatusRepo extends OperationsRepository {
     }
     final farms = await fetchFarms(wellId, farmerAccountId: farmerAccountId);
     return farms
-        .where((farm) => farm.wellId == wellId &&
-            farm.farmerAccountId == farmerAccountId &&
-            farm.status == 'active' && farm.id.isNotEmpty &&
-            farm.displayName.contains(query.trim()))
+        .where(
+          (farm) =>
+              farm.wellId == wellId &&
+              farm.farmerAccountId == farmerAccountId &&
+              farm.status == 'active' &&
+              farm.id.isNotEmpty &&
+              farm.displayName.contains(query.trim()),
+        )
         .take(limit)
         .toList();
   }
@@ -172,6 +176,7 @@ void main() {
             coordinator: coordinator,
             repository: repo,
             priceRepository: _FakePriceRepo(solarSchedule()),
+            clock: () => DateTime.utc(2026, 10, 3, 6),
           ),
         ),
       ),
@@ -327,7 +332,7 @@ void main() {
         final commands = await store.allCommands(accountId);
         final starts = commands
             .where(
-              (command) => command.type == CommandType.startIrrigationSession,
+              (command) => command.type == CommandType.startOperationalSession,
             )
             .toList();
         expect(starts, hasLength(1));
@@ -389,7 +394,7 @@ void main() {
       final commands = await store.allCommands(accountId);
       expect(
         commands.where(
-          (command) => command.type == CommandType.startIrrigationSession,
+          (command) => command.type == CommandType.startOperationalSession,
         ),
         hasLength(1),
       );

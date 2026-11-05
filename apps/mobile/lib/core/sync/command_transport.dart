@@ -278,6 +278,11 @@ DispatchResult normalizeAcceptedResponse(
       entityId: response['booking_id'] as String,
     );
   }
+  if (type == CommandType.startOperationalSession) {
+    // Preserve malformed wire values as unknown outcomes; never stringify them into identities.
+    return DispatchAccepted(response: {'id': rawResponse},
+      entityId: rawResponse is String ? rawResponse : null);
+  }
   if (!type.returnsJson) {
     final id = rawResponse?.toString();
 

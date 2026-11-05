@@ -2,6 +2,8 @@
 library;
 
 import 'dart:io';
+import 'dart:convert';
+import 'package:well_irrigation_mobile/core/sync/command_envelope.dart';
 
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 
@@ -57,13 +59,31 @@ void main() {
 
   Future<void> start() async {
     clock.elapsed = const Duration(seconds: 23);
-    await coordinator.startBookedSession(
-      accountId: 'account',
-      wellId: 'well',
-      bookingId: 'A',
-      cachedSchedule: cached,
-      automation: automation,
-    );
+    // Historical serialized lifecycle fixture: current production no longer creates it.
+    final key = 'booking.manual_start.v1.well.A';
+    if (await store.readBundle('account',key) == null) {
+      final booking = cached.schedule.bookings.firstWhere((b)=>b.id=='A');
+      final at = clock.base.add(clock.elapsed);
+      final pumps = await store.readBundle('account','booking.pumps.v1.well');
+      final pump = pumps == null ? null : (jsonDecode(pumps) as List).singleOrNull as Map?;
+      final anchor = cached.timeAnchor!;
+      final command = CommandEnvelope(localId:'historical-start',commandId:'historical-command',accountId:'account',wellId:'well',type:CommandType.startBookingSession,sequence:await store.nextSequence('account'),occurredAt:at,createdLocalAt:at,
+        payload:{'p_booking_id':'A','p_crops':<String>[]},localContext:{
+          'booking_id':'A','manual_start':true,'chain_id':automation.activeChainId,
+          'decision_revision':automation.activeChainDecisionRevision,'automation_revision':automation.revision,
+          'p_farm_id':booking.farmId,'p_farmer_well_account_id':booking.farmerWellAccountId,
+          'p_energy_source':booking.expectedEnergySource,'alternative_energy_source':booking.alternativeEnergySource,
+          'farmer_name':booking.farmerName,'farm_name':booking.farmName,'public_code':booking.publicCode,
+          'expected_duration_minutes':booking.expectedDurationMinutes,
+          'scheduled_start':booking.scheduledStart.toUtc().toIso8601String(),
+          'scheduled_end':booking.scheduledEnd.toUtc().toIso8601String(),
+          'consumed_booking_ids':<String>[],
+          if(pump!=null) 'p_pump_id':pump['id'], if(pump!=null) 'pump_name':pump['name'],
+          'trusted_time_anchor':{'server_time':anchor.serverTime!.toUtc().toIso8601String(),
+          'wall_clock':anchor.wallClock.toUtc().toIso8601String(),'monotonic_us':anchor.monotonic.inMicroseconds,'boot_id':anchor.bootId}});
+      await store.insertBundle(accountId:'account',key:key,value:jsonEncode({'start_local_id':command.localId,'start_command_id':command.commandId}),commands:[command],localValues:{BookingLocalLedger.bookedLifecycleKey('well'):jsonEncode({'version':1,'provenance':'phone_owned_booked_lifecycle','well_id':'well','state':'running','start_local_id':command.localId,'start_command_id':command.commandId,'automation_revision':automation.revision,'chain_id':automation.activeChainId,'decision_revision':automation.activeChainDecisionRevision})});
+    }
+    await coordinator.projectActiveSession(accountId:'account',wellId:'well');
   }
 
   Future<BookedSessionAction?> action() =>

@@ -2,6 +2,7 @@
 library;
 
 import 'dart:io';
+import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -126,6 +127,8 @@ void main() {
       clock.now = f.at(47);
       final manualSchedule = f.cached(copySchedule(f.fieldSchedule(), null));
       final original = await coordinator.startBookedSession(
+        startedAt: f.at(47),
+        displayPump: const Pump(id:'pump',wellId:'well',name:'مضخة',publicCode:'P'),
         accountId: 'account',
         wellId: 'well',
         bookingId: 'B',

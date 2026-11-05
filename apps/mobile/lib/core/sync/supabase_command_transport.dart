@@ -12,12 +12,56 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'command_transport.dart';
 import 'booking_start_receipt.dart';
+import 'operational_start_receipt.dart';
 import 'retry_classification.dart';
 
-class SupabaseCommandTransport implements CommandTransport, CompletionReceiptTransport, BookingStartReceiptTransport {
+class SupabaseCommandTransport
+    implements
+        CommandTransport,
+        CompletionReceiptTransport,
+        BookingStartReceiptTransport,
+        OperationalStartReceiptTransport {
   const SupabaseCommandTransport(this._client);
 
   final SupabaseClient _client;
+
+  @override
+  Future<OperationalStartReceiptRead> readOperationalStartReceipt(
+    OperationalStartReceiptRequest request,
+  ) async {
+    final session = _client.auth.currentSession;
+    if (session == null ||
+        session.isExpired ||
+        session.user.id != request.accountId) {
+      return const OperationalStartReceiptFailure(
+        OperationalStartReceiptFailureKind.authentication,
+      );
+    }
+    try {
+      final raw = await _client
+          .schema('api')
+          .rpc('get_operational_start_receipt', params: request.arguments)
+          .timeout(const Duration(seconds: 20));
+      return parseOperationalStartReceipt(request, raw);
+    } on PostgrestException catch (error) {
+      return OperationalStartReceiptFailure(switch (error.code) {
+        '42501' => OperationalStartReceiptFailureKind.forbidden,
+        '28000' ||
+        'PGRST301' ||
+        'PGRST302' => OperationalStartReceiptFailureKind.authentication,
+        '22023' => OperationalStartReceiptFailureKind.malformed,
+        _ => OperationalStartReceiptFailureKind.network,
+      });
+    } on AuthException {
+      return const OperationalStartReceiptFailure(
+        OperationalStartReceiptFailureKind.authentication,
+      );
+    } on Object {
+      return const OperationalStartReceiptFailure(
+        OperationalStartReceiptFailureKind.network,
+      );
+    }
+  }
 
   @override
   Future<BookingStartReceiptRead> readBookingStartReceipt(
