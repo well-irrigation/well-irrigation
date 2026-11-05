@@ -11,6 +11,7 @@ end;$$;
 
 do $tests$
 declare detail_oid oid;list_oid oid;history_oid oid;status_oid oid;obj text;
+ writer_oid oid;acceptance_oid oid;
  rls_enabled boolean;select_policy_count integer;
 begin
  -- Fail with the missing contract name, rather than invoking a nonexistent RPC.
@@ -41,11 +42,30 @@ begin
    and not has_function_privilege('anon',status_oid,'EXECUTE')
    and not (select prosecdef from pg_proc where oid=status_oid),
    '08 correction status is authenticated SECURITY INVOKER api read');
- perform pg_temp.r6c2a_check(to_regprocedure('api.correct_irrigation_session(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)') is null,
-   '09 public correction write remains disabled in R6-C2A');
- perform pg_temp.r6c2a_check(not has_function_privilege('authenticated',
-   'ops.accept_session_correction(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)','EXECUTE'),
-   '10 authenticated cannot execute internal correction function');
+ -- Phase transition: C2B activates precisely the intended INVOKER wrapper,
+ -- without exposing business schemas or enabling direct table writes.
+ writer_oid:=to_regprocedure('api.correct_irrigation_session(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)');
+ acceptance_oid:=to_regprocedure('ops.accept_session_correction(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)');
+ perform pg_temp.r6c2a_check(writer_oid is not null
+   and (select not prosecdef from pg_proc where oid=writer_oid)
+   and has_function_privilege('authenticated',writer_oid,'EXECUTE')
+   and has_function_privilege('service_role',writer_oid,'EXECUTE')
+   and not has_function_privilege('anon',writer_oid,'EXECUTE')
+   and not exists(select 1 from pg_proc p,
+     lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+     where p.oid=writer_oid and acl.grantee=0 and acl.privilege_type='EXECUTE')
+   and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+     where n.nspname='api' and p.proname in ('correct_irrigation_session','correct_session',
+       'accept_session_correction','reconcile_session_correction') and p.oid<>writer_oid),
+   '09 intended public correction wrapper only; INVOKER, role parity, no anon/PUBLIC or reconciliation');
+ perform pg_temp.r6c2a_check(acceptance_oid is not null
+   and has_function_privilege('authenticated',acceptance_oid,'EXECUTE')
+   and has_function_privilege('service_role',acceptance_oid,'EXECUTE')
+   and not has_function_privilege('anon',acceptance_oid,'EXECUTE')
+   and not exists(select 1 from pg_proc p,
+     lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+     where p.oid=acceptance_oid and acl.grantee=0 and acl.privilege_type='EXECUTE'),
+   '10 internal acceptance bridge limited to authenticated/service_role; no anon/PUBLIC');
  perform pg_temp.r6c2a_check(not has_function_privilege('authenticated',
    'billing.reconcile_session_correction(uuid,uuid,timestamptz)','EXECUTE'),
    '11 authenticated cannot execute internal financial reconciliation');

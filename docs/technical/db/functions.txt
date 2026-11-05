@@ -24,6 +24,7 @@ api.configure_fuel_tank(p_fuel_tank_id uuid, p_name text, p_capacity_ml bigint, 
 api.confirm_handover(p_handover_id uuid, p_confirmed_amount_minor bigint, p_difference_reason text)|text|volatile|invoker|search_path=pg_catalog, pg_temp
 api.confirm_well_invitation(p_invitation_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.consume_password_reset(p_phone text, p_code text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.correct_irrigation_session(p_session_id uuid, p_command_id uuid, p_base_revision bigint, p_reason text, p_desired_started_at timestamp with time zone, p_desired_ended_at timestamp with time zone, p_requested_at timestamp with time zone)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.create_booking(p_well_id uuid, p_farmer_well_account_id uuid, p_farm_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_command_id uuid, p_expected_energy_source text, p_priority integer, p_notes text, p_alternative_energy_source text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.create_custom_expense_category(p_well_id uuid, p_name text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.create_farm(p_well_id uuid, p_name text, p_farmer_well_account_id uuid, p_distinguishing_label text, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -64,6 +65,7 @@ api.get_operational_start_receipt(p_well_id uuid, p_command_id uuid, p_expected_
 api.get_partner_distribution_sources(p_cycle_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.get_partner_irrigation_policy(p_partner_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.get_reports_summary(p_well_id uuid, p_period text, p_start timestamp with time zone, p_end timestamp with time zone)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_session_correction_receipt(p_session_id uuid, p_command_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_session_correction_status(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_session_corrections(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_session_detail(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -486,4 +488,5 @@ sync.get_completion_receipt_read(p_well_id uuid, p_session_id uuid, p_command_id
 sync.get_delay_start_group_receipt_read(p_well_id uuid, p_command_id uuid, p_original_request jsonb)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 sync.get_occurrence_settlement_receipt_read(p_well_id uuid, p_command_id uuid, p_original_request jsonb)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 sync.get_operational_start_receipt_read(p_well_id uuid, p_command_id uuid, p_expected_command_type text)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
+sync.get_session_correction_receipt_read(p_session_id uuid, p_command_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 sync.verify_booking_command_replay(p_well_id uuid, p_command_id uuid, p_command_type text, p_m113_payload jsonb, p_m112_payload jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp

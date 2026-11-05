@@ -98,6 +98,7 @@ do $tests$
 declare f jsonb;g jsonb;h jsonb;r jsonb;again jsonb;snap jsonb;history jsonb;
  t timestamptz;cmd uuid:=gen_random_uuid();cmd2 uuid:=gen_random_uuid();cid uuid;sid uuid;other uuid;other_well uuid;failed_cmd uuid;
  denied boolean;role_name text;obj text;key text;err text;completion_receipt jsonb;start_receipt jsonb;
+ writer_oid oid;
 begin
  f:=pg_temp.c1_fixture(true);t:=(f->>'at')::timestamptz;sid:=(f->>'session')::uuid;
  -- Original posting context is closed: accepting operational facts must not
@@ -251,13 +252,19 @@ begin
  h:=f||jsonb_build_object('session',gen_random_uuid());
  perform pg_temp.c1_check(pg_temp.c1_error(h,gen_random_uuid(),0,t,t+interval '1 hour')='session_correction_forbidden','31 nonexistent scope denied');
  foreach role_name in array array['anon','authenticated','service_role'] loop
-  perform pg_temp.c1_check(not has_function_privilege(role_name,
-  'ops.accept_session_correction(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)','EXECUTE'),
-  '32 private acceptance denied to '||role_name);
+  perform pg_temp.c1_check(has_function_privilege(role_name,
+  'ops.accept_session_correction(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)','EXECUTE')
+  = (role_name<>'anon'),
+  '32 acceptance bridge allows authenticated/service_role only; role='||role_name);
   foreach obj in array array['ops.session_corrections','ops.session_correction_reconciliations'] loop
    perform pg_temp.c1_check(not has_table_privilege(role_name,obj,'INSERT,UPDATE,DELETE'), '33 no direct DML '||role_name||' '||obj);
   end loop;
  end loop;
+ perform pg_temp.c1_check(not exists(select 1 from pg_proc p,
+  lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+  where p.oid='ops.accept_session_correction(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)'::regprocedure
+   and acl.grantee=0 and acl.privilege_type='EXECUTE'),
+  '32b PUBLIC cannot execute internal acceptance');
  execute 'set local role authenticated';denied:=false;
  begin insert into ops.session_corrections default values;
  exception when insufficient_privilege then denied:=true;end;
@@ -274,8 +281,16 @@ begin
  begin perform ops.accept_session_correction(sid,gen_random_uuid(),4,'denied',t,t+interval '1 hour',now());
  exception when insufficient_privilege then denied:=true;end;
  execute 'reset role';perform pg_temp.c1_check(denied,'35 anonymous EXECUTE denied');
- perform pg_temp.c1_check(to_regprocedure('api.correct_irrigation_session(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)') is null,
- '36 no public correction endpoint');
+ writer_oid:=to_regprocedure('api.correct_irrigation_session(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)');
+ perform pg_temp.c1_check(writer_oid is not null
+  and (select not prosecdef from pg_proc where oid=writer_oid)
+  and has_function_privilege('authenticated',writer_oid,'EXECUTE')
+  and has_function_privilege('service_role',writer_oid,'EXECUTE')
+  and not has_function_privilege('anon',writer_oid,'EXECUTE')
+  and not exists(select 1 from pg_proc p,
+   lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) acl
+   where p.oid=writer_oid and acl.grantee=0 and acl.privilege_type='EXECUTE'),
+ '36 intended INVOKER correction endpoint activated with role parity and no anon/PUBLIC');
  select lower(prosrc) into key from pg_proc where oid=
  'ops.accept_session_correction(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)'::regprocedure;
  perform pg_temp.c1_check(key !~ '(execute_booking_transition|execute_booking_transition_automation|execute_pending_booking_start|record_booking_transition_decision)',
