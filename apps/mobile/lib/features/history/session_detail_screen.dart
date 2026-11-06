@@ -45,6 +45,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   CompletedSessionPaymentState? _paymentState;
   bool _paymentOpening = false;
   bool _usingCachedRead = false;
+  bool get _canShowCorrectionAction =>
+      _detailData != null &&
+      !_usingCachedRead &&
+      _detailData!.canCorrectSession;
   OfflineSessionCoordinator get _coordinator =>
       widget.coordinator ?? OfflineSessionCoordinator.instance;
   bool get _canRecordPayment =>
@@ -595,6 +599,12 @@ $moneyBlock
               _paymentMessages(),
               // 1. كرت الملخص العام
               _buildSummaryCard(session, crops: data.crops),
+
+              if (_canShowCorrectionAction)
+                const OutlinedButton(
+                  onPressed: null,
+                  child: Text('تصحيح السجل'),
+                ),
 
               const SizedBox(height: 8),
 
