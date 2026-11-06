@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'command_transport.dart';
 import 'booking_start_receipt.dart';
 import 'operational_start_receipt.dart';
+import 'session_correction_receipt.dart';
 import 'retry_classification.dart';
 
 class SupabaseCommandTransport
@@ -20,10 +21,49 @@ class SupabaseCommandTransport
         CommandTransport,
         CompletionReceiptTransport,
         BookingStartReceiptTransport,
-        OperationalStartReceiptTransport {
+        OperationalStartReceiptTransport,
+        SessionCorrectionReceiptTransport {
   const SupabaseCommandTransport(this._client);
 
   final SupabaseClient _client;
+
+  @override
+  Future<SessionCorrectionReceiptRead> readSessionCorrectionReceipt(
+    SessionCorrectionReceiptRequest request,
+  ) async {
+    final session = _client.auth.currentSession;
+    if (session == null ||
+        session.isExpired ||
+        session.user.id != request.accountId) {
+      return const SessionCorrectionReceiptFailure(
+        SessionCorrectionReceiptFailureKind.authentication,
+      );
+    }
+    try {
+      final raw = await _client
+          .schema('api')
+          .rpc('get_session_correction_receipt', params: request.arguments)
+          .timeout(const Duration(seconds: 20));
+      return parseSessionCorrectionReceipt(request, raw);
+    } on PostgrestException catch (error) {
+      return SessionCorrectionReceiptFailure(switch (error.code) {
+        '42501' => SessionCorrectionReceiptFailureKind.forbidden,
+        '28000' ||
+        'PGRST301' ||
+        'PGRST302' => SessionCorrectionReceiptFailureKind.authentication,
+        '22023' => SessionCorrectionReceiptFailureKind.malformed,
+        _ => SessionCorrectionReceiptFailureKind.network,
+      });
+    } on AuthException {
+      return const SessionCorrectionReceiptFailure(
+        SessionCorrectionReceiptFailureKind.authentication,
+      );
+    } on Object {
+      return const SessionCorrectionReceiptFailure(
+        SessionCorrectionReceiptFailureKind.network,
+      );
+    }
+  }
 
   @override
   Future<OperationalStartReceiptRead> readOperationalStartReceipt(

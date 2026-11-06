@@ -1,6 +1,12 @@
 import 'command_envelope.dart';
 import 'command_type.dart';
 
+abstract interface class SessionCorrectionReceiptTransport {
+  Future<SessionCorrectionReceiptRead> readSessionCorrectionReceipt(
+    SessionCorrectionReceiptRequest request,
+  );
+}
+
 const _serverBigintMax = 9223372036854775807;
 const _maxCorrectableBaseRevision = 9223372036854775806;
 
