@@ -23,6 +23,8 @@ class _Repo extends OperationsRepository {
     if (offline) throw StateError('offline');
     final at = DateTime(2026, 10, 14, 9);
     return SessionDetailData(
+      canReadSessionCorrections: false,
+      canCorrectSession: false,
       session: SessionHistoryItem(
         id: id,
         wellId: 'w',

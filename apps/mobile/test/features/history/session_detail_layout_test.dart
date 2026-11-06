@@ -24,6 +24,8 @@ class _LayoutRepository extends OperationsRepository {
   Future<SessionDetailData> fetchSessionDetail(String sessionId) async {
     final start = DateTime(2026, 10, 14, 9);
     return SessionDetailData(
+      canReadSessionCorrections: false,
+      canCorrectSession: false,
       session: SessionHistoryItem(
         id: sessionId,
         wellId: 'well-1',

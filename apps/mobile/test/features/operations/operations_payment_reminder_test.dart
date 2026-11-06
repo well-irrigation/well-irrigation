@@ -30,6 +30,8 @@ class _Repo extends OperationsRepository {
   Future<SessionDetailData> fetchSessionDetail(String id) async {
     reads++;
     return SessionDetailData(
+      canReadSessionCorrections: false,
+      canCorrectSession: false,
       session: SessionHistoryItem(
         id: id,
         wellId: 'well',

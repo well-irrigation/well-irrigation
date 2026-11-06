@@ -905,6 +905,8 @@ class SessionDetailData {
   const SessionDetailData({
     required this.session,
     required this.segments,
+    required this.canReadSessionCorrections,
+    required this.canCorrectSession,
     this.crops = const [],
     this.paymentMethod,
     this.paymentReference,
@@ -913,6 +915,8 @@ class SessionDetailData {
 
   final SessionHistoryItem session;
   final List<SessionSegmentItem> segments;
+  final bool canReadSessionCorrections;
+  final bool canCorrectSession;
 
   /// محاصيل هذه الجلسة كما حُفظت وقت بدئها (ق-131 البند 1) — لقطة
   /// مستقلة لا تتبع الأرض، والجلسات الأقدم من الميزة قائمة فارغة.
@@ -1448,6 +1452,20 @@ class OperationsRepository {
       throw StateError('عقد تفصيل الجلسة لم يُعِد بيانات الجلسة');
     }
 
+    final canReadSessionCorrections =
+        sessionJson['can_read_session_corrections'];
+    final canCorrectSession = sessionJson['can_correct_session'];
+    if (canReadSessionCorrections is! bool) {
+      throw const FormatException(
+        'Invalid session detail can_read_session_corrections',
+      );
+    }
+    if (canCorrectSession is! bool) {
+      throw const FormatException(
+        'Invalid session detail can_correct_session',
+      );
+    }
+
     final segments = (response['segments'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map(
@@ -1463,6 +1481,8 @@ class OperationsRepository {
     final crops = cropsFromContract(response);
 
     return SessionDetailData(
+      canReadSessionCorrections: canReadSessionCorrections,
+      canCorrectSession: canCorrectSession,
       session: SessionHistoryItem.fromContract(
         Map<String, dynamic>.from(sessionJson),
         requireCorrectionFacts: true,

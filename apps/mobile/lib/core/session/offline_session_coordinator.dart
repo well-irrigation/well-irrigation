@@ -48,7 +48,12 @@ class CompletedSessionPaymentState {
     final raw = storedRead?['detail'];
     if (raw is! Map) return null;
     final value = Map<String, dynamic>.from(raw);
+    final canRead = value['can_read_session_corrections'];
+    final canCorrect = value['can_correct_session'];
+    if (canRead is! bool || canCorrect is! bool) return null;
     return SessionDetailData(
+      canReadSessionCorrections: canRead,
+      canCorrectSession: canCorrect,
       session: SessionHistoryItem.fromContract(
         Map<String, dynamic>.from(value['session'] as Map),
       ),
@@ -2534,6 +2539,8 @@ class OfflineSessionCoordinator {
   static Map<String, Object?> _cacheDetail(SessionDetailData data) {
     final s = data.session;
     return {
+      'can_read_session_corrections': data.canReadSessionCorrections,
+      'can_correct_session': data.canCorrectSession,
       'session': {
         'id': s.id,
         'well_id': s.wellId,

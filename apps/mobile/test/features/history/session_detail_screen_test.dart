@@ -23,6 +23,8 @@ class _FakeOperationsRepository extends OperationsRepository {
     final started = DateTime(2026, 8, 31, 9);
 
     return SessionDetailData(
+      canReadSessionCorrections: false,
+      canCorrectSession: false,
       session: SessionHistoryItem(
         id: sessionId,
         wellId: 'well-1',

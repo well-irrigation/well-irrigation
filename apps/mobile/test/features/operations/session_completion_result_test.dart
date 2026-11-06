@@ -67,6 +67,8 @@ void main() {
       tester,
     ) async {
       final detail = SessionDetailData(
+        canReadSessionCorrections: false,
+        canCorrectSession: false,
         session: SessionHistoryItem(
           id: 'server',
           wellId: 'well',

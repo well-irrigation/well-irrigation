@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 
@@ -9,6 +14,7 @@ import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 void main() {
   _correctionDetailContractTests();
   _strictCorrectionTimestampTests();
+  _sessionCorrectionCapabilityTests();
   group('historyWindow', () {
     final now = DateTime(2026, 8, 31, 14, 30);
 
@@ -291,6 +297,8 @@ Map<String, dynamic> _correctionDetail({int revision = 1}) => {
   'operational_revision': revision,
   'financial_status': revision == 0 ? 'not_applicable' : 'pending',
   'financial_applied_revision': revision == 0 ? null : 0,
+  'can_read_session_corrections': true,
+  'can_correct_session': true,
   'billable_seconds': 7200,
   'total_amount_minor': 12345,
 };
@@ -670,5 +678,108 @@ void _strictCorrectionTimestampTests() {
         }
       });
     }
+  });
+}
+
+void _sessionCorrectionCapabilityTests() {
+  group('R6C-3 explicit server correction capabilities', () {
+    // Capabilities belong to detail only; list items carry no authority.
+    Future<SessionDetailData> readDetail(Map<String, dynamic> session) async {
+      final client = SupabaseClient(
+        'https://example.test',
+        'test-anon-key',
+        httpClient: MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/rest/v1/rpc/get_session_detail');
+          expect(request.headers['content-profile'], 'api');
+          expect(jsonDecode(request.body), {'p_session_id': 'session-1'});
+          return http.Response(
+            jsonEncode({'session': session, 'segments': []}),
+            200,
+            request: request,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      try {
+        return await OperationsRepository(client)
+            .fetchSessionDetail('session-1');
+      } finally {
+        await client.dispose();
+      }
+    }
+
+    test('list contract does not require detail capabilities', () {
+      final json = _correctionDetail()
+        ..remove('can_read_session_corrections')
+        ..remove('can_correct_session');
+      final item = SessionHistoryItem.fromContract(json);
+      expect(item.id, 'session-1');
+      expect(item.operationalRevision, 1);
+      expect(item.startedAt.toUtc(), DateTime.utc(2026, 11, 1, 8, 15));
+    });
+    for (final capabilities in [
+      (read: true, correct: true),
+      (read: true, correct: false),
+      (read: false, correct: false),
+    ]) {
+      test(
+        'retains independent booleans ${capabilities.read}/${capabilities.correct}',
+        () async {
+          final json = _correctionDetail()
+            ..['can_read_session_corrections'] = capabilities.read
+            ..['can_correct_session'] = capabilities.correct;
+          final dynamic detail = await readDetail(json);
+          final dynamic read = _detailField(
+            'canReadSessionCorrections',
+            () => detail.canReadSessionCorrections,
+          );
+          final dynamic correct = _detailField(
+            'canCorrectSession',
+            () => detail.canCorrectSession,
+          );
+          expect(read, isA<bool>());
+          expect(correct, isA<bool>());
+          expect(read, capabilities.read);
+          expect(correct, capabilities.correct);
+        },
+      );
+    }
+    for (final field in [
+      'can_read_session_corrections',
+      'can_correct_session',
+    ]) {
+      test('new detail rejects missing $field without a fallback', () async {
+        final json = _correctionDetail()..remove(field);
+        await expectLater(readDetail(json), throwsA(isA<FormatException>()));
+      });
+      for (final value in <Object?>['true', 1, null]) {
+        test('new detail rejects non-boolean $field = $value', () async {
+          final json = _correctionDetail()..[field] = value;
+          await expectLater(readDetail(json), throwsA(isA<FormatException>()));
+        });
+      }
+    }
+    test('explicit false is authoritative despite an operator and completed facts', () async {
+      // operator_name belongs to the original execution, not caller authority.
+      // Do not invent a role/metadata field absent from the server contract.
+      final json = _correctionDetail()
+        ..['operator_name'] = 'مشغل الجلسة'
+        ..['has_charge'] = true
+        ..['can_read_session_corrections'] = false
+        ..['can_correct_session'] = false;
+      final dynamic detail = await readDetail(json);
+      expect(
+        _detailField(
+          'canReadSessionCorrections',
+          () => detail.canReadSessionCorrections,
+        ),
+        isFalse,
+      );
+      expect(
+        _detailField('canCorrectSession', () => detail.canCorrectSession),
+        isFalse,
+      );
+    });
   });
 }
