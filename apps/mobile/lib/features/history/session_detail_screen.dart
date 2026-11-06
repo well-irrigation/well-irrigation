@@ -11,6 +11,7 @@ import '../../core/utils/currency_utils.dart';
 import '../../core/widgets/currency_display.dart';
 import '../operations/widgets/payment_receipt_dialog.dart';
 import '../operations/widgets/session_completion_result.dart';
+import 'session_correction_screen.dart';
 
 /// شاشة تفاصيل الجلسة والخط الزمني (UX-13 / 377 / ق-98)
 class SessionDetailScreen extends StatefulWidget {
@@ -117,6 +118,25 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       revision: revision,
     );
     await _restorePaymentState();
+  }
+
+  void _openSessionCorrection() {
+    if (!_canShowCorrectionAction) return;
+    final session = _detailData!.session;
+    final start = session.effectiveStartedAt;
+    final end = session.effectiveEndedAt;
+    final revision = session.operationalRevision;
+    if (start == null || end == null || revision == null) return;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SessionCorrectionScreen(
+          sessionId: session.id,
+          effectiveStartedAt: start,
+          effectiveEndedAt: end,
+          operationalRevision: revision,
+        ),
+      ),
+    );
   }
 
   Future<void> _recordDeferredPayment() async {
@@ -601,9 +621,9 @@ $moneyBlock
               _buildSummaryCard(session, crops: data.crops),
 
               if (_canShowCorrectionAction)
-                const OutlinedButton(
-                  onPressed: null,
-                  child: Text('تصحيح السجل'),
+                OutlinedButton(
+                  onPressed: _openSessionCorrection,
+                  child: const Text('تصحيح السجل'),
                 ),
 
               const SizedBox(height: 8),

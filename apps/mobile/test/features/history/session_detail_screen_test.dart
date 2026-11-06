@@ -383,6 +383,128 @@ void _correctionActionVisibilityTests() {
     },
   );
 
+  testWidgets('live correction action is enabled for opening the form', (
+    tester,
+  ) async {
+    viewport(tester);
+    await tester.pumpWidget(
+      screen(const _FakeOperationsRepository(canRead: true, canCorrect: true)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(action), findsOneWidget);
+    final button = find.ancestor(
+      of: find.text(action),
+      matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+    );
+    expect(button, findsOneWidget);
+    expect(
+      tester.widget<ButtonStyleButton>(button).onPressed,
+      isNotNull,
+      reason: 'Expected correction action to be enabled',
+    );
+  });
+
+  testWidgets(
+    'tap opens full-screen correction shell with effective snapshot and empty reason',
+    (tester) async {
+      viewport(tester);
+      final repo = _CorrectionReadRepository();
+      final snapshot = SessionDetailData(
+        canReadSessionCorrections: true,
+        canCorrectSession: true,
+        session: SessionHistoryItem(
+          id: 'server',
+          wellId: 'well-1',
+          farmerName: 'مزارع',
+          farmerCode: 'F1',
+          farmerAccountId: 'acc-1',
+          farmName: 'أرض',
+          pumpName: 'مضخة',
+          operatorName: 'مشغل',
+          // Deliberately distinguish all three sources. The form must use only
+          // explicit effective facts, never originals or legacy aliases.
+          startedAt: DateTime(2026, 8, 31, 7),
+          endedAt: DateTime(2026, 8, 31, 12),
+          originalStartedAt: DateTime(2026, 8, 31, 8),
+          originalEndedAt: DateTime(2026, 8, 31, 10),
+          effectiveStartedAt: DateTime(2026, 8, 31, 9),
+          effectiveEndedAt: DateTime(2026, 8, 31, 11),
+          operationalRevision: 3,
+          financialStatus: 'pending',
+          financialAppliedRevision: 0,
+        ),
+        segments: const [],
+      );
+      repo.response.complete(snapshot);
+      await tester.pumpWidget(screen(repo));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text(action));
+      await tester.tap(find.text(action));
+      await tester.pumpAndSettle();
+      final title = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text(action),
+      );
+      expect(
+        title,
+        findsOneWidget,
+        reason: 'Expected to find correction form screen after tap',
+      );
+      expect(find.byType(Dialog), findsNothing);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(
+        Navigator.of(tester.element(title)).canPop(),
+        isTrue,
+        reason: 'correction must open a separate full-screen route',
+      );
+
+      final start = find.byKey(const ValueKey('session_correction_start'));
+      final end = find.byKey(const ValueKey('session_correction_end'));
+      final reason = find.byKey(const ValueKey('session_correction_reason'));
+      for (final field in [start, end, reason]) {
+        expect(field, findsOneWidget);
+      }
+      for (final label in [
+        'البداية الفعلية',
+        'النهاية الفعلية',
+        'سبب التصحيح',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      // Time inputs may be read-only picker fields. Inspect their displayed
+      // text without depending on pixel positions or the correction screen type.
+      String inputText(Finder field) {
+        final editable = find.descendant(
+          of: field,
+          matching: find.byType(EditableText),
+        );
+        expect(editable, findsOneWidget);
+        return tester.widget<EditableText>(editable).controller.text;
+      }
+
+      final initialStart = inputText(start);
+      final initialEnd = inputText(end);
+      expect(initialStart, contains('09:00'));
+      expect(initialEnd, contains('11:00'));
+      expect(initialStart, isNot(contains('08:00')));
+      expect(initialStart, isNot(contains('07:00')));
+      expect(initialEnd, isNot(contains('10:00')));
+      expect(initialEnd, isNot(contains('12:00')));
+      expect(inputText(reason), isEmpty);
+
+      // No read on navigation: the opened form retains the supplied snapshot.
+      // BASE_REVISION_VALIDATION_DEFERRED_TO_DRAFT_CONTRACT_RED: revision is
+      // deliberately not exposed through a technical UI or private route API.
+      expect(repo.reads, 1);
+      repo.response = Completer<SessionDetailData>();
+      await tester.pump();
+      expect(inputText(start), initialStart);
+      expect(inputText(end), initialEnd);
+      expect(inputText(reason), isEmpty);
+      expect(repo.reads, 1);
+    },
+  );
+
   for (final read in [true, false]) {
     testWidgets('live read=$read correct=false hides correction', (
       tester,
