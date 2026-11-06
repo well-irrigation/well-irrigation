@@ -458,6 +458,7 @@ ops.resolve_farmer_identity(p_well_id uuid, p_original_command_id uuid, p_resolu
 ops.respond_session_transfer(p_transfer_id uuid, p_accept boolean, p_to_shift_id uuid)|text|volatile|definer|search_path=ops, pg_temp
 ops.resume_irrigation_session(p_session_id uuid, p_resumed_at timestamp with time zone)|uuid|volatile|definer|search_path=ops, core, iam, pg_temp
 ops.send_daily_summaries(p_day date)|jsonb|volatile|definer|search_path=ops, reporting, core, iam, auth, pg_temp
+ops.session_correction_capabilities_read(p_session_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 ops.set_well_booking_automation(p_well_id uuid, p_enabled boolean, p_expected_revision bigint, p_actor uuid, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.settle_handover(p_handover_id uuid, p_settled_by uuid)|text|volatile|definer|search_path=ops, pg_temp
 ops.settle_operational_occurrence(p_well_id uuid, p_command_id uuid, p_request jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
