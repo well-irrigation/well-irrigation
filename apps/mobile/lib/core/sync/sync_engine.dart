@@ -759,11 +759,15 @@ class SyncEngine {
     }
   }
 
-  Future<List<CommandEnvelope>> _legacyPending(String accountId) {
+  Future<List<CommandEnvelope>> _legacyPending(String accountId) async {
     final store = _store;
-    return store is BookingDispatchStore
-        ? (store as BookingDispatchStore).pendingLegacyCommands(accountId)
-        : store.pendingCommands(accountId);
+    final rows = store is BookingDispatchStore
+        ? await (store as BookingDispatchStore).pendingLegacyCommands(accountId)
+        : await store.pendingCommands(accountId);
+    // التصحيح ينتظر مسار الإرسال والاسترداد المخصص، دون تغيير صفه المتين.
+    return rows
+        .where((command) => command.type != CommandType.correctIrrigationSession)
+        .toList();
   }
 
   Future<bool> hasReadyBookingCreates(String accountId) async {

@@ -33,6 +33,156 @@ void main() {
     await repository.initialize();
   });
 
+  group('R6C-4A correction excluded from generic dispatch', () {
+    Future<CommandEnvelope> enqueueCorrection() async {
+      final command = await repository.enqueue(
+        accountId: accountA,
+        wellId: wellOne,
+        type: CommandType.correctIrrigationSession,
+        occurredAt: DateTime.utc(2026, 11, 6, 8, 15),
+        payload: const {
+          'p_session_id': 'server-session-123',
+          'p_base_revision': 3,
+          'p_reason': 'تصحيح وقت التشغيل الفعلي',
+          'p_desired_started_at': '2026-11-06T05:30:00.000Z',
+          'p_desired_ended_at': '2026-11-06T07:45:00.000Z',
+        },
+      );
+      final stored = await repository.byLocalId(accountA, command.localId);
+      expect(stored, isNotNull);
+      expect(stored!.status, CommandStatus.pending);
+      expect(stored.references, isEmpty);
+      expect(stored.payload['p_session_id'], 'server-session-123');
+      expect(
+        (await repository.pending(accountA)).map((c) => c.localId),
+        contains(command.localId),
+      );
+      // FakeCommandTransport's default JSON builder assumes a resultKey.
+      // Supply a raw response only as a tripwire for accidental dispatch; it
+      // makes a forbidden call observable without an unrelated null-key crash.
+      // This is not a correction receipt/recovery acceptance test.
+      transport.scheduleRawResponse(CommandType.correctIrrigationSession, {
+        'status': 'accepted',
+        'command_id': command.commandId,
+        'session_id': 'server-session-123',
+      });
+      return command;
+    }
+
+    void idle(SyncRunReport report) {
+      expect(report.attempted, 0);
+      expect(report.confirmed, 0);
+      expect(report.retryScheduled, 0);
+      expect(report.needsReview, 0);
+      expect(report.skipped, 0);
+      expect(report.blockedByReview, 0);
+      expect(report.awaitsHumanDecision, isFalse);
+      expect(report.canRetryWithoutHelp, isFalse);
+    }
+
+    Future<void> unchanged(CommandEnvelope original) async {
+      final stored = await repository.byLocalId(accountA, original.localId);
+      expect(stored, isNotNull);
+      expect(stored!.status, CommandStatus.pending);
+      expect(stored.localId, original.localId);
+      expect(stored.commandId, original.commandId);
+      expect(stored.occurredAt, original.occurredAt);
+      expect(stored.payload, original.payload);
+      expect(stored.retryCount, original.retryCount);
+      expect(stored.lastAttemptAt, original.lastAttemptAt);
+      expect(stored.serverResponse, original.serverResponse);
+      expect(
+        (await repository.pending(accountA)).map((c) => c.localId),
+        contains(original.localId),
+      );
+    }
+
+    test('durable correction is invisible to generic lane across two runs', () async {
+      final command = await enqueueCorrection();
+      final first = await engine.run(accountA);
+      final firstCount = transport
+          .requestsFor(CommandType.correctIrrigationSession)
+          .length;
+      final afterFirst = await repository.byLocalId(accountA, command.localId);
+      final second = await engine.run(accountA);
+      // Run twice before asserting to exercise both passes even in RED.
+      expect(
+        firstCount,
+        0,
+        reason:
+            'Expected no correction dispatch requests; '
+            'first attempted=${first.attempted}, confirmed=${first.confirmed}, '
+            'retry=${first.retryScheduled}, review=${first.needsReview}, '
+            'skipped=${first.skipped}, blocked=${first.blockedByReview}; '
+            'stored=${afterFirst?.status.name}; '
+            'second attempted=${second.attempted}, retry=${second.retryScheduled}, '
+            'review=${second.needsReview}',
+      );
+      expect(
+        transport.requestsFor(CommandType.correctIrrigationSession),
+        isEmpty,
+      );
+      expect(
+        transport.calledFunctions,
+        isNot(contains('correct_irrigation_session')),
+      );
+      expect(afterFirst!.status, CommandStatus.pending);
+      expect(afterFirst.commandId, command.commandId);
+      expect(afterFirst.occurredAt, command.occurredAt);
+      expect(afterFirst.payload, command.payload);
+      idle(first);
+      idle(second);
+      await unchanged(command);
+    });
+
+    test(
+      'excluded correction never blocks a later independent normal payment',
+      () async {
+        final correction = await enqueueCorrection();
+        final payment = await repository.enqueue(
+          accountId: accountA,
+          wellId: wellOne,
+          type: CommandType.recordPayment,
+          payload: recordPaymentPayload(farmerWellAccount: 'fwa-1'),
+          occurredAt: DateTime.utc(2026, 11, 6, 8, 16),
+        );
+        expect(payment.sequence, greaterThan(correction.sequence));
+        expect(
+          payment.effectiveAggregateId,
+          isNot(correction.effectiveAggregateId),
+        );
+        final report = await engine.run(accountA);
+        expect(transport.requestsFor(CommandType.recordPayment), hasLength(1));
+        expect(
+          transport.calledFunctions.where((name) => name == 'record_payment'),
+          hasLength(1),
+        );
+        expect(
+          (await repository.byLocalId(accountA, payment.localId))!.status,
+          CommandStatus.confirmed,
+        );
+        expect(
+          transport.requestsFor(CommandType.correctIrrigationSession),
+          isEmpty,
+          reason: 'normal payment must pass while correction has zero dispatch attempts',
+        );
+        expect(transport.calledFunctions, ['record_payment']);
+        expect(report.attempted, 1);
+        expect(report.confirmed, 1);
+        expect(report.retryScheduled, 0);
+        expect(report.needsReview, 0);
+        expect(report.skipped, 0);
+        expect(report.blockedByReview, 0);
+        expect(report.awaitsHumanDecision, isFalse);
+        expect(report.canRetryWithoutHelp, isFalse);
+        await unchanged(correction);
+      },
+    );
+    // GENERIC_DISPATCH_EXCLUDED=true is required independently of the eventual
+    // q137 classification. STALE_REVISION_DEFERRED_TO_DEDICATED_DISPATCH.
+    // CORRECTION_RECEIPT_DEFERRED: no dedicated lane is tested here.
+  });
+
   /// جلسة كاملة على بئر واحدة: بدء ثم إيقاف ثم استئناف ثم إنهاء.
   Future<List<CommandEnvelope>> enqueueFullSession({
     String well = wellOne,

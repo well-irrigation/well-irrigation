@@ -182,6 +182,14 @@ enum CommandType {
     scopeArgument: 'p_well_id',
     returnsJson: true,
     resultKey: 'farmer_well_account_id',
+  ),
+
+  correctIrrigationSession(
+    rpcName: 'correct_irrigation_session',
+    scope: CommandScope.session,
+    scopeArgument: 'p_session_id',
+    eventTimeArgument: 'p_requested_at',
+    returnsJson: true,
   );
 
   const CommandType({
