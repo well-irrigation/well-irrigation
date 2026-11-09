@@ -19,6 +19,290 @@ List<File> _sourceFiles() {
 
 String _normalizedPath(File file) => file.path.replaceAll('\\', '/');
 
+class _DartLexicalView {
+  const _DartLexicalView({required this.code, required this.commentsMasked});
+
+  final String code;
+  final String commentsMasked;
+}
+
+_DartLexicalView _lexDartSource(String source) {
+  final units = source.codeUnits;
+  final code = List<int>.of(units);
+  final commentsMasked = List<int>.of(units);
+
+  void maskRange(List<int> target, int start, int end) {
+    for (var index = start; index < end; index++) {
+      if (units[index] != 10 && units[index] != 13) target[index] = 32;
+    }
+  }
+
+  bool isQuote(int unit) => unit == 39 || unit == 34;
+
+  var index = 0;
+  while (index < units.length) {
+    if (units[index] == 47 &&
+        index + 1 < units.length &&
+        units[index + 1] == 47) {
+      var end = index + 2;
+      while (end < units.length && units[end] != 10) {
+        end++;
+      }
+      maskRange(code, index, end);
+      maskRange(commentsMasked, index, end);
+      index = end;
+      continue;
+    }
+
+    if (units[index] == 47 &&
+        index + 1 < units.length &&
+        units[index + 1] == 42) {
+      var depth = 1;
+      var end = index + 2;
+      while (end < units.length && depth > 0) {
+        if (end + 1 < units.length &&
+            units[end] == 47 &&
+            units[end + 1] == 42) {
+          depth++;
+          end += 2;
+        } else if (end + 1 < units.length &&
+            units[end] == 42 &&
+            units[end + 1] == 47) {
+          depth--;
+          end += 2;
+        } else {
+          end++;
+        }
+      }
+      maskRange(code, index, end);
+      maskRange(commentsMasked, index, end);
+      index = end;
+      continue;
+    }
+
+    final rawPrefix =
+        (units[index] == 114 || units[index] == 82) &&
+        index + 1 < units.length &&
+        isQuote(units[index + 1]);
+    final quoteIndex = rawPrefix ? index + 1 : index;
+    if (quoteIndex < units.length && isQuote(units[quoteIndex])) {
+      final quote = units[quoteIndex];
+      final triple =
+          quoteIndex + 2 < units.length &&
+          units[quoteIndex + 1] == quote &&
+          units[quoteIndex + 2] == quote;
+      final delimiterLength = triple ? 3 : 1;
+      var end = quoteIndex + delimiterLength;
+      var closed = false;
+
+      while (end < units.length) {
+        if (!rawPrefix && units[end] == 92) {
+          end += 2;
+          continue;
+        }
+
+        if (triple &&
+            end + 2 < units.length &&
+            units[end] == quote &&
+            units[end + 1] == quote &&
+            units[end + 2] == quote) {
+          end += 3;
+          closed = true;
+          break;
+        }
+
+        if (!triple && units[end] == quote) {
+          end++;
+          closed = true;
+          break;
+        }
+
+        if (!triple && (units[end] == 10 || units[end] == 13)) break;
+        end++;
+      }
+
+      if (!closed && end > units.length) end = units.length;
+      maskRange(code, index, end);
+      index = end;
+      continue;
+    }
+
+    index++;
+  }
+
+  return _DartLexicalView(
+    code: String.fromCharCodes(code),
+    commentsMasked: String.fromCharCodes(commentsMasked),
+  );
+}
+
+int _matchingBrace(String code, int openingBrace) {
+  if (openingBrace >= code.length || code[openingBrace] != '{') {
+    throw StateError('Expected an opening brace while reading method body');
+  }
+
+  var depth = 0;
+  for (var index = openingBrace; index < code.length; index++) {
+    if (code[index] == '{') {
+      depth++;
+    } else if (code[index] == '}') {
+      depth--;
+      if (depth == 0) return index;
+    }
+  }
+
+  throw StateError('Method body has no matching closing brace');
+}
+
+String _methodSource(String source, String methodSignature) {
+  final lexical = _lexDartSource(source);
+  final declarationPattern = RegExp(
+    '^  ${RegExp.escape(methodSignature)}',
+    multiLine: true,
+  );
+  final declarations = declarationPattern.allMatches(lexical.code).toList();
+  if (declarations.length != 1) {
+    throw StateError(
+      'Expected exactly one executable declaration for $methodSignature',
+    );
+  }
+
+  final declaration = declarations.single;
+  final openingParen = declaration.end - 1;
+  var parameterDepth = 1;
+  var parametersClose = -1;
+  for (var index = declaration.end; index < lexical.code.length; index++) {
+    if (lexical.code[index] == '(') {
+      parameterDepth++;
+    } else if (lexical.code[index] == ')') {
+      parameterDepth--;
+      if (parameterDepth == 0) {
+        parametersClose = index;
+        break;
+      }
+    }
+  }
+  if (openingParen < 0 || parametersClose < 0) {
+    throw StateError('Could not locate parameters for $methodSignature');
+  }
+
+  var bodyOpen = -1;
+  for (var index = parametersClose + 1; index < lexical.code.length; index++) {
+    if (lexical.code[index] == '{') {
+      bodyOpen = index;
+      break;
+    }
+    if (lexical.code[index] == ';' ||
+        (lexical.code[index] == '=' &&
+            index + 1 < lexical.code.length &&
+            lexical.code[index + 1] == '>')) {
+      break;
+    }
+  }
+  if (bodyOpen < 0) {
+    throw StateError('Could not locate a block body for $methodSignature');
+  }
+
+  final bodyClose = _matchingBrace(lexical.code, bodyOpen);
+  return source.substring(bodyOpen, bodyClose + 1);
+}
+
+class _ClientGuardMatch {
+  const _ClientGuardMatch({required this.guardStart, required this.throwStart});
+
+  final int guardStart;
+  final int throwStart;
+}
+
+int _skipWhitespace(String source, int start) {
+  var index = start;
+  while (index < source.length && RegExp(r'\s').hasMatch(source[index])) {
+    index++;
+  }
+  return index;
+}
+
+_ClientGuardMatch? _findClientUnavailableGuard({
+  required String methodBody,
+  required String errorMessage,
+}) {
+  final lexical = _lexDartSource(methodBody);
+  final guards = RegExp(
+    r'\bif\s*\(\s*client\s*==\s*null\s*\)',
+  ).allMatches(lexical.code);
+  final expectedThrow = RegExp(
+    "throw\\s+StateError\\s*\\(\\s*'${RegExp.escape(errorMessage)}'\\s*\\)\\s*;",
+  );
+  final executableThrow = RegExp(r'\bthrow\s+StateError\s*\(');
+
+  for (final guard in guards) {
+    final next = _skipWhitespace(lexical.code, guard.end);
+    var throwStart = -1;
+    if (next < lexical.code.length && lexical.code[next] == '{') {
+      final guardClose = _matchingBrace(lexical.code, next);
+      throwStart = _skipWhitespace(lexical.code, next + 1);
+      final codeThrow = executableThrow.matchAsPrefix(lexical.code, throwStart);
+      if (codeThrow == null || codeThrow.end > guardClose) continue;
+      final messageThrow = expectedThrow.matchAsPrefix(
+        lexical.commentsMasked,
+        throwStart,
+      );
+      if (messageThrow == null || messageThrow.end > guardClose) continue;
+    } else {
+      throwStart = next;
+      if (executableThrow.matchAsPrefix(lexical.code, throwStart) == null ||
+          expectedThrow.matchAsPrefix(lexical.commentsMasked, throwStart) ==
+              null) {
+        continue;
+      }
+    }
+
+    return _ClientGuardMatch(
+      guardStart: guard.start,
+      throwStart: throwStart,
+    );
+  }
+
+  return null;
+}
+
+void _expectClientUnavailableGuardBeforeRpc({
+  required String source,
+  required String methodSignature,
+  required String contractName,
+  required String errorMessage,
+}) {
+  final methodBody = _methodSource(source, methodSignature);
+  final guard = _findClientUnavailableGuard(
+    methodBody: methodBody,
+    errorMessage: errorMessage,
+  );
+  expect(
+    guard,
+    isNotNull,
+    reason: '$contractName must guard client == null and throw '
+        "StateError('$errorMessage') in the same method.",
+  );
+
+  final code = _lexDartSource(methodBody).code;
+  final firstRpc = RegExp(r'\.rpc\s*\(').firstMatch(code);
+  expect(
+    firstRpc,
+    isNotNull,
+    reason: '$contractName must contain its RPC boundary.',
+  );
+  expect(
+    guard!.guardStart,
+    lessThan(firstRpc!.start),
+    reason: '$contractName must guard before its RPC boundary.',
+  );
+  expect(
+    guard.throwStart,
+    lessThan(firstRpc.start),
+    reason: '$contractName must throw before its RPC boundary.',
+  );
+}
+
 List<String> _collectMatches(RegExp pattern, {required int captureGroup}) {
   final hits = <String>[];
 
@@ -829,6 +1113,151 @@ void main() {
 
   // المقياس الخامس (م-41D4): كتابات التشغيل. كانت تعود بنجاح صامت — أو
   // بفاتورة مُلفَّقة — عند غياب العميل، وتبتلعها الشاشة في مصيدة فارغة.
+  test('client guard verification rejects a comment-only guard', () {
+    const source = '''
+class Example {
+  Future<void> target() async {
+    // if (client == null) throw StateError('Supabase client is unavailable');
+    await client.rpc('dangerous_write');
+  }
+}
+''';
+    final body = _methodSource(source, 'Future<void> target(');
+    final executable = _lexDartSource(body).code;
+    expect(
+      RegExp(r'\bif\s*\(\s*client\s*==\s*null\s*\)').hasMatch(
+        executable,
+      ),
+      isFalse,
+    );
+    expect(
+      RegExp(r'\bthrow\s+StateError\s*\(').hasMatch(executable),
+      isFalse,
+    );
+    expect(
+      _findClientUnavailableGuard(
+        methodBody: body,
+        errorMessage: 'Supabase client is unavailable',
+      ),
+      isNull,
+    );
+
+    expect(
+      () => _expectClientUnavailableGuardBeforeRpc(
+        source: source,
+        methodSignature: 'Future<void> target(',
+        contractName: 'target',
+        errorMessage: 'Supabase client is unavailable',
+      ),
+      throwsA(anything),
+    );
+  });
+
+  test('method source extraction stops at the matching closing brace', () {
+    final source = [
+      'class Example {',
+      '  Future<void> target() async {',
+      r"    final single = '}';",
+      r'''    final doubleQuoted = "}";''',
+      r"    final escaped = 'quote \' }';",
+      r"    final tripleSingle = '''} // /*''';",
+      r'''    final tripleDouble = """} // /*""";''',
+      r"    final rawSingle = r'} // /*';",
+      r'''    final rawDouble = r"} // /*";''',
+      r"    final rawTripleSingle = r'''} // /*''';",
+      r'''    final rawTripleDouble = r"""} // /*""";''',
+      r'    /* outer } /* nested */ still outer */',
+      '    if (client == null) {',
+      "      throw StateError('Supabase client is unavailable');",
+      '    }',
+      "    await client.rpc('safe_after_guard');",
+      '  }',
+      '  void followingMember() {',
+      "    final sentinel = 'FOLLOWING_METHOD_SENTINEL';",
+      "    client.rpc('wrong_rpc');",
+      '  }',
+      '}',
+    ].join('\n');
+
+    final target = _methodSource(source, 'Future<void> target(');
+    expect(target, isNot(contains('FOLLOWING_METHOD_SENTINEL')));
+    expect(target, isNot(contains("wrong_rpc")));
+    expect(target, contains('safe_after_guard'));
+  });
+
+  test('client guard verification accepts a one-line guard', () {
+    const source = '''
+class Example {
+  Future<void> target() async {
+    if (client == null) throw StateError('Supabase client is unavailable');
+    await client.rpc('safe_after_guard');
+  }
+}
+''';
+
+    _expectClientUnavailableGuardBeforeRpc(
+      source: source,
+      methodSignature: 'Future<void> target(',
+      contractName: 'target',
+      errorMessage: 'Supabase client is unavailable',
+    );
+  });
+
+  test('client guard verification accepts a comment before the throw', () {
+    const source = '''
+class Example {
+  Future<void> target() async {
+    if (client == null) {
+      // The client is required for this operation.
+      throw StateError('Supabase client is unavailable');
+    }
+    await client.rpc('safe_after_guard');
+  }
+}
+''';
+
+    _expectClientUnavailableGuardBeforeRpc(
+      source: source,
+      methodSignature: 'Future<void> target(',
+      contractName: 'target',
+      errorMessage: 'Supabase client is unavailable',
+    );
+  });
+
+  test('client guard verification ignores string-literal markers', () {
+    const source = '''
+class Example {
+  Future<void> target() async {
+    final message = "// if (client == null) throw StateError('Supabase client is unavailable');";
+    final brace = '}';
+    await client.rpc('dangerous_write');
+  }
+}
+''';
+    final body = _methodSource(source, 'Future<void> target(');
+    final executable = _lexDartSource(body).code;
+    expect(
+      RegExp(r'\bif\s*\(\s*client\s*==\s*null\s*\)').hasMatch(
+        executable,
+      ),
+      isFalse,
+    );
+    expect(
+      RegExp(r'\bthrow\s+StateError\s*\(').hasMatch(executable),
+      isFalse,
+    );
+
+    expect(
+      () => _expectClientUnavailableGuardBeforeRpc(
+        source: source,
+        methodSignature: 'Future<void> target(',
+        contractName: 'target',
+        errorMessage: 'Supabase client is unavailable',
+      ),
+      throwsA(anything),
+    );
+  });
+
   test('operations write contracts fail loudly without a client', () {
     final source = File('lib/core/api/operations_repository.dart')
         .readAsStringSync();
@@ -850,31 +1279,75 @@ void main() {
       );
     }
 
-    // كل فرع «لا عميل» يرفع نفس الاستثناء الذي ترفعه القراءات: لا استثناء
-    // لكتابة على حساب المستخدم.
-    final guarded = RegExp(r'if \(client == null\) \{')
-        .allMatches(source)
-        .length;
-    final throwing = RegExp(
-      r"throw StateError\('Supabase client is unavailable'\)",
-    ).allMatches(source).length;
+    const writeMethods = [
+      'Future<FarmerAccount> createFarmer(',
+      'Future<Farm> createFarm(',
+      'Future<String> startIrrigationSession(',
+      'Future<void> pauseIrrigationSession(',
+      'Future<void> resumeIrrigationSession(',
+      'Future<void> changeEnergySource(',
+      'Future<Map<String, dynamic>> completeIrrigationSession(',
+    ];
+    expect(writeMethods, hasLength(7));
 
-    expect(guarded, throwing);
-    expect(throwing, greaterThanOrEqualTo(12));
-
-    for (final method in const [
-      'Future<String> startIrrigationSession',
-      'Future<void> pauseIrrigationSession',
-      'Future<void> resumeIrrigationSession',
-      'Future<void> changeEnergySource',
-      'Future<Map<String, dynamic>> completeIrrigationSession',
-    ]) {
-      expect(
-        source.contains(method),
-        isTrue,
-        reason: 'Session write contract missing: $method',
+    for (final method in writeMethods) {
+      _expectClientUnavailableGuardBeforeRpc(
+        source: source,
+        methodSignature: method,
+        contractName: method,
+        errorMessage: 'Supabase client is unavailable',
       );
     }
+  });
+
+  test(
+    'operations standard client-required contracts fail loudly without a client',
+    () {
+      final source = File('lib/core/api/operations_repository.dart')
+          .readAsStringSync();
+
+      const standardMethods = [
+        'Future<FarmerAccount> createFarmer(',
+        'Future<Farm> createFarm(',
+        'Future<String> startIrrigationSession(',
+        'Future<void> pauseIrrigationSession(',
+        'Future<void> resumeIrrigationSession(',
+        'Future<void> changeEnergySource(',
+        'Future<Map<String, dynamic>> completeIrrigationSession(',
+        'Future<List<FarmerAccount>> fetchFarmers(',
+        'Future<FarmerDirectoryData> fetchFarmerDirectory(',
+        'Future<FarmerSelectionStatus> fetchFarmerSelectionStatus(',
+        'Future<List<Farm>> fetchFarms(',
+        'Future<List<Pump>> fetchPumps(',
+        'Future<List<String>> fetchFarmRecentCrops(',
+        'Future<List<SessionHistoryItem>> fetchSessionHistory(',
+        'Future<SessionDetailData> fetchSessionDetail(',
+        'Future<SessionCorrectionHistory> fetchSessionCorrections(',
+        'Future<SessionCorrectionStatus> fetchSessionCorrectionStatus(',
+      ];
+      expect(standardMethods, hasLength(17));
+
+      for (final method in standardMethods) {
+        _expectClientUnavailableGuardBeforeRpc(
+          source: source,
+          methodSignature: method,
+          contractName: method,
+          errorMessage: 'Supabase client is unavailable',
+        );
+      }
+    },
+  );
+
+  test('searchFarmPage fails loudly before its RPC without a client', () {
+    final source = File('lib/core/api/operations_repository.dart')
+        .readAsStringSync();
+
+    _expectClientUnavailableGuardBeforeRpc(
+      source: source,
+      methodSignature: 'Future<FarmSearchPage> searchFarmPage(',
+      contractName: 'searchFarmPage',
+      errorMessage: 'تعذر تحميل الأراضي',
+    );
   });
 
   test('operations screen surfaces write failures instead of faking state', () {
