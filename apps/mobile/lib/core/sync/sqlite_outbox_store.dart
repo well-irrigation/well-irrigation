@@ -33,9 +33,11 @@ import 'outbox_database.dart';
 import 'outbox_store.dart';
 import 'outbox_repository.dart';
 import 'sync_status.dart';
+import 'manual_session_entry.dart';
 
 class SqliteOutboxStore
     implements
+        ManualSessionEntryFollowUpStore,
         SessionCorrectionInsertStore,
         SessionExecutionStore,
         AtomicCommandDispatchStore,
@@ -1378,6 +1380,39 @@ class SqliteOutboxStore
 
     return rows.map(_fromRow).toList();
   }
+
+  @override
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  }) => _withExecutionContentionRetry(
+    () => _db.transaction((tx) async {
+      final rows = await tx.query(
+        commandsTable,
+        where: 'account_id=? and well_id=? and local_id=?',
+        whereArgs: [accountId, wellId, localId],
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      final command = _fromRow(rows.single);
+      final bindings = (await tx.query(
+        mappingsTable,
+        where: 'account_id=? and local_id=?',
+        whereArgs: [accountId, localId],
+      )).map(_mappingFromRow).toList();
+      final sessions = bindings
+          .where((m) => m.kind == EntityKind.session)
+          .toList();
+      return manualSessionEntryFollowUpFromSnapshot(
+        command,
+        boundSessionId: sessions.isEmpty ? null : sessions.single.serverId,
+        unsafeBinding:
+            bindings.any((m) => m.kind != EntityKind.session) ||
+            sessions.length > 1,
+      );
+    }),
+  );
 
   @override
   Future<CommandEnvelope?> commandByLocalId(

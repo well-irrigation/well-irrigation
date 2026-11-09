@@ -276,6 +276,7 @@ void main() {
       };
 
       expect(producers, {
+        CommandType.adoptExternalSession: EntityKind.session,
         CommandType.createBooking: EntityKind.booking,
         CommandType.createFarmer: EntityKind.farmerWellAccount,
         CommandType.createFarm: EntityKind.farm,

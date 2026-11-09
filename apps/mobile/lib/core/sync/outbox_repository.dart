@@ -59,6 +59,24 @@ class OutboxRepository {
     return row;
   }
 
+  /// قراءة غير مدمرة؛ الأهلية تخص نية جديدة فقط ولا تمنح إعادة إرسال الأصل.
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  }) async {
+    final store = _store;
+    if (store is! ManualSessionEntryFollowUpStore) {
+      throw StateError('manual_session_entry_follow_up_unavailable');
+    }
+    return (store as ManualSessionEntryFollowUpStore)
+        .readManualSessionEntryFollowUp(
+          accountId: accountId,
+          wellId: wellId,
+          localId: localId,
+        );
+  }
+
   /// ملاحظة محلية فقط؛ لا تقرأ الشبكة ولا تعيد إنشاء نية أو جلسة.
   Future<ManualSessionEntryRead?> readManualSessionEntry({
     required String accountId, required String wellId, required String localId,

@@ -138,26 +138,7 @@ bool representsPossibleActiveSession(
       command.lastAttemptAt == null || hasCanonicalSessionBinding) {
     return true;
   }
-  final request = ManualSessionEntryReceiptRequest.fromCommand(command);
-  final outcome = request == null ? null
-      : parseManualSessionEntryResult(request, command.serverResponse);
-  if (outcome is! ManualSessionEntryOutcome || outcome.result == null) return true;
-  final result = outcome.result!;
-  // لا نسقط دليل جلسة متناقضًا أو عقدًا أوسع غير معروف من نتيجة الرفض.
-  if (!result.keys.every(const {
-    'contract', 'version', 'well_id', 'command_id', 'entry_type', 'status', 'reason',
-  }.contains)) {
-    return true;
-  }
-  final provesNoSession = switch (outcome.state) {
-    ManualSessionEntryState.validationError =>
-      result['reason'] == null || result['reason'] == 'context_invalid',
-    ManualSessionEntryState.conflictOverlap ||
-    ManualSessionEntryState.conflictActiveResource => result['reason'] == null,
-    _ => false,
-  };
-  // request_changed قد يشير إلى طلب سابق مقبول بالهوية نفسها.
-  return !provesNoSession;
+  return !manualEntryTerminalResultProvesNoSession(command);
 }
 
 CommandEnvelope? existingOperationalStart(
@@ -1118,4 +1099,13 @@ void validateManualStopMaterialization<T>({
       effect['request_id'] != raw['request_id']) {
     throw StateError('manual_stop_completion_evidence_mismatch');
   }
+}
+
+/// قدرة قراءة اختيارية؛ غياب الدعم لا ينتج إذنًا افتراضيًا.
+abstract interface class ManualSessionEntryFollowUpStore {
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  });
 }

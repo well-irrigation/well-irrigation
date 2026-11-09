@@ -8,6 +8,14 @@ import '../../core/utils/digit_utils.dart';
 import '../../core/widgets/currency_display.dart';
 import '../../core/widgets/top_well_selector.dart';
 import 'session_detail_screen.dart';
+import '../../core/api/manual_session_entry_capability.dart';
+import '../../core/session/offline_session_coordinator.dart';
+import '../../core/sync/manual_session_entry.dart';
+import '../../core/sync/outbox_repository.dart';
+import '../operations/operations_screen.dart';
+import 'manual_session_entry_screen.dart';
+import 'manual_session_entry_requests.dart';
+import 'manual_session_entry_summary.dart';
 
 /// شاشة سجل جلسات السقي (UX-13 / ق-98 / 373–376)
 class SessionHistoryScreen extends StatefulWidget {
@@ -16,6 +24,9 @@ class SessionHistoryScreen extends StatefulWidget {
     this.onWellChanged,
     this.onLogout,
     this.repository,
+    this.coordinator,
+    this.manualOutbox,
+    this.onOpenOperations,
     super.key,
   });
 
@@ -23,6 +34,9 @@ class SessionHistoryScreen extends StatefulWidget {
   final ValueChanged<WellSummary>? onWellChanged;
   final VoidCallback? onLogout;
   final OperationsRepository? repository;
+  final OfflineSessionCoordinator? coordinator;
+  final OutboxRepository? manualOutbox;
+  final VoidCallback? onOpenOperations;
 
   @override
   State<SessionHistoryScreen> createState() => _SessionHistoryScreenState();
@@ -42,6 +56,14 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   bool _isLoading = true;
   String? _loadError;
   List<SessionHistoryItem> _allSessions = [];
+  ManualSessionEntryCapability? _manualCapability;
+  bool _capabilityLoading = true,
+      _capabilityUnavailable = false,
+      _openingManual = false;
+  bool _savedUnavailable = false, _savedLoading = true;
+  List<ManualSessionEntryFollowUp> _savedEntries = [];
+  int _manualGeneration = 0;
+  int _historyGeneration = 0;
 
   @override
   void initState() {
@@ -50,7 +72,255 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
     _repo = widget.repository ?? const OperationsRepository();
     _loadSessions();
+    _loadManual();
   }
+
+  @override
+  void didUpdateWidget(covariant SessionHistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.identity.accountId != widget.identity.accountId ||
+        oldWidget.identity.activeWell.id != widget.identity.activeWell.id ||
+        oldWidget.repository != widget.repository) {
+      _repo = widget.repository ?? const OperationsRepository();
+      _activeWell = widget.identity.activeWell;
+      _loadSessions();
+      _loadManual();
+    }
+  }
+
+  Future<void> _loadManual() async {
+    final generation = ++_manualGeneration;
+    final account = widget.identity.accountId, well = _activeWellId;
+    setState(() {
+      _capabilityLoading = true;
+      _capabilityUnavailable = false;
+      _manualCapability = null;
+      _savedEntries = [];
+      _savedUnavailable = false;
+      _savedLoading = true;
+    });
+    Future<void> capability() async {
+      try {
+        final value = await _repo.fetchManualSessionEntryCapability(
+          accountId: account,
+          wellId: well,
+        );
+        if (mounted &&
+            generation == _manualGeneration &&
+            value.wellId == well) {
+          setState(() {
+            _manualCapability = value;
+            _capabilityLoading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted && generation == _manualGeneration) {
+          setState(() {
+            _capabilityLoading = false;
+            _capabilityUnavailable = true;
+          });
+        }
+      }
+    }
+
+    Future<void> saved() async {
+      try {
+        final rows = await savedManualSessionEntryFollowUps(
+          accountId: account,
+          wellId: well,
+          outbox: widget.manualOutbox,
+        );
+        if (mounted && generation == _manualGeneration) {
+          setState(() {
+            _savedEntries = rows;
+            _savedLoading = false;
+          });
+        }
+      } catch (_) {
+        if (mounted && generation == _manualGeneration) {
+          setState(() {
+            _savedUnavailable = true;
+            _savedLoading = false;
+          });
+        }
+      }
+    }
+
+    await Future.wait([capability(), saved()]);
+  }
+
+  Future<void> _openManual([ManualSessionEntryFollowUp? existing]) async {
+    if (_openingManual) return;
+    final capability = _manualCapability;
+    if (existing == null &&
+        (capability == null ||
+            !(capability.canRecordHistoricalSession ||
+                capability.canAdoptExternalSession))) {
+      return;
+    }
+    final well = _activeWellId, account = widget.identity.accountId;
+    setState(() => _openingManual = true);
+    try {
+      var target = existing;
+      if (target == null && _savedEntries.isNotEmpty) {
+        final choice = await showDialog<String>(
+          context: context,
+          builder: (dialog) => AlertDialog(
+            title: const Text('لديك طلب إضافة محفوظ'),
+            content: SizedBox(
+              width: 360,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'اختر الطلب الذي تريد متابعته حتى لا تضيف الجلسة نفسها مرتين.',
+                    ),
+                    for (final request in _savedEntries)
+                      Padding(
+                        key: ValueKey(
+                          'manual-dialog-request-${request.localId}',
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ManualSessionEntrySummary(facts: request.facts),
+                            Text(manualEntryStatus(request)),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialog, request.localId),
+                              child: const Text('متابعة الطلب المحفوظ'),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialog, 'different-entry'),
+                child: const Text('إضافة جلسة مختلفة'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted ||
+            choice == null ||
+            well != _activeWellId ||
+            account != widget.identity.accountId) {
+          return;
+        }
+        if (choice != 'different-entry') {
+          target = _savedEntries.singleWhere((c) => c.localId == choice);
+        }
+      }
+      final outcome = await Navigator.of(context)
+          .push<ManualSessionEntryOutcome>(
+            MaterialPageRoute(
+              builder: (_) => ManualSessionEntryScreen(
+                identity: widget.identity.withActiveWell(_activeWell),
+                capability: capability,
+                repository: _repo,
+                coordinator: widget.coordinator,
+                existingLocalId: target?.localId,
+              ),
+            ),
+          );
+      if (!mounted ||
+          well != _activeWellId ||
+          account != widget.identity.accountId) {
+        return;
+      }
+      _loadManual();
+      if (outcome?.state != ManualSessionEntryState.accepted) return;
+      if (outcome!.isOpen == true) {
+        // شاشة التشغيل القائمة تستعيد الجلسة من الطابور؛ لا اختيار موازٍ هنا.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت إضافة الجلسة الجارية.')),
+        );
+        if (widget.onOpenOperations != null) {
+          widget.onOpenOperations!();
+        } else {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => OperationsScreen(
+                identity: widget.identity.withActiveWell(_activeWell),
+                onWellChanged: widget.onWellChanged,
+                onLogout: widget.onLogout,
+              ),
+            ),
+          );
+        }
+      } else {
+        await _loadSessions();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تمت إضافة الجلسة بنجاح.')),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _openingManual = false);
+    }
+  }
+
+  Widget _manualActions() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (_capabilityLoading || _savedLoading)
+        const LinearProgressIndicator(
+          semanticsLabel: 'جارٍ التحقق من إمكانية إضافة جلسة',
+        ),
+      if (_capabilityUnavailable)
+        ListTile(
+          title: const Text('تعذر التحقق من إمكانية إضافة جلسة.'),
+          trailing: TextButton(
+            onPressed: _loadManual,
+            child: const Text('إعادة التحقق من الإضافة'),
+          ),
+        ),
+      if (_manualCapability case final capability?
+          when capability.canRecordHistoricalSession ||
+              capability.canAdoptExternalSession)
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: FilledButton.icon(
+            onPressed: _openingManual || _savedUnavailable || _savedLoading
+                ? null
+                : () => _openManual(),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('إضافة جلسة سقي سابقة'),
+          ),
+        ),
+      if (_savedUnavailable && _manualCapability != null)
+        TextButton(
+          onPressed: _loadManual,
+          child: const Text('تعذر تحميل الطلبات المحفوظة. أعد المحاولة'),
+        ),
+      for (final c in _savedEntries)
+        Padding(
+          key: ValueKey('manual-request-${c.localId}'),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ManualSessionEntrySummary(facts: c.facts),
+              Text(manualEntryStatus(c)),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton(
+                  onPressed: _openingManual ? null : () => _openManual(c),
+                  child: const Text('متابعة الطلب'),
+                ),
+              ),
+            ],
+          ),
+        ),
+    ],
+  );
 
   @override
   void dispose() {
@@ -59,6 +329,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
   }
 
   Future<void> _loadSessions() async {
+    final generation = ++_historyGeneration;
+    final well = _activeWellId;
     setState(() {
       _isLoading = true;
       _loadError = null;
@@ -66,10 +338,10 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
 
     try {
       final sessions = await _repo.fetchSessionHistory(
-        wellId: _activeWellId,
+        wellId: well,
         filter: _selectedFilter,
       );
-      if (mounted) {
+      if (mounted && generation == _historyGeneration) {
         setState(() {
           _allSessions = sessions;
           _isLoading = false;
@@ -77,7 +349,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
       }
     } catch (_) {
       // م-41C2 / ق-99: لا سجل تجريبي — الفشل يظهر صريحًا مع إعادة المحاولة.
-      if (mounted) {
+      if (mounted && generation == _historyGeneration) {
         setState(() {
           _allSessions = [];
           _isLoading = false;
@@ -159,6 +431,7 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
               _activeWell = newWell;
             });
             _loadSessions();
+            _loadManual();
             if (widget.onWellChanged != null) {
               widget.onWellChanged!(newWell);
             }
@@ -181,6 +454,12 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.3,
+              ),
+              child: SingleChildScrollView(child: _manualActions()),
+            ),
             // 1. شريط البحث والفلاتر
             Container(
               color: Colors.white,
@@ -250,10 +529,13 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                   bottom: BorderSide(color: AppColors.border, width: 0.5),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 12,
+                runSpacing: 8,
                 children: [
-                  Row(
+                  Wrap(
+                    runSpacing: 4,
                     children: [
                       const Icon(
                         Icons.history,
@@ -279,7 +561,8 @@ class _SessionHistoryScreenState extends State<SessionHistoryScreen> {
                       ),
                     ],
                   ),
-                  Row(
+                  Wrap(
+                    runSpacing: 4,
                     children: [
                       const Text(
                         'الإجمالي: ',

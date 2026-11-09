@@ -218,3 +218,161 @@ DateTime? _time(Object? v) {
   return canonical == v || '${canonical.substring(0,canonical.length-1)}000Z' == v
       ? t.toUtc() : null;
 }
+
+/// أهلية إنشاء نية جديدة بتأكيد المستخدم؛ ليست تفويضًا لإعادة إرسال الأصل.
+enum ManualEntryCorrectionEligibility {
+  eligibleTerminalNoSession,
+  ineligiblePendingOrAmbiguous,
+  ineligibleSessionExists,
+  ineligibleContradictoryEvidence,
+  ineligibleUnsupportedOrUnknown,
+}
+
+/// وجود جلسة مثبت برابط المخزن أو بنتيجة قبول محفوظة ومتحقق منها.
+/// الإدخال المنتهي لا يحتاج رابط إسقاط جلسة جارية، لكن قبوله يثبت جلسته.
+enum ManualEntrySessionBinding { absent, present, contradictory }
+
+/// لقطة محلية متسقة؛ لا تعرض صفوف المخزن أو حمولة نتيجة خادمية خامًا.
+class ManualSessionEntryFollowUp {
+  const ManualSessionEntryFollowUp._({
+    required this.accountId,
+    required this.wellId,
+    required this.localId,
+    required this.commandId,
+    required this.facts,
+    required this.outcome,
+    required this.binding,
+    required this.canonicalSessionId,
+    required this.eligibility,
+  });
+  final String accountId, wellId, localId, commandId;
+  final ManualSessionEntryFacts facts;
+  final ManualSessionEntryState? outcome;
+  final ManualEntrySessionBinding binding;
+  final String? canonicalSessionId;
+  final ManualEntryCorrectionEligibility eligibility;
+}
+
+/// الدليل المشترك فقط؛ سياسة حارس البدء وسياسة التصحيح تظلان مستقلتين.
+bool manualEntryTerminalResultProvesNoSession(CommandEnvelope command) {
+  if (command.status != CommandStatus.review || command.lastAttemptAt == null) {
+    return false;
+  }
+  final request = ManualSessionEntryReceiptRequest.fromCommand(command);
+  final outcome = request == null
+      ? null
+      : parseManualSessionEntryResult(request, command.serverResponse);
+  if (outcome is! ManualSessionEntryOutcome || outcome.result == null) {
+    return false;
+  }
+  final result = outcome.result!;
+  if (!result.keys.every(
+    const {
+      'contract',
+      'version',
+      'well_id',
+      'command_id',
+      'entry_type',
+      'status',
+      'reason',
+    }.contains,
+  )) {
+    return false;
+  }
+  return switch (outcome.state) {
+    ManualSessionEntryState.validationError =>
+      result['reason'] == null || result['reason'] == 'context_invalid',
+    ManualSessionEntryState.conflictOverlap ||
+    ManualSessionEntryState.conflictActiveResource => result['reason'] == null,
+    _ => false,
+  };
+}
+
+/// تُستدعى داخل لقطة المخزن، بعد قراءة الربط نفسه الذي يحمي بدء التشغيل.
+ManualSessionEntryFollowUp? manualSessionEntryFollowUpFromSnapshot(
+  CommandEnvelope command, {
+  required String? boundSessionId,
+  bool unsafeBinding = false,
+}) {
+  final request = ManualSessionEntryReceiptRequest.fromCommand(command);
+  if (request == null) return null;
+  final payload = command.payload['p_request'] as Map;
+  final facts = ManualSessionEntryFacts(
+    wellId: command.wellId!,
+    farmerWellAccountId: payload['farmer_well_account_id'] as String,
+    farmId: payload['farm_id'] as String,
+    pumpId: payload['pump_id'] as String,
+    startedAt: request.startedAt,
+    endedAt: request.endedAt,
+    energySource: payload['energy_source'] as String,
+    reason: payload['reason'] as String,
+    notes: payload['notes'] as String?,
+  );
+  final parsed = command.serverResponse == null
+      ? null
+      : parseManualSessionEntryResult(request, command.serverResponse);
+  final outcome = parsed is ManualSessionEntryOutcome ? parsed : null;
+  final accepted = outcome?.state == ManualSessionEntryState.accepted;
+  final rejected = const {
+    ManualSessionEntryState.validationError,
+    ManualSessionEntryState.conflictOverlap,
+    ManualSessionEntryState.conflictActiveResource,
+  }.contains(outcome?.state);
+  final resultHasSessionEvidence =
+      !accepted &&
+      command.serverResponse != null &&
+      const {
+        'session_id',
+        'started_at',
+        'ended_at',
+        'tenant_id',
+        'session_charge_id',
+        'amount_minor',
+      }.any(command.serverResponse!.containsKey);
+  final contradictory =
+      unsafeBinding ||
+      (boundSessionId != null && !_uuid(boundSessionId)) ||
+      resultHasSessionEvidence ||
+      (boundSessionId != null && rejected) ||
+      (accepted &&
+          ((boundSessionId != null && boundSessionId != outcome!.sessionId) ||
+              command.status != CommandStatus.confirmed ||
+              (command.type == CommandType.adoptExternalSession &&
+                  boundSessionId == null)));
+  final binding = contradictory
+      ? ManualEntrySessionBinding.contradictory
+      : boundSessionId != null || accepted
+      ? ManualEntrySessionBinding.present
+      : ManualEntrySessionBinding.absent;
+  final ManualEntryCorrectionEligibility eligibility;
+  if (contradictory) {
+    eligibility =
+        ManualEntryCorrectionEligibility.ineligibleContradictoryEvidence;
+  } else if (boundSessionId != null || accepted) {
+    eligibility = ManualEntryCorrectionEligibility.ineligibleSessionExists;
+  } else if (manualEntryTerminalResultProvesNoSession(command)) {
+    eligibility = ManualEntryCorrectionEligibility.eligibleTerminalNoSession;
+  } else if (command.serverResponse == null ||
+      const {
+        ManualSessionEntryState.processing,
+        ManualSessionEntryState.needsReview,
+        ManualSessionEntryState.unresolved,
+        ManualSessionEntryState.notFound,
+      }.contains(outcome?.state)) {
+    eligibility = ManualEntryCorrectionEligibility.ineligiblePendingOrAmbiguous;
+  } else {
+    eligibility =
+        ManualEntryCorrectionEligibility.ineligibleUnsupportedOrUnknown;
+  }
+  return ManualSessionEntryFollowUp._(
+    accountId: command.accountId,
+    wellId: command.wellId!,
+    localId: command.localId,
+    commandId: command.commandId,
+    facts: facts,
+    outcome: outcome?.state,
+    binding: binding,
+    canonicalSessionId: boundSessionId ?? outcome?.sessionId,
+    eligibility: eligibility,
+  );
+}

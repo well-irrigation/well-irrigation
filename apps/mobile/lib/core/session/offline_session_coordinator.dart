@@ -2063,6 +2063,20 @@ class OfflineSessionCoordinator {
       wellId: wellId, localId: localId);
   }
 
+  /// لقطة المتابعة لا ترسل ولا تعيد إنشاء طلب؛ الأهلية لنية جديدة يؤكدها المستخدم.
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  }) async {
+    await initialize();
+    return _outbox.readManualSessionEntryFollowUp(
+      accountId: accountId,
+      wellId: wellId,
+      localId: localId,
+    );
+  }
+
   Future<ManualSessionEntryObservation?> observeManualSessionEntry({
     required String accountId, required String wellId, required String localId,
   }) async {

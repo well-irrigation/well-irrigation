@@ -16,9 +16,11 @@ import 'command_type.dart';
 import 'outbox_store.dart';
 import 'outbox_repository.dart';
 import 'sync_status.dart';
+import 'manual_session_entry.dart';
 
 class InMemoryOutboxStore
     implements
+        ManualSessionEntryFollowUpStore,
         SessionCorrectionInsertStore,
         SessionExecutionStore,
         AtomicCommandDispatchStore,
@@ -393,6 +395,35 @@ class InMemoryOutboxStore
       if (next != null && (wake == null || next.isBefore(wake))) wake = next;
     }
     return wake;
+  }
+
+  @override
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  }) async {
+    _assertOpen();
+    // لا انتظار بين القراءات: لقطة واحدة في دورة تنفيذ الذاكرة.
+    final command = _byLocalId[localId];
+    if (command == null ||
+        command.accountId != accountId ||
+        command.wellId != wellId) {
+      return null;
+    }
+    final bindings = (_mappings[accountId]?.values ?? const <IdMapping>[])
+        .where((m) => m.localId == localId)
+        .toList();
+    final sessions = bindings
+        .where((m) => m.kind == EntityKind.session)
+        .toList();
+    return manualSessionEntryFollowUpFromSnapshot(
+      command,
+      boundSessionId: sessions.isEmpty ? null : sessions.single.serverId,
+      unsafeBinding:
+          bindings.any((m) => m.kind != EntityKind.session) ||
+          sessions.length > 1,
+    );
   }
 
   @override
