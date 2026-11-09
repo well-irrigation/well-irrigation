@@ -1965,6 +1965,33 @@ class OfflineSessionCoordinator {
     );
   }
 
+  /// يحفظ نية التصحيح محليًا قبل منح فرصة مزامنة، دون انتظار قبول الخادم.
+  Future<CommandEnvelope> submitSessionCorrection({
+    required String accountId,
+    required String wellId,
+    required String sessionId,
+    required int baseRevision,
+    required String reason,
+    required DateTime desiredStartedAt,
+    required DateTime desiredEndedAt,
+  }) async {
+    await initialize();
+    final envelope = await _outbox.enqueueSessionCorrection(
+      accountId: accountId,
+      wellId: wellId,
+      sessionId: sessionId,
+      baseRevision: baseRevision,
+      reason: reason,
+      desiredStartedAt: desiredStartedAt,
+      desiredEndedAt: desiredEndedAt,
+    );
+    if (envelope.status == CommandStatus.pending ||
+        envelope.status == CommandStatus.dispatching) {
+      await _triggerSync(accountId, refreshProjection: false);
+    }
+    return envelope;
+  }
+
   /// إنشاء مزارع جديد وحفظه متينًا في الطابور المحلي أولًا (ق-89 / ق-114 / م-21).
   Future<FarmerAccount> enqueueFarmer({
     required String accountId,
@@ -2984,6 +3011,7 @@ class OfflineSessionCoordinator {
     String? wellId,
     bool paymentOnly = false,
     bool waitForCompletion = false,
+    bool refreshProjection = true,
   }) async {
     try {
       await _commandQueuedScheduler?.call(accountId);
@@ -2991,7 +3019,9 @@ class OfflineSessionCoordinator {
       // الأمر محفوظ؛ تعطل جدولة النظام لا يحوّله إلى فشل حفظ.
     }
     if (_syncEngine == null) return;
-    final projectionGeneration = ++_syncProjectionGeneration;
+    final projectionGeneration = refreshProjection
+        ? ++_syncProjectionGeneration
+        : null;
     final opportunity = _syncEngine!
         .runAfterCurrent(accountId)
         .then((report) async {
@@ -2999,6 +3029,8 @@ class OfflineSessionCoordinator {
             await _commandQueuedScheduler?.call(accountId);
             if (!_farmChanges.isClosed && wellId != null) _farmChanges.add(wellId);
           }
+          // فرصة التصحيح لا تغيّر الاختيار ولا تلغي إسقاطًا مفيدًا آخر.
+          if (!refreshProjection) return;
           if (!paymentOnly &&
               projectionGeneration != _syncProjectionGeneration) {
             return;
