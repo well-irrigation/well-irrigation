@@ -599,6 +599,10 @@ class ActiveSessionProjector {
             ),
           );
 
+        case CommandType.correctIrrigationSession:
+          // تصحيح جلسة خادمية تاريخية؛ لا يغيّر أحداث التشغيل المحلية.
+          break;
+
         case CommandType.createBooking:
         case CommandType.createFarmer:
         case CommandType.createFarm:
