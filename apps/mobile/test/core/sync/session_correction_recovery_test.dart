@@ -246,7 +246,7 @@ void main() {
   );
 
   test(
-    'non-stale 40001 does not become human review just because of SQLSTATE',
+    'non-stale retryable 40001 requires receipt-first recovery',
     () async {
       transport.nextDispatch = const DispatchFailed(
         disposition: FailureDisposition.retry,
@@ -255,14 +255,57 @@ void main() {
       );
       final report = await engine.run(_account);
       expect(transport.dispatchCount, 1);
-      expect((await row()).status, isNot(CommandStatus.review));
-      expect((await row()).status, isNot(CommandStatus.confirmed));
+      expect((await row()).status, CommandStatus.dispatching);
       expect(report.needsReview, 0);
       expect(report.awaitsHumanDecision, isFalse);
-      expect(report.canRetryWithoutHelp, isTrue);
-      // No automatic resend required here: receipt-first is also conservative.
+      expect(report.retryScheduled, 0);
+      later();
+      transport.nextRead = _acceptedRead();
+      await engine.run(_account);
+      expect(transport.events, ['write', 'read']);
+      expect(transport.dispatchCount, 1);
+      expect(transport.receiptReadCount, 1);
+      expect((await row()).status, CommandStatus.confirmed);
+      expect((await row()).serverResponse, _accepted());
+      await _identityPreserved(store);
     },
   );
+
+  for (final outcome in ['processing', 'not_found', 'unresolved', 'network', 'authentication']) {
+    test('non-stale 40001 reads $outcome receipt before any second write', () async {
+      transport.nextDispatch = const DispatchFailed(
+        disposition: FailureDisposition.retry,
+        code: '40001',
+        message: '40001: serialization_failure',
+      );
+      await engine.run(_account);
+      expect(transport.dispatchCount, 1);
+      later();
+      transport.nextRead = switch (outcome) {
+        'processing' => const SessionCorrectionReceiptResponse(
+            SessionCorrectionReceiptState.processing, null),
+        'not_found' => const SessionCorrectionReceiptResponse(
+            SessionCorrectionReceiptState.notFound, null),
+        'unresolved' => const SessionCorrectionReceiptResponse(
+            SessionCorrectionReceiptState.unresolved, null),
+        'network' => const SessionCorrectionReceiptFailure(
+            SessionCorrectionReceiptFailureKind.network),
+        _ => const SessionCorrectionReceiptFailure(
+            SessionCorrectionReceiptFailureKind.authentication),
+      };
+      await engine.run(_account);
+      expect(transport.events, ['write', 'read']);
+      expect(transport.dispatchCount, 1);
+      expect(transport.receiptReadCount, 1);
+      expect(
+        (await row()).status,
+        outcome == 'not_found' || outcome == 'unresolved'
+            ? CommandStatus.review
+            : CommandStatus.dispatching,
+      );
+      await _identityPreserved(store);
+    });
+  }
 
   test('executionNotStarted proof permits later same-command write without receipt', () async {
     transport.nextDispatch = const DispatchFailed(

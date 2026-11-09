@@ -501,8 +501,7 @@ class SyncEngine {
         final failure = result as DispatchFailed;
         if (_isCorrectionStaleRevision(failure)) {
           await requireReview('stale_revision');
-        } else if (failure.executionNotStarted ||
-            (failure.code != null && failure.isRetryable)) {
+        } else if (failure.executionNotStarted) {
           await _store.releaseForRetry(accountId, command.localId,
               error: failure.message, attemptedAt: at);
           retries++;
