@@ -17,6 +17,7 @@ library;
 import 'command_reference.dart';
 import 'command_type.dart';
 import 'sync_status.dart';
+import 'manual_session_entry.dart';
 
 class CommandEnvelope {
   CommandEnvelope({
@@ -27,7 +28,7 @@ class CommandEnvelope {
     required this.sequence,
     required this.occurredAt,
     required this.createdLocalAt,
-    required this.payload,
+    required Map<String, Object?> payload,
     this.prerequisites = const [],
     this.localContext = const {},
     this.wellId,
@@ -38,7 +39,13 @@ class CommandEnvelope {
     this.lastAttemptAt,
     this.serverResponse,
     this.nextAttemptAt,
-  }) {
+  }) : payload = isManualSessionEntry(type)
+      ? Map<String,Object?>.unmodifiable({
+          for (final e in payload.entries)
+            e.key: e.value is Map
+              ? Map<String,Object?>.unmodifiable((e.value as Map).cast<String,Object?>())
+              : e.value,
+        }) : payload {
     _assertPayloadDoesNotOwnReservedArguments(type, payload);
     if (type == CommandType.createBooking &&
         (wellId == null || wellId!.isEmpty || payload['p_well_id'] != wellId ||

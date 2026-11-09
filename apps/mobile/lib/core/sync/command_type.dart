@@ -39,6 +39,21 @@ enum EntityKind {
 /// الترتيب هنا لا يعني ترتيب الإرسال؛ الإرسال يتبع `sequence` في
 /// الطابور.
 enum CommandType {
+  recordHistoricalSession(
+    rpcName: 'record_historical_session',
+    scope: CommandScope.well,
+    scopeArgument: 'p_well_id',
+    returnsJson: true,
+    resultKey: 'session_id',
+  ),
+  adoptExternalSession(
+    rpcName: 'adopt_external_session',
+    scope: CommandScope.well,
+    scopeArgument: 'p_well_id',
+    returnsJson: true,
+    resultKey: 'session_id',
+    produces: EntityKind.session,
+  ),
   createBooking(
     rpcName: 'create_booking',
     scope: CommandScope.well,

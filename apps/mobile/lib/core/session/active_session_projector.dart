@@ -21,6 +21,7 @@ import '../sync/command_type.dart';
 import '../sync/command_transport.dart';
 import '../sync/outbox_store.dart';
 import '../sync/sync_status.dart';
+import '../sync/manual_session_entry.dart';
 import 'active_session_record.dart';
 import 'manual_stop_request_store.dart';
 import 'session_business_state.dart';
@@ -250,6 +251,17 @@ class ActiveSessionProjector {
 
     for (final command in commands) {
       if (_isSessionStartType(command.type)) {
+        if (command.type == CommandType.adoptExternalSession) {
+          final request = ManualSessionEntryReceiptRequest.fromCommand(command);
+          final outcome = request == null ? null
+              : parseManualSessionEntryResult(request,command.serverResponse);
+          if (command.status != CommandStatus.confirmed ||
+              outcome is! ManualSessionEntryOutcome ||
+              outcome.state != ManualSessionEntryState.accepted ||
+              serverIdByLocalId[command.localId]?.serverId != outcome.sessionId) {
+            continue;
+          }
+        }
         byAggregate.putIfAbsent(command.localId, () => []).add(command);
         continue;
       }
@@ -481,7 +493,9 @@ class ActiveSessionProjector {
     if (pendingStopAt != null && pendingStopAt.isBefore(start.occurredAt)) {
       flags.add(TimeIntegrityFlag.impossibleEventOrdering);
     }
-    final context = start.type == CommandType.startBookingSession
+    final context = start.type == CommandType.adoptExternalSession
+        ? {for (final e in (start.payload['p_request'] as Map).entries) 'p_${e.key}': e.value}
+        : start.type == CommandType.startBookingSession
         ? start.localContext
         : start.payload;
     var energySource = context['p_energy_source'] as String?;
@@ -539,6 +553,7 @@ class ActiveSessionProjector {
         case CommandType.startIrrigationSession:
         case CommandType.startAdhocSession:
         case CommandType.startBookingSession:
+        case CommandType.adoptExternalSession:
           openSegment(SegmentKind.running, at);
 
         case CommandType.pauseIrrigationSession:
@@ -600,6 +615,7 @@ class ActiveSessionProjector {
           );
 
         case CommandType.correctIrrigationSession:
+        case CommandType.recordHistoricalSession:
           // تصحيح جلسة خادمية تاريخية؛ لا يغيّر أحداث التشغيل المحلية.
           break;
 
@@ -692,6 +708,7 @@ class ActiveSessionProjector {
 
   /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
   static bool _isSessionStartType(CommandType type) =>
+      type == CommandType.adoptExternalSession ||
       type == CommandType.startOperationalSession ||
       type == CommandType.startIrrigationSession ||
       type == CommandType.startAdhocSession ||

@@ -118,7 +118,11 @@ class InMemoryOutboxStore
       }
     }
     for (final command in commands.where((c) => c.type == CommandType.startOperationalSession)) {
-      final existing = existingOperationalStart(_commands[accountId] ?? [], command.wellId!);
+      final existing = existingOperationalStart(_commands[accountId] ?? [], command.wellId!,
+        sessionBoundLocalIds: {
+          for (final m in _mappings[accountId]?.values ?? const <IdMapping>[])
+            if (m.kind == EntityKind.session) m.localId,
+        });
       if (existing != null) throw ExistingOperationalStart(existing);
     }
     if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
@@ -470,7 +474,8 @@ class InMemoryOutboxStore
     ];
     if (roots.length != 1) return null;
     final root = roots.single;
-    if (root.type != CommandType.startOperationalSession &&
+    if (root.type != CommandType.adoptExternalSession &&
+        root.type != CommandType.startOperationalSession &&
           root.type != CommandType.startIrrigationSession &&
         root.type != CommandType.startAdhocSession &&
         root.type != CommandType.startBookingSession) {

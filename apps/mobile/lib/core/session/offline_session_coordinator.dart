@@ -16,6 +16,7 @@ import '../sync/command_envelope.dart';
 import '../sync/command_reference.dart';
 import '../sync/command_transport.dart';
 import '../sync/command_type.dart';
+import '../sync/manual_session_entry.dart';
 import '../sync/entity_reference.dart';
 import '../sync/farmer_identity_review.dart';
 import '../sync/outbox_repository.dart';
@@ -2035,6 +2036,41 @@ class OfflineSessionCoordinator {
     );
   }
 
+  /// يبني مغلف إدخال يدوي مستقلًا قبل حفظه وإعطاء فرصة إرسال.
+  Future<CommandEnvelope> prepareManualSessionEntry({
+    required String accountId, required ManualSessionEntryFacts facts,
+  }) async {
+    await initialize();
+    return _outbox.prepareManualSessionEntry(accountId: accountId, facts: facts);
+  }
+
+  /// نفس المغلف لنفس فعل المستخدم؛ الحفظ يسبق جدولة أي اتصال.
+  Future<CommandEnvelope> submitManualSessionEntry(CommandEnvelope intent) async {
+    await initialize();
+    final saved = await _outbox.saveManualSessionEntry(intent);
+    if (saved.status == CommandStatus.pending || saved.status == CommandStatus.dispatching) {
+      // لا نغيّر اختيار بئر أخرى. الاستعادة الصريحة الحالية تستهلك القبول.
+      await _triggerSync(saved.accountId, refreshProjection: false);
+    }
+    return saved;
+  }
+
+  Future<ManualSessionEntryRead?> readManualSessionEntry({
+    required String accountId, required String wellId, required String localId,
+  }) async {
+    await initialize();
+    return _outbox.readManualSessionEntry(accountId: accountId,
+      wellId: wellId, localId: localId);
+  }
+
+  Future<ManualSessionEntryObservation?> observeManualSessionEntry({
+    required String accountId, required String wellId, required String localId,
+  }) async {
+    await initialize();
+    return _outbox.observeManualSessionEntry(accountId: accountId,
+      wellId: wellId, localId: localId);
+  }
+
   /// يحفظ نية التصحيح محليًا قبل منح فرصة مزامنة، دون انتظار قبول الخادم.
   Future<CommandEnvelope> submitSessionCorrection({
     required String accountId,
@@ -2776,7 +2812,9 @@ class OfflineSessionCoordinator {
         root.status == CommandStatus.review) {
       return false;
     }
-    final context = root.type == CommandType.startBookingSession
+    final context = root.type == CommandType.adoptExternalSession
+        ? {for (final e in (root.payload['p_request'] as Map).entries) 'p_${e.key}': e.value}
+        : root.type == CommandType.startBookingSession
         ? root.localContext
         : root.payload;
     final farmer = context['p_farmer_well_account_id'];
@@ -3043,6 +3081,7 @@ class OfflineSessionCoordinator {
 
   /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
   static bool _isSessionStartType(CommandType type) =>
+      type == CommandType.adoptExternalSession ||
       type == CommandType.startOperationalSession ||
       type == CommandType.startIrrigationSession ||
       type == CommandType.startAdhocSession ||

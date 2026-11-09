@@ -6,12 +6,15 @@
 /// وهو الثابت الذي تقوم عليه حماية التكرار كلها (القسم 2 والقسم 7).
 library;
 
+import 'dart:convert';
+
 import 'command_envelope.dart';
 import 'command_id_generator.dart';
 import 'command_reference.dart';
 import 'command_type.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
+import 'manual_session_entry.dart';
 
 class OutboxRepository {
   OutboxRepository({
@@ -26,6 +29,52 @@ class OutboxRepository {
   final DateTime Function() _clock;
 
   Future<void> initialize() => _store.initialize();
+
+  /// تُحضّر مرة لكل فعل إرسال؛ يعاد حفظ المغلف نفسه عند تكرار المعالجة.
+  Future<CommandEnvelope> prepareManualSessionEntry({
+    required String accountId,
+    required ManualSessionEntryFacts facts,
+  }) async {
+    final command = await prepare(accountId: accountId, wellId: facts.wellId,
+      type: facts.type, occurredAt: facts.startedAt, payload: facts.payload);
+    if (ManualSessionEntryReceiptRequest.fromCommand(command) == null) {
+      throw ArgumentError('invalid_manual_session_entry');
+    }
+    return command;
+  }
+
+  Future<CommandEnvelope> saveManualSessionEntry(CommandEnvelope command) async {
+    if (ManualSessionEntryReceiptRequest.fromCommand(command) == null ||
+        command.status != CommandStatus.pending || command.wasAttempted) {
+      throw ArgumentError('invalid_manual_session_entry_intent');
+    }
+    final value = jsonEncode([command.commandId, command.wellId,
+      command.type.storageValue, command.occurredAt.toIso8601String(), command.payload]);
+    final saved = await _store.insertBundle(accountId: command.accountId,
+      key: 'session.manual_entry.v1.${command.localId}', value: value,
+      commands: [command]);
+    if (saved != value) throw StateError('manual_session_entry_identity_changed');
+    final row = await _store.commandByLocalId(command.accountId,command.localId);
+    if (row == null) throw StateError('manual_session_entry_not_saved');
+    return row;
+  }
+
+  /// ملاحظة محلية فقط؛ لا تقرأ الشبكة ولا تعيد إنشاء نية أو جلسة.
+  Future<ManualSessionEntryRead?> readManualSessionEntry({
+    required String accountId, required String wellId, required String localId,
+  }) async => (await observeManualSessionEntry(accountId: accountId,
+      wellId: wellId,localId: localId))?.outcome;
+
+  Future<ManualSessionEntryObservation?> observeManualSessionEntry({
+    required String accountId, required String wellId, required String localId,
+  }) async {
+    final c = await _store.commandByLocalId(accountId, localId);
+    if (c == null || c.wellId != wellId) return null;
+    final request = ManualSessionEntryReceiptRequest.fromCommand(c);
+    if (request == null) return null;
+    return ManualSessionEntryObservation(c,c.serverResponse == null ? null
+      : parseManualSessionEntryResult(request,c.serverResponse));
+  }
 
   /// يسجّل عملية ميدانية ويحفظها حفظًا دائمًا قبل أن يُرجِع أي شيء.
   ///

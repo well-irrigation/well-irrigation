@@ -20,6 +20,7 @@ import 'command_envelope.dart';
 import 'command_type.dart';
 import 'sync_status.dart';
 import 'session_correction_receipt.dart';
+import 'manual_session_entry.dart';
 
 /// تصحيح غير محسوم للجلسة نفسها؛ لا يُستبدل ضمنيًا بطلب آخر.
 class SessionCorrectionConflict implements Exception {
@@ -126,13 +127,48 @@ bool sameOperationalStartFacts(CommandEnvelope a, CommandEnvelope b) {
     keys.every((k) => jsonEncode(canonical(a.payload[k])) == jsonEncode(canonical(b.payload[k])));
 }
 
+/// الرفض النهائي للإدخال اليدوي ليس جلسة مفتوحة؛ المراجعة وحدها لا تثبت ذلك.
+bool representsPossibleActiveSession(
+  CommandEnvelope command, {
+  required bool hasCanonicalSessionBinding,
+}) {
+  if (command.type.produces != EntityKind.session) return false;
+  if (command.type != CommandType.adoptExternalSession ||
+      command.status != CommandStatus.review ||
+      command.lastAttemptAt == null || hasCanonicalSessionBinding) {
+    return true;
+  }
+  final request = ManualSessionEntryReceiptRequest.fromCommand(command);
+  final outcome = request == null ? null
+      : parseManualSessionEntryResult(request, command.serverResponse);
+  if (outcome is! ManualSessionEntryOutcome || outcome.result == null) return true;
+  final result = outcome.result!;
+  // لا نسقط دليل جلسة متناقضًا أو عقدًا أوسع غير معروف من نتيجة الرفض.
+  if (!result.keys.every(const {
+    'contract', 'version', 'well_id', 'command_id', 'entry_type', 'status', 'reason',
+  }.contains)) {
+    return true;
+  }
+  final provesNoSession = switch (outcome.state) {
+    ManualSessionEntryState.validationError =>
+      result['reason'] == null || result['reason'] == 'context_invalid',
+    ManualSessionEntryState.conflictOverlap ||
+    ManualSessionEntryState.conflictActiveResource => result['reason'] == null,
+    _ => false,
+  };
+  // request_changed قد يشير إلى طلب سابق مقبول بالهوية نفسها.
+  return !provesNoSession;
+}
+
 CommandEnvelope? existingOperationalStart(
   Iterable<CommandEnvelope> rows,
-  String wellId,
-) {
+  String wellId, {
+  required Set<String> sessionBoundLocalIds,
+}) {
   final commands = rows.toList();
   for (final root in commands) {
-    if (root.wellId != wellId || root.type.produces != EntityKind.session) {
+    if (root.wellId != wellId || !representsPossibleActiveSession(root,
+        hasCanonicalSessionBinding: sessionBoundLocalIds.contains(root.localId))) {
       continue;
     }
     final closed = commands.any(

@@ -15,6 +15,7 @@ import 'booking_start_receipt.dart';
 import 'operational_start_receipt.dart';
 import 'session_correction_receipt.dart';
 import 'retry_classification.dart';
+import 'manual_session_entry.dart';
 
 class SupabaseCommandTransport
     implements
@@ -22,10 +23,39 @@ class SupabaseCommandTransport
         CompletionReceiptTransport,
         BookingStartReceiptTransport,
         OperationalStartReceiptTransport,
-        SessionCorrectionReceiptTransport {
+        SessionCorrectionReceiptTransport,
+        ManualSessionEntryReceiptTransport {
   const SupabaseCommandTransport(this._client);
 
   final SupabaseClient _client;
+
+  @override
+  Future<ManualSessionEntryRead> readManualSessionEntryReceipt(
+    ManualSessionEntryReceiptRequest request,
+  ) async {
+    final session = _client.auth.currentSession;
+    if (session == null || session.isExpired ||
+        session.user.id != request.command.accountId) {
+      return const ManualSessionEntryReadFailure(ManualSessionEntryReadFailureKind.authentication);
+    }
+    try {
+      final raw = await _client.schema('api').rpc(
+        'get_manual_session_entry_receipt',params: request.arguments,
+      ).timeout(const Duration(seconds: 20));
+      return parseManualSessionEntryReceipt(request,raw);
+    } on PostgrestException catch (e) {
+      return ManualSessionEntryReadFailure(switch (e.code) {
+        '42501' => ManualSessionEntryReadFailureKind.forbidden,
+        '28000' || 'PGRST301' || 'PGRST302' => ManualSessionEntryReadFailureKind.authentication,
+        '22023' => ManualSessionEntryReadFailureKind.malformed,
+        _ => ManualSessionEntryReadFailureKind.network,
+      });
+    } on AuthException {
+      return const ManualSessionEntryReadFailure(ManualSessionEntryReadFailureKind.authentication);
+    } on Object {
+      return const ManualSessionEntryReadFailure(ManualSessionEntryReadFailureKind.network);
+    }
+  }
 
   @override
   Future<SessionCorrectionReceiptRead> readSessionCorrectionReceipt(

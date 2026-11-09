@@ -1002,7 +1002,8 @@ class SqliteOutboxStore
       );
       if (roots.length != 1) return null;
       final root = _fromRow(roots.single);
-      if (root.type != CommandType.startOperationalSession &&
+      if (root.type != CommandType.adoptExternalSession &&
+          root.type != CommandType.startOperationalSession &&
           root.type != CommandType.startIrrigationSession &&
           root.type != CommandType.startAdhocSession &&
           root.type != CommandType.startBookingSession) {
@@ -1291,7 +1292,14 @@ class SqliteOutboxStore
       if (existing.isNotEmpty) return existing.single['value'] as String;
       for (final command in commands.where((c) => c.type == CommandType.startOperationalSession)) {
         final rows = await txn.query(commandsTable, where: 'account_id=? and well_id=?', whereArgs: [accountId, command.wellId]);
-        final active = existingOperationalStart(rows.map(_fromRow), command.wellId!);
+        final bindings = await txn.rawQuery(
+          'select m.local_id from $mappingsTable m '
+          'join $commandsTable c on c.account_id=m.account_id and c.local_id=m.local_id '
+          'where m.account_id=? and c.well_id=? and m.entity_kind=?',
+          [accountId, command.wellId, EntityKind.session.storageValue],
+        );
+        final active = existingOperationalStart(rows.map(_fromRow), command.wellId!,
+          sessionBoundLocalIds: bindings.map((r) => r['local_id'] as String).toSet());
         if (active != null) throw ExistingOperationalStart(active);
       }
 

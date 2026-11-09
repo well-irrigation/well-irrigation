@@ -34,6 +34,7 @@ import 'command_type.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 import 'session_correction_receipt.dart';
+import 'manual_session_entry.dart';
 
 /// حصيلة تشغيل واحد للحلقة.
 class SyncRunReport {
@@ -193,12 +194,13 @@ class SyncEngine {
     final recovered = await _recoverStaleClaims(accountId);
 
     final corrections = await _runSessionCorrections(accountId);
-    var attempted = corrections.attempted;
-    var confirmed = corrections.confirmed;
-    var retryScheduled = corrections.retryScheduled;
-    var needsReview = corrections.needsReview;
-    var skipped = blockedStops + corrections.skipped;
-    var blockedByReview = blockedStops + corrections.blockedByReview;
+    final manual = await _runManualSessionEntries(accountId);
+    var attempted = corrections.attempted + manual.attempted;
+    var confirmed = corrections.confirmed + manual.confirmed;
+    var retryScheduled = corrections.retryScheduled + manual.retryScheduled;
+    var needsReview = corrections.needsReview + manual.needsReview;
+    var skipped = blockedStops + corrections.skipped + manual.skipped;
+    var blockedByReview = blockedStops + corrections.blockedByReview + manual.blockedByReview;
     var farmMappingsCreated = 0;
     var farmResultsChanged = false;
 
@@ -211,8 +213,8 @@ class SyncEngine {
       }
       if (pass > 0) {
         // إعادة تصفير المتخطى للمرور الإضافي لأن الأوامر غير المحسومة وحدها تُحسب
-        skipped = blockedStops + corrections.skipped;
-        blockedByReview = blockedStops + corrections.blockedByReview;
+        skipped = blockedStops + corrections.skipped + manual.skipped;
+        blockedByReview = blockedStops + corrections.blockedByReview + manual.blockedByReview;
       }
       unblockedByResolver = false;
 
@@ -423,6 +425,103 @@ class SyncEngine {
       farmMappingsCreated: farmMappingsCreated,
       farmResultsChanged: farmResultsChanged,
     );
+  }
+
+  /// لا تتكرر كتابة الإدخال اليدوي بعد احتمال خروج الطلب إلى الشبكة.
+  Future<SyncRunReport> _runManualSessionEntries(String accountId) async {
+    const notSent = 'manual_entry_execution_not_started';
+    var attempted = 0;
+    var confirmed = 0;
+    var review = 0;
+    var retries = 0;
+    var blocked = 0;
+    for (final c in await _store.pendingCommands(accountId)) {
+      if (!isManualSessionEntry(c.type)) continue;
+      if (c.status == CommandStatus.review) {
+        blocked++;
+        continue;
+      }
+      final request = ManualSessionEntryReceiptRequest.fromCommand(c);
+      if (request == null) {
+        await _store.markNeedsReview(accountId,c.localId,
+          error: 'manual_entry_local_contract_invalid', attemptedAt: _clock().toUtc());
+        review++;
+        continue;
+      }
+      final at = _clock().toUtc();
+      ManualSessionEntryRead read;
+      final neverDispatched = (!c.wasAttempted && c.lastAttemptAt == null) ||
+          c.lastError == notSent;
+      if (c.status == CommandStatus.pending && neverDispatched) {
+        if (!await _store.claim(accountId,c.localId,attemptedAt: at)) continue;
+        attempted++;
+        try {
+          final result = await _transport.dispatch(DispatchRequest(
+            accountId: accountId, type: c.type, commandId: c.commandId,
+            arguments: buildRpcArguments(type: c.type, commandId: c.commandId,
+              occurredAt: c.occurredAt, resolvedPayload: c.payload),
+          ));
+          if (result is DispatchFailed && result.executionNotStarted) {
+            // إثبات النقل قبل الشبكة فقط؛ ليس خطأ HTTP ولا غياب إيصال.
+            await _store.releaseForRetry(accountId,c.localId,
+              error:notSent,attemptedAt:at);
+            retries++;
+            continue;
+          }
+          // حتى الخطأ القابل للإعادة ليس إثباتًا على عدم التنفيذ.
+          read = result is DispatchAccepted
+              ? parseManualSessionEntryResult(request,result.response)
+              : result is DispatchFailed && result.serverResponse != null
+                  ? parseManualSessionEntryResult(request,result.serverResponse)
+                  : const ManualSessionEntryReadFailure(ManualSessionEntryReadFailureKind.network);
+        } on Object {
+          retries++;
+          continue;
+        }
+      } else {
+        final transport = _transport;
+        if (transport is! ManualSessionEntryReceiptTransport) {
+          retries++;
+          continue;
+        }
+        try {
+          read = await (transport as ManualSessionEntryReceiptTransport).readManualSessionEntryReceipt(request);
+          // لا تُقبل نتيجة مزيفة تتجاوز التحقق عند حد النقل.
+          if (read is ManualSessionEntryOutcome && read.result != null) {
+            read = parseManualSessionEntryResult(request,read.result);
+          }
+        } on Object {
+          retries++;
+          continue;
+        }
+      }
+      if (read is! ManualSessionEntryOutcome) {
+        retries++;
+      } else if (read.state == ManualSessionEntryState.accepted) {
+        final prior = c.type == CommandType.adoptExternalSession
+            ? await _store.mapping(accountId,c.localId,EntityKind.session) : null;
+        if (prior != null && prior.serverId != read.sessionId) {
+          await _store.markNeedsReview(accountId,c.localId,
+            error:'manual_entry_session_identity_conflict',attemptedAt:at);
+          review++;
+          continue;
+        }
+        await _confirm(accountId,c,DispatchAccepted(
+          response: read.result!,entityId: read.sessionId),at);
+        confirmed++;
+      } else if (read.state.requiresAction) {
+        await _store.markNeedsReview(accountId,c.localId,
+          error: 'manual_entry_${read.state.name}',attemptedAt: at,
+          serverResponse: read.result);
+        review++;
+      } else {
+        // processing / not_found / unresolved: لا إفراج ولا كتابة ثانية.
+        retries++;
+      }
+    }
+    return SyncRunReport(attempted: attempted,confirmed: confirmed,
+      needsReview: review,retryScheduled: retries,blockedByReview: blocked,
+      skipped: blocked);
   }
 
   /// التصحيح يملك حاجز غموض متينًا: لا كتابة بعد dispatching إلا بقرار إنسان.
@@ -934,7 +1033,8 @@ class SyncEngine {
         : await store.pendingCommands(accountId);
     // التصحيح ينتظر مسار الإرسال والاسترداد المخصص، دون تغيير صفه المتين.
     return rows
-        .where((command) => command.type != CommandType.correctIrrigationSession)
+        .where((command) => command.type != CommandType.correctIrrigationSession &&
+            !isManualSessionEntry(command.type))
         .toList();
   }
 
