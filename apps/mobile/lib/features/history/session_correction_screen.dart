@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../core/session/offline_session_coordinator.dart';
+import '../../core/sync/command_envelope.dart';
+import '../../core/sync/session_correction_receipt.dart';
 import '../../core/sync/outbox_store.dart' show SessionCorrectionConflict;
 import '../../core/sync/sync_status.dart';
+
+class SessionCorrectionAcceptedResult {
+  const SessionCorrectionAcceptedResult({
+    required this.localId,
+    required this.commandId,
+    required this.accepted,
+  });
+
+  final String localId;
+  final String commandId;
+  final SessionCorrectionReceiptResponse accepted;
+}
 
 /// يحفظ طلب التصحيح من لقطة الفتح دون الادعاء بتحديث التفاصيل الخادمية.
 class SessionCorrectionScreen extends StatefulWidget {
@@ -36,6 +50,8 @@ class _SessionCorrectionScreenState extends State<SessionCorrectionScreen> {
   late final TextEditingController _startController;
   late final TextEditingController _endController;
   final _reasonController = TextEditingController();
+  CommandEnvelope? _submittedCommand;
+  bool _refreshingCorrection = false;
   bool _submitting = false;
   bool _submissionLocked = false;
   String? _submissionMessage;
@@ -67,6 +83,7 @@ class _SessionCorrectionScreenState extends State<SessionCorrectionScreen> {
       setState(() {
         _submitting = false;
         _submissionLocked = true;
+        _submittedCommand = envelope;
         _submissionMessage = switch (envelope.status) {
           CommandStatus.pending || CommandStatus.dispatching =>
             'تم حفظ طلب التصحيح، وسيتم التحقق من النتيجة عند المزامنة.',
@@ -89,6 +106,49 @@ class _SessionCorrectionScreenState extends State<SessionCorrectionScreen> {
         _submitting = false;
         _submissionLocked = false;
         _submissionMessage = 'تعذر حفظ التصحيح. حاول مرة أخرى.';
+      });
+    }
+  }
+
+  Future<void> _refreshCorrection() async {
+    final command = _submittedCommand;
+    if (_refreshingCorrection || command == null || !_hasExecutionContext) return;
+    setState(() => _refreshingCorrection = true);
+    try {
+      final observation = await widget.coordinator!.readSessionCorrectionCommand(
+        accountId: widget.accountId!,
+        wellId: widget.wellId!,
+        sessionId: widget.sessionId,
+        localId: command.localId,
+        commandId: command.commandId,
+      );
+      if (!mounted) return;
+      if (observation == null) throw StateError('Missing correction command');
+      final accepted = observation.accepted;
+      if (observation.command.status == CommandStatus.confirmed) {
+        if (accepted == null ||
+            accepted.state != SessionCorrectionReceiptState.accepted ||
+            accepted.receipt == null) {
+          throw StateError('Missing accepted correction evidence');
+        }
+        Navigator.of(context).pop(SessionCorrectionAcceptedResult(
+          localId: command.localId,
+          commandId: command.commandId,
+          accepted: accepted,
+        ));
+        return;
+      }
+      setState(() {
+        _refreshingCorrection = false;
+        _submissionMessage = observation.command.status == CommandStatus.review
+            ? 'هذا التصحيح يحتاج إلى مراجعة قبل المتابعة.'
+            : 'تم حفظ طلب التصحيح، وسيتم التحقق من النتيجة عند المزامنة.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _refreshingCorrection = false;
+        _submissionMessage = 'تعذر التحقق من حالة التصحيح. حاول مرة أخرى.';
       });
     }
   }
@@ -239,6 +299,14 @@ class _SessionCorrectionScreenState extends State<SessionCorrectionScreen> {
                   : null,
               child: const Text('حفظ التصحيح'),
             ),
+            if (_submittedCommand != null) ...[
+              const SizedBox(height: 12),
+              OutlinedButton(
+                key: const Key('session_correction_refresh'),
+                onPressed: _refreshingCorrection ? null : _refreshCorrection,
+                child: const Text('تحديث حالة التصحيح'),
+              ),
+            ],
           ],
         ),
       ),

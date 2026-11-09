@@ -65,6 +65,34 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   bool _refreshing = false;
   bool _refreshAgain = false;
   int _loadGeneration = 0;
+  String? _correctionOutcome;
+  String? _historicalCorrectionOutcome;
+  Object? _correctionOutcomeSnapshot;
+
+  // Value equality keeps messages valid across equivalent server reads.
+  // SessionHistoryItem represents financial review through financialStatus.
+  Object _correctionSnapshot(SessionDetailData data) {
+    final session = data.session;
+    return (
+      sessionId: session.id,
+      wellId: session.wellId,
+      revision: session.operationalRevision,
+      startedAt: session.effectiveStartedAt?.microsecondsSinceEpoch,
+      endedAt: session.effectiveEndedAt?.microsecondsSinceEpoch,
+      financialStatus: session.financialStatus,
+      financialReviewRequired: session.financialStatus == 'financial_review_required',
+      financialAppliedRevision: session.financialAppliedRevision,
+      amount: session.totalAmountYER,
+      paidAmount: session.paidAmountYER,
+      paymentStatus: session.paymentStatus,
+      hasCharge: session.hasCharge,
+      hasInvoice: session.hasInvoice,
+    );
+  }
+
+  bool get _correctionOutcomeIsCurrent =>
+      _detailData != null &&
+      _correctionOutcomeSnapshot == _correctionSnapshot(_detailData!);
 
   void _onCompletion(ActiveSessionRecord record) {
     if (record.accountId != widget.accountId ||
@@ -120,15 +148,15 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     await _restorePaymentState();
   }
 
-  void _openSessionCorrection() {
+  Future<void> _openSessionCorrection() async {
     if (!_canShowCorrectionAction) return;
     final session = _detailData!.session;
     final start = session.effectiveStartedAt;
     final end = session.effectiveEndedAt;
     final revision = session.operationalRevision;
     if (start == null || end == null || revision == null) return;
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+    final result = await Navigator.of(context).push<SessionCorrectionAcceptedResult>(
+      MaterialPageRoute<SessionCorrectionAcceptedResult>(
         builder: (_) => SessionCorrectionScreen(
           coordinator: _coordinator,
           accountId: widget.accountId,
@@ -140,6 +168,84 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         ),
       ),
     );
+    if (!mounted || result == null) return;
+    await _verifyCorrection(result);
+  }
+
+  Future<void> _verifyCorrection(SessionCorrectionAcceptedResult result) async {
+    final generation = ++_loadGeneration;
+    final receipt = result.accepted.receipt!;
+    final acceptedRevision = receipt['operational_revision'] as int;
+    final previousRevision = receipt['previous_revision'] as int;
+    final correctionId = receipt['correction_id'] as String;
+    final start = DateTime.parse(receipt['actual_started_at'] as String);
+    final end = DateTime.parse(receipt['actual_ended_at'] as String);
+    bool same(DateTime? a, DateTime b) => a?.isAtSameMomentAs(b) == true;
+    try {
+      final detail = await _repo.fetchSessionDetail(widget.sessionId);
+      final history = await _repo.fetchSessionCorrections(widget.sessionId);
+      final status = await _repo.fetchSessionCorrectionStatus(widget.sessionId);
+      if (!mounted || generation != _loadGeneration) return;
+      final matches = history.items.where((item) => item.correctionId == correctionId).toList();
+      final session = detail.session;
+      final revision = session.operationalRevision;
+      var valid = session.id == widget.sessionId &&
+          session.wellId == widget.wellId &&
+          history.sessionId == widget.sessionId &&
+          matches.length == 1 && revision != null && revision >= acceptedRevision;
+      if (valid) {
+        final item = matches.single;
+        valid = item.sessionId == widget.sessionId &&
+            item.previousRevision == previousRevision &&
+            item.newRevision == acceptedRevision &&
+            same(item.afterStartedAt, start) && same(item.afterEndedAt, end);
+      }
+      final current = revision == acceptedRevision;
+      if (valid && current) {
+        valid = same(session.effectiveStartedAt, start) &&
+            same(session.effectiveEndedAt, end) &&
+            status.sessionId == widget.sessionId &&
+            status.correctionId == correctionId &&
+            status.operationalRevision == acceptedRevision &&
+            status.financialStatus == session.financialStatus &&
+            (status.financialStatus != 'applied' ||
+                session.financialAppliedRevision == revision);
+      }
+      setState(() {
+        _historicalCorrectionOutcome = null;
+        _correctionOutcomeSnapshot = _correctionSnapshot(valid ? detail : _detailData!);
+        if (!valid) {
+          _correctionOutcome = 'تم اعتماد طلب التصحيح، لكن تعذر التحقق من أحدث بيانات الجلسة.';
+          return;
+        }
+        _detailData = detail;
+        _usingCachedRead = false;
+        if (!current) {
+          _correctionOutcome = 'تم اعتماد هذا التصحيح، وتوجد تعديلات أحدث على السجل.';
+          if (matches.single.financialReviewRequired) {
+            _historicalCorrectionOutcome = 'الأثر المالي لهذا التصحيح يحتاج إلى مراجعة.';
+          }
+        } else if (status.financialReviewRequired || status.financialStatus == 'financial_review_required') {
+          _correctionOutcome = 'تم اعتماد التصحيح، لكن المبلغ يحتاج إلى مراجعة.';
+        } else if (status.financialStatus == 'applied') {
+          _correctionOutcome = 'تم اعتماد التصحيح.';
+        } else {
+          _correctionOutcome = 'تم اعتماد التصحيح، والأثر المالي قيد المعالجة.';
+        }
+      });
+    } catch (_) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _historicalCorrectionOutcome = null;
+        _correctionOutcomeSnapshot = _correctionSnapshot(_detailData!);
+        _correctionOutcome = 'تم اعتماد طلب التصحيح، لكن تعذر تحميل أحدث بيانات الجلسة.';
+      });
+    }
+  }
+
+  String _correctionTime(DateTime time) {
+    final local = time.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _recordDeferredPayment() async {
@@ -620,6 +726,18 @@ $moneyBlock
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _paymentMessages(),
+              if (_correctionOutcome case final message?) ...[
+                if (_correctionOutcomeIsCurrent) ...[
+                  Semantics(liveRegion: true, child: Text(message)),
+                  if (_historicalCorrectionOutcome case final historical?) Text(historical),
+                ],
+                if (session.effectiveStartedAt case final start?)
+                  Text('البداية الفعلية: ${_correctionTime(start)}'),
+                if (session.effectiveEndedAt case final end?)
+                  Text('النهاية الفعلية: ${_correctionTime(end)}'),
+                Text('مراجعة التشغيل: ${session.operationalRevision}'),
+                const SizedBox(height: 8),
+              ],
               // 1. كرت الملخص العام
               _buildSummaryCard(session, crops: data.crops),
 
