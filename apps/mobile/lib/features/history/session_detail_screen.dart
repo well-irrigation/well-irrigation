@@ -130,6 +130,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => SessionCorrectionScreen(
+          coordinator: _coordinator,
+          accountId: widget.accountId,
+          wellId: widget.wellId,
           sessionId: session.id,
           effectiveStartedAt: start,
           effectiveEndedAt: end,
