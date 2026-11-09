@@ -252,8 +252,9 @@ class _Repository extends OperationsRepository {
   Future<SessionDetailData> fetchSessionDetail(String id) async {
     expect(id, _session);
     detailReads++;
-    if (fail == 'detail' && detailReads > 1)
+    if (fail == 'detail' && detailReads > 1) {
       throw StateError('detail_unavailable');
+    }
     return detail;
   }
 
@@ -520,8 +521,9 @@ void main() {
       (tester) async {
         await openAndSubmit(tester);
         coordinator.readResult = () async {
-          if (failure == 'exception')
+          if (failure == 'exception') {
             throw StateError('observation_unavailable');
+          }
           return null;
         };
         await refresh(tester);

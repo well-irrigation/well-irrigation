@@ -82,8 +82,9 @@ void main() {
       'test-anon-key',
       httpClient: MockClient((request) async {
         requests.add(request);
-        if (networkFailure)
+        if (networkFailure) {
           throw http.ClientException('connection unavailable');
+        }
         return http.Response(
           jsonEncode(response),
           httpStatus,

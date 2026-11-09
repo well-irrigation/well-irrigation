@@ -64,7 +64,9 @@ class _SessionCorrectionScreenState extends State<SessionCorrectionScreen> {
 
   Future<void> _submit() async {
     if (_fieldsLocked || !_hasExecutionContext ||
-        _reasonError != null || _timeError != null) return;
+        _reasonError != null || _timeError != null) {
+      return;
+    }
     setState(() {
       _submitting = true;
       _submissionMessage = null;

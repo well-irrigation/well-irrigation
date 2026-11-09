@@ -458,7 +458,7 @@ DateTime? _readTime(Map json, String key, {bool nullable = false}) {
     throw invalid();
   }
   // التحليل الأصلي يحفظ الإزاحة ودقة الكسور التي يدعمها DateTime.
-  final parsed = DateTime.tryParse(value as String);
+  final parsed = DateTime.tryParse(value);
   if (parsed == null) throw invalid();
   return parsed.toLocal();
 }
@@ -640,8 +640,9 @@ class SessionCorrectionStatus {
         financialStatus: financial,
       );
     }
-    if (status != financial)
+    if (status != financial) {
       throw const FormatException('حالة التصحيح غير متسقة');
+    }
     return SessionCorrectionStatus._(
       sessionId: sessionId,
       operationalRevision: revision,
