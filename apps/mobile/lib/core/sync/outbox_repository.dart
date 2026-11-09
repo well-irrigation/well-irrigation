@@ -53,6 +53,51 @@ class OutboxRepository {
     return _store.insert(envelope);
   }
 
+  /// يحفظ نية تصحيح مستقلة قبل أي فرصة مزامنة، بحماية تكرار ذرية.
+  Future<CommandEnvelope> enqueueSessionCorrection({
+    required String accountId,
+    required String wellId,
+    required String sessionId,
+    required int baseRevision,
+    required String reason,
+    required DateTime desiredStartedAt,
+    required DateTime desiredEndedAt,
+  }) async {
+    final cleanReason = reason.trim();
+    final start = desiredStartedAt.toUtc();
+    final end = desiredEndedAt.toUtc();
+    if (accountId.trim().isEmpty ||
+        wellId.trim().isEmpty ||
+        sessionId.trim().isEmpty ||
+        baseRevision < 0 ||
+        baseRevision > 9223372036854775806 ||
+        cleanReason.isEmpty ||
+        !start.isBefore(end)) {
+      throw ArgumentError('invalid_session_correction');
+    }
+    final requestedAt = _clock().toUtc();
+    if (end.isAfter(requestedAt)) {
+      throw ArgumentError('session_correction_end_in_future');
+    }
+    if (_store is! SessionCorrectionInsertStore) {
+      throw StateError('session_correction_insert_unavailable');
+    }
+    final command = await prepare(
+      accountId: accountId,
+      wellId: wellId,
+      type: CommandType.correctIrrigationSession,
+      occurredAt: requestedAt,
+      payload: Map<String, Object?>.unmodifiable({
+        'p_session_id': sessionId,
+        'p_base_revision': baseRevision,
+        'p_reason': cleanReason,
+        'p_desired_started_at': start.toIso8601String(),
+        'p_desired_ended_at': end.toIso8601String(),
+      }),
+    );
+    return _store.insertSessionCorrection(command);
+  }
+
   /// يبني أمرًا لمعاملة جماعية؛ لا يعلن حفظه ولا يرسله.
   Future<CommandEnvelope> prepare({
     required String accountId,

@@ -19,6 +19,7 @@ import 'sync_status.dart';
 
 class InMemoryOutboxStore
     implements
+        SessionCorrectionInsertStore,
         SessionExecutionStore,
         AtomicCommandDispatchStore,
         OutboxStore,
@@ -504,6 +505,18 @@ class InMemoryOutboxStore
     _paymentReads[(accountId, wellId, localSessionId)] = Map.unmodifiable(
       value,
     );
+  }
+
+  @override
+  Future<CommandEnvelope> insertSessionCorrection(CommandEnvelope command) async {
+    _assertOpen();
+    validateSessionCorrectionInsert(command);
+    final existing = existingSessionCorrection(
+      _commands[command.accountId] ?? const <CommandEnvelope>[], command,
+    );
+    if (existing != null) return existing;
+    // لا await بين القرار وتحديث الفهارس داخل insert.
+    return insert(command);
   }
 
   @override

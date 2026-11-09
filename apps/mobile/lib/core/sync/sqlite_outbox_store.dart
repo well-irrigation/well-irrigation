@@ -36,6 +36,7 @@ import 'sync_status.dart';
 
 class SqliteOutboxStore
     implements
+        SessionCorrectionInsertStore,
         SessionExecutionStore,
         AtomicCommandDispatchStore,
         OutboxStore,
@@ -1057,6 +1058,31 @@ class SqliteOutboxStore
       _paymentReadKey(wellId, localSessionId),
       jsonEncode(value),
     );
+  }
+
+  @override
+  Future<CommandEnvelope> insertSessionCorrection(CommandEnvelope command) async {
+    validateSessionCorrectionInsert(command);
+    await initialize();
+    // إعادة المعاملة كاملة عند تنافس محلي محدود؛ لا إعادة لأي طلب شبكة.
+    return _withExecutionContentionRetry(() => _db.transaction((txn) async {
+      final rows = await txn.query(
+        commandsTable,
+        where: 'account_id = ? and command_type = ? and status in (?, ?, ?)',
+        whereArgs: [
+          command.accountId,
+          CommandType.correctIrrigationSession.storageValue,
+          CommandStatus.pending.storageValue,
+          CommandStatus.dispatching.storageValue,
+          CommandStatus.review.storageValue,
+        ],
+      );
+      // فحص الحمولة في Dart؛ لا اعتماد على امتداد SQLite JSON.
+      final existing = existingSessionCorrection(rows.map(_fromRow), command);
+      if (existing != null) return existing;
+      await txn.insert(commandsTable, _toRow(command));
+      return command;
+    }));
   }
 
   @override

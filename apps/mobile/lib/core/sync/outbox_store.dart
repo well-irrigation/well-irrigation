@@ -19,6 +19,89 @@ import 'command_reference.dart';
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'sync_status.dart';
+import 'session_correction_receipt.dart';
+
+/// تصحيح غير محسوم للجلسة نفسها؛ لا يُستبدل ضمنيًا بطلب آخر.
+class SessionCorrectionConflict implements Exception {
+  const SessionCorrectionConflict(this.existing);
+  final CommandEnvelope existing;
+}
+
+/// قدرة إدراج اختيارية؛ لا تفرض دعم التصحيح على المخازن القديمة.
+abstract interface class SessionCorrectionInsertStore {
+  Future<CommandEnvelope> insertSessionCorrection(CommandEnvelope command);
+}
+
+extension SessionCorrectionInsertion on OutboxStore {
+  Future<CommandEnvelope> insertSessionCorrection(CommandEnvelope command) {
+    final store = this;
+    if (store is! SessionCorrectionInsertStore) {
+      throw StateError('session_correction_insert_unavailable');
+    }
+    return (store as SessionCorrectionInsertStore).insertSessionCorrection(command);
+  }
+}
+
+/// الحماية عند حد التخزين، بما فيه المتصل المباشر الذي يتجاوز المستودع.
+void validateSessionCorrectionInsert(CommandEnvelope command) {
+  final request = SessionCorrectionReceiptRequest.fromCommand(command);
+  final reason = command.payload['p_reason'];
+  if (request == null ||
+      command.localId.trim().isEmpty ||
+      command.status != CommandStatus.pending ||
+      command.aggregateLocalId != null ||
+      command.prerequisites.isNotEmpty ||
+      command.localContext.isNotEmpty ||
+      reason is! String ||
+      reason != reason.trim() ||
+      command.payload['p_desired_started_at'] !=
+          request.desiredStartedAt.toUtc().toIso8601String() ||
+      command.payload['p_desired_ended_at'] !=
+          request.desiredEndedAt.toUtc().toIso8601String() ||
+      request.desiredEndedAt.isAfter(command.occurredAt)) {
+    throw ArgumentError('invalid_session_correction_insert');
+  }
+}
+
+/// الهوية التنفيذية لا تدخل مقارنة الحقائق؛ نطاق الجلسة هو الحساب ومعرّفها.
+CommandEnvelope? existingSessionCorrection(
+  Iterable<CommandEnvelope> rows,
+  CommandEnvelope command,
+) {
+  final unresolved = <CommandEnvelope>[];
+  for (final row in rows) {
+    if (row.type != CommandType.correctIrrigationSession ||
+        row.accountId != command.accountId ||
+        !const {
+          CommandStatus.pending,
+          CommandStatus.dispatching,
+          CommandStatus.review,
+        }.contains(row.status)) {
+      continue;
+    }
+    final sessionId = row.payload['p_session_id'];
+    // الهوية غير المحددة ليست دليلًا على أن الصف يخص جلسة أخرى.
+    if (sessionId is! String || sessionId.trim().isEmpty) {
+      throw SessionCorrectionConflict(row);
+    }
+    if (sessionId == command.payload['p_session_id']) {
+      unresolved.add(row);
+    }
+  }
+  if (unresolved.isEmpty) return null;
+  final existing = unresolved.first;
+  const facts = {
+    'p_session_id', 'p_base_revision', 'p_reason',
+    'p_desired_started_at', 'p_desired_ended_at',
+  };
+  if (unresolved.length != 1 ||
+      existing.wellId != command.wellId ||
+      existing.payload.length != facts.length ||
+      !facts.every((key) => existing.payload[key] == command.payload[key])) {
+    throw SessionCorrectionConflict(existing);
+  }
+  return existing;
+}
 
 /// A competing human start is already durably represented.
 class ExistingOperationalStart implements Exception {
