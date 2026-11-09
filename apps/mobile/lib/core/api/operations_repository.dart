@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../sync/command_reference.dart';
 import '../sync/entity_reference.dart';
 import '../utils/digit_utils.dart';
+import 'manual_session_entry_capability.dart';
 
 /// نماذج وبيانات التشغيل الميداني وسجل الجلسات (UX-07 / UX-08 / UX-13 / ق-80 / ق-84 / ق-98 / ق-114)
 
@@ -947,7 +948,7 @@ class FarmerDetailData {
   final List<SessionHistoryItem> recentSessions;
 }
 
-class OperationsRepository {
+class OperationsRepository implements ManualSessionEntryCapabilityReader {
   const OperationsRepository([this._client]);
 
   final SupabaseClient? _client;
@@ -959,6 +960,65 @@ class OperationsRepository {
     } catch (_) {
       return null;
     }
+  }
+
+  /// قراءة جديدة بلا مخبأ؛ تبديل الهوية أثناء الطلب يبطل النتيجة القديمة.
+  @override
+  Future<ManualSessionEntryCapability> fetchManualSessionEntryCapability({
+    required String accountId,
+    required String wellId,
+  }) async {
+    if (accountId.isEmpty || accountId.trim() != accountId ||
+        wellId.isEmpty || wellId.trim() != wellId) {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.malformed,
+      );
+    }
+    final client = _effectiveClient;
+    if (client == null) {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.unavailable,
+      );
+    }
+    bool sameIdentity() {
+      final session = client.auth.currentSession;
+      return session != null && !session.isExpired && session.user.id == accountId;
+    }
+    if (!sameIdentity()) {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.authentication,
+      );
+    }
+    final Object? raw;
+    try {
+      raw = await client.schema('api').rpc(
+        'get_manual_session_entry_capability', params: {'p_well_id': wellId},
+      ).timeout(const Duration(seconds: 20));
+    } on PostgrestException catch (error) {
+      throw ManualSessionEntryCapabilityUnavailable(switch (error.code) {
+        '42501' => ManualSessionEntryCapabilityFailure.forbidden,
+        '28000' || 'PGRST301' || 'PGRST302' => ManualSessionEntryCapabilityFailure.authentication,
+        _ => ManualSessionEntryCapabilityFailure.network,
+      });
+    } on AuthException {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.authentication,
+      );
+    } on FormatException {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.malformed,
+      );
+    } on Object {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.network,
+      );
+    }
+    if (!sameIdentity()) {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.identityChanged,
+      );
+    }
+    return ManualSessionEntryCapability.fromContract(raw, wellId: wellId);
   }
 
   /// استخراج عناصر عقد قراءة من مغلّف `{contract, version, items}` (ق-98)
