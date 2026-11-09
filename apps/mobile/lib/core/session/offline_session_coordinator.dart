@@ -24,12 +24,26 @@ import '../sync/sqlite_outbox_store.dart';
 import '../sync/supabase_command_transport.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_status.dart';
+import '../sync/session_correction_receipt.dart';
 import 'active_session_projector.dart';
 import 'active_session_record.dart';
 import 'session_crop_snapshot.dart';
 import 'time_integrity.dart';
 import 'manual_stop_request_store.dart';
 import '../sync/command_intent_policy.dart';
+
+/// لقطة للأمر المتين؛ القبول المثبت لا يمثل الحالة المالية الحالية.
+class SessionCorrectionCommandObservation {
+  const SessionCorrectionCommandObservation({
+    required this.command,
+    required this.request,
+    this.accepted,
+  });
+
+  final CommandEnvelope command;
+  final SessionCorrectionReceiptRequest request;
+  final SessionCorrectionReceiptResponse? accepted;
+}
 
 /// نتيجة قراءة فقط من الطابور وقراءة مالية خادمية محفوظة فيه.
 /// إصدار الدفعات يمنع رفع قراءة بدأت قبل الإقرار إلى حقيقة سارية بعده.
@@ -1962,6 +1976,62 @@ class OfflineSessionCoordinator {
       farmerId: farmerId,
       limit: limit,
       query: query,
+    );
+  }
+
+  /// يقرأ أمر التصحيح نفسه دون تشغيل المزامنة أو دورة عرض الجلسة.
+  Future<SessionCorrectionCommandObservation?> readSessionCorrectionCommand({
+    required String accountId,
+    required String wellId,
+    required String sessionId,
+    required String localId,
+    required String commandId,
+  }) async {
+    await _outbox.initialize();
+    final command = await _outbox.byLocalId(accountId, localId);
+    if (command == null) return null;
+    final session = command.payload['p_session_id'];
+    if (command.accountId != accountId ||
+        command.localId != localId ||
+        command.type != CommandType.correctIrrigationSession ||
+        command.commandId != commandId ||
+        command.wellId != wellId ||
+        session is! String ||
+        session.trim().isEmpty ||
+        session != sessionId) {
+      throw StateError('session_correction_observation_identity_mismatch');
+    }
+    final request = SessionCorrectionReceiptRequest.fromCommand(command);
+    if (request == null) {
+      throw StateError('session_correction_observation_invalid_command');
+    }
+    SessionCorrectionReceiptResponse? accepted;
+    if (command.status == CommandStatus.confirmed) {
+      final receipt = command.serverResponse;
+      if (receipt == null) {
+        throw StateError('session_correction_observation_missing_receipt');
+      }
+      final checked = parseSessionCorrectionReceipt(request, {
+        'contract': 'get_session_correction_receipt',
+        'version': 1,
+        'session_id': request.sessionId,
+        'command_id': request.commandId,
+        'command_type': 'correct_irrigation_session',
+        'retry_authorized': false,
+        'status': 'accepted',
+        'receipt': receipt,
+      });
+      if (checked is! SessionCorrectionReceiptResponse ||
+          checked.state != SessionCorrectionReceiptState.accepted ||
+          checked.receipt == null) {
+        throw StateError('session_correction_observation_invalid_receipt');
+      }
+      accepted = checked;
+    }
+    return SessionCorrectionCommandObservation(
+      command: command,
+      request: request,
+      accepted: accepted,
     );
   }
 
