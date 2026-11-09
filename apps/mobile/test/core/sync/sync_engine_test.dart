@@ -57,10 +57,7 @@ void main() {
         (await repository.pending(accountA)).map((c) => c.localId),
         contains(command.localId),
       );
-      // FakeCommandTransport's default JSON builder assumes a resultKey.
-      // Supply a raw response only as a tripwire for accidental dispatch; it
-      // makes a forbidden call observable without an unrelated null-key crash.
-      // This is not a correction receipt/recovery acceptance test.
+      // قبول ناقص: المسار المخصص يبقيه غامضًا ولا يؤكده كنجاح عام.
       transport.scheduleRawResponse(CommandType.correctIrrigationSession, {
         'status': 'accepted',
         'command_id': command.commandId,
@@ -69,74 +66,49 @@ void main() {
       return command;
     }
 
-    void idle(SyncRunReport report) {
-      expect(report.attempted, 0);
-      expect(report.confirmed, 0);
-      expect(report.retryScheduled, 0);
-      expect(report.needsReview, 0);
-      expect(report.skipped, 0);
-      expect(report.blockedByReview, 0);
-      expect(report.awaitsHumanDecision, isFalse);
-      expect(report.canRetryWithoutHelp, isFalse);
-    }
-
-    Future<void> unchanged(CommandEnvelope original) async {
+    Future<void> awaitingReceipt(CommandEnvelope original) async {
       final stored = await repository.byLocalId(accountA, original.localId);
       expect(stored, isNotNull);
-      expect(stored!.status, CommandStatus.pending);
+      expect(stored!.status, CommandStatus.dispatching);
       expect(stored.localId, original.localId);
       expect(stored.commandId, original.commandId);
       expect(stored.occurredAt, original.occurredAt);
       expect(stored.payload, original.payload);
       expect(stored.retryCount, original.retryCount);
-      expect(stored.lastAttemptAt, original.lastAttemptAt);
-      expect(stored.serverResponse, original.serverResponse);
-      expect(
-        (await repository.pending(accountA)).map((c) => c.localId),
-        contains(original.localId),
-      );
+      expect(stored.lastAttemptAt, testNow);
+      expect(stored.serverResponse, isNull);
     }
 
-    test('durable correction is invisible to generic lane across two runs', () async {
+    test('dedicated correction rejects generic acceptance and never blindly resends', () async {
       final command = await enqueueCorrection();
       final first = await engine.run(accountA);
-      final firstCount = transport
-          .requestsFor(CommandType.correctIrrigationSession)
-          .length;
-      final afterFirst = await repository.byLocalId(accountA, command.localId);
+      expect(transport.requestsFor(CommandType.correctIrrigationSession), hasLength(1));
+      expect(first.attempted, 1);
+      expect(first.confirmed, 0);
+      expect(first.retryScheduled, 0);
+      expect(first.needsReview, 0);
+      expect(first.skipped, 1);
+      expect(first.blockedByReview, 0);
+      expect(first.awaitsHumanDecision, isFalse);
+      expect(first.canRetryWithoutHelp, isTrue);
+      await awaitingReceipt(command);
+
+      // النقل بلا قارئ إيصال؛ غيابه لا يمنح إذن إعادة الكتابة.
       final second = await engine.run(accountA);
-      // Run twice before asserting to exercise both passes even in RED.
-      expect(
-        firstCount,
-        0,
-        reason:
-            'Expected no correction dispatch requests; '
-            'first attempted=${first.attempted}, confirmed=${first.confirmed}, '
-            'retry=${first.retryScheduled}, review=${first.needsReview}, '
-            'skipped=${first.skipped}, blocked=${first.blockedByReview}; '
-            'stored=${afterFirst?.status.name}; '
-            'second attempted=${second.attempted}, retry=${second.retryScheduled}, '
-            'review=${second.needsReview}',
-      );
-      expect(
-        transport.requestsFor(CommandType.correctIrrigationSession),
-        isEmpty,
-      );
-      expect(
-        transport.calledFunctions,
-        isNot(contains('correct_irrigation_session')),
-      );
-      expect(afterFirst!.status, CommandStatus.pending);
-      expect(afterFirst.commandId, command.commandId);
-      expect(afterFirst.occurredAt, command.occurredAt);
-      expect(afterFirst.payload, command.payload);
-      idle(first);
-      idle(second);
-      await unchanged(command);
+      expect(transport.requestsFor(CommandType.correctIrrigationSession), hasLength(1));
+      expect(second.attempted, 0);
+      expect(second.confirmed, 0);
+      expect(second.retryScheduled, 0);
+      expect(second.needsReview, 0);
+      expect(second.skipped, 1);
+      expect(second.blockedByReview, 0);
+      expect(second.awaitsHumanDecision, isFalse);
+      expect(second.canRetryWithoutHelp, isTrue);
+      await awaitingReceipt(command);
     });
 
     test(
-      'excluded correction never blocks a later independent normal payment',
+      'dedicated correction awaiting receipt never blocks an independent normal payment',
       () async {
         final correction = await enqueueCorrection();
         final payment = await repository.enqueue(
@@ -163,24 +135,22 @@ void main() {
         );
         expect(
           transport.requestsFor(CommandType.correctIrrigationSession),
-          isEmpty,
-          reason: 'normal payment must pass while correction has zero dispatch attempts',
+          hasLength(1),
+          reason: 'dedicated correction must not block independent payment',
         );
-        expect(transport.calledFunctions, ['record_payment']);
-        expect(report.attempted, 1);
+        expect(transport.calledFunctions, ['correct_irrigation_session', 'record_payment']);
+        expect(report.attempted, 2);
         expect(report.confirmed, 1);
         expect(report.retryScheduled, 0);
         expect(report.needsReview, 0);
-        expect(report.skipped, 0);
+        expect(report.skipped, 1);
         expect(report.blockedByReview, 0);
         expect(report.awaitsHumanDecision, isFalse);
-        expect(report.canRetryWithoutHelp, isFalse);
-        await unchanged(correction);
+        expect(report.canRetryWithoutHelp, isTrue);
+        await awaitingReceipt(correction);
       },
     );
-    // GENERIC_DISPATCH_EXCLUDED=true is required independently of the eventual
-    // q137 classification. STALE_REVISION_DEFERRED_TO_DEDICATED_DISPATCH.
-    // CORRECTION_RECEIPT_DEFERRED: no dedicated lane is tested here.
+    // جدار المرسل العام مثبت بالسلوك؛ عقد الاسترداد الكامل في T1.
   });
 
   /// جلسة كاملة على بئر واحدة: بدء ثم إيقاف ثم استئناف ثم إنهاء.
