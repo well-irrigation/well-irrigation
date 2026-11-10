@@ -45,7 +45,10 @@ class CommandEnvelope {
             e.key: e.value is Map
               ? Map<String,Object?>.unmodifiable((e.value as Map).cast<String,Object?>())
               : e.value,
-        }) : payload {
+        })
+      : type == CommandType.adjustSessionFinancialAmount
+      ? Map<String,Object?>.unmodifiable(Map<String,Object?>.from(payload))
+      : payload {
     _assertPayloadDoesNotOwnReservedArguments(type, payload);
     if (type == CommandType.createBooking &&
         (wellId == null || wellId!.isEmpty || payload['p_well_id'] != wellId ||

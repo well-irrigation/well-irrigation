@@ -34,9 +34,11 @@ import 'outbox_store.dart';
 import 'outbox_repository.dart';
 import 'sync_status.dart';
 import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 class SqliteOutboxStore
     implements
+        SessionFinancialAdjustmentStore,
         ManualSessionEntryFollowUpStore,
         SessionCorrectionInsertStore,
         SessionExecutionStore,
@@ -1413,6 +1415,26 @@ class SqliteOutboxStore
       );
     }),
   );
+
+  @override
+  Future<void> recordSessionFinancialAdjustmentObservation({
+    required String accountId,required String localId,
+    required SessionFinancialAdjustmentState state,
+    required DateTime observedAt,Map<String,Object?>? result,
+  }) async {
+    await initialize();
+    final status=state==SessionFinancialAdjustmentState.accepted
+      ?CommandStatus.confirmed:state==SessionFinancialAdjustmentState.processing
+      ?CommandStatus.dispatching:CommandStatus.review;
+    final changed=await _db.update(commandsTable,{
+      'status':status.storageValue,'last_attempt_at':_encodeTime(observedAt),
+      'last_error':status==CommandStatus.review?state.wireValue:null,
+      'server_response':jsonEncode(result??sessionFinancialObservation(state)),
+    },where:'account_id=? and local_id=? and command_type=? and status=?',
+      whereArgs:[accountId,localId,CommandType.adjustSessionFinancialAmount.storageValue,
+        CommandStatus.dispatching.storageValue]);
+    if(changed!=1) throw StateError('financial_adjustment_observation_scope_changed');
+  }
 
   @override
   Future<CommandEnvelope?> commandByLocalId(

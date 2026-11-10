@@ -615,6 +615,7 @@ class ActiveSessionProjector {
           );
 
         case CommandType.correctIrrigationSession:
+        case CommandType.adjustSessionFinancialAmount:
         case CommandType.recordHistoricalSession:
           // تصحيح جلسة خادمية تاريخية؛ لا يغيّر أحداث التشغيل المحلية.
           break;

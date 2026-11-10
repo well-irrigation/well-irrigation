@@ -16,6 +16,7 @@ import 'operational_start_receipt.dart';
 import 'session_correction_receipt.dart';
 import 'retry_classification.dart';
 import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 class SupabaseCommandTransport
     implements
@@ -24,10 +25,60 @@ class SupabaseCommandTransport
         BookingStartReceiptTransport,
         OperationalStartReceiptTransport,
         SessionCorrectionReceiptTransport,
-        ManualSessionEntryReceiptTransport {
+        ManualSessionEntryReceiptTransport,
+        SessionFinancialAdjustmentTransport {
   const SupabaseCommandTransport(this._client);
 
   final SupabaseClient _client;
+
+  Future<SessionFinancialAdjustmentRead> _financialCall(
+    String account,String rpc,Map<String,Object?> arguments,
+    SessionFinancialAdjustmentRead Function(Object?) parse,
+  ) async {
+    final session=_client.auth.currentSession;
+    if(account.isEmpty||session==null||session.isExpired||session.user.id!=account) {
+      return const SessionFinancialAdjustmentReadFailure(
+        SessionFinancialAdjustmentReadFailureKind.authentication,
+        executionNotStarted:true);
+    }
+    try {
+      final raw=await _client.schema('api').rpc(rpc,params:arguments)
+        .timeout(const Duration(seconds:20));
+      final current = _client.auth.currentSession;
+      if (current == null || current.isExpired || current.user.id != account) {
+        return const SessionFinancialAdjustmentReadFailure(
+          SessionFinancialAdjustmentReadFailureKind.authentication);
+      }
+      return parse(raw);
+    } on PostgrestException catch(e) {
+      return SessionFinancialAdjustmentReadFailure(switch(e.code){
+        '42501'=>SessionFinancialAdjustmentReadFailureKind.forbidden,
+        '28000'||'PGRST301'||'PGRST302'=>SessionFinancialAdjustmentReadFailureKind.authentication,
+        '22023'=>SessionFinancialAdjustmentReadFailureKind.malformed,
+        _=>SessionFinancialAdjustmentReadFailureKind.unavailable});
+    } on AuthException {
+      return const SessionFinancialAdjustmentReadFailure(
+        SessionFinancialAdjustmentReadFailureKind.authentication);
+    } on FormatException {
+      return const SessionFinancialAdjustmentReadFailure(
+        SessionFinancialAdjustmentReadFailureKind.malformed);
+    } on Object {
+      return const SessionFinancialAdjustmentReadFailure(
+        SessionFinancialAdjustmentReadFailureKind.network);
+    }
+  }
+
+  @override
+  Future<SessionFinancialAdjustmentRead> adjustSessionFinancialAmount(
+    SessionFinancialAdjustmentRequest request,
+  ) => _financialCall(request.command.accountId,'adjust_session_financial_amount',
+    request.arguments,(raw)=>parseSessionFinancialAdjustmentResult(request,raw));
+
+  @override
+  Future<SessionFinancialAdjustmentRead> readSessionFinancialAdjustmentReceipt(
+    SessionFinancialAdjustmentReceiptRequest request,
+  ) => _financialCall(request.accountId,'get_session_financial_adjustment_receipt',
+    request.arguments,(raw)=>parseSessionFinancialAdjustmentReceipt(request,raw));
 
   @override
   Future<ManualSessionEntryRead> readManualSessionEntryReceipt(

@@ -4,6 +4,7 @@ import '../sync/command_reference.dart';
 import '../sync/entity_reference.dart';
 import '../utils/digit_utils.dart';
 import 'manual_session_entry_capability.dart';
+import 'session_financial_adjustment.dart';
 
 /// نماذج وبيانات التشغيل الميداني وسجل الجلسات (UX-07 / UX-08 / UX-13 / ق-80 / ق-84 / ق-98 / ق-114)
 
@@ -1019,6 +1020,90 @@ class OperationsRepository implements ManualSessionEntryCapabilityReader {
       );
     }
     return ManualSessionEntryCapability.fromContract(raw, wellId: wellId);
+  }
+
+  Future<SessionFinancialAdjustmentCapability>
+  getSessionFinancialAdjustmentCapability({
+    required String accountId,
+    required String sessionId,
+  }) => _readSessionFinancialContract(
+    accountId: accountId,
+    sessionId: sessionId,
+    rpc: 'get_session_financial_adjustment_capability',
+    parse: (raw) => SessionFinancialAdjustmentCapability.fromContract(
+      raw,
+      sessionId: sessionId,
+    ),
+  );
+
+  Future<SessionFinancialState> getSessionFinancialState({
+    required String accountId,
+    required String sessionId,
+  }) => _readSessionFinancialContract(
+    accountId: accountId,
+    sessionId: sessionId,
+    rpc: 'get_session_financial_state',
+    parse: (raw) => SessionFinancialState.fromContract(
+      raw,
+      sessionId: sessionId,
+    ),
+  );
+
+  Future<T> _readSessionFinancialContract<T>({
+    required String accountId,
+    required String sessionId,
+    required String rpc,
+    required T Function(Object?) parse,
+  }) async {
+    if (accountId.trim().isEmpty || accountId.trim() != accountId ||
+        sessionId.trim().isEmpty || sessionId.trim() != sessionId) {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.malformed,
+      );
+    }
+    final client = _effectiveClient;
+    if (client == null) {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.unavailable,
+      );
+    }
+    bool sameIdentity() {
+      final session = client.auth.currentSession;
+      return session != null && !session.isExpired &&
+          session.user.id == accountId;
+    }
+    if (!sameIdentity()) {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.authentication,
+      );
+    }
+    final Object? raw;
+    try {
+      raw = await client.schema('api').rpc(
+        rpc, params: {'p_session_id': sessionId},
+      ).timeout(const Duration(seconds: 20));
+    } on PostgrestException catch (error) {
+      throw SessionFinancialAdjustmentReadUnavailable(switch (error.code) {
+        '42501' => SessionFinancialAdjustmentReadFailure.forbidden,
+        '28000' || 'PGRST301' || 'PGRST302' =>
+          SessionFinancialAdjustmentReadFailure.authentication,
+        _ => SessionFinancialAdjustmentReadFailure.network,
+      });
+    } on AuthException {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.authentication,
+      );
+    } on Object {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.network,
+      );
+    }
+    if (!sameIdentity()) {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.identityChanged,
+      );
+    }
+    return parse(raw);
   }
 
   /// استخراج عناصر عقد قراءة من مغلّف `{contract, version, items}` (ق-98)

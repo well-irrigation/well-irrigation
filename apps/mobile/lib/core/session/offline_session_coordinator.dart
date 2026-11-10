@@ -2085,6 +2085,24 @@ class OfflineSessionCoordinator {
       wellId: wellId, localId: localId);
   }
 
+  Future<CommandEnvelope> submitSessionFinancialAdjustment({
+    required String accountId,required String wellId,required String sessionId,
+    required int baseOperationalRevision,
+    required int baseSystemFinancialRevision,
+    required int baseManualApprovalRevision,
+    required int approvedAmountYER,required String reason,
+  }) async {
+    await initialize();
+    final envelope=await _outbox.enqueueSessionFinancialAdjustment(
+      accountId:accountId,wellId:wellId,sessionId:sessionId,
+      baseOperationalRevision:baseOperationalRevision,
+      baseSystemFinancialRevision:baseSystemFinancialRevision,
+      baseManualApprovalRevision:baseManualApprovalRevision,
+      approvedAmountYER:approvedAmountYER,reason:reason);
+    await _triggerSync(accountId,refreshProjection:false);
+    return envelope;
+  }
+
   /// يحفظ نية التصحيح محليًا قبل منح فرصة مزامنة، دون انتظار قبول الخادم.
   Future<CommandEnvelope> submitSessionCorrection({
     required String accountId,

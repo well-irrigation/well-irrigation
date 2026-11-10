@@ -230,6 +230,7 @@ void main() {
         CommandType.executePendingBookingStart,
         CommandType.endBookingTransitionChain,
         CommandType.correctIrrigationSession,
+        CommandType.adjustSessionFinancialAmount,
       };
       for (final type in jsonWithoutResultKey) {
         expect(type.returnsJson, isTrue, reason: type.rpcName);

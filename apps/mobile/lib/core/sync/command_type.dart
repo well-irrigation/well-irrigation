@@ -205,6 +205,14 @@ enum CommandType {
     scopeArgument: 'p_session_id',
     eventTimeArgument: 'p_requested_at',
     returnsJson: true,
+  ),
+
+  adjustSessionFinancialAmount(
+    rpcName: 'adjust_session_financial_amount',
+    scope: CommandScope.session,
+    scopeArgument: 'p_session_id',
+    eventTimeArgument: 'p_requested_at',
+    returnsJson: true,
   );
 
   const CommandType({

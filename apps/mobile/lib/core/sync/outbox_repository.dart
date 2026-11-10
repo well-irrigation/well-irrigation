@@ -15,6 +15,7 @@ import 'command_type.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 class OutboxRepository {
   OutboxRepository({
@@ -163,6 +164,43 @@ class OutboxRepository {
       }),
     );
     return _store.insertSessionCorrection(command);
+  }
+
+  Future<CommandEnvelope> enqueueSessionFinancialAdjustment({
+    required String accountId,
+    required String wellId,
+    required String sessionId,
+    required int baseOperationalRevision,
+    required int baseSystemFinancialRevision,
+    required int baseManualApprovalRevision,
+    required int approvedAmountYER,
+    required String reason,
+  }) async {
+    final cleanReason = reason.trim();
+    if ([accountId, wellId, sessionId].any((v) => v.trim().isEmpty) ||
+        baseOperationalRevision < 0 || baseSystemFinancialRevision < 0 ||
+        baseManualApprovalRevision < 0 || approvedAmountYER < 0 ||
+        cleanReason.isEmpty) {
+      throw ArgumentError('invalid_session_financial_adjustment');
+    }
+    final command = await prepare(
+      accountId: accountId,
+      wellId: wellId,
+      type: CommandType.adjustSessionFinancialAmount,
+      occurredAt: _clock().toUtc(),
+      payload: Map<String,Object?>.unmodifiable({
+        'p_session_id': sessionId,
+        'p_base_operational_revision': baseOperationalRevision,
+        'p_base_system_financial_revision': baseSystemFinancialRevision,
+        'p_base_manual_approval_revision': baseManualApprovalRevision,
+        'p_approved_amount_minor': approvedAmountYER,
+        'p_reason': cleanReason,
+      }),
+    );
+    if (SessionFinancialAdjustmentRequest.fromCommand(command) == null) {
+      throw ArgumentError('invalid_session_financial_adjustment');
+    }
+    return _store.insert(command);
   }
 
   /// يبني أمرًا لمعاملة جماعية؛ لا يعلن حفظه ولا يرسله.

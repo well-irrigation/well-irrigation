@@ -17,9 +17,11 @@ import 'outbox_store.dart';
 import 'outbox_repository.dart';
 import 'sync_status.dart';
 import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 class InMemoryOutboxStore
     implements
+        SessionFinancialAdjustmentStore,
         ManualSessionEntryFollowUpStore,
         SessionCorrectionInsertStore,
         SessionExecutionStore,
@@ -424,6 +426,30 @@ class InMemoryOutboxStore
           bindings.any((m) => m.kind != EntityKind.session) ||
           sessions.length > 1,
     );
+  }
+
+  @override
+  Future<void> recordSessionFinancialAdjustmentObservation({
+    required String accountId,required String localId,
+    required SessionFinancialAdjustmentState state,
+    required DateTime observedAt,Map<String,Object?>? result,
+  }) async {
+    _assertOpen();
+    final row=_byLocalId[localId];
+    if(row==null||row.accountId!=accountId||
+       row.type!=CommandType.adjustSessionFinancialAmount||
+       row.status!=CommandStatus.dispatching) {
+      throw StateError('financial_adjustment_observation_scope_changed');
+    }
+    final status=state==SessionFinancialAdjustmentState.accepted
+      ?CommandStatus.confirmed:state==SessionFinancialAdjustmentState.processing
+      ?CommandStatus.dispatching:CommandStatus.review;
+    _update(accountId,localId,(c)=>c.copyWith(status:status,
+      clearLastError:status!=CommandStatus.review,
+      lastError:status==CommandStatus.review?state.wireValue:null,
+      lastAttemptAt:observedAt,
+      serverResponse:Map<String,Object?>.unmodifiable(Map.from(
+        result??sessionFinancialObservation(state)))));
   }
 
   @override

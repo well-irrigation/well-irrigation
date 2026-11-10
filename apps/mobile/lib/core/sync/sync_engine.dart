@@ -35,6 +35,7 @@ import 'outbox_store.dart';
 import 'sync_status.dart';
 import 'session_correction_receipt.dart';
 import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 /// حصيلة تشغيل واحد للحلقة.
 class SyncRunReport {
@@ -194,13 +195,14 @@ class SyncEngine {
     final recovered = await _recoverStaleClaims(accountId);
 
     final corrections = await _runSessionCorrections(accountId);
+    final financial = await _runSessionFinancialAdjustments(accountId);
     final manual = await _runManualSessionEntries(accountId);
-    var attempted = corrections.attempted + manual.attempted;
-    var confirmed = corrections.confirmed + manual.confirmed;
-    var retryScheduled = corrections.retryScheduled + manual.retryScheduled;
-    var needsReview = corrections.needsReview + manual.needsReview;
-    var skipped = blockedStops + corrections.skipped + manual.skipped;
-    var blockedByReview = blockedStops + corrections.blockedByReview + manual.blockedByReview;
+    var attempted = corrections.attempted + financial.attempted + manual.attempted;
+    var confirmed = corrections.confirmed + financial.confirmed + manual.confirmed;
+    var retryScheduled = corrections.retryScheduled + financial.retryScheduled + manual.retryScheduled;
+    var needsReview = corrections.needsReview + financial.needsReview + manual.needsReview;
+    var skipped = blockedStops + corrections.skipped + financial.skipped + manual.skipped;
+    var blockedByReview = blockedStops + corrections.blockedByReview + financial.blockedByReview + manual.blockedByReview;
     var farmMappingsCreated = 0;
     var farmResultsChanged = false;
 
@@ -213,8 +215,8 @@ class SyncEngine {
       }
       if (pass > 0) {
         // إعادة تصفير المتخطى للمرور الإضافي لأن الأوامر غير المحسومة وحدها تُحسب
-        skipped = blockedStops + corrections.skipped + manual.skipped;
-        blockedByReview = blockedStops + corrections.blockedByReview + manual.blockedByReview;
+        skipped = blockedStops + corrections.skipped + financial.skipped + manual.skipped;
+        blockedByReview = blockedStops + corrections.blockedByReview + financial.blockedByReview + manual.blockedByReview;
       }
       unblockedByResolver = false;
 
@@ -425,6 +427,83 @@ class SyncEngine {
       farmMappingsCreated: farmMappingsCreated,
       farmResultsChanged: farmResultsChanged,
     );
+  }
+
+  Future<SyncRunReport> _runSessionFinancialAdjustments(String accountId) async {
+    if(_store is! SessionFinancialAdjustmentStore||
+       _transport is! SessionFinancialAdjustmentTransport) {
+      final n=(await _store.pendingCommands(accountId)).where((c)=>
+        c.type==CommandType.adjustSessionFinancialAmount).length;
+      return SyncRunReport(skipped:n,blockedByReview:n);
+    }
+    final transport=_transport as SessionFinancialAdjustmentTransport;
+    var attempted=0,confirmed=0,retries=0,review=0,skipped=0,blocked=0;
+    for(final command in await _store.pendingCommands(accountId)) {
+      if(command.type!=CommandType.adjustSessionFinancialAmount) continue;
+      if(command.status==CommandStatus.review){skipped++;blocked++;continue;}
+      if(command.status==CommandStatus.confirmed) continue;
+      final request=SessionFinancialAdjustmentRequest.fromCommand(command);
+      if(request==null){
+        if(command.status==CommandStatus.pending&&await _store.claim(accountId,
+          command.localId,attemptedAt:_clock().toUtc())){
+          await _store.recordSessionFinancialAdjustmentObservation(
+            accountId:accountId,localId:command.localId,
+            state:SessionFinancialAdjustmentState.unresolved,
+            observedAt:_clock().toUtc());review++;
+        } else {skipped++;}
+        continue;
+      }
+      final at=_clock().toUtc();
+      final first=command.status==CommandStatus.pending&&
+        command.lastAttemptAt==null&&command.retryCount==0&&
+        command.serverResponse==null;
+      final safeRetry=command.status==CommandStatus.pending&&
+        command.lastError=='financial_adjustment_preflight_not_sent';
+      SessionFinancialAdjustmentRead read;
+      if(first||safeRetry){
+        if(!await _store.claim(accountId,command.localId,attemptedAt:at)){
+          skipped++;continue;
+        }
+        attempted++;
+        try{read=await transport.adjustSessionFinancialAmount(request);}
+        on Object{skipped++;continue;}
+      } else if(command.status==CommandStatus.dispatching){
+        try{read=await transport.readSessionFinancialAdjustmentReceipt(
+          SessionFinancialAdjustmentReceiptRequest.fromCommand(command)!);}
+        on Object{skipped++;continue;}
+      } else {skipped++;blocked++;continue;}
+      if(read is SessionFinancialAdjustmentReadFailure){
+        if((first||safeRetry)&&read.executionNotStarted){
+          await _store.releaseForRetry(accountId,command.localId,
+            error:'financial_adjustment_preflight_not_sent',attemptedAt:at);
+          retries++;
+        } else if(read.kind==SessionFinancialAdjustmentReadFailureKind.network||
+                  read.kind==SessionFinancialAdjustmentReadFailureKind.authentication){
+          // The durable dispatch claim proves an attempt, not server processing.
+          skipped++;
+        } else {
+          await _store.recordSessionFinancialAdjustmentObservation(
+            accountId:accountId,localId:command.localId,
+            state:SessionFinancialAdjustmentState.unresolved,observedAt:at);
+          review++;
+        }
+        continue;
+      }
+      final response=read as SessionFinancialAdjustmentResponse;
+      await _store.recordSessionFinancialAdjustmentObservation(
+        accountId:accountId,localId:command.localId,state:response.state,
+        observedAt:at,result:sessionFinancialStoredResult(response));
+      if(response.state==SessionFinancialAdjustmentState.accepted) {
+        confirmed++;
+      } else if(response.state==SessionFinancialAdjustmentState.processing) {
+        skipped++;
+      } else {
+        review++;
+      }
+    }
+    return SyncRunReport(attempted:attempted,confirmed:confirmed,
+      retryScheduled:retries,needsReview:review,skipped:skipped,
+      blockedByReview:blocked+review);
   }
 
   /// لا تتكرر كتابة الإدخال اليدوي بعد احتمال خروج الطلب إلى الشبكة.
@@ -1034,6 +1113,7 @@ class SyncEngine {
     // التصحيح ينتظر مسار الإرسال والاسترداد المخصص، دون تغيير صفه المتين.
     return rows
         .where((command) => command.type != CommandType.correctIrrigationSession &&
+            command.type != CommandType.adjustSessionFinancialAmount &&
             !isManualSessionEntry(command.type))
         .toList();
   }
@@ -1347,6 +1427,7 @@ class SyncEngine {
 
     for (final command in await _legacyPending(accountId)) {
       if (q137OperationalCommand(command.type) ||
+          command.type == CommandType.adjustSessionFinancialAmount ||
           command.status != CommandStatus.dispatching) {
         continue;
       }

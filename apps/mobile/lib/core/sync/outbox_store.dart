@@ -21,6 +21,7 @@ import 'command_type.dart';
 import 'sync_status.dart';
 import 'session_correction_receipt.dart';
 import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 /// تصحيح غير محسوم للجلسة نفسها؛ لا يُستبدل ضمنيًا بطلب آخر.
 class SessionCorrectionConflict implements Exception {
@@ -102,6 +103,34 @@ CommandEnvelope? existingSessionCorrection(
     throw SessionCorrectionConflict(existing);
   }
   return existing;
+}
+
+extension SessionFinancialAdjustmentStorage on OutboxStore {
+  Future<void> recordSessionFinancialAdjustmentObservation({
+    required String accountId,
+    required String localId,
+    required SessionFinancialAdjustmentState state,
+    required DateTime observedAt,
+    Map<String,Object?>? result,
+  }) {
+    final store = this;
+    if (store is! SessionFinancialAdjustmentStore) {
+      throw StateError('session_financial_adjustment_store_unavailable');
+    }
+    return (store as SessionFinancialAdjustmentStore)
+      .recordSessionFinancialAdjustmentObservation(accountId:accountId,
+        localId:localId,state:state,observedAt:observedAt,result:result);
+  }
+}
+
+abstract interface class SessionFinancialAdjustmentStore {
+  Future<void> recordSessionFinancialAdjustmentObservation({
+    required String accountId,
+    required String localId,
+    required SessionFinancialAdjustmentState state,
+    required DateTime observedAt,
+    Map<String,Object?>? result,
+  });
 }
 
 /// A competing human start is already durably represented.
