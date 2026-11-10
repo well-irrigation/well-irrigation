@@ -1,5 +1,6 @@
 import 'command_envelope.dart';
 import 'command_type.dart';
+import 'sync_status.dart';
 
 const _maxInt64 = 9223372036854775807;
 
@@ -405,4 +406,181 @@ DateTime? _time(Object? value) {
     return null;
   }
   return DateTime.tryParse(value)?.toUtc();
+}
+
+/// Local durable evidence only; never grants permission or write retry authority.
+enum SessionFinancialAdjustmentFollowUpPhase {
+  pendingFirstSend,
+  inFlight,
+  processing,
+  accepted,
+  needsReview,
+  uncertain,
+}
+
+enum SessionFinancialAdjustmentLookupStatus {
+  absent,
+  found,
+  unavailable,
+  ambiguous,
+}
+
+class SessionFinancialAdjustmentFollowUpLookup {
+  const SessionFinancialAdjustmentFollowUpLookup.absent()
+    : status = SessionFinancialAdjustmentLookupStatus.absent,
+      followUp = null;
+  const SessionFinancialAdjustmentFollowUpLookup.unavailable()
+    : status = SessionFinancialAdjustmentLookupStatus.unavailable,
+      followUp = null;
+  const SessionFinancialAdjustmentFollowUpLookup.ambiguous()
+    : status = SessionFinancialAdjustmentLookupStatus.ambiguous,
+      followUp = null;
+  const SessionFinancialAdjustmentFollowUpLookup.found(this.followUp)
+    : status = SessionFinancialAdjustmentLookupStatus.found;
+
+  final SessionFinancialAdjustmentLookupStatus status;
+  final SessionFinancialAdjustmentFollowUp? followUp;
+  bool get blocksNewIntent => switch (status) {
+    SessionFinancialAdjustmentLookupStatus.absent => false,
+    SessionFinancialAdjustmentLookupStatus.found =>
+      followUp?.blocksNewIntent ?? true,
+    _ => true,
+  };
+}
+
+/// A non-blocking historical result still requires fresh canonical state and
+/// explicit confirmation before any future intent. This model cannot send.
+class SessionFinancialAdjustmentFollowUp {
+  SessionFinancialAdjustmentFollowUp._(
+    SessionFinancialAdjustmentRequest request,
+    this.commandStatus,
+    this.outcome,
+    this.phase,
+  ) : localId = request.command.localId,
+      sessionId = request.sessionId,
+      commandId = request.commandId,
+      requestedAt = request.requestedAt,
+      baseOperationalRevision = request.baseOperationalRevision,
+      baseSystemFinancialRevision = request.baseSystemFinancialRevision,
+      baseManualApprovalRevision = request.baseManualApprovalRevision,
+      approvedAmountYER = request.approvedAmountYER,
+      reason = request.reason;
+
+  final String localId;
+  final String sessionId;
+  final String commandId;
+  final DateTime requestedAt;
+  final int baseOperationalRevision;
+  final int baseSystemFinancialRevision;
+  final int baseManualApprovalRevision;
+  final int approvedAmountYER;
+  final String reason;
+  final CommandStatus commandStatus;
+  final SessionFinancialAdjustmentResponse? outcome;
+  final SessionFinancialAdjustmentFollowUpPhase phase;
+
+  bool get blocksNewIntent =>
+      phase != SessionFinancialAdjustmentFollowUpPhase.accepted &&
+      phase != SessionFinancialAdjustmentFollowUpPhase.needsReview;
+
+  static SessionFinancialAdjustmentFollowUp? fromCommand(
+    CommandEnvelope command,
+  ) {
+    final request = SessionFinancialAdjustmentRequest.fromCommand(command);
+    if (request == null) return null;
+    SessionFinancialAdjustmentResponse? outcome;
+    var malformed = false;
+    if (command.serverResponse != null) {
+      try {
+        outcome = _parseStoredFinancialObservation(
+          request,
+          command.serverResponse!,
+        );
+      } on FormatException {
+        malformed = true;
+      }
+    }
+    var phase = SessionFinancialAdjustmentFollowUpPhase.uncertain;
+    if (!malformed) {
+      final state = outcome?.state;
+      if (command.status == CommandStatus.pending &&
+          outcome == null &&
+          ((command.lastAttemptAt == null && command.retryCount == 0) ||
+              command.lastError == 'financial_adjustment_preflight_not_sent')) {
+        phase = SessionFinancialAdjustmentFollowUpPhase.pendingFirstSend;
+      } else if (command.status == CommandStatus.dispatching &&
+          outcome == null) {
+        phase = SessionFinancialAdjustmentFollowUpPhase.inFlight;
+      } else if (command.status == CommandStatus.dispatching &&
+          state == SessionFinancialAdjustmentState.processing) {
+        phase = SessionFinancialAdjustmentFollowUpPhase.processing;
+      } else if (command.status == CommandStatus.confirmed &&
+          state == SessionFinancialAdjustmentState.accepted) {
+        phase = SessionFinancialAdjustmentFollowUpPhase.accepted;
+      } else if (command.status == CommandStatus.review &&
+          const {
+            SessionFinancialAdjustmentState.validationError,
+            SessionFinancialAdjustmentState.conflictRequest,
+            SessionFinancialAdjustmentState.conflictRevision,
+            SessionFinancialAdjustmentState.financialReviewRequired,
+            SessionFinancialAdjustmentState.locked,
+            SessionFinancialAdjustmentState.permissionDenied,
+          }.contains(state)) {
+        phase = SessionFinancialAdjustmentFollowUpPhase.needsReview;
+      }
+    }
+    return SessionFinancialAdjustmentFollowUp._(
+      request,
+      command.status,
+      outcome,
+      phase,
+    );
+  }
+}
+
+SessionFinancialAdjustmentResponse _parseStoredFinancialObservation(
+  SessionFinancialAdjustmentRequest request,
+  Map<String, Object?> stored,
+) {
+  if (stored['contract'] != 'session_financial_adjustment_observation' ||
+      stored['version'] is! int ||
+      stored['version'] != 1 ||
+      stored['retry_authorized'] != false) {
+    throw const FormatException('invalid_stored_financial_observation');
+  }
+  final state = SessionFinancialAdjustmentState.fromWire(stored['status']);
+  if (state == null ||
+      (state != SessionFinancialAdjustmentState.accepted &&
+          (stored.length != 4 ||
+              !stored.keys.every(
+                const {
+                  'contract',
+                  'version',
+                  'status',
+                  'retry_authorized',
+                }.contains,
+              )))) {
+    throw const FormatException('invalid_stored_financial_observation');
+  }
+  // Storage omits envelope-owned identity. Bind it from the same durable row,
+  // then reuse the wire parsers for every amount, revision and timestamp.
+  return parseSessionFinancialAdjustmentReceipt(
+    SessionFinancialAdjustmentReceiptRequest.fromCommand(request.command)!,
+    {
+      'contract': 'session_financial_adjustment_receipt',
+      'version': 1,
+      'session_id': request.sessionId,
+      'command_id': request.commandId,
+      'status': state.wireValue,
+      'retry_authorized': false,
+      'result': state == SessionFinancialAdjustmentState.notFound
+          ? null
+          : {
+              ...stored,
+              'contract': 'session_financial_adjustment',
+              'session_id': request.sessionId,
+              'command_id': request.commandId,
+            },
+    },
+  );
 }

@@ -26,6 +26,7 @@ import '../sync/supabase_command_transport.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_status.dart';
 import '../sync/session_correction_receipt.dart';
+import '../sync/session_financial_adjustment.dart';
 import 'active_session_projector.dart';
 import 'active_session_record.dart';
 import 'session_crop_snapshot.dart';
@@ -2083,6 +2084,23 @@ class OfflineSessionCoordinator {
     await initialize();
     return _outbox.observeManualSessionEntry(accountId: accountId,
       wellId: wellId, localId: localId);
+  }
+
+  Future<SessionFinancialAdjustmentFollowUpLookup> readSessionFinancialAdjustmentFollowUp({
+    required String accountId, required String wellId,
+    required String sessionId, required String localId,
+  }) async {
+    await initialize();
+    return _outbox.readSessionFinancialAdjustmentFollowUp(accountId: accountId,
+        wellId: wellId, sessionId: sessionId, localId: localId);
+  }
+
+  Future<SessionFinancialAdjustmentFollowUpLookup> findBlockingSessionFinancialAdjustmentFollowUp({
+    required String accountId, required String wellId, required String sessionId,
+  }) async {
+    await initialize();
+    return _outbox.findBlockingSessionFinancialAdjustmentFollowUp(
+        accountId: accountId, wellId: wellId, sessionId: sessionId);
   }
 
   Future<CommandEnvelope> submitSessionFinancialAdjustment({

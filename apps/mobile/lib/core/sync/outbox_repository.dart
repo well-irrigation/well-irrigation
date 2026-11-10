@@ -260,6 +260,83 @@ class OutboxRepository {
   Future<CommandEnvelope?> byLocalId(String accountId, String localId) =>
       _store.commandByLocalId(accountId, localId);
 
+  /// Reads one existing row only; scope mismatch is not a financial follow-up.
+  Future<SessionFinancialAdjustmentFollowUpLookup> readSessionFinancialAdjustmentFollowUp({
+    required String accountId, required String wellId,
+    required String sessionId, required String localId,
+  }) async {
+    if (!_validFinancialFollowUpScope(accountId, wellId, sessionId) ||
+        localId.trim().isEmpty || localId.trim() != localId) {
+      return const SessionFinancialAdjustmentFollowUpLookup.unavailable();
+    }
+    final command = await _store.commandByLocalId(accountId, localId);
+    if (command == null || command.accountId != accountId ||
+        command.type != CommandType.adjustSessionFinancialAmount) {
+      return const SessionFinancialAdjustmentFollowUpLookup.absent();
+    }
+    if (!_validFinancialFollowUpWell(command.wellId)) {
+      return const SessionFinancialAdjustmentFollowUpLookup.unavailable();
+    }
+    if (command.wellId != wellId) return const SessionFinancialAdjustmentFollowUpLookup.absent();
+    final storedSession = command.payload['p_session_id'];
+    if (storedSession is! String || storedSession.isEmpty || storedSession.trim() != storedSession) {
+      return const SessionFinancialAdjustmentFollowUpLookup.unavailable();
+    }
+    if (storedSession != sessionId) return const SessionFinancialAdjustmentFollowUpLookup.absent();
+    final view = SessionFinancialAdjustmentFollowUp.fromCommand(command);
+    return view == null ? const SessionFinancialAdjustmentFollowUpLookup.unavailable()
+        : SessionFinancialAdjustmentFollowUpLookup.found(view);
+  }
+
+  /// One account-scoped snapshot; historical terminal rows do not win over a
+  /// blocker. Multiple blockers return ambiguity, never an arbitrary latest row.
+  Future<SessionFinancialAdjustmentFollowUpLookup> findBlockingSessionFinancialAdjustmentFollowUp({
+    required String accountId, required String wellId, required String sessionId,
+  }) async {
+    if (!_validFinancialFollowUpScope(accountId, wellId, sessionId)) {
+      return const SessionFinancialAdjustmentFollowUpLookup.unavailable();
+    }
+    final commands = await _store.allCommands(accountId);
+    final blockers = <SessionFinancialAdjustmentFollowUp>[];
+    var invalid = false;
+    for (final command in commands) {
+      if (command.accountId != accountId ||
+          command.type != CommandType.adjustSessionFinancialAmount) {
+        continue;
+      }
+      if (!_validFinancialFollowUpWell(command.wellId)) {
+        final session = command.payload['p_session_id'];
+        // A proven different session is outside this lookup. An unknown session
+        // cannot prove absence of a blocker for the requested one.
+        if (session is String && session.isNotEmpty && session.trim() == session &&
+            session != sessionId) {
+          continue;
+        }
+        invalid = true;
+        continue;
+      }
+      if (command.wellId != wellId) continue;
+      final session = command.payload['p_session_id'];
+      if (session is! String || session.trim().isEmpty || session.trim() != session) {
+        invalid = true; continue;
+      }
+      if (session != sessionId) continue;
+      final view = SessionFinancialAdjustmentFollowUp.fromCommand(command);
+      if (view == null) { invalid = true; continue; }
+      if (view.blocksNewIntent) blockers.add(view);
+    }
+    if (blockers.length > 1) return const SessionFinancialAdjustmentFollowUpLookup.ambiguous();
+    if (invalid) return const SessionFinancialAdjustmentFollowUpLookup.unavailable();
+    return blockers.isEmpty ? const SessionFinancialAdjustmentFollowUpLookup.absent()
+        : SessionFinancialAdjustmentFollowUpLookup.found(blockers.single);
+  }
+
+  bool _validFinancialFollowUpWell(String? well) =>
+      well != null && well.isNotEmpty && well.trim() == well;
+
+  bool _validFinancialFollowUpScope(String account, String well, String session) =>
+      [account, well, session].every((v) => v.isNotEmpty && v.trim() == v);
+
   /// المعرّف الخادمي لكيان أُنشئ محليًا، أو `null` إن لم يُحسم بعد.
   Future<String?> serverIdFor(
     String accountId,
