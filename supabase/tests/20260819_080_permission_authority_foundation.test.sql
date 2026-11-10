@@ -96,8 +96,9 @@ begin
   -- و`booking.read` لعقد الحجوزات (ق-131 بند 8 / م-45 مرحلة B).
   -- و`v_count_2` قائمة تدفقات V1 الثابتة (17) ولا تتغير بإضافة صلاحية
   -- خارجها — فهي تقيس تغطية التدفقات لا حجم الكتالوج.
-  if v_count = 45 and v_count_2 = 17 then
-    raise notice 'PASS 2: Permission catalog = 45 ويغطي تدفقات V1 الحالية';
+  -- R6: session.manual_entry ثم session.financial_adjust؛ كل منهما بثلاثة منح.
+  if v_count = 47 and v_count_2 = 17 then
+    raise notice 'PASS 2: Permission catalog = 47 ويغطي تدفقات V1 الحالية';
   else
     raise notice 'FAIL 2: permission_total=% new_codes=%', v_count, v_count_2;
   end if;
@@ -124,27 +125,28 @@ begin
   -- +5 منح بعد Migration 112: `booking.cancel` للمالك والمشغل،
   -- و`booking.read` للمالك والمدير والمشغل — حفاظًا على دلالة
   -- قراءة 079 (عقد الحجوزات، ق-131 بند 8).
-  if v_count = 85
+  -- R6: +2 لكل حزمة مخولة؛ لا منح جديدة للشريك أو المحاسب أو المشاهد.
+  if v_count = 91
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'tenant_owner'
-     ) = 45
+     ) = 47
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'well_manager'
-     ) = 15
+     ) = 17
      and (
        select count(*)
        from iam.role_permissions rp
        join iam.roles r on r.id = rp.role_id
        where r.code = 'operator'
-     ) = 25
+     ) = 27
   then
-    raise notice 'PASS 3: Role permission seed = owner 45 / manager 15 / operator 25';
+    raise notice 'PASS 3: Role permission seed = owner 47 / manager 17 / operator 27';
   else
     raise notice 'FAIL 3: role_permissions total=%', v_count;
   end if;

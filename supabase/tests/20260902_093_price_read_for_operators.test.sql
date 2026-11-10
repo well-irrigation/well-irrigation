@@ -86,8 +86,9 @@ begin
 
   select count(*) into v_count_2 from iam.role_permissions;
 
-  if v_count = 45 and v_count_2 = 85 then
-    raise notice 'PASS 3: الكتالوج 45 صلاحية وiam.role_permissions 85 منحًا';
+  -- R6: إضافة session.manual_entry وsession.financial_adjust، بثلاثة منح لكل صلاحية.
+  if v_count = 47 and v_count_2 = 91 then
+    raise notice 'PASS 3: الكتالوج 47 صلاحية وiam.role_permissions 91 منحًا';
   else
     raise notice 'FAIL 3: أرقام السلطة غير متوقعة (% صلاحية، % منحًا)',
       v_count, v_count_2;
