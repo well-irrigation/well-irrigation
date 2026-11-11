@@ -12,6 +12,7 @@ import '../../core/widgets/currency_display.dart';
 import '../operations/widgets/payment_receipt_dialog.dart';
 import '../operations/widgets/session_completion_result.dart';
 import 'session_correction_screen.dart';
+import 'session_financial_adjustment_screen.dart';
 
 /// شاشة تفاصيل الجلسة والخط الزمني (UX-13 / 377 / ق-98)
 class SessionDetailScreen extends StatefulWidget {
@@ -1357,11 +1358,11 @@ $moneyBlock
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Wrap(
+          Wrap(
             spacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(
+              const Text(
                 'تفاصيل السداد',
                 style: TextStyle(
                   fontSize: 13,
@@ -1369,10 +1370,25 @@ $moneyBlock
                   color: AppColors.deepBlue,
                 ),
               ),
-              Text(
+              const Text(
                 'وفق قراءة الخادم',
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
+              if (widget.accountId != null &&
+                  widget.wellId != null &&
+                  s.id == widget.sessionId &&
+                  s.wellId == widget.wellId &&
+                  (s.status == 'closed' || s.status == 'forgotten'))
+                SessionFinancialAdjustmentAction(
+                  key: ValueKey((widget.accountId, widget.wellId, widget.sessionId)),
+                  accountId: widget.accountId!,
+                  wellId: widget.wellId!,
+                  sessionId: widget.sessionId,
+                  sessionLabel: '${s.farmerName} · ${s.farmName}',
+                  repository: _repo,
+                  coordinator: _coordinator,
+                  onAccepted: _refreshFinance,
+                ),
             ],
           ),
           const SizedBox(height: 8),
