@@ -89,10 +89,15 @@ class SupabaseCommandTransport
         session.user.id != request.command.accountId) {
       return const ManualSessionEntryReadFailure(ManualSessionEntryReadFailureKind.authentication);
     }
+    final expectedAccountId = session.user.id;
     try {
       final raw = await _client.schema('api').rpc(
         'get_manual_session_entry_receipt',params: request.arguments,
       ).timeout(const Duration(seconds: 20));
+      final current = _client.auth.currentSession;
+      if (current == null || current.isExpired || current.user.id != expectedAccountId) {
+        return const ManualSessionEntryReadFailure(ManualSessionEntryReadFailureKind.authentication);
+      }
       return parseManualSessionEntryReceipt(request,raw);
     } on PostgrestException catch (e) {
       return ManualSessionEntryReadFailure(switch (e.code) {
@@ -282,6 +287,7 @@ class SupabaseCommandTransport
       );
     }
 
+    final expectedAccountId = session.user.id;
     final Object? raw;
 
     try {
@@ -304,6 +310,17 @@ class SupabaseCommandTransport
         disposition: classifyThrownFailure(error),
         message: error.toString(),
       );
+    }
+
+    if (isManualSessionEntry(request.type)) {
+      final current = _client.auth.currentSession;
+      if (current == null || current.isExpired || current.user.id != expectedAccountId) {
+        // عبر الطلب حد الشبكة؛ فقد الهوية لا يثبت عدم التنفيذ.
+        return const DispatchFailed(
+          disposition: FailureDisposition.retry,
+          message: 'تغيرت هوية جلسة الدخول أثناء انتظار نتيجة إدخال الجلسة',
+        );
+      }
     }
 
     // الخادم قَبِل بالفعل، لكن شكل الردّ غير متوقَّع. لا تُعاد المحاولة
