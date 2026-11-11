@@ -17,7 +17,6 @@ library;
 import 'command_reference.dart';
 import 'command_type.dart';
 import 'sync_status.dart';
-import 'manual_session_entry.dart';
 
 class CommandEnvelope {
   CommandEnvelope({
@@ -39,7 +38,7 @@ class CommandEnvelope {
     this.lastAttemptAt,
     this.serverResponse,
     this.nextAttemptAt,
-  }) : payload = isManualSessionEntry(type)
+  }) : payload = type.isManualSessionEntry
       ? Map<String,Object?>.unmodifiable({
           for (final e in payload.entries)
             e.key: e.value is Map

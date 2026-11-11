@@ -3,8 +3,7 @@ import 'command_type.dart';
 import 'sync_status.dart';
 
 bool isManualSessionEntry(CommandType type) =>
-    type == CommandType.recordHistoricalSession ||
-    type == CommandType.adoptExternalSession;
+    type.isManualSessionEntry;
 
 /// حقائق بشرية فقط؛ الهوية التنفيذية والمال والإسناد يقررها الخادم.
 class ManualSessionEntryFacts {

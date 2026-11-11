@@ -264,3 +264,9 @@ enum CommandType {
   static CommandType fromStorage(String value) =>
       CommandType.values.firstWhere((type) => type.name == value);
 }
+
+extension ManualSessionEntryCommandType on CommandType {
+  bool get isManualSessionEntry =>
+      this == CommandType.recordHistoricalSession ||
+      this == CommandType.adoptExternalSession;
+}
