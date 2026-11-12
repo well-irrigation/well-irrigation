@@ -1,5 +1,38 @@
 # سجل التقدم
 
+## 2026-11-12 — توحيد التوثيق مع واجهة R6 وتصحيح الجلسة المنجزة
+
+جولة توثيق فقط: لا كود ولا اختبار ولا SQL ولا هجرة ولا نشر ولا Commit
+جديد. الغرض توحيد الوثائق مع ما نُفذ فعلًا في الفرع
+`feat/r6-ui-session-correction` عند `4d48654`، ومنع إعادة تنفيذ الحزم.
+
+| الحزمة | الحالة | حد الإثبات |
+| --- | --- | --- |
+| A — R6-A/B والبدء من الهاتف | IMPLEMENTED + VERIFIED LOCAL + PARTIAL DEVICE ACCEPTANCE + READY TO ADVANCE + NOT FINAL CLOSED | مسار البدء مدموج في `main` عبر PR #67؛ التعافي الموجّه محفوظ محليًا؛ لا قبول جهاز كامل |
+| B — تصحيح الجلسة المنفذة | IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE NOT FULLY CLOSED + READY TO ADVANCE | عقود `20261108002600`–`20261108003000` محلية غير منشورة؛ سلسلة `6f85860`…`3dcefda` |
+| C — الإدخال اليدوي للجلسة التاريخية | IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE PENDING + READY TO ADVANCE | سلسلة `f7eab60`…`5cde971`؛ لا سجل جهاز |
+| D — تعديل مبلغ الجلسة اليدوي | IMPLEMENTED / LOCAL VERIFIED / DEVICE ACCEPTANCE PENDING | خادم + نواة + Outbox + واجهة؛ لا سجل جهاز |
+
+القياسات المحفوظة في وثائقها ولم تُعَد في هذه الجولة:
+
+- بوابة قاعدة كاملة: 89 ملفًا / 2843 PASS — مصدرها تقرير بوابة القاعدة.
+- اختبار تعديل الجلسة المالي الدائم: 82؛ التزامن 8 حالات / 24 فحصًا —
+  `../technical/MANUAL_SESSION_FINANCIAL_ADJUSTMENT_SERVER.md`.
+- نواة الهاتف للتعديل: 1045؛ واجهة التعديل: 411 —
+  `../technical/MANUAL_SESSION_FINANCIAL_ADJUSTMENT_MOBILE_CORE.md` و`..._UI.md`.
+- التعافي الموجّه: 845 / 34 ملفًا ثم 3274 لكامل المجموعة —
+  `../technical/OPERATIONAL_START_GUIDED_RECOVERY.md`.
+- زمن مزامنة المقدمة: 2528 / 132 ملفًا ثم 3379 لكامل المجموعة —
+  `../technical/FOREGROUND_SYNC_LATENCY.md`.
+- تدقيق قفل معاملة SQLite: 190 فحصًا مركّزًا ثم 3384 لكامل المجموعة —
+  `../technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`.
+- أداء قراءة الجلسة: 23 مجموعة SQL / 905 فحوص، والاختبار الدائم 19 —
+  `../technical/SESSION_READ_PERFORMANCE.md`.
+
+**CI VERIFIED = UNKNOWN** لهذه الالتزامات المحلية؛ دمج PR #67 لا يُعد
+فحصًا موثقًا لها. السحابة مثبتة لدفعة R6 حتى `20261108002500` فقط،
+وعقود التصحيح اللاحقة غير منشورة. المتبقي قبول جهاز، لا برمجة.
+
 ## 2026-11-05 — دمج R6 ونشرها وخريطة الواجهة
 
 PR #65 مدموج عند `d64594d182c69a7e52ec65973e58bd1f8de84db0`؛ فحوص التطبيق والقاعدة CI PASS. النشر السحابي PASS على `hxfhczpfrfdpzsobfbab` حتى `20261108002500`، و`MISSING_IN_CLOUD=0` والدوال 485/485 بلا زيادة أو نقص. القياسات العددية لبيانات التشغيل قبل النشر وبعده لم تتغير. خريطة ربط الواجهة Adopted + Documented؛ التنفيذ والقبول Pending.

@@ -1,22 +1,30 @@
 # خريطة المشروع — مصادر الحقيقة الحالية
 
-**آخر تحديث:** 2026-11-04
+**آخر تحديث:** 2026-11-12
 
-## مؤشر R6 الحالي — قبل تثبيت إغلاق التوثيق
+## مؤشر R6 الحالي — واجهة منفذة محليًا وقبول جهاز متبق
 
-الرأس المثبت عند بدء هذه الدفعة:
-`a1eda8520d112e4ab438983e1406dbb478bdea47`؛ الشجرة كانت نظيفة
-والفرع `reconcile/q137-local-20261030`. R6-C1 مثبتة في
+الرأس عند تدوين هذا المؤشر: `4d486543690435ebcbd4cffb6b63a02fef7c9300`
+على الفرع `feat/r6-ui-session-correction`. R6-C1 مثبتة في
 `d6b4ef7566d633bc290fc3e633cf8e6fd799e96a`، وR6-C2 في
 `4ef062afecd53773546955cefa29b810c560e17a`، وR6-C3 في
 `a1eda8520d112e4ab438983e1406dbb478bdea47`؛ الثلاثة
-VERIFIED محليًا + COMMITTED. لا Push لهذه الدفعة ولا ادعاء Cloud.
-آخر قرار **مرقم** هو ق-137؛ قرارات R6 المعتمدة غير المرقمة في
-`memory/DECISIONS.md` ملحق R6. الحالة الحالية والتالي حصريًا في
-`memory/RESUME_POINT.md`؛ التفاصيل في
-`technical/R6C2_SESSION_FINANCIAL_RECONCILIATION.md`، ومطابقة A–Q في
-`technical/DECISION_IMPLEMENTATION_MATRIX.md`. الفقرات القديمة أدناه
-لقطات زمنية ولا تتغلب على هذا المؤشر.
+VERIFIED محليًا + COMMITTED. نُفذت كذلك واجهة R6-A/B من الهاتف
+(مدموجة في `main` عبر PR #67)، وتصحيح الجلسة، والإدخال اليدوي للجلسة
+التاريخية، وتعديل مبلغ الجلسة اليدوي؛ كلها محلية، و**قبول الجهاز متبق
+أو جزئي**. لا Push لكل ما بعد `b0072e8`، و`CI VERIFIED = UNKNOWN`
+لها. خادم R6 منشور سحابيًا حتى `20261108002500`؛ عقود التصحيح
+`20261108002600`–`20261108003000` محلية غير منشورة. آخر قرار **مرقم**
+هو ق-137؛ قرارات R6 المعتمدة غير المرقمة في `memory/DECISIONS.md`
+ملحق R6. الحالة الحالية والتالي حصريًا في `memory/RESUME_POINT.md`؛
+التفاصيل في `technical/R6C2_SESSION_FINANCIAL_RECONCILIATION.md`،
+ومطابقة الحزم في `technical/DECISION_IMPLEMENTATION_MATRIX.md`.
+الفقرات القديمة أدناه لقطات زمنية ولا تتغلب على هذا المؤشر.
+
+**وثائق قياس حديثة مسجلة:** `technical/FOREGROUND_SYNC_LATENCY.md`
+و`technical/SQLITE_TRANSACTION_LOCK_AUDIT.md` و
+`technical/SESSION_READ_PERFORMANCE.md` و
+`technical/OPERATIONAL_START_GUIDED_RECOVERY.md`.
 
 هذه الوثيقة تحدد أي ملف يفوز عند التعارض، وتفصل بين
 الحالة الحالية والسجل التاريخي.
@@ -1107,4 +1115,4 @@ W1-02 — Farmer Self-scope Authorization.
 
 ## مصدر قرار التحول ق-137 (2026-10-20)
 
-القرار الحاكم في `docs/memory/DECISIONS.md` (ق-137)، وعقد التنفيذ المستهدف في `docs/technical/MANUAL_IRRIGATION_TRANSITION_ARCHITECTURE.md`. السلوك الميداني في `docs/design/UX_UI_SPEC.md`، وفجوات التنفيذ في `docs/memory/OPEN_ISSUES.md`، والخطوة التالية في `docs/memory/RESUME_POINT.md`. التنفيذ القديم للتشغيل التلقائي ليس دليلًا على استمرار اعتماده بعد ق-137.
+القرار الحاكم في `docs/memory/DECISIONS.md` (ق-137 وملحق R6 للواجهة)، وعقد التنفيذ المستهدف في `docs/technical/MANUAL_IRRIGATION_TRANSITION_ARCHITECTURE.md`. السلوك الميداني في `docs/design/UX_UI_SPEC.md`، وفجوات التنفيذ في `docs/memory/OPEN_ISSUES.md`، والخطوة التالية في `docs/memory/RESUME_POINT.md`. **HISTORICAL:** وصف «عقد التنفيذ المستهدف» يخص لحظة التأليف؛ نُفذت R6-A/B وواجهة البدء وتصحيح الجلسة والإدخال اليدوي والتعديل المالي محليًا، والمتبقي قبول جهاز. التنفيذ القديم للتشغيل التلقائي ليس دليلًا على استمرار اعتماده بعد ق-137.

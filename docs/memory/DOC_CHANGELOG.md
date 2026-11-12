@@ -1,5 +1,27 @@
 # سجل تغييرات الوثائق
 
+## 2026-11-12 — توحيد التوثيق مع واجهة R6 وتصحيح الجلسة المنجزة
+
+جولة توثيق فقط بلا كود أو اختبار أو SQL أو هجرة أو نشر أو Commit. حُدثت
+`RESUME_POINT.md` و`RESUME_HISTORY.md` و`DECISIONS.md` (ملحق R6 للواجهة)
+و`OPEN_ISSUES.md` و`PROGRESS.md` وهذا السجل و`DECISION_IMPLEMENTATION_MATRIX.md`
+و`UX_UI_SPEC.md` و`PROJECT_MAP.md` ورؤوس الوثائق التقنية لـR6A/R6B/R6C1
+والإدخال اليدوي والتعديل المالي اليدوي وأداء قراءة الجلسة والتعافي الموجّه.
+
+السبب: توحيد الحالة مع ما نُفذ فعلًا — R6-A/B واجهةً، وتصحيح الجلسة،
+والإدخال اليدوي، والتعديل المالي اليدوي — ومنع إعادة التنفيذ. القرار
+الحاكم ق-137 وملحق R6 المعتمد، ولا قرار مرقّم جديد.
+
+الحالة المسجلة: A = IMPLEMENTED + VERIFIED LOCAL + PARTIAL DEVICE
+ACCEPTANCE + READY TO ADVANCE + NOT FINAL CLOSED؛ B = IMPLEMENTED +
+VERIFIED LOCAL + DEVICE ACCEPTANCE NOT FULLY CLOSED + READY TO ADVANCE؛
+C = IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE PENDING + READY TO
+ADVANCE؛ التعديل المالي = IMPLEMENTED / LOCAL VERIFIED / DEVICE
+ACCEPTANCE PENDING. `FINANCIAL GOVERNANCE = PASS` و`EXHAUSTIVE READ =
+COMPLETE` و`LIVE UNRESOLVED FINANCIAL CONFLICTS = NONE` كما أفادها
+المالك. `CI VERIFIED = UNKNOWN` للالتزامات المحلية؛ السحابة مثبتة حتى
+`20261108002500` فقط، وعقود `20261108002600`–`20261108003000` محلية.
+
 ## 2026-11-05 — نشر R6 واعتماد مواضع الواجهة
 
 دُمج PR #65 ونُشرت R6 سحابيًا؛ واعتُمد إدراج الوظائف في الواجهات الموجودة بلا أقسام جديدة للرئيسية، مع شاشة فرعية واحدة «الإعدادات المالية». اعتُمدت العربية الكاملة للمستخدم وتنظيف الأخطاء الخام والمصطلحات الإنجليزية في جولة التنفيذ؛ المواضع موثقة والتنفيذ ما زال مؤجلًا.
@@ -76,7 +98,7 @@ Pending النشط بعد التثبيت مع إبقاء لقطات التدقي
 ولا إعادة اختبار/بناء؛ وحالة A/B تبقى COMPLETE. عائق inotify السابق بيئي وحُلّ.
 
 
-**آخر تحديث:** 2026-10-14
+**آخر تحديث:** 2026-11-12
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 
