@@ -16,6 +16,7 @@ import '../sync/command_envelope.dart';
 import '../sync/command_reference.dart';
 import '../sync/command_transport.dart';
 import '../sync/command_type.dart';
+import '../sync/start_recovery_policy.dart';
 import '../sync/manual_session_entry.dart';
 import '../sync/entity_reference.dart';
 import '../sync/farmer_identity_review.dart';
@@ -28,6 +29,8 @@ import '../sync/sync_status.dart';
 import '../sync/session_correction_receipt.dart';
 import '../sync/session_financial_adjustment.dart';
 import 'active_session_projector.dart';
+import 'operational_start_recovery.dart';
+import '../sync/operational_start_receipt.dart';
 import 'active_session_record.dart';
 import 'session_crop_snapshot.dart';
 import 'time_integrity.dart';
@@ -168,6 +171,7 @@ class OfflineSessionCoordinator {
     Future<bool> Function(String accountId)? commandQueuedScheduler,
     BookingLocalLedger? bookingLedger,
     TimeIntegritySource? timeIntegritySource,
+    String? Function()? currentAccountId,
   }) : _store = store ?? SqliteOutboxStore(),
        _commandQueuedScheduler = commandQueuedScheduler,
        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
@@ -189,6 +193,12 @@ class OfflineSessionCoordinator {
         (supabaseClient == null
             ? null
             : SupabaseCommandTransport(supabaseClient));
+    _operationalReceiptTransport = transport is OperationalStartReceiptTransport
+        ? transport as OperationalStartReceiptTransport : null;
+    _recoveryAccountId = currentAccountId ?? () {
+      final session = supabaseClient?.auth.currentSession;
+      return session == null || session.isExpired ? null : session.user.id;
+    };
     if (transport != null) {
       _syncEngine = SyncEngine(store: _store, transport: transport);
     }
@@ -207,6 +217,14 @@ class OfflineSessionCoordinator {
 
   static OfflineSessionCoordinator get instance => _instance ??=
       OfflineSessionCoordinator(supabaseClient: _foregroundSupabaseClient);
+
+  OperationalStartReceiptTransport? _operationalReceiptTransport;
+  late final String? Function() _recoveryAccountId;
+
+  /// بوابة فحص/اعتماد إيصال بدء فقط؛ لا تشغيل للمزامنة من هذا المسار.
+  OperationalStartRecovery operationalStartRecovery(OperationsRepository repository) =>
+      OperationalStartRecovery(store: _store, transport: _operationalReceiptTransport,
+        repository: repository, currentAccountId: _recoveryAccountId);
 
   final OutboxStore _store;
   final Set<(String, String)> _humanStartInFlight = {};
@@ -3122,10 +3140,12 @@ class OfflineSessionCoordinator {
     String accountId,
     String sessionLocalId,
   ) async {
-    final start = await _outbox.byLocalId(accountId, sessionLocalId);
+    final start = await _outbox.byLocalId(accountId, sessionLocalId) ?? (await readStartRecoveryPolicy(_store,accountId))?.controlSource(sessionLocalId);
     if (start == null || !_isSessionStartType(start.type)) {
       throw StateError('مرجع جلسة محلي غير صالح: $sessionLocalId');
     }
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
+    if(recovery != null && !recovery.mayControl(sessionLocalId)) throw StateError('resolved_start_child_isolated');
     return start;
   }
 
@@ -3141,7 +3161,7 @@ class OfflineSessionCoordinator {
     String accountId,
     String sessionLocalId,
   ) async {
-    final root = await _store.commandByLocalId(accountId, sessionLocalId);
+    final root = await _store.commandByLocalId(accountId, sessionLocalId) ?? (await readStartRecoveryPolicy(_store,accountId))?.controlSource(sessionLocalId);
     final wellId = root?.wellId ?? root?.payload['p_well_id'] as String?;
     final records = root == null
         ? <ActiveSessionRecord>[]

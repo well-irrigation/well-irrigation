@@ -31,6 +31,7 @@ import '../../core/widgets/top_well_selector.dart';
 import 'widgets/compact_energy_selector.dart';
 import 'widgets/payment_receipt_dialog.dart';
 import 'widgets/session_completion_result.dart';
+import 'widgets/operational_start_recovery_dialog.dart';
 import '../history/session_detail_screen.dart';
 import 'widgets/session_confirmation_dialogs.dart';
 import 'widgets/today_bookings_panel.dart';
@@ -77,6 +78,30 @@ class OperationsScreen extends StatefulWidget {
 
 class _OperationsScreenState extends State<OperationsScreen>
     with WidgetsBindingObserver {
+  bool _startRecoveryVisible = false;
+
+  Future<void> _openStartRecovery(ActiveSessionRecord session) async {
+    if (_startRecoveryVisible) return;
+    final account = _accountId;
+    final well = _activeWellId;
+    final root = session.localId;
+    if (session.accountId != account || session.wellId != well) return;
+    bool owns() => mounted && _accountId == account && _activeWellId == well && _activeSessionId == root;
+    _startRecoveryVisible = true;
+    try {
+      await showDialog<bool>(context:context,builder:(context)=>OperationalStartRecoveryDialog(
+        recovery:_coordinator.operationalStartRecovery(_repo),
+        accountId:account,wellId:well,sessionLocalId:root,startedAt:session.startedAt,
+        farmerName:session.farmerName,farmName:session.farmName,isContextCurrent:owns,
+        onResolved:() async {
+          if (owns()) await _coordinator.freshProjectActiveSession(accountId:account,wellId:well);
+        },
+      ));
+    } finally {
+      _startRecoveryVisible = false;
+    }
+  }
+
   late OperationsRepository _repo;
   StreamSubscription<ActiveSessionRecord>? _completionSubscription;
   ActiveSessionRecord? _completionResult;
@@ -3140,9 +3165,19 @@ class _OperationsScreenState extends State<OperationsScreen>
                             title: Text(syncState == SessionSyncState.conflict
                               ? 'تحتاج عملية بدء الجلسة إلى مراجعة'
                               : 'جارٍ تأكيد بدء الجلسة'),
-                            subtitle: Text(syncState == SessionSyncState.conflict
-                              ? 'تعذر تأكيد نتيجة البدء تلقائيًا. راجع حالة الجلسة قبل تنفيذ بدء جديد.'
-                              : 'لا تبدأ جلسة أخرى حتى يكتمل التحقق.'),
+                            subtitle: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(syncState == SessionSyncState.conflict
+                                  ? 'تعذر تأكيد نتيجة البدء تلقائيًا. راجع حالة الجلسة قبل تنفيذ بدء جديد.'
+                                  : 'لا تبدأ جلسة أخرى حتى يكتمل التحقق.'),
+                                FilledButton(
+                                  onPressed: () => _openStartRecovery(activeSession),
+                                  child: const Text('إصلاح الحالة'),
+                                ),
+                              ],
+                            ),
                           ),
                         if (_isSessionActive)
                           Wrap(

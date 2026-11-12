@@ -267,6 +267,12 @@ class SupabaseCommandTransport
 
   @override
   Future<DispatchResult> dispatch(DispatchRequest request) async {
+    if (request.type.isRetired) {
+      return const DispatchFailed(
+        disposition: FailureDisposition.review,
+        message: 'retired_command_dispatch_disabled',
+      );
+    }
     // الخادم يقرأ المنفِّذ من `auth.uid()`، فبلا جلسة دخول لا يمكن
     // إرسال شيء. الأمر يبقى محفوظًا ويُرسل بعد الدخول — لا يُفقد ولا
     // يُعرض كخطأ يحتاج مراجعة.

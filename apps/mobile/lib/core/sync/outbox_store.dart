@@ -199,6 +199,7 @@ bool canReconcileOperationalStartReceipt({
   required String? humanRecord,
   required IdMapping? mapping,
   required Map<String, Object?> receipt,
+  Map<String,Object?>? validatedEnvelope,
 }) {
   final request = OperationalStartReceiptRequest.fromCommand(observed);
   if (request == null ||
@@ -222,7 +223,7 @@ bool canReconcileOperationalStartReceipt({
         CommandStatus.review,
         CommandStatus.confirmed,
       }.contains(current.status) ||
-      !validOperationalStartReceipt(request, receipt) ||
+      !validOperationalStartEvidence(request, receipt, validatedEnvelope) ||
       (mapping != null &&
           (mapping.localId != observed.localId ||
               mapping.kind != EntityKind.session ||
@@ -246,7 +247,8 @@ bool canReviewOperationalStart({
   required String? humanRecord,
   required IdMapping? mapping,
 }) {
-  if (OperationalStartReceiptRequest.fromCommand(observed) == null ||
+  if (observed.type != CommandType.startOperationalSession ||
+      OperationalStartReceiptRequest.fromCommand(observed) == null ||
       observed.localId.trim().isEmpty ||
       current == null ||
       dispatchCommandFingerprint(current) !=
@@ -968,6 +970,8 @@ abstract interface class FarmSelectionStore {
   });
 }
 
+String controlEpochKey(String base, String? anchor) => anchor == null ? base : '$base/anchor/${Uri.encodeComponent(anchor)}';
+
 String manualStopMaterializationKey(String well, String local) =>
     'session.manual_stop.materialized.v1/${Uri.encodeComponent(well)}/${Uri.encodeComponent(local)}';
 
@@ -1020,10 +1024,11 @@ void validateManualStopMaterialization<T>({
   required String? previousEffect,
   required IdMapping? mapping,
   required SessionExecutionWrite<T> write,
+  String? controlAnchor,
 }) {
   final raw = jsonDecode(savedRequest ?? 'null');
-  final link = manualStopMaterializationKey(well, local);
-  final effectKey = 'session.completion.v1.$well.$local';
+  final link = controlEpochKey(manualStopMaterializationKey(well, local),controlAnchor);
+  final effectKey = controlEpochKey('session.completion.v1.$well.$local',controlAnchor);
   final at = raw is Map && raw['requested_at'] is String
       ? DateTime.tryParse(raw['requested_at'] as String)
       : null;
@@ -1050,6 +1055,7 @@ void validateManualStopMaterialization<T>({
       raw['well_id'] != well ||
       raw['session_local_id'] != local ||
       raw['session_command_id'] != root.commandId ||
+      raw['control_anchor'] != controlAnchor ||
       raw['request_id'] is! String ||
       (raw['request_id'] as String).isEmpty ||
       at == null ||

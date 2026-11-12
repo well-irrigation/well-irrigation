@@ -41,6 +41,7 @@ class SessionSegment {
     this.energySource,
     this.hourlyRateMinor,
     this.pauseReason,
+    this.billableOverride,
   });
 
   final SegmentKind kind;
@@ -61,6 +62,10 @@ class SessionSegment {
 
   final String? pauseReason;
 
+  /// حقيقة مقطع خادمية محفوظة؛ لا يغير تصنيف حالة التشغيل.
+  final bool? billableOverride;
+  bool get isBillable => billableOverride ?? kind.isBillable;
+
   bool get isOpen => endedAt == null;
 
   /// مدة المقطع حتى [now] إن كان مفتوحًا، وإلا مدته النهائية.
@@ -76,7 +81,7 @@ class SessionSegment {
 
   /// الثواني المحتسبة — صفر لمقطع التوقف بحكم نوعه.
   int billableSeconds(DateTime now) =>
-      kind.isBillable ? duration(now).inSeconds : 0;
+      isBillable ? duration(now).inSeconds : 0;
 
   /// مبلغ هذا المقطع، أو `null` إذا كان سعره غير معلوم.
   ///
@@ -85,7 +90,7 @@ class SessionSegment {
   int? timeChargeMinor(DateTime now) {
     final rate = hourlyRateMinor;
 
-    if (!kind.isBillable) {
+    if (!isBillable) {
       return 0;
     }
 
@@ -103,6 +108,7 @@ class SessionSegment {
     energySource: energySource,
     hourlyRateMinor: hourlyRateMinor,
     pauseReason: pauseReason,
+    billableOverride: billableOverride,
   );
 
   @override
@@ -157,7 +163,7 @@ SessionTotals summarize(List<SessionSegment> segments, DateTime now) {
   for (final segment in segments) {
     final seconds = segment.duration(now).inSeconds;
 
-    if (segment.kind.isBillable) {
+    if (segment.isBillable) {
       billable += seconds;
 
       final charge = segment.timeChargeMinor(now);
@@ -169,7 +175,8 @@ SessionTotals summarize(List<SessionSegment> segments, DateTime now) {
       } else {
         accrued += charge;
       }
-    } else {
+    }
+    if (!segment.kind.isBillable) {
       paused += seconds;
 
       if (segment.isOpen) {

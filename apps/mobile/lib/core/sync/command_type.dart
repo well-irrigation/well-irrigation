@@ -39,6 +39,23 @@ enum EntityKind {
 /// الترتيب هنا لا يعني ترتيب الإرسال؛ الإرسال يتبع `sequence` في
 /// الطابور.
 enum CommandType {
+  /// توافق قراءة فقط مع صفوف ccba538 (2026-10-28).
+  /// ليس بديلًا لعقد حديث؛ يمنع بناء طلبه وإرساله ولا يغيّر صفه القديم.
+  cancelBooking(
+    rpcName: 'cancel_booking',
+    scope: CommandScope.well,
+    scopeArgument: 'p_booking_id',
+    returnsJson: true,
+    resultKey: 'booking_id',
+  ),
+  /// توافق قراءة فقط مع لقطة 62b2c509 (2026-10-29)، دون إعادة إرسال.
+  rescheduleBooking(
+    rpcName: 'reschedule_booking',
+    scope: CommandScope.well,
+    scopeArgument: 'p_booking_id',
+    returnsJson: true,
+    resultKey: 'booking_id',
+  ),
   recordHistoricalSession(
     rpcName: 'record_historical_session',
     scope: CommandScope.well,
@@ -261,8 +278,17 @@ enum CommandType {
 
   String get storageValue => name;
 
+  /// أسماء تخزين تاريخية فقط؛ لا عمل مزامنة حالي ولا طلب شبكة جديد.
+  bool get isRetired => const {
+    CommandType.cancelBooking,
+    CommandType.rescheduleBooking,
+  }.contains(this);
+
   static CommandType fromStorage(String value) =>
-      CommandType.values.firstWhere((type) => type.name == value);
+      CommandType.values.firstWhere(
+        (type) => type.storageValue == value,
+        orElse: () => throw StateError('unknown_command_type_storage_value:$value'),
+      );
 }
 
 extension ManualSessionEntryCommandType on CommandType {

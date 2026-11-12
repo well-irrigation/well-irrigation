@@ -31,6 +31,7 @@ import 'command_envelope.dart';
 import 'command_reference.dart';
 import 'command_transport.dart';
 import 'command_type.dart';
+import 'start_recovery_policy.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 import 'session_correction_receipt.dart';
@@ -1110,9 +1111,12 @@ class SyncEngine {
     final rows = store is BookingDispatchStore
         ? await (store as BookingDispatchStore).pendingLegacyCommands(accountId)
         : await store.pendingCommands(accountId);
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
     // التصحيح ينتظر مسار الإرسال والاسترداد المخصص، دون تغيير صفه المتين.
     return rows
-        .where((command) => command.type != CommandType.correctIrrigationSession &&
+        // الأنواع المتقاعدة محفوظة للقراءة؛ لا حجز ولا إعادة إرسال قديمة.
+        .where((command) => (recovery?.actionable(command) ?? true) && !command.type.isRetired &&
+            command.type != CommandType.correctIrrigationSession &&
             command.type != CommandType.adjustSessionFinancialAmount &&
             !isManualSessionEntry(command.type))
         .toList();

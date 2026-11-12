@@ -224,6 +224,7 @@ Map<String, Object?> buildRpcArguments({
   required DateTime occurredAt,
   required Map<String, Object?> resolvedPayload,
 }) {
+  if (type.isRetired) throw StateError('retired_command_dispatch_disabled');
   final eventTimeArgument = type.eventTimeArgument;
 
   return {

@@ -211,7 +211,9 @@ void main() {
       for (final type in CommandType.values) {
         expect(
           type.scopeArgument,
-          type == CommandType.startBookingSession
+          type == CommandType.startBookingSession ||
+                  type == CommandType.cancelBooking ||
+                  type == CommandType.rescheduleBooking
               ? 'p_booking_id'
               : type == CommandType.recordBookingTransitionDecision ||
                     type == CommandType.executePendingBookingStart

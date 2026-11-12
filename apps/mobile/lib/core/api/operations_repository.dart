@@ -676,6 +676,8 @@ class SessionHistoryItem {
     required this.operatorName,
     required this.startedAt,
     this.endedAt,
+    this.farmId,
+    this.pumpId,
     this.status = 'closed',
     this.energySourceCode,
     this.actualSeconds,
@@ -735,6 +737,8 @@ class SessionHistoryItem {
       farmerName: json['farmer_name'] as String? ?? 'غير محدد',
       farmerCode: json['farmer_public_code'] as String? ?? '',
       farmerAccountId: json['farmer_well_account_id'] as String? ?? '',
+      farmId: json['farm_id'] as String?,
+      pumpId: json['pump_id'] as String?,
       farmName: json['farm_name'] as String? ?? 'غير محددة',
       pumpName: json['pump_name'] as String? ?? 'غير محددة',
       operatorName: json['operator_name'] as String? ?? 'غير محدد',
@@ -759,6 +763,7 @@ class SessionHistoryItem {
     );
   }
 
+  final String? farmId, pumpId;
   final String id;
   final String wellId;
   final String farmerName;
@@ -1573,6 +1578,30 @@ class OperationsRepository implements ManualSessionEntryCapabilityReader {
     return _contractItems(response)
         .map(SessionHistoryItem.fromContract)
         .toList();
+  }
+
+  /// Fresh current-session read only; no history matching and no cached fallback.
+  Future<SessionDetailData?> fetchCurrentOperationalSession(String wellId) async {
+    final client = _effectiveClient;
+    final account = client?.auth.currentUser?.id;
+    if (client == null || account == null || wellId.trim().isEmpty) throw StateError('current_session_auth_required');
+    final raw = await client.schema('api').rpc('get_well_day_schedule',params:{'p_well_id':wellId});
+    if (client.auth.currentUser?.id != account) throw StateError('current_session_identity_changed');
+    if (raw is! Map || raw['status'] != 'ok' || raw['well_id'] != wellId || !raw.containsKey('current_session')) {
+      throw const FormatException('invalid_current_session_read');
+    }
+    final current = raw['current_session'];
+    if (current == null) return null;
+    if (current is! Map || current['session_id'] is! String || (current['session_id'] as String).trim().isEmpty ||
+        current['well_id'] != wellId || current['status'] != 'open' || current['ended_at'] != null) {
+      throw const FormatException('invalid_current_session_scope');
+    }
+    final detail = await fetchSessionDetail(current['session_id'] as String);
+    if (client.auth.currentUser?.id != account || detail.session.id != current['session_id'] ||
+        detail.session.wellId != wellId || detail.session.status != 'open' || detail.session.endedAt != null) {
+      throw StateError('current_session_changed');
+    }
+    return detail;
   }
 
   /// جلب تفصيل الجلسة ومقاطعها عبر عقد `api.get_session_detail`

@@ -12,6 +12,7 @@ import 'command_envelope.dart';
 import 'command_id_generator.dart';
 import 'command_reference.dart';
 import 'command_type.dart';
+import 'start_recovery_policy.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
 import 'manual_session_entry.dart';
@@ -249,9 +250,20 @@ class OutboxRepository {
     return CommandReference(localId: envelope.localId, kind: kind);
   }
 
-  /// الأوامر التي لم تُؤكَّد بعد، مرتَّبة بترتيب إرسالها.
-  Future<List<CommandEnvelope>> pending(String accountId) =>
-      _store.pendingCommands(accountId);
+  /// عمل المزامنة الحالي غير المؤكد، مرتَّبًا بترتيب الإرسال.
+  /// المتقاعد تاريخ محفوظ لا عمل قابل للتنفيذ في الإصدار الحالي؛ تبقى
+  /// قراءات المخزن الخام و[all] و[byLocalId] بحالته الأصلية، بما فيها
+  /// أدلة الاعتمادات غير المحسومة. هذا الترشيح لا يثبت نجاح أي أمر.
+  Future<List<CommandEnvelope>> pending(String accountId) async {
+    final policy = await readStartRecoveryPolicy(_store, accountId);
+    final rows = await _store.pendingCommands(accountId);
+    if(policy != null) {
+      for(final c in policy.snapshot.commands.where((c)=>c.status == CommandStatus.confirmed && policy.root(c.localId) == StartRecoveryDisposition.conflict)) {
+        rows.add(c.copyWith(status:CommandStatus.review,lastError:'start_recovery_conflict'));
+      }
+    }
+    return rows.where((command) => !command.type.isRetired && (policy?.actionable(command) ?? true)).toList();
+  }
 
   /// كل الأوامر — للعرض والتشخيص.
   Future<List<CommandEnvelope>> all(String accountId) =>
@@ -348,16 +360,16 @@ class OutboxRepository {
     return mapping?.serverId;
   }
 
-  /// عدد العمليات المحفوظة على الجهاز وغير المؤكَّدة.
+  /// عدد عمليات المزامنة الحالية غير المؤكدة؛ لا يشمل التاريخ المتقاعد.
   Future<int> pendingCount(String accountId) async {
-    final rows = await _store.pendingCommands(accountId);
+    final rows = await pending(accountId);
 
     return rows.length;
   }
 
-  /// العمليات التي تحتاج تدخلًا بشريًا.
+  /// العمل الحالي المحتاج مراجعة بشرية؛ لا يشمل الصفوف التاريخية المتقاعدة.
   Future<List<CommandEnvelope>> needingReview(String accountId) async {
-    final rows = await _store.pendingCommands(accountId);
+    final rows = await pending(accountId);
 
     return rows.where((row) => row.status == CommandStatus.review).toList();
   }
