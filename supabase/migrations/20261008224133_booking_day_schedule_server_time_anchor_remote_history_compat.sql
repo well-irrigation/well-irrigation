@@ -1,0 +1,13 @@
+-- Historical migration-ledger compatibility marker.
+--
+-- Production contains migration version 20261008224133 carrying the
+-- get_well_day_schedule server-time-anchor change.
+--
+-- The local migration chain already applies the same logical schema change in:
+--   20261008165612_booking_day_schedule_server_time_anchor.sql
+--
+-- This migration is intentionally a no-op. Its only purpose is to preserve
+-- the production migration-history ABI so Supabase CLI can compare local and
+-- remote histories without repairing or rewriting production history.
+--
+-- Do not add schema statements here.
