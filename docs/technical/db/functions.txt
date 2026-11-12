@@ -5,6 +5,8 @@ api.accrue_payroll(p_well_id uuid, p_person_id uuid, p_period_start date, p_peri
 api.add_opening_balance_item(p_batch_id uuid, p_item_type text, p_amount_minor bigint, p_person_id uuid, p_farmer_well_account_id uuid, p_partner_id uuid, p_cashbox_id uuid, p_fuel_tank_id uuid, p_quantity_ml bigint, p_description text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.add_partner_distribution_adjustment(p_cycle_id uuid, p_source_id uuid, p_type text, p_amount_minor bigint, p_reason text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.add_well_partner(p_well_id uuid, p_person_id uuid, p_phone text, p_notes text, p_full_name text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.adjust_session_financial_amount(p_session_id uuid, p_command_id uuid, p_base_operational_revision bigint, p_base_system_financial_revision bigint, p_base_manual_approval_revision bigint, p_approved_amount_minor bigint, p_reason text, p_requested_at timestamp with time zone)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.adopt_external_session(p_well_id uuid, p_command_id uuid, p_request jsonb)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.allocate_payment(p_payment_id uuid, p_allocations jsonb)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.app_bootstrap()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.approve_opening_balance_batch(p_batch_id uuid)|void|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -59,6 +61,8 @@ api.get_expense_approval_configuration(p_well_id uuid)|jsonb|volatile|invoker|se
 api.get_farmer_account(p_farmer_well_account_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_farmer_selection_status(p_farmer_well_account_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_legacy_invoice_accounting_review(p_review_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.get_manual_session_entry_capability(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_manual_session_entry_receipt(p_well_id uuid, p_command_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_my_operator_cash_custody(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_occurrence_settlement_receipt(p_well_id uuid, p_command_id uuid, p_original_request jsonb)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_operational_start_receipt(p_well_id uuid, p_command_id uuid, p_expected_command_type text)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -69,6 +73,9 @@ api.get_session_correction_receipt(p_session_id uuid, p_command_id uuid)|jsonb|s
 api.get_session_correction_status(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_session_corrections(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_session_detail(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_session_financial_adjustment_capability(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_session_financial_adjustment_receipt(p_session_id uuid, p_command_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
+api.get_session_financial_state(p_session_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_booking_automation(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_day_schedule(p_well_id uuid, p_day date)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.get_well_details(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -76,6 +83,7 @@ api.get_worker_compensation_history(p_well_id uuid, p_person_id uuid)|jsonb|vola
 api.health()|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.invite_well_member(p_well_id uuid, p_role text, p_full_name text, p_phone text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.issue_session_invoice(p_session_id uuid)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
+api.issue_session_invoice_result(p_session_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.list_advance_receipts(p_farmer_well_account_id uuid, p_limit integer)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_expense_categories(p_well_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
 api.list_farm_recent_crops(p_farm_id uuid)|jsonb|stable|invoker|search_path=pg_catalog, pg_temp
@@ -112,6 +120,7 @@ api.recalculate_profit_distribution(p_cycle_id uuid, p_confirm_manual_adjustment
 api.record_booking_transition_decision(p_chain_id uuid, p_prev_session_id uuid, p_next_booking_id uuid, p_decision text, p_expected_revision bigint, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.record_expense(p_well_id uuid, p_category_code text, p_amount_minor bigint, p_description text, p_attachment_url text, p_attachment_skipped boolean, p_payment_source text, p_note text, p_partner_id uuid, p_attachment_skip_reason text)|uuid|volatile|invoker|search_path=pg_catalog, pg_temp
 api.record_fuel_consumption(p_well_id uuid, p_quantity_ml bigint, p_ownership_type text, p_measurement_type text, p_owner_person_id uuid, p_farmer_well_account_id uuid, p_fuel_tank_id uuid, p_session_segment_id uuid, p_occurred_at timestamp with time zone, p_estimated_transaction_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
+api.record_historical_session(p_well_id uuid, p_command_id uuid, p_request jsonb)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.record_partner_departure(p_partner_id uuid, p_remaining_shares jsonb, p_expected_until date, p_reason text, p_departed_on date)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.record_payment(p_well_id uuid, p_farmer_well_account_id uuid, p_amount_minor bigint, p_method text, p_allocations jsonb, p_session_charge_id uuid, p_payer_person_id uuid, p_cashbox_id uuid, p_paid_at timestamp with time zone, p_note text, p_attachment_url text, p_command_id uuid)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
 api.record_physical_fuel_count(p_well_id uuid, p_fuel_tank_id uuid, p_measured_balance_ml bigint, p_counted_at timestamp with time zone, p_notes text)|jsonb|volatile|invoker|search_path=pg_catalog, pg_temp
@@ -164,14 +173,21 @@ audit.track_changes()|trigger|volatile|definer|search_path=audit, core, pg_temp
 billing.adjust_credit_application(p_application uuid, p_operation text, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.allocate_payment(p_payment_id uuid, p_allocations jsonb)|jsonb|volatile|definer|search_path=billing, finance, core, audit, iam, pg_temp
 billing.apply_account_credit(p_credit uuid, p_invoice uuid, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+billing.apply_manual_session_approval(p_session uuid, p_command uuid, p_base_op bigint, p_base_sys bigint, p_base_manual bigint, p_amount bigint, p_reason text, p_requested timestamp with time zone)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.capture_inserted_invoice_settlement()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
 billing.check_application_adjustment_link()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 billing.check_customer_credit_event()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+billing.check_invoice_financial_snapshot()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+billing.check_manual_approval_row()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+billing.check_manual_invoice_row()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+billing.check_manual_resolution_row()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 billing.check_payment_repartition_link()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 billing.check_session_financial_correction()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+billing.check_system_manual_coverage()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 billing.credit_event_replay(p_tenant uuid, p_source uuid, p_revision bigint, p_request jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.derive_session_correction_charge(p_correction uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.enter_financial_write(p_well uuid, p_permission text, p_roles text[], p_expected_tenant uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
+billing.establish_paired_system_basis(p_correction uuid, p_approval uuid, p_posted timestamp with time zone)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.fill_payment_context()|trigger|volatile|definer|search_path=billing, ops, finance, core, pg_temp
 billing.get_available_customer_credit_read(p_farmer_well_account_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 billing.get_customer_credit_proposal_read(p_farmer_well_account_id uuid, p_invoice_id uuid, p_source_type text, p_source_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
@@ -191,11 +207,16 @@ billing.invoice_has_approved_distribution_use(p_invoice uuid)|boolean|volatile|d
 billing.invoice_has_protected_distribution_use(p_invoice uuid)|boolean|volatile|definer|search_path=pg_catalog, pg_temp
 billing.invoice_legacy_distribution_unresolved(p_invoice uuid)|boolean|volatile|definer|search_path=pg_catalog, pg_temp
 billing.issue_session_invoice(p_session_id uuid, p_issued_by uuid)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
+billing.issue_session_invoice_result(p_session uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.journalize_invoice()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
 billing.journalize_payment()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
 billing.lock_customer_credit_well(p_well uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
+billing.manual_financial_posting_context(p_well uuid)|timestamp with time zone|volatile|definer|search_path=pg_catalog, pg_temp
+billing.manual_financial_session_scope(p_session uuid)|uuid|stable|definer|search_path=pg_catalog, pg_temp
 billing.post_customer_credit_entry(p_event uuid, p_tenant uuid, p_well uuid, p_account uuid, p_amount bigint, p_issue boolean, p_posted_at timestamp with time zone, p_actor uuid)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
 billing.post_session_correction_delta(p_correction uuid, p_invoice uuid, p_evidence jsonb, p_previous jsonb, p_posted_at timestamp with time zone)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
+billing.read_manual_financial_receipt(p_session uuid, p_command uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
+billing.read_manual_session_financial_state(p_session uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 billing.rebalance_payment_capacity(p_payment uuid, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.reconcile_session_correction(p_correction uuid, p_command_id uuid, p_posted_at timestamp with time zone)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.record_payment(p_well_id uuid, p_farmer_well_account_id uuid, p_amount_minor bigint, p_method text, p_allocations jsonb, p_session_charge_id uuid, p_payer_person_id uuid, p_cashbox_id uuid, p_paid_at timestamp with time zone, p_note text, p_attachment_url text)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
@@ -205,6 +226,7 @@ billing.refresh_effective_invoice(p_invoice uuid)|void|volatile|definer|search_p
 billing.refresh_partition_invoices(p_well uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.reject_credit_history_mutation()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
 billing.reject_legacy_invoice_review_mutation()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
+billing.reject_manual_financial_history_change()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
 billing.reject_session_financial_history_mutation()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 billing.release_credit_application(p_application uuid, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.release_payment_allocation(p_allocation uuid, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
@@ -218,8 +240,10 @@ billing.reverse_account_credit(p_credit uuid, p_amount bigint, p_source uuid, p_
 billing.reverse_allocation_credit_legacy(p_credit uuid, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.reverse_payment(p_payment_id uuid, p_reason text, p_reversed_by uuid)|uuid|volatile|definer|search_path=billing, finance, core, pg_temp
 billing.serialize_partition_invoice_change()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+billing.session_read_financial_context(p_session_ids uuid[], p_include_latest boolean)|TABLE(session_id uuid, session_charge_id uuid, paid_minor numeric, latest_payment jsonb)|stable|invoker|search_path=pg_catalog, pg_temp
 billing.split_overpayment_to_advance()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
 billing.validate_application_adjustment_event(p_event billing.customer_credit_events)|void|volatile|definer|search_path=pg_catalog, pg_temp
+billing.validate_manual_financial_approval(p_id uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.validate_payment_repartition(e billing.customer_credit_events)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.validate_session_financial_correction(p_correction uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
 core.accept_well_invitation(p_invitation_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
@@ -398,6 +422,7 @@ ops.accept_delay_start_group(p_well_id uuid, p_command_id uuid, p_request jsonb,
 ops.accept_session_correction(p_session_id uuid, p_command_id uuid, p_base_revision bigint, p_reason text, p_desired_started_at timestamp with time zone, p_desired_ended_at timestamp with time zone, p_requested_at timestamp with time zone)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.attach_session_to_open_shift()|trigger|volatile|definer|search_path=ops, pg_temp
 ops.authorize_booking_transition_automation(p_well_id uuid, p_chain_id uuid, p_current_session_id uuid, p_next_booking_id uuid, p_decision_revision bigint, p_automation_revision bigint, p_policy_version bigint)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+ops.begin_terminal_occurrence_materialization(p_session_id uuid, p_start jsonb)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
 ops.cancel_booking(p_booking_id uuid, p_reason text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
 ops.capture_session_price_snapshot()|trigger|volatile|definer|search_path=ops, billing, pg_temp
 ops.change_session_energy_source(p_session_id uuid, p_new_source text, p_changed_at timestamp with time zone, p_closed_fuel_quantity_ml bigint, p_closed_fuel_measurement_type text, p_new_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, core, iam, pg_temp
@@ -410,6 +435,7 @@ ops.create_booking(p_well_id uuid, p_farmer_well_account_id uuid, p_farm_id uuid
 ops.create_booking_m112_unchecked(p_well_id uuid, p_farmer_well_account_id uuid, p_farm_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_expected_energy_source text, p_priority integer, p_notes text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
 ops.create_farm(p_well_id uuid, p_name text, p_farmer_well_account_id uuid, p_distinguishing_label text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
 ops.create_farmer(p_well_id uuid, p_full_name text, p_phone text, p_preferred_name text, p_notes text, p_credit_limit_minor bigint)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+ops.create_manual_entry_priced_segment(p_session_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
 ops.create_price_schedule(p_well_id uuid, p_name text, p_effective_from timestamp with time zone, p_reason text, p_solar_rate_minor bigint, p_well_diesel_rate_minor bigint, p_farmer_diesel_rate_minor bigint)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.create_priced_session_segment(p_session_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_fuel_owner_person_id uuid)|uuid|volatile|definer|search_path=ops, billing, core, pg_temp
 ops.current_booking_automation_context()|ops.booking_automation_execution_contexts|stable|definer|search_path=pg_catalog, pg_temp
@@ -437,6 +463,9 @@ ops.lock_farm_base_identity(p_well_id uuid, p_farmer_well_account_id uuid, p_nam
 ops.lock_farmer_identity(p_tenant_id uuid, p_normalized_name text, p_normalized_phone text)|void|volatile|definer|search_path=pg_catalog, pg_temp
 ops.lock_operational_scope(p_well_id uuid, p_wait boolean)|bigint|volatile|definer|search_path=pg_catalog, pg_temp
 ops.lock_session_pump_for_concurrency()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+ops.manual_session_entry_mode(p_session_id uuid)|text|stable|definer|search_path=pg_catalog, pg_temp
+ops.manual_session_entry_result(p_session_id uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
+ops.manual_session_occurrence_mode(o ops.operational_occurrences)|text|stable|definer|search_path=pg_catalog, pg_temp
 ops.materialize_historical_occurrence(p_well_id uuid, p_occurrence_id uuid, p_settlement_id uuid, p_facts jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.notify_profile(p_profile_id uuid, p_well_id uuid, p_type text, p_message text, p_session_id uuid)|uuid|volatile|definer|search_path=ops, pg_temp
 ops.notify_well_owners(p_well_id uuid, p_type text, p_message text, p_session_id uuid)|integer|volatile|definer|search_path=ops, core, pg_temp
@@ -446,11 +475,15 @@ ops.pause_irrigation_session(p_session_id uuid, p_reason text, p_paused_at times
 ops.prevent_parallel_sessions_on_pump()|trigger|volatile|definer|search_path=ops, pg_temp
 ops.prevent_second_open_shift()|trigger|volatile|invoker|-
 ops.read_active_price_schedule(p_well_id uuid, p_at timestamp with time zone)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
+ops.read_manual_session_entry_capability(p_well uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
+ops.read_manual_session_entry_receipt(p_well uuid, p_command uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 ops.reconcile_booking_chain_on_session_close()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 ops.record_booking_transition_decision(p_chain_id uuid, p_prev_session_id uuid, p_next_booking_id uuid, p_decision text, p_expected_revision bigint, p_actor uuid, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 ops.reject_session_correction_history_mutation()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 ops.request_session_transfer(p_session_id uuid, p_from_shift_id uuid, p_to_profile_id uuid, p_collection_right text, p_note text)|uuid|volatile|definer|search_path=ops, core, pg_temp
 ops.require_active_booking_farmer()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+ops.require_manual_session_entry_resolved()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+ops.require_manual_session_entry_scope(p_well uuid)|uuid|stable|definer|search_path=pg_catalog, pg_temp
 ops.reschedule_booking(p_booking_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_reason text, p_alternative_energy_source text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
 ops.reschedule_booking_m112_unchecked(p_booking_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_reason text)|jsonb|volatile|definer|search_path=ops, core, audit, iam, pg_temp
 ops.reserve_resource(p_well_id uuid, p_resource_type text, p_resource_id uuid, p_reserved_period tstzrange, p_booking_id uuid, p_session_id uuid)|uuid|volatile|definer|search_path=ops, core, pg_temp
@@ -471,6 +504,7 @@ ops.start_irrigation_session_from_booking(p_booking_id uuid, p_operator_profile_
 ops.start_operational_session(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_energy_source text, p_started_at timestamp with time zone, p_command_id uuid, p_fuel_owner_person_id uuid, p_crops text[], p_source_booking_id uuid)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
 ops.trg_enforce_farm_uniqueness()|trigger|volatile|definer|search_path=ops, core, pg_catalog, pg_temp
 ops.validate_session_segment_overlap()|trigger|volatile|invoker|-
+ops.write_manual_session_entry(p_well uuid, p_command uuid, p_request jsonb, p_mode text)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.begin_adhoc_session_command(p_well_id uuid, p_pump_id uuid, p_farm_id uuid, p_farmer_well_account_id uuid, p_energy_source text, p_planned_duration_minutes integer, p_started_at timestamp with time zone, p_command_id uuid, p_crops text[], p_fuel_owner_person_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.begin_booking_completion_command(p_session_id uuid, p_ended_at timestamp with time zone, p_fuel_quantity_ml bigint, p_fuel_measurement_type text, p_fuel_tank_id uuid, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 sync.begin_booking_execution_command(p_chain_id uuid, p_expected_revision bigint, p_command_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
