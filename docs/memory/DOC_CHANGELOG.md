@@ -1,6 +1,34 @@
 # سجل تغييرات الوثائق
 
+## 2026-11-13 — إغلاق توثيقي بعد دمج PR #68
+
+جولة توثيق فقط بعد الدمج: لا كود ولا اختبار ولا SQL ولا هجرة ولا نشر ولا
+index المولَّد ولا stage/commit/push.
+
+الحقيقة المسجلة: PR #68 (`feat: complete R6 session correction and manual
+financial flows`) مدموج فعليًا؛ PR HEAD قبل الدمج
+`2ce191d4c61b82d27b837950074dac16b43f5297`؛ merge commit
+`0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f`؛ وقت الدمج
+`2026-11-13T13:47:20Z`؛ `github/main` =
+`0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f`. PUSHED = PASS، PR #68 =
+MERGED، MERGED = PASS، CI VERIFIED = PASS.
+
+CI النهائي على رأس PR قبل الدمج: تطبيق PASS، قاعدة PASS، اختبارات القاعدة
+`FILES=90 PASS=2899 FAIL=0 ERROR=0`، الفهرس المولَّد PASS، وSupabase
+Preview SKIPPED وليس failure. حالة `MERGED = NO` و`CI VERIFIED = UNKNOWN`
+و«الدمج هو الخطوة التالية» صارت **HISTORICAL** ولا تُقرأ كحالة اليوم.
+
+حُدثت `RESUME_POINT.md` و`PROGRESS.md` وهذا السجل و`OPEN_ISSUES.md`
+و`RESUME_HISTORY.md` و`PROJECT_MAP.md` و`DECISION_IMPLEMENTATION_MATRIX.md`.
+لم تتغير حالة الميزات: لا Implementation Pending جديدة، ولا تحويل لدين قبول
+الجهاز إلى دين تنفيذ، ولا إعلان نشر سحابي.
+
+**NEXT = Device acceptance للتعديل المالي اليدوي للجلسة الموجود.**
+
 ## 2026-11-13 — دفع PR #68 ونجاح CI وإصلاح الفهرس المولَّد
+
+**HISTORICAL للجزء الخاص بحالة الدمج فقط:** `MERGED = NO` كان صحيحًا حتى
+الدمج في `0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f` فقط.
 
 حُدثت `RESUME_POINT.md` و`PROGRESS.md` وهذا السجل و`OPEN_ISSUES.md`
 و`DECISIONS.md` و`DECISION_IMPLEMENTATION_MATRIX.md` بعد دفع الفرع
