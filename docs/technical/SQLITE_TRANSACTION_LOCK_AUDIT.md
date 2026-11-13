@@ -3,8 +3,17 @@
 **القرار الحاكم:** ق-138
 **التاريخ:** 2026-11-13
 **المعرّف الداخلي للمرحلة:** F-SYNC
-**الحالة:** IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
-GIT CLOSEOUT PENDING
+**الحالة:** CLOSED / IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
+CI VERIFIED + MERGED
+
+**إغلاق Git (2026-11-13):** PR #70 (`fix/android-sqlite-ownership`) ·
+PR HEAD `656f73d407861a71ae728c56066ac54d621ac322` · CI workflow
+`checks`، run `43482437255`، conclusion `success` (2 successful /
+0 failing / 1 skipped) · merge commit
+`b7736d18cdffd89b39b776392256e2598a62f834` · وقت الدمج
+`2026-11-13T18:36:21Z`. الحالة السابقة `GIT CLOSEOUT PENDING` صارت
+**تاريخًا**. الإغلاق في Git ليس نشرًا سحابيًا، ولا يغيّر عقد `api` ولا
+دلالات المال، ولا يغلق F-RECON.
 
 هذه الوثيقة هي **المصدر التقني التفصيلي** لعطل تعليق SQLite على Android
 وللرقعة الإنتاجية التي أعالجته. أي وثيقة أخرى تذكر أرقامًا أو آلية أو
@@ -384,14 +393,26 @@ row count for last command = 1
 
 ```text
 F-SYNC:
+CLOSED
 IMPLEMENTED
 LOCAL VERIFIED
 DEVICE ACCEPTED
-GIT CLOSEOUT PENDING
+CI VERIFIED
+MERGED
 ```
 
-**ما يغلقها إلى `CLOSED`:** commit ثم push ثم PR ثم CI ناجح على الرقعة
-نفسها ثم merge. لم يحدث أي من ذلك حتى تدوين هذه الوثيقة.
+**دليل الإغلاق (2026-11-13):** PR #70 · PR HEAD
+`656f73d407861a71ae728c56066ac54d621ac322` · CI workflow `checks`،
+run `43482437255`، `success` (2 successful / 0 failing / 1 skipped) ·
+merge commit `b7736d18cdffd89b39b776392256e2598a62f834` ·
+`2026-11-13T18:36:21Z`.
+
+**التاريخ المحفوظ:** حتى دمج PR #70 كانت الحالة
+`IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + GIT CLOSEOUT PENDING`
+(لا commit ولا push ولا PR ولا CI ولا merge). ذلك الوصف صحيح زمانه فقط
+ولا يُقرأ كحالة اليوم.
 
 **ولا تعني هذه الحالة:** نشرًا سحابيًا، ولا تغييرًا في عقد `api`
-أو في دلالات المال، ولا إغلاق F-RECON.
+أو في دلالات المال، ولا إغلاق F-RECON، ولا ضمان ملكية عامة لملف SQLite.
+إعادة Device Acceptance شرط دائم عند أي ترقية أو إزالة `third_party/`
+أو تغيير worker count (الثوابت 769–773).

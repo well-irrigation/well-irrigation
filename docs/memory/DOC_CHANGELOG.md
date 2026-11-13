@@ -1,5 +1,55 @@
 # سجل تغييرات الوثائق
 
+## 2026-11-13 — إغلاق Git لـF-SYNC بعد دمج PR #70
+
+**جولة توثيق فقط.** لا `apps/**` ولا `third_party/**` ولا `supabase/**`
+ولا migrations ولا عقود خادم ولا `.github/**` ولا سكربتات ولا `AGENTS.md`
+ولا Documentation Gate. لا cherry-pick ولا نسخ من فرع سابق، ولا stage
+ولا commit ولا push.
+
+**السياق:** الفرع `docs/fsync-pr70-closeout` أُنشئ من `github/main` عند
+`b7736d18cdffd89b39b776392256e2598a62f834` وهو **merge commit لـPR #70**،
+ويحتوي أصلًا على كامل عمل F-SYNC الإنتاجي والتوثيقي. لا شيء من عمل F-SYNC
+احتاج نقلًا في هذه الجولة.
+
+### ما تغيّر
+
+1. **حالة F-SYNC تحولت من `GIT CLOSEOUT PENDING` إلى `CLOSED`** في:
+   `memory/DECISIONS.md` (ق-138)، `technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`،
+   `technical/FOREGROUND_SYNC_LATENCY.md`، `technical/SYNC_ARCHITECTURE.md`،
+   `technical/DECISION_IMPLEMENTATION_MATRIX.md`، `memory/RESUME_POINT.md`،
+   `memory/OPEN_ISSUES.md`، `memory/PROGRESS.md`، `PROJECT_MAP.md`.
+   الصيغة:
+   `CLOSED / IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + CI VERIFIED + MERGED`.
+2. **أدلة الإغلاق مسجلة في كل موضع:** PR #70 · PR HEAD
+   `656f73d407861a71ae728c56066ac54d621ac322` · CI workflow `checks`،
+   run `43482437255`، `success` (2 successful / 0 failing / 1 skipped) ·
+   merge commit `b7736d18cdffd89b39b776392256e2598a62f834` ·
+   `2026-11-13T18:36:21Z`.
+3. **`RESUME_POINT.md`:** `F-SYNC = CLOSED` و**NEXT = F-RECON**؛ ولا يبقى
+   Git closeout كخطوة حالية. أُضيف حارس
+   `DO NOT reopen F-SYNC Git closeout — PR #70 is merged`.
+4. **`RESUME_HISTORY.md`:** الحالة السابقة «F-SYNC … GIT CLOSEOUT PENDING»
+   نُقلت كـ**HISTORICAL** مع بيان أن صلاحيتها انتهت عند
+   `2026-11-13T18:36:21Z`.
+5. **`OPEN_ISSUES.md`:** بند F-SYNC صار **CLOSED (ليس مسألة مفتوحة)** ولم
+   يعد فجوة تقنية؛ وبقي الشرط الدائم لإعادة Device Acceptance.
+6. **`PROGRESS.md`:** مدخل جديد يثبت CI VERIFIED + MERGED + F-SYNC =
+   CLOSED، والمدخل السابق وُسم **HISTORICAL**.
+7. **`INVARIANTS.md`:** **لم يتغير** — الثوابت 769–773 قواعد دائمة لا تتبع
+   حالة Git.
+
+### ما لم يتغير
+
+- **F-RECON = OPEN / BLOCKED** دون أي تعديل تنفيذي، ولا يُخلط بـF-SYNC.
+- الخادم والسحابة: لا نشر جديد؛ الحالة حتى `20261111000000` كما هي.
+- لا تغيير في `api` أو دلالات المال أو مخطط SQLite.
+
+### هل تغيّر Baseline
+
+الموضع الحالي لا: `github/main` على `b7736d18cdffd89b39b776392256e2598a62f834`
+قبل هذه الجولة وبعدها. حالة F-SYNC الحاكمة صارت **CLOSED**.
+
 ## 2026-11-13 — توثيق F-SYNC وق-138 وتصحيح حالة السحابة
 
 **جولة توثيق فقط.** لا كود إنتاج ولا `apps/mobile/**` ولا `third_party/**`
@@ -59,9 +109,9 @@ F-RECON قبل حفظ فهم هذا العطل مع أدلته وحدود ضما
 
 ### هل تغيّر Baseline
 
-لا. لا تغيير في كود الإنتاج ولا في الهجرات ولا في عقود الخادم؛ حالة
-F-SYNC الحاكمة هي **GIT CLOSEOUT PENDING**، و`CLOSED` لا تُكتب قبل إغلاق
-Git.
+لا، في وقتها. لا تغيير في كود الإنتاج ولا في الهجرات ولا في عقود الخادم؛
+كانت حالة F-SYNC حين تدوين هذا المدخل **GIT CLOSEOUT PENDING** و`CLOSED`
+لا تُكتب قبل إغلاق Git. **انتهت بدمج PR #70 — انظر المدخل أعلى السجل.**
 
 ## 2026-11-13 — إغلاق توثيقي بعد دمج PR #68
 

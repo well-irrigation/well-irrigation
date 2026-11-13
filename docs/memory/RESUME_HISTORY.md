@@ -28,6 +28,28 @@ PASS. **لا Git/PR/CI gate أمام الانتقال**، والمهمة الح�
 
 ---
 
+# لقطة سابقة — «F-SYNC ... GIT CLOSEOUT PENDING» (انتقلت 2026-11-13)
+
+**HISTORICAL — غير نافذة.** هذه هي الحالة التي دخلت PR #70 قبل الدمج، وكانت
+صحيحة حتى `2026-11-13T18:36:21Z` فقط. أبطلها دمج PR #70 عند
+`b7736d18cdffd89b39b776392256e2598a62f834`.
+
+- **CURRENT حينها:** F-SYNC production patch implemented + local verified +
+  device accepted؛ **Git closeout pending**؛ Cloud migration gate cleared
+  through `20261111000000`؛ Manual financial device acceptance PASS؛
+  Session correction operational acceptance PASS؛ F-RECON OPEN/BLOCKED.
+- **ق-138 حينها:** `ADOPTED + IMPLEMENTED + LOCAL VERIFIED + DEVICE
+  ACCEPTED + GIT CLOSEOUT PENDING`.
+- **NEXT حينها:** (1) Git/PR/CI closeout لـF-SYNC ثم تحويل الحالة إلى
+  CLOSED؛ (2) بدء F-RECON.
+- **ما لم يحدث حينها:** commit، push، PR، CI على الرقعة، merge.
+
+**الحالة اليوم:** F-SYNC = **CLOSED** عبر PR #70 (CI `checks`، run
+`43482437255`، success؛ merge `b7736d18cdffd89b39b776392256e2598a62f834`)،
+والخطوة الحالية صارت **F-RECON**. انظر `RESUME_POINT.md`.
+
+---
+
 # لقطة سابقة — «PR #68 مدموج، والتالي هو قبول الجهاز» (انتقلت 2026-11-13)
 
 هذه لقطة منقولة من `RESUME_POINT.md` عند جولة توثيق F-SYNC. صحيحة حتى
