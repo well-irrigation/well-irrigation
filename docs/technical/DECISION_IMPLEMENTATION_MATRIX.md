@@ -680,14 +680,16 @@ UNRESOLVED FINANCIAL CONFLICTS = NONE` كما أفادها المالك، ولا
 | التنفيذ | نسخة vendored من `sqflite_android 2.4.3` في `third_party/sqflite_android/`؛ `THREAD_COUNT=2`؛ ربط `dependency_overrides` بمسار محلي في `apps/mobile/pubspec.yaml` و`pubspec.lock`؛ لا `devSetOptions` في الإنتاج |
 | الدليل | RED/GREEN لاختبار تقدم مالك المعاملة (`worker=1` FAIL / `worker=2` PASS)؛ A/B على الجهاز (`57→56` ≈3.8s بدل ≈4m30s)؛ Android الأصلية 11 PASS؛ المركزة 53 PASS؛ sync/recovery/notifications 2144 PASS؛ full mobile package 3359 PASS؛ `flutter analyze` 0 issues؛ `git diff --check` PASS؛ قبول جهاز Samsung SM-A136U PASS؛ تعديل مالي `56→55` ≈4.62s بلا تكرار |
 | الأثر على الخادم/المال | لا شيء — لا تغيير في Supabase أو `api` أو عقود الخادم أو دلالات المال |
-| الحالة | IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + **GIT CLOSEOUT PENDING** |
-| المطلوب للإغلاق | commit ثم push ثم PR ثم CI ناجح على الرقعة نفسها ثم merge؛ بعده تتحول الحالة إلى CLOSED |
+| الحالة | **CLOSED** / IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + CI VERIFIED + MERGED |
+| الإغلاق في Git | PR #70 · PR HEAD `656f73d407861a71ae728c56066ac54d621ac322` · CI workflow `checks`، run `43482437255`، `success` (2 successful / 0 failing / 1 skipped) · merge commit `b7736d18cdffd89b39b776392256e2598a62f834` · `2026-11-13T18:36:21Z` |
 | القيود | لا تدّعي ملكية عامة لملف SQLite؛ كل ترقية/إزالة `third_party`/تغيير worker count تبطل القبول وتستوجب إعادة Device Acceptance (الثوابت 769–773) |
 | المسألة المستقلة | F-RECON (المصالحة بعد التصحيح) لم تُصلح هنا؛ مفتوحة في `../memory/OPEN_ISSUES.md` |
 
-**ما لم يُثبت:** CI VERIFIED على رقعة F-SYNC = UNKNOWN (لم يُشغَّل)؛
-PUSHED = NO؛ MERGED = NO؛ CLOUD DEPLOYED = غير منطبق (لا هجرة).
-`DEVICE ACCEPTED = PASS` لهذا البند وحده، ولا يُنقل إلى أي حزمة أخرى.
+**الحالة النهائية:** CI VERIFIED = PASS (run `43482437255`)؛
+PUSHED = YES؛ MERGED = YES؛ **F-SYNC = CLOSED**؛ CLOUD DEPLOYED = غير
+منطبق (لا هجرة). `DEVICE ACCEPTED = PASS` لهذا البند وحده، ولا يُنقل إلى
+أي حزمة أخرى. **HISTORICAL:** خلايا «CI VERIFIED = UNKNOWN / PUSHED = NO /
+MERGED = NO» وصفت الرقعة قبل دمج PR #70 فقط.
 
 
 ## سجل المطابقة الحاكم R6 — بعد التزام C3

@@ -1,13 +1,17 @@
 # خريطة المشروع — مصادر الحقيقة الحالية
 
-**آخر تحديث:** 2026-11-13 (جولة توثيق F-SYNC)
+**آخر تحديث:** 2026-11-13 (إغلاق Git لـF-SYNC بعد PR #70)
 
-## مؤشر الحالة الحالي — F-SYNC وGit Closeout (2026-11-13)
+## مؤشر الحالة الحالي — F-SYNC مغلق، والتالي F-RECON (2026-11-13)
 
-**الخطوة الحالية:** **Git/PR/CI closeout لـF-SYNC** (رقعة Android SQLite
-ذات العاملين، ق-138). الحالة **IMPLEMENTED + LOCAL VERIFIED + DEVICE
-ACCEPTED + GIT CLOSEOUT PENDING**؛ لا commit ولا push ولا PR ولا CI على
-الرقعة نفسها ولا merge، و`CLOSED` لا تُكتب قبل إغلاق Git.
+**F-SYNC = CLOSED.** رقعة Android SQLite ذات العاملين (ق-138) دخلت `main`
+عبر **PR #70** بعد نجاح CI: PR HEAD
+`656f73d407861a71ae728c56066ac54d621ac322` · CI workflow `checks`،
+run `43482437255`، `success` (2 successful / 0 failing / 1 skipped) ·
+merge commit `b7736d18cdffd89b39b776392256e2598a62f834` ·
+`2026-11-13T18:36:21Z`. الحالة:
+**CLOSED / IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + CI VERIFIED +
+MERGED**. **الخطوة الحالية = F-RECON.**
 
 - **آخر قرار مرقم = ق-138** (`memory/DECISIONS.md`)، وآخر invariant = 773.
 - **المصدر التقني لـF-SYNC موجود فعلًا:**

@@ -981,8 +981,10 @@ always-online assumptions that contradict ق-89/ق-90.
 
 ## ق-138 — طبقة SQLite المحلية المشتركة بين المقدمة والخلفية (2026-11-13)
 
-**الحالة:** IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
-GIT CLOSEOUT PENDING. المصدر التقني التفصيلي:
+**الحالة:** CLOSED / IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
+CI VERIFIED + MERGED — دخلت عبر PR #70 (merge
+`b7736d18cdffd89b39b776392256e2598a62f834`، 2026-11-13T18:36:21Z،
+CI run `43482437255` success). المصدر التقني التفصيلي:
 `SQLITE_TRANSACTION_LOCK_AUDIT.md`.
 
 ### الواقع المعماري

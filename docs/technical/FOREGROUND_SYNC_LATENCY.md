@@ -3,7 +3,9 @@
 **القرارات الحاكمة:** ق-89، ق-90، ق-133، ق-137، ق-138
 **آخر تحديث:** 2026-11-13
 **الحالة:** أُغلقت أسباب `ForegroundSyncWake` تقنيًا ومحليًا؛ وأُغلق عطل
-تعليق SQLite على Android تقنيًا بق-138 بحالة GIT CLOSEOUT PENDING.
+تعليق SQLite على Android بق-138 **وأُغلق في Git**: PR #70 دُمج عند
+`b7736d18cdffd89b39b776392256e2598a62f834` (2026-11-13T18:36:21Z) بعد
+نجاح CI run `43482437255`.
 
 هذه الوثيقة تفصل بين **ثلاث طبقات مختلفة** كانت تُخلط في وصف واحد
 «التطبيق يتأخر»:
@@ -167,8 +169,10 @@
   `132841ms` و`263242ms` و`87541ms` و`82644ms`.
 - الإصلاح: نسخة vendored من `sqflite_android 2.4.3` في `third_party/`
   بـ`THREAD_COUNT=2`، بلا `devSetOptions` في الإنتاج.
-- الحالة: IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
-  **GIT CLOSEOUT PENDING**.
+- الحالة: **CLOSED** / IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
+  CI VERIFIED + MERGED (PR #70، merge commit
+  `b7736d18cdffd89b39b776392256e2598a62f834`، 2026-11-13T18:36:21Z؛
+  CI workflow `checks`، run `43482437255`، success).
 
 كل الأرقام والأدلة والبدائل المستبعدة في
 `SQLITE_TRANSACTION_LOCK_AUDIT.md`؛ ولا تُنسخ هنا.

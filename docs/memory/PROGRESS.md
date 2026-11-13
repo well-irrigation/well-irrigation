@@ -1,13 +1,28 @@
 # سجل التقدم
 
-## 2026-11-13 — F-SYNC: رقعة Android SQLite ذات عاملين (مثبت محليًا وجهازيًا، Git Closeout Pending)
+## 2026-11-13 — F-SYNC مغلق: PR #70 مدموج و CI ناجح
 
-**جولة توثيق فقط.** تغييرات المصدر الإنتاجية لـF-SYNC
-(`apps/mobile/pubspec.yaml` و`apps/mobile/pubspec.lock` و`third_party/`)
-كانت موجودة في الشجرة **قبل** هذه الجولة ولم تُنشأ فيها. لا commit ولا
-push ولا PR ولا CI ولا merge ضمن هذه الجولة.
+**PR #70** (`fix/android-sqlite-ownership`) مدموج فعليًا. PR HEAD قبل
+الدمج `656f73d407861a71ae728c56066ac54d621ac322`؛ CI workflow `checks`،
+run `43482437255`، conclusion `success` (2 successful / 0 failing /
+1 skipped)؛ merge commit `b7736d18cdffd89b39b776392256e2598a62f834`؛
+وقت الدمج `2026-11-13T18:36:21Z`.
 
-**المسجَّل أدناه كل ما ثبت فعلًا، ولا شيء منه يعني دمجًا أو نشرًا.**
+**الحالة:** `CHECKED OUT = PASS` · `CI VERIFIED = PASS` · `MERGED = PASS`
+· **F-SYNC = CLOSED**. الإغلاق في Git ليس نشرًا سحابيًا، والرقعة لا تغيّر
+`api` ولا دلالات المال، ولا تغلق F-RECON.
+
+**HISTORICAL:** الحالة `GIT CLOSEOUT PENDING` في المدخل التالي وصفت حالة
+الرقعة قبل الدمج فقط، وأبطلها دمج PR #70. يُحفظ للسرد ولا يُقرأ كحالة اليوم.
+
+### المدخل السابق (تاريخي) — رقعة Android SQLite ذات عاملين (مثبتة محليًا وجهازيًا)
+
+**جولة توثيق حينها — لا كود إنتاج في تلك الجولة.** تغييرات المصدر
+الإنتاجية لـF-SYNC (`apps/mobile/pubspec.yaml` و`apps/mobile/pubspec.lock`
+و`third_party/`) كانت موجودة في الشجرة **قبلها** ولم تُنشأ فيها.
+
+**المسجَّل أدناه كل ما ثبت فعلًا حتى تلك اللقطة. الدمج تحقق لاحقًا عبر
+PR #70 كما في المدخل أعلاه، ولا يبقى أي جزء منه Pending في Git.**
 
 ### التشخيص المثبت (جهاز Samsung SM-A136U · Android 12 · API 31)
 
@@ -78,15 +93,15 @@ push ولا PR ولا CI ولا merge ضمن هذه الجولة.
 `approved_amount_minor=55` و`manual_approval_revision=3`؛ قراءة canonical
 PASS وعدد صفوف الأمر الأخير = 1 ⇒ `no duplicate PASS`.
 
-### الحالة المسجلة
+### الحالة حين تدوين هذا المدخل (HISTORICAL)
 
 ```text
 F-SYNC: IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + GIT CLOSEOUT PENDING
 ```
 
-**لم يحدث:** commit، push، PR، CI على الرقعة، merge. لذلك **لا** تُقرأ
-هذه الحزمة مدموجة أو مغلقة في Git، ولا يجوز كتابة `CLOSED` قبل إغلاق
-Git. ولا يعني ذلك نشرًا سحابيًا أو تغييرًا في `api` أو دلالات المال.
+بانتظار commit، push، PR، CI على الرقعة، merge. **أُبطل هذا السطر
+بدمج PR #70** — انظر المدخل أعلاه. والحالة الحاكمة اليوم `CLOSED`، ولا
+يعني ذلك نشرًا سحابيًا أو تغييرًا في `api` أو دلالات المال.
 
 **F-RECON** مسألة مستقلة ما زالت `OPEN / BLOCKED`
 (`ops.session_correction_reconciliations`: `status=pending`,

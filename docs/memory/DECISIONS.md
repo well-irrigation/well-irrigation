@@ -1,7 +1,7 @@
 # سجل القرارات
 
 **آخر قرار مرقّم:** ق-138 (آخر قرار معتمد: ق-138)
-**آخر تحديث:** 2026-11-13
+**آخر تحديث:** 2026-11-13 (إغلاق Git لـق-138 بعد PR #70)
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
 ---
@@ -7776,8 +7776,17 @@ COMPLETE` · `LIVE UNRESOLVED FINANCIAL CONFLICTS = NONE` — نتيجة الت�
 
 ## ق-138 — اعتماد رقعة Android SQLite ذات عاملين لـsqflite_android ومنع الرجوع الصامت إلى worker واحد (اعتماد المالك 2026-11-13)
 
-**الحالة: ADOPTED + IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
-GIT CLOSEOUT PENDING**
+**الحالة: CLOSED / ADOPTED + IMPLEMENTED + LOCAL VERIFIED + DEVICE
+ACCEPTED + CI VERIFIED + MERGED**
+
+**إغلاق Git (2026-11-13):** PR #70 بعنوان
+`fix/android-sqlite-ownership` · PR HEAD
+`656f73d407861a71ae728c56066ac54d621ac322` · CI workflow `checks`،
+run `43482437255`، conclusion `success` (2 successful / 0 failing /
+1 skipped) · merge commit `b7736d18cdffd89b39b776392256e2598a62f834` ·
+وقت الدمج `2026-11-13T18:36:21Z`. **الحالة السابقة `GIT CLOSEOUT
+PENDING` صارت تاريخًا** ولا تُقرأ كحالة اليوم. الإغلاق في Git لا يفتح
+نشرًا سحابيًا ولا يغيّر عقد `api` ولا دلالات المال، ولا يغلق F-RECON.
 
 ### المشكلة
 
@@ -7914,9 +7923,16 @@ upstream وإعادة قبول الجهاز؛ وإعادة الحزمة إلى �
 التفصيلي) و`docs/technical/FOREGROUND_SYNC_LATENCY.md` و
 `third_party/sqflite_android/PATCHES.md`.
 
-### المسألة المفتوحة الناتجة
+### الإغلاق والمسائل المتبقية
 
-الرقعة لم تُغلق في Git: لا commit ولا push ولا PR ولا CI على الرقعة
-نفسها ولا merge حتى تدوين هذا القرار؛ **GIT CLOSEOUT PENDING**، ولا
-تُحوَّل إلى CLOSED إلا بعد إغلاق Git. وF-RECON مسألة مستقلة مفتوحة
-**لم تُصلح** في هذه الجولة؛ تفصيلها في `../memory/OPEN_ISSUES.md`.
+**GIT CLOSEOUT = PASS (2026-11-13):** PR #70 دُمج عند
+`b7736d18cdffd89b39b776392256e2598a62f834` بعد نجاح CI
+(run `43482437255` على PR HEAD
+`656f73d407861a71ae728c56066ac54d621ac322`)، فاكتملت الحالة إلى
+**CLOSED**.
+
+**ما لا يزال مفتوحًا ولا يخص هذا القرار:** **F-RECON** مسألة مستقلة
+`OPEN / BLOCKED` ولم تُصلح؛ تفصيلها في `../memory/OPEN_ISSUES.md`.
+وإعادة Device Acceptance تبقى شرطًا دائمًا عند أي ترقية لـ
+`sqflite`/`sqflite_android` أو إزالة `third_party/` أو العودة إلى hosted
+أو تغيير worker count (الثوابت 769–773).

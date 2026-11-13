@@ -1,4 +1,4 @@
-# نقطة الاستئناف — F-SYNC منفذ ومقبول جهازيًا، وGit Closeout هو الخطوة (2026-11-13)
+# نقطة الاستئناف — F-SYNC مغلق (PR #70 مدموج)، والتالي هو F-RECON (2026-11-13)
 
 **الحالة:** نافذ · **القرارات الحاكمة:** ق-93، ق-127، ق-128، ق-129، ق-130، ق-131، ق-132، ق-133، ق-134، ق-137، **ق-138** وملحق R6 في `DECISIONS.md` · **السرد الزمني:** `RESUME_HISTORY.md`
 
@@ -9,8 +9,9 @@
 ## CURRENT
 
 ```text
-F-SYNC production patch implemented + local verified + device accepted.
-Git closeout pending.
+F-SYNC = CLOSED.
+Implemented + local verified + device accepted + CI verified + merged
+via PR #70.
 
 Cloud migration gate cleared through 20261111000000.
 
@@ -22,11 +23,16 @@ F-RECON remains OPEN/BLOCKED because no runtime reconciliation
 consumer has been proven.
 ```
 
-**F-SYNC (ق-138):** عطل تعليق SQLite على Android أُغلق تقنيًا بنسخة
+**F-SYNC (ق-138) = CLOSED:** عطل تعليق SQLite على Android أُغلق بنسخة
 vendored من `sqflite_android 2.4.3` بـ`THREAD_COUNT=2` في
-`third_party/`؛ لا `devSetOptions` في الإنتاج. الحالة
-**IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + GIT CLOSEOUT PENDING**.
-المصدر التقني التفصيلي: `../technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`.
+`third_party/`؛ لا `devSetOptions` في الإنتاج.
+**Git:** PR #70 · PR HEAD
+`656f73d407861a71ae728c56066ac54d621ac322` · CI workflow `checks`،
+run `43482437255`، `success` (2 successful / 0 failing / 1 skipped) ·
+merge commit `b7736d18cdffd89b39b776392256e2598a62f834` ·
+`2026-11-13T18:36:21Z`. المصدر التقني التفصيلي:
+`../technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`. **لا خطوة Git متبقية
+على F-SYNC، ولا يُعاد تشخيصه.**
 
 **السحابة:** الهجرات منشورة ومثبتة حتى `20261111000000`، فلا بوابة سحابية
 خلفية على المشروع الآن. لا يُستنتج من ذلك قبول جهاز، ولا يُستنتج قبول
@@ -39,9 +45,11 @@ vendored من `sqflite_android 2.4.3` بـ`THREAD_COUNT=2` في
 
 ## NEXT
 
-1. **Git/PR/CI closeout لـF-SYNC** — commit ثم push ثم PR ثم CI ناجح على
-   الرقعة نفسها ثم merge. بعده فقط تتحول الحالة إلى CLOSED.
-2. بعد اجتياز بوابة التوثيق بعد الدمج: بدء **F-RECON**.
+1. **F-RECON** — بدء المسألة المستقلة: إثبات مستهلك runtime إنتاجي يبدأ
+   `billing.reconcile_session_correction(...)`، ثم إغلاق `pending` بدليل،
+   مع عدم افتراض الكتابة فوق موافقة مالية يدوية سابقة.
+2. بعده: بنود قبول الجهاز المتبقية للحزم R6 دون تحويل دين القبول إلى
+   دين تنفيذ.
 
 ## DO NOT REDO — حراس إلزامية
 
@@ -50,6 +58,7 @@ DO NOT reimplement R6.
 DO NOT redo F-SYNC diagnosis.
 DO NOT delete sequence 55 as an F-SYNC fix.
 DO NOT remove vendored sqflite patch without device re-acceptance.
+DO NOT reopen F-SYNC Git closeout — PR #70 is merged.
 ```
 
 ## 5. حدود لا تُخترق
