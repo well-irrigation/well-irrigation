@@ -1,11 +1,42 @@
 # سجل التقدم
 
+## 2026-11-13 — دمج PR #68 في main وإغلاق بوابة Git/PR/CI
+
+**PR #68 مدموج فعليًا.** العنوان `feat: complete R6 session correction and
+manual financial flows`؛ PR HEAD قبل الدمج
+`2ce191d4c61b82d27b837950074dac16b43f5297`؛ merge commit
+`0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f`؛ وقت الدمج
+`2026-11-13T13:47:20Z`؛ و`github/main` =
+`0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f`.
+
+**الحالة:** PUSHED = PASS · PR #68 = MERGED · MERGED = PASS · CI VERIFIED
+= PASS. الدفع والطلب وCI ودمجه انتهت؛ **لا Git/PR/CI gate أمام الانتقال**.
+
+**CI النهائي على رأس PR:** نجح بالكامل — تطبيق PASS، قاعدة PASS، اختبارات
+القاعدة `FILES=90 PASS=2899 FAIL=0 ERROR=0`، الفهرس المولَّد PASS،
+وSupabase Preview SKIPPED وليس failure (run `43327175243` على `eec07a2`).
+
+**المهمة الحالية الآن:** Device acceptance للتعديل المالي اليدوي للجلسة
+الموجود بالفعل؛ ثم ربط الحساب المالي للمزارع، ثم الأرصدة الافتتاحية
+وتعويض العامل، ثم التوزيع والمصروفات والخزانات، ثم اتساق المزامنة واللغة.
+
+**ما لم يتغير:** قبول الجهاز يبقى متبقيًا أو جزئيًا لكل حزمة؛ نجاح CI
+ليس قبول جهاز. لا نشر سحابي للهجرات بعد `20261108002500`؛ ووجود العقود
+في PR لا يعني نشرها — **الدمج ليس نشرًا سحابيًا**. ولا إعادة تنفيذ لأي
+من الحزم الأربع.
+
 ## 2026-11-13 — PR #68 مدفوع و CI ناجح بعد إصلاح الفهرس المولَّد
+
+**HISTORICAL للجزء الخاص بحالة الدمج فقط:** هذا المدخل يصف حال الفرع قبل
+دمجه. `MERGED = NO` و«الدمج هو الخطوة التالية» كانا صحيحين حتى
+`2026-11-13T13:47:20Z` فقط، وأبطلهما المدخل أعلاه.
 
 الفرع `feat/r6-ui-session-correction` مدفوع، ورأسه على GitHub
 `eec07a20228f34743fbb0c81c6bd8cd61e712127`. أُنشئ PR #68
 (`feat: complete R6 session correction and manual financial flows`)
-إلى `main`: OPEN = YES وMERGEABLE = YES وMERGED = NO.
+إلى `main`: OPEN = YES وMERGEABLE = YES و~~MERGED = NO~~ **MERGED =
+NO وقتها فقط؛ دُمج لاحقًا في `0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f`
+(2026-11-13T13:47:20Z) — انظر المدخل أعلاه.**
 
 **CI على `eec07a2` — run `43327175243`:**
 - كود التطبيق = PASS.

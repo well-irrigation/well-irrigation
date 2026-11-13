@@ -622,19 +622,32 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 | الحزمة | DECIDED | DOCUMENTED | SERVER IMPLEMENTED | MOBILE IMPLEMENTED | UI IMPLEMENTED | LOCAL VERIFIED | CI VERIFIED | COMMITTED | PUSHED | MERGED | CLOUD DEPLOYED | DEVICE ACCEPTED |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | A — R6-A/B والبدء من الهاتف | YES | YES | YES | YES | YES | YES | PASS | YES | YES | PARTIAL | PARTIAL | PARTIAL |
-| B — تصحيح الجلسة المنفذة | YES | YES | YES | YES | YES | YES | PASS | YES | YES | NO | PARTIAL | PENDING |
-| C — الإدخال اليدوي للجلسة التاريخية | YES | YES | YES | YES | YES | YES | PASS | YES | YES | NO | NO | PENDING |
-| D — تعديل مبلغ الجلسة اليدوي | YES | YES | YES | YES | YES | YES | PASS | YES | YES | NO | NO | PENDING |
+| B — تصحيح الجلسة المنفذة | YES | YES | YES | YES | YES | YES | PASS | YES | YES | YES | PARTIAL | PENDING |
+| C — الإدخال اليدوي للجلسة التاريخية | YES | YES | YES | YES | YES | YES | PASS | YES | YES | YES | NO | PENDING |
+| D — تعديل مبلغ الجلسة اليدوي | YES | YES | YES | YES | YES | YES | PASS | YES | YES | YES | NO | PENDING |
+
+**الدمج:** PR #68 مدموج في `main` عند merge commit
+`0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f`، وقت الدمج
+`2026-11-13T13:47:20Z`، وPR HEAD قبل الدمج
+`2ce191d4c61b82d27b837950074dac16b43f5297`. **MERGED = PASS لـB وC وD**؛
+**ودمج PR ليس نشرًا سحابيًا**، فخلايا `CLOUD DEPLOYED` لم تتغير.
 
 **تفصيل الخلايا غير المطلقة:**
 
-- **PUSHED = YES للجميع:** رأس الفرع على GitHub هو `eec07a2` في PR #68.
+- **PUSHED = YES للجميع:** رأس الفرع `feat/r6-ui-session-correction` كان
+  `eec07a2` ثم `2ce191d` في PR #68 قبل الدمج.
 - **CI VERIFIED = PASS للجميع:** run `43327175243` على `eec07a2`؛ تطبيق
   PASS وقاعدة PASS واختبارات `FILES=90 PASS=2899 FAIL=0 ERROR=0`،
   وSupabase Preview SKIPPED وليس فشلًا. CI لا يعني قبول جهاز.
-- **MERGED = NO لـB وC وD:** PR #68 مفتوح وMERGEABLE = YES ولم يُدمج.
-- **A — MERGED = PARTIAL:** مسار البدء من الهاتف مدموج في `main` عبر
-  PR #67؛ التعافي الموجّه والبقية في PR #68 غير المدموج.
+- **MERGED = YES لـB وC وD:** كل ما في PR #68 صار في `main` عند
+  `0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f`.
+- **A — MERGED = PARTIAL:** مسار البدء من الهاتف دُمج سابقًا عبر PR #67،
+  والتعافي الموجّه والبقية دخلتا الآن مع PR #68؛ يبقى «partial» لأنه لا
+  سجل قبول جهاز لكامل المسار، لا لنقص دمج.
+- **A — CLOUD DEPLOYED = PARTIAL:** خادم R6-A/B ضمن الدفعة المنشورة حتى
+  `20261108002500`؛ واجهة الهاتف ليست نشرًا سحابيًا.
+- **DEVICE ACCEPTED = PARTIAL/PENDING للجميع:** لم يتغير بقبول الدمج؛
+  المتبقي **دين قبول جهاز** لا يجوز تحويله إلى دين تنفيذ.
 - **A — CLOUD DEPLOYED = PARTIAL:** خادم R6-A/B ضمن الدفعة المنشورة حتى
   `20261108002500`؛ واجهة الهاتف ليست نشرًا سحابيًا.
 - **A — DEVICE ACCEPTED = PARTIAL:** سجل الجهاز المحفوظ يخص التعافي
