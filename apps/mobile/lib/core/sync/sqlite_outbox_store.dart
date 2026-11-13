@@ -25,6 +25,7 @@ import '../notifications/booking_notification_event_factory.dart';
 import '../notifications/notification_event_store.dart';
 import '../notifications/operational_notification_event_factory.dart';
 import 'command_id_generator.dart';
+import 'start_recovery_policy.dart';
 import 'command_intent_evidence_reader.dart';
 import 'command_intent_policy.dart';
 import 'command_envelope.dart';
@@ -33,9 +34,15 @@ import 'outbox_database.dart';
 import 'outbox_store.dart';
 import 'outbox_repository.dart';
 import 'sync_status.dart';
+import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 class SqliteOutboxStore
     implements
+        StartRecoveryLocalStore,
+        SessionFinancialAdjustmentStore,
+        ManualSessionEntryFollowUpStore,
+        SessionCorrectionInsertStore,
         SessionExecutionStore,
         AtomicCommandDispatchStore,
         OutboxStore,
@@ -78,6 +85,70 @@ class SqliteOutboxStore
     }
 
     return database;
+  }
+
+  Future<StartRecoverySnapshot> _startRecoverySnapshot(DatabaseExecutor tx, String account) async {
+    final rows = await tx.query(commandsTable, where:'account_id=?', whereArgs:[account]);
+    final meta = await tx.query(metaTable, where:'account_id=?', whereArgs:[account]);
+    final mappings = await tx.query(mappingsTable, where:'account_id=?', whereArgs:[account]);
+    return StartRecoverySnapshot(account, rows.map(_fromRow).toList(),
+      {for(final e in meta) e['key'] as String:e['value'] as String}, mappings.map(_mappingFromRow).toList());
+  }
+
+  Future<StartRecoveryPolicy?> _currentStartRecoveryPolicy(DatabaseExecutor tx,String accountId) async {
+    final evidence=await tx.query(metaTable,columns:['key'],where:'account_id=? and key like ?',whereArgs:[accountId,'$startRecoveryPrefix%'],limit:1);
+    if(evidence.isEmpty) return null;
+    return (await _startRecoverySnapshot(tx,accountId)).policy;
+  }
+
+  @override
+  Future<StartRecoveryPolicy?> currentStartRecoveryPolicy(String accountId) async {
+    await initialize();
+    return _currentStartRecoveryPolicy(_db,accountId);
+  }
+
+  @override
+  Future<StartRecoverySnapshot> readStartRecovery(String accountId) async {
+    await initialize();
+    return _startRecoverySnapshot(_db, accountId);
+  }
+
+  @override
+  Future<T> startRecoveryTransaction<T>(String accountId,
+    StartRecoveryWrite<T> Function(StartRecoverySnapshot) decide) async {
+    await initialize();
+    return _withExecutionContentionRetry(() => _db.transaction((tx) async {
+      final snapshot = await _startRecoverySnapshot(tx,accountId);
+      final write = decide(snapshot);
+      final confirmed = write.confirmStart;
+      if(confirmed != null) {
+        await tx.update(commandsTable, {'status':CommandStatus.confirmed.storageValue,'server_response':jsonEncode(write.acceptedReceipt),'last_error':null},where:'account_id=? and local_id=?',whereArgs:[accountId,confirmed.localId]);
+        await tx.insert(mappingsTable, {'account_id':accountId,'local_id':confirmed.localId,'entity_kind':EntityKind.session.storageValue,'server_id':write.acceptedReceipt!['id'],'resolved_at':_encodeTime(confirmed.occurredAt),'matched_existing':0},conflictAlgorithm:ConflictAlgorithm.ignore);
+      }
+      for(final e in write.values.entries) {
+        if(!e.key.startsWith(startRecoveryPrefix) || snapshot.records.containsKey(e.key)) throw StateError('start_resolution_append_only_conflict');
+        await tx.insert(metaTable, {'account_id':accountId,'key':e.key,'value':e.value});
+      }
+      if(write.isCurrent != null && !write.isCurrent!()) throw StateError('stale_recovery_account');
+      return write.result;
+    }));
+  }
+
+  Future<bool> _recoveryAllows(DatabaseExecutor tx, String account, String local, {Object? contradiction}) async {
+    final policy = await _currentStartRecoveryPolicy(tx,account);
+    if(policy == null) return true;
+    final root = policy.protectedRoot(local);
+    if(root == null) return true;
+    final command = (await _startRecoverySnapshot(tx,account)).commands.where((c)=>c.localId==local).firstOrNull;
+    if(command != null && policy.mayDispatch(command)) return true;
+    if(contradiction != null && policy.contradicts(root,local,contradiction)) {
+      final value=jsonEncode({'version':1,'account_id':account,'root_local_id':root,'local_id':local,
+        'observed_at':DateTime.now().toUtc().toIso8601String(),'contradictory_evidence':contradiction});
+      for(final key in [startRecoveryLateKey(root,local,contradiction),startRecoveryConflictKey(root)]) {
+        await tx.insert(metaTable,{'account_id':account,'key':key,'value':value},conflictAlgorithm:ConflictAlgorithm.ignore);
+      }
+    }
+    return false;
   }
 
   @override
@@ -409,6 +480,15 @@ class SqliteOutboxStore
         .toList();
   }
 
+  // Applied only when recovery evidence exists; raw rows/statuses stay intact.
+  Future<String> _inactiveBookingIds(DatabaseExecutor tx,String account) async {
+    final policy = await _currentStartRecoveryPolicy(tx,account);
+    if(policy==null) return '';
+    final ids=policy.snapshot.commands.where((c)=>c.type==CommandType.createBooking && !policy.actionable(c)).map((c)=>c.localId).toList();
+    // SQL literals are escaped, not identifiers or user-provided SQL.
+    return ids.map((id)=>"'${id.replaceAll("'", "''")}'").join(',');
+  }
+
   static const bookingFarmReadySql = r"""
     (c.booking_farm_local_id is null
      or exists(select 1 from id_mappings m where m.account_id=c.account_id and m.local_id=c.booking_farm_local_id and m.entity_kind='farm')
@@ -450,7 +530,11 @@ class SqliteOutboxStore
   }) async {
     if (limit < 1 || limit > 20) throw ArgumentError.value(limit, 'limit');
     await _recoverBookingRegistrations(accountId);
-    final rows = await _db.rawQuery(bookingReadySql, [
+    final inactive = await _inactiveBookingIds(_db,accountId);
+    final sql = inactive.isEmpty ? bookingReadySql : bookingReadySql
+      .replaceFirst("and c.command_type", "and c.local_id not in ($inactive) and c.command_type")
+      .replaceFirst("and earlier.command_type", "and earlier.local_id not in ($inactive) and earlier.command_type");
+    final rows = await _db.rawQuery(sql, [
       accountId,
       _encodeTime(now),
       _encodeTime(now),
@@ -466,9 +550,11 @@ class SqliteOutboxStore
     int limit = 20,
   }) async {
     if (limit < 1 || limit > 20) throw ArgumentError.value(limit, 'limit');
+    final inactive=await _inactiveBookingIds(_db,accountId);
+    final retiredFilter=inactive.isEmpty ? '' : 'and local_id not in ($inactive)';
     final rows = await _db.query(
       commandsTable,
-      where: "account_id = ? and command_type = 'createBooking' and status = 'dispatching' and (last_attempt_at is null or last_attempt_at <= ?)",
+      where: "account_id = ? and command_type = 'createBooking' and status = 'dispatching' $retiredFilter and (last_attempt_at is null or last_attempt_at <= ?)",
       whereArgs: [accountId, _encodeTime(before)],
       orderBy: 'last_attempt_at, local_id',
       limit: limit,
@@ -483,7 +569,12 @@ class SqliteOutboxStore
     required DateTime attemptedAt,
   }) async {
     // جملة ذرية واحدة بين اتصالات SQLite: لا بئران في المسار نفسه، ولا أكثر من ثلاث آبار.
-    final changed = await _db.rawUpdate(
+    return _withExecutionContentionRetry(() => _db.transaction((tx) async {
+    if (!await _recoveryAllows(tx,accountId,localId)) return false;
+    final inactive = await _inactiveBookingIds(tx,accountId);
+    final earlierFilter = inactive.isEmpty ? '' : 'and e.local_id not in ($inactive)';
+    final activeFilter = inactive.isEmpty ? '' : 'and a.local_id not in ($inactive)';
+    final changed = await tx.rawUpdate(
       """
       update outbox_commands set status = 'dispatching', last_attempt_at = ?
       where account_id = ? and local_id = ? and command_type = 'createBooking' and status = 'pending'
@@ -491,12 +582,12 @@ class SqliteOutboxStore
         and (next_attempt_at is null or next_attempt_at <= ?)
         and not exists (
           select 1 from outbox_commands e indexed by outbox_booking_well_idx
-          where e.account_id = outbox_commands.account_id and e.command_type = 'createBooking'
+          where e.account_id = outbox_commands.account_id $earlierFilter and e.command_type = 'createBooking'
             and e.well_id = outbox_commands.well_id
             and (e.status = 'dispatching' or (e.status = 'pending' and e.sequence < outbox_commands.sequence))
         )
         and (select count(*) from outbox_commands a indexed by outbox_booking_dispatch_idx
-          where a.account_id = ? and a.command_type = 'createBooking' and a.status = 'dispatching') < 3
+          where a.account_id = ? $activeFilter and a.command_type = 'createBooking' and a.status = 'dispatching') < 3
     """,
       [
         _encodeTime(attemptedAt),
@@ -507,6 +598,7 @@ class SqliteOutboxStore
       ],
     );
     return changed == 1;
+    }));
   }
 
   @override
@@ -528,6 +620,7 @@ class SqliteOutboxStore
       try {
         AppNotificationEvent? committedEvent;
         final applied = await _db.transaction((txn) async {
+          if (!await _recoveryAllows(txn,accountId,localId,contradiction:response)) return false;
           final changed = await txn.rawUpdate(
             """
             update outbox_commands set status = ?, next_attempt_at = ?, last_error = ?,
@@ -650,14 +743,17 @@ class SqliteOutboxStore
     required DateTime now,
     required Duration staleClaimTimeout,
   }) async {
+    final inactive=await _inactiveBookingIds(_db,accountId);
+    final currentFilter=inactive.isEmpty ? '' : 'and c.local_id not in ($inactive)';
+    final rowFilter=inactive.isEmpty ? '' : 'and local_id not in ($inactive)';
     final pending = await _db.rawQuery(
-      "select c.next_attempt_at from outbox_commands c indexed by outbox_booking_due_idx where c.account_id=? and c.command_type='createBooking' and c.status='pending' and $bookingFarmReadySql order by c.next_attempt_at limit 1",
+      "select c.next_attempt_at from outbox_commands c indexed by outbox_booking_due_idx where c.account_id=? $currentFilter and c.command_type='createBooking' and c.status='pending' and $bookingFarmReadySql order by c.next_attempt_at limit 1",
       [accountId],
     );
     final active = await _db.query(
       commandsTable,
       columns: ['last_attempt_at'],
-      where: "account_id = ? and command_type = 'createBooking' and status = 'dispatching'",
+      where: "account_id = ? $rowFilter and command_type = 'createBooking' and status = 'dispatching'",
       whereArgs: [accountId],
       orderBy: 'last_attempt_at',
       limit: 1,
@@ -1001,7 +1097,8 @@ class SqliteOutboxStore
       );
       if (roots.length != 1) return null;
       final root = _fromRow(roots.single);
-      if (root.type != CommandType.startOperationalSession &&
+      if (root.type != CommandType.adoptExternalSession &&
+          root.type != CommandType.startOperationalSession &&
           root.type != CommandType.startIrrigationSession &&
           root.type != CommandType.startAdhocSession &&
           root.type != CommandType.startBookingSession) {
@@ -1057,6 +1154,31 @@ class SqliteOutboxStore
       _paymentReadKey(wellId, localSessionId),
       jsonEncode(value),
     );
+  }
+
+  @override
+  Future<CommandEnvelope> insertSessionCorrection(CommandEnvelope command) async {
+    validateSessionCorrectionInsert(command);
+    await initialize();
+    // إعادة المعاملة كاملة عند تنافس محلي محدود؛ لا إعادة لأي طلب شبكة.
+    return _withExecutionContentionRetry(() => _db.transaction((txn) async {
+      final rows = await txn.query(
+        commandsTable,
+        where: 'account_id = ? and command_type = ? and status in (?, ?, ?)',
+        whereArgs: [
+          command.accountId,
+          CommandType.correctIrrigationSession.storageValue,
+          CommandStatus.pending.storageValue,
+          CommandStatus.dispatching.storageValue,
+          CommandStatus.review.storageValue,
+        ],
+      );
+      // فحص الحمولة في Dart؛ لا اعتماد على امتداد SQLite JSON.
+      final existing = existingSessionCorrection(rows.map(_fromRow), command);
+      if (existing != null) return existing;
+      await txn.insert(commandsTable, _toRow(command));
+      return command;
+    }));
   }
 
   @override
@@ -1263,9 +1385,19 @@ class SqliteOutboxStore
         whereArgs: [accountId, key],
       );
       if (existing.isNotEmpty) return existing.single['value'] as String;
+      final recoveryPolicy = await _currentStartRecoveryPolicy(txn, accountId);
+      if(recoveryPolicy?.mayRecord(key,value) == false) throw StateError('isolated_stop_control_epoch');
+      if(commands.any((c) => recoveryPolicy?.mayCreate(c) == false)) throw StateError('resolved_start_child_isolated');
       for (final command in commands.where((c) => c.type == CommandType.startOperationalSession)) {
         final rows = await txn.query(commandsTable, where: 'account_id=? and well_id=?', whereArgs: [accountId, command.wellId]);
-        final active = existingOperationalStart(rows.map(_fromRow), command.wellId!);
+        final bindings = await txn.rawQuery(
+          'select m.local_id from $mappingsTable m '
+          'join $commandsTable c on c.account_id=m.account_id and c.local_id=m.local_id '
+          'where m.account_id=? and c.well_id=? and m.entity_kind=?',
+          [accountId, command.wellId, EntityKind.session.storageValue],
+        );
+        final active = existingOperationalStart([...rows.map(_fromRow).where((c)=>recoveryPolicy?.blocksOperationalStart(c) ?? true), ...?recoveryPolicy?.controlSources], command.wellId!,
+          sessionBoundLocalIds: bindings.map((r) => r['local_id'] as String).toSet());
         if (active != null) throw ExistingOperationalStart(active);
       }
 
@@ -1296,7 +1428,10 @@ class SqliteOutboxStore
   @override
   Future<CommandEnvelope> insert(CommandEnvelope envelope) async {
     try {
-      await _db.insert(commandsTable, _toRow(envelope));
+      await _withExecutionContentionRetry(() => _db.transaction((tx) async {
+        if((await _currentStartRecoveryPolicy(tx,envelope.accountId))?.mayCreate(envelope) == false) throw StateError('resolved_start_child_isolated');
+        await tx.insert(commandsTable, _toRow(envelope));
+      }));
     } on DatabaseException catch (error) {
       if (error.isUniqueConstraintError()) {
         throw DuplicateCommandIdException(envelope.commandId);
@@ -1343,6 +1478,59 @@ class SqliteOutboxStore
     );
 
     return rows.map(_fromRow).toList();
+  }
+
+  @override
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  }) => _withExecutionContentionRetry(
+    () => _db.transaction((tx) async {
+      final rows = await tx.query(
+        commandsTable,
+        where: 'account_id=? and well_id=? and local_id=?',
+        whereArgs: [accountId, wellId, localId],
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      final command = _fromRow(rows.single);
+      final bindings = (await tx.query(
+        mappingsTable,
+        where: 'account_id=? and local_id=?',
+        whereArgs: [accountId, localId],
+      )).map(_mappingFromRow).toList();
+      final sessions = bindings
+          .where((m) => m.kind == EntityKind.session)
+          .toList();
+      return manualSessionEntryFollowUpFromSnapshot(
+        command,
+        boundSessionId: sessions.isEmpty ? null : sessions.single.serverId,
+        unsafeBinding:
+            bindings.any((m) => m.kind != EntityKind.session) ||
+            sessions.length > 1,
+      );
+    }),
+  );
+
+  @override
+  Future<void> recordSessionFinancialAdjustmentObservation({
+    required String accountId,required String localId,
+    required SessionFinancialAdjustmentState state,
+    required DateTime observedAt,Map<String,Object?>? result,
+  }) async {
+    await initialize();
+    final status=state==SessionFinancialAdjustmentState.accepted
+      ?CommandStatus.confirmed:state==SessionFinancialAdjustmentState.processing
+      ?CommandStatus.dispatching:CommandStatus.review;
+    final changed=await _db.update(commandsTable,{
+      'status':status.storageValue,'last_attempt_at':_encodeTime(observedAt),
+      'last_error':status==CommandStatus.review?state.wireValue:null,
+      'server_response':jsonEncode(result??sessionFinancialObservation(state)),
+    },where:'account_id=? and local_id=? and command_type=? and status=?',
+      whereArgs:[accountId,localId,CommandType.adjustSessionFinancialAmount.storageValue,
+        CommandStatus.dispatching.storageValue]);
+    if(changed!=1) throw StateError('financial_adjustment_observation_scope_changed');
   }
 
   @override
@@ -1406,7 +1594,7 @@ class SqliteOutboxStore
             whereArgs: [account, id],
             limit: 1,
           );
-          if (rows.isEmpty) return null;
+          if (rows.isEmpty) return (await _currentStartRecoveryPolicy(tx,account))?.controlSource(id);
           try {
             return _fromRow(rows.single);
           } on FormatException {
@@ -1442,7 +1630,7 @@ class SqliteOutboxStore
             whereArgs: [account, id, kind.storageValue],
             limit: 1,
           );
-          return rows.isEmpty ? null : _mappingFromRow(rows.single);
+          return rows.isEmpty ? (kind==EntityKind.session ? (await _currentStartRecoveryPolicy(tx,account))?.controlMapping(id) : null) : _mappingFromRow(rows.single);
         }
 
         final reader = CommandIntentEvidenceReader.fromReads(
@@ -1467,6 +1655,7 @@ class SqliteOutboxStore
         if (decision != DispatchClaimDecision.allow) {
           return DispatchClaimResult(decision, context: context);
         }
+        if (!await _recoveryAllows(tx, accountId, localId)) return DispatchClaimResult(DispatchClaimDecision.concurrentChange);
         final row = context!.command;
         final token = DispatchAttempt(
           accountId: accountId,
@@ -1558,6 +1747,7 @@ class SqliteOutboxStore
     await initialize();
     return _withExecutionContentionRetry(
       () => _db.transaction((tx) async {
+        if (!await _recoveryAllows(tx, attempt.accountId, attempt.localId, contradiction: status == CommandStatus.confirmed ? response : null)) return false;
         final rows = await tx.query(
           commandsTable,
           where: 'account_id=? and local_id=?',
@@ -1699,6 +1889,7 @@ class SqliteOutboxStore
     await initialize();
     return _withExecutionContentionRetry(
       () => _db.transaction((tx) async {
+        if(!await _recoveryAllows(tx,observed.accountId,observed.localId)) return false;
         final rows = await tx.query(
           commandsTable,
           where: 'account_id=? and local_id=?',
@@ -1754,6 +1945,7 @@ class SqliteOutboxStore
     await initialize();
     return _withExecutionContentionRetry(
       () => _db.transaction((tx) async {
+        if (!await _recoveryAllows(tx, observed.accountId, observed.localId, contradiction: receipt)) return false;
         final rows = await tx.query(
           commandsTable,
           where: 'account_id=? and local_id=?',
@@ -1824,6 +2016,7 @@ class SqliteOutboxStore
     await initialize();
     return _withExecutionContentionRetry(
       () => _db.transaction((tx) async {
+        if (!await _recoveryAllows(tx, observed.accountId, observed.localId, contradiction: receipt)) return false;
         final rows = await tx.query(
           commandsTable,
           where: 'account_id=? and local_id=?',
@@ -1926,6 +2119,7 @@ class SqliteOutboxStore
     await initialize();
     return _withExecutionContentionRetry(
       () => _db.transaction((tx) async {
+        if (!await _recoveryAllows(tx, observed.accountId, observed.localId, contradiction: receipt)) return false;
         Future<CommandEnvelope?> command(String? local) async {
           final rows = await tx.query(
             commandsTable,
@@ -1943,7 +2137,7 @@ class SqliteOutboxStore
             whereArgs: [observed.accountId, local, kind.storageValue],
             limit: 1,
           );
-          return rows.isEmpty ? null : _mappingFromRow(rows.single);
+          return rows.isEmpty ? (kind==EntityKind.session ? (await _currentStartRecoveryPolicy(tx,observed.accountId))?.controlMapping(local ?? "") : null) : _mappingFromRow(rows.single);
         }
 
         final charge = await mapping(
@@ -2054,14 +2248,16 @@ class SqliteOutboxStore
           whereArgs: [accountId, wellId, sessionLocalId],
           limit: 1,
         );
-        final root = roots.isEmpty ? null : _fromRow(roots.single);
+        final root = roots.isEmpty ? (await _currentStartRecoveryPolicy(tx,accountId))?.controlSource(sessionLocalId) : _fromRow(roots.single);
         final rows = await tx.query(
           commandsTable,
           where: 'account_id=? and well_id=? and aggregate_local_id=?',
           whereArgs: [accountId, wellId, sessionLocalId],
           orderBy: 'sequence',
         );
-        final events = rows.map(_fromRow).toList();
+        final recovery = await _currentStartRecoveryPolicy(tx,accountId);
+        final anchor = recovery?.controlAnchor(sessionLocalId);
+        final events = rows.map(_fromRow).where((c)=>recovery?.actionable(c) ?? true).toList();
         final mappings = await tx.query(
           mappingsTable,
           where: 'account_id=? and local_id=? and entity_kind=?',
@@ -2072,25 +2268,28 @@ class SqliteOutboxStore
           ],
           limit: 1,
         );
+        if(recovery?.mayControl(sessionLocalId) == false) throw StateError('resolved_start_child_isolated');
         final write = decide(
           SessionExecutionSnapshot(root: root, events: events),
         );
+        if(write.commands.any((c)=>recovery?.mayCreate(c) == false)) throw StateError('isolated_stop_control_epoch');
         validateManualStopMaterialization(
+          controlAnchor:anchor,
           account: accountId,
           well: wellId,
           local: sessionLocalId,
           root: root,
           events: events,
           savedRequest: await meta(
-            'session.manual_stop.request.v1/${Uri.encodeComponent(wellId)}/${Uri.encodeComponent(sessionLocalId)}',
+            controlEpochKey('session.manual_stop.request.v1/${Uri.encodeComponent(wellId)}/${Uri.encodeComponent(sessionLocalId)}',anchor),
           ),
           previousLink: await meta(
-            manualStopMaterializationKey(wellId, sessionLocalId),
+            controlEpochKey(manualStopMaterializationKey(wellId, sessionLocalId),anchor),
           ),
           previousEffect: await meta(
-            'session.completion.v1.$wellId.$sessionLocalId',
+            controlEpochKey('session.completion.v1.$wellId.$sessionLocalId',anchor),
           ),
-          mapping: mappings.isEmpty ? null : _mappingFromRow(mappings.single),
+          mapping: mappings.isEmpty ? recovery?.controlMapping(sessionLocalId) : _mappingFromRow(mappings.single),
           write: write,
         );
         // Pending human intent only. Acceptance owns notifications and cancellation.
@@ -2115,7 +2314,11 @@ class SqliteOutboxStore
     String localId, {
     required DateTime attemptedAt,
   }) async {
-    final affected = await _db.update(
+    await initialize();
+    return _db.transaction((tx) async {
+      if (!await _recoveryAllows(tx, accountId, localId, contradiction: null)) return false;
+
+    final affected = await tx.update(
       commandsTable,
       {
         'status': CommandStatus.dispatching.storageValue,
@@ -2126,6 +2329,7 @@ class SqliteOutboxStore
     );
 
     return affected == 1;
+    });
   }
 
   @override
@@ -2135,7 +2339,11 @@ class SqliteOutboxStore
     required String error,
     required DateTime attemptedAt,
   }) async {
-    await _db.rawUpdate(
+    await initialize();
+    await _db.transaction((tx) async {
+      if (!await _recoveryAllows(tx, accountId, localId, contradiction: null)) return;
+
+    await tx.rawUpdate(
       '''
       update $commandsTable
          set status = ?,
@@ -2152,6 +2360,7 @@ class SqliteOutboxStore
         localId,
       ],
     );
+    });
   }
 
   @override
@@ -2161,7 +2370,11 @@ class SqliteOutboxStore
     required Map<String, Object?> serverResponse,
     required DateTime attemptedAt,
   }) async {
-    await _db.update(
+    await initialize();
+    await _db.transaction((tx) async {
+      if (!await _recoveryAllows(tx, accountId, localId, contradiction: serverResponse)) return;
+
+    await tx.update(
       commandsTable,
       {
         'status': CommandStatus.confirmed.storageValue,
@@ -2172,6 +2385,7 @@ class SqliteOutboxStore
       where: 'account_id = ? and local_id = ?',
       whereArgs: [accountId, localId],
     );
+    });
   }
 
   @override
@@ -2182,7 +2396,11 @@ class SqliteOutboxStore
     required DateTime attemptedAt,
     Map<String, Object?>? serverResponse,
   }) async {
-    await _db.update(
+    await initialize();
+    await _db.transaction((tx) async {
+      if (!await _recoveryAllows(tx, accountId, localId, contradiction: serverResponse?.containsKey('id') == true ? serverResponse : null)) return;
+
+    await tx.update(
       commandsTable,
       {
         'status': CommandStatus.review.storageValue,
@@ -2194,11 +2412,16 @@ class SqliteOutboxStore
       where: 'account_id = ? and local_id = ?',
       whereArgs: [accountId, localId],
     );
+    });
   }
 
   @override
   Future<void> putMapping(String accountId, IdMapping mapping) async {
-    await _db.insert(mappingsTable, {
+    await initialize();
+    await _db.transaction((tx) async {
+      if (!await _recoveryAllows(tx, accountId, mapping.localId, contradiction: {'session_id':mapping.serverId})) return;
+
+    await tx.insert(mappingsTable, {
       'account_id': accountId,
       'local_id': mapping.localId,
       'entity_kind': mapping.kind.storageValue,
@@ -2206,6 +2429,7 @@ class SqliteOutboxStore
       'resolved_at': _encodeTime(mapping.resolvedAt),
       'matched_existing': mapping.matchedExisting ? 1 : 0,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
   }
 
   @override
@@ -2221,7 +2445,7 @@ class SqliteOutboxStore
       limit: 1,
     );
 
-    return rows.isEmpty ? null : _mappingFromRow(rows.first);
+    return rows.isEmpty ? (kind == EntityKind.session ? (await _currentStartRecoveryPolicy(_db,accountId))?.controlMapping(localId) : null) : _mappingFromRow(rows.first);
   }
 
   @override

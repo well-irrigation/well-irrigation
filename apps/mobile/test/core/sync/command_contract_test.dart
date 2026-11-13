@@ -13,6 +13,7 @@ import 'package:well_irrigation_mobile/core/sync/retry_classification.dart';
 import 'package:well_irrigation_mobile/core/sync/sync_status.dart';
 
 void main() {
+  _sessionCorrectionCommandContractTests();
   CommandEnvelope envelope({
     CommandType type = CommandType.startIrrigationSession,
     Map<String, Object?>? payload,
@@ -210,7 +211,9 @@ void main() {
       for (final type in CommandType.values) {
         expect(
           type.scopeArgument,
-          type == CommandType.startBookingSession
+          type == CommandType.startBookingSession ||
+                  type == CommandType.cancelBooking ||
+                  type == CommandType.rescheduleBooking
               ? 'p_booking_id'
               : type == CommandType.recordBookingTransitionDecision ||
                     type == CommandType.executePendingBookingStart
@@ -223,14 +226,22 @@ void main() {
       }
     });
 
-    test('ردّ jsonb لكيان له مفتاح، وإنهاء السلسلة لا ينتج كيانًا', () {
+    test('عقود JSON تتطلب مفتاح كيان إلا العقود المعروفة بلا مفتاح نتيجة', () {
+      const jsonWithoutResultKey = {
+        CommandType.recordBookingTransitionDecision,
+        CommandType.executePendingBookingStart,
+        CommandType.endBookingTransitionChain,
+        CommandType.correctIrrigationSession,
+        CommandType.adjustSessionFinancialAmount,
+      };
+      for (final type in jsonWithoutResultKey) {
+        expect(type.returnsJson, isTrue, reason: type.rpcName);
+        expect(type.resultKey, isNull, reason: type.rpcName);
+      }
       for (final type in CommandType.values) {
         expect(
           type.resultKey != null,
-          type.returnsJson &&
-              type != CommandType.recordBookingTransitionDecision &&
-              type != CommandType.executePendingBookingStart &&
-              type != CommandType.endBookingTransitionChain,
+          type.returnsJson && !jsonWithoutResultKey.contains(type),
           reason: type.rpcName,
         );
       }
@@ -268,6 +279,7 @@ void main() {
       };
 
       expect(producers, {
+        CommandType.adoptExternalSession: EntityKind.session,
         CommandType.createBooking: EntityKind.booking,
         CommandType.createFarmer: EntityKind.farmerWellAccount,
         CommandType.createFarm: EntityKind.farm,
@@ -394,5 +406,179 @@ void main() {
 
       expect(ids, hasLength(500));
     });
+  });
+}
+
+void _sessionCorrectionCommandContractTests() {
+  // Compile-safe RED: do not substitute a legacy command for the missing type.
+  CommandType correctionType() {
+    final matches = CommandType.values.where(
+      (type) => type.name == 'correctIrrigationSession',
+    );
+    expect(
+      matches,
+      hasLength(1),
+      reason: 'Missing CommandType.correctIrrigationSession',
+    );
+    return matches.single;
+  }
+
+  const payload = <String, Object?>{
+    'p_session_id': '11111111-1111-4111-8111-111111111111',
+    'p_base_revision': 3,
+    // Intent creation owns trim; the envelope must not canonicalize all text.
+    'p_reason': 'تصحيح وقت التشغيل الفعلي',
+    'p_desired_started_at': '2026-11-06T05:30:00.000Z',
+    'p_desired_ended_at': '2026-11-06T07:45:00.000Z',
+  };
+  CommandEnvelope command({Map<String, Object?> body = payload}) =>
+      CommandEnvelope(
+        localId: 'local-correction-1',
+        commandId: 'cmd-correction-1',
+        type: correctionType(),
+        accountId: 'account-a',
+        wellId: 'well-a',
+        sequence: 1,
+        occurredAt: DateTime.utc(2026, 11, 6, 8, 15),
+        createdLocalAt: DateTime.utc(2026, 11, 6, 8, 16),
+        payload: body,
+      );
+  Map<String, Object?> arguments(CommandEnvelope value) => buildRpcArguments(
+    type: value.type,
+    commandId: value.commandId,
+    occurredAt: value.occurredAt,
+    resolvedPayload: value.payload,
+  );
+
+  group('R6C-4A correction command contract only', () {
+    test(
+      'new type has session scope, requested time and no produced entity',
+      () {
+        final type = correctionType();
+        expect(type.rpcName, 'correct_irrigation_session');
+        expect(type.scope, CommandScope.session);
+        expect(type.scopeArgument, 'p_session_id');
+        expect(type.eventTimeArgument, 'p_requested_at');
+        expect(type.returnsJson, isTrue);
+        expect(type.resultKey, isNull);
+        expect(type.produces, isNull);
+      },
+    );
+
+    test('new storage value round-trips by stable name', () {
+      final type = correctionType();
+      expect(type.storageValue, 'correctIrrigationSession');
+      expect(CommandType.fromStorage('correctIrrigationSession'), type);
+    });
+
+    test('legacy stored command names retain their original identities', () {
+      const legacy = {
+        'startIrrigationSession': CommandType.startIrrigationSession,
+        'startOperationalSession': CommandType.startOperationalSession,
+        'startAdhocSession': CommandType.startAdhocSession,
+        'startBookingSession': CommandType.startBookingSession,
+        'pauseIrrigationSession': CommandType.pauseIrrigationSession,
+        'resumeIrrigationSession': CommandType.resumeIrrigationSession,
+        'completeIrrigationSession': CommandType.completeIrrigationSession,
+        'createBooking': CommandType.createBooking,
+        'recordPayment': CommandType.recordPayment,
+      };
+      for (final entry in legacy.entries) {
+        expect(entry.value.storageValue, entry.key);
+        expect(CommandType.fromStorage(entry.key), entry.value);
+      }
+    });
+
+    test(
+      'existing server session needs no local root or unresolved reference',
+      () {
+        final value = command();
+        expect(value.aggregateLocalId, isNull);
+        expect(value.prerequisites, isEmpty);
+        expect(value.references, isEmpty);
+        expect(value.payload['p_session_id'], payload['p_session_id']);
+        expect(arguments(value)['p_session_id'], payload['p_session_id']);
+      },
+    );
+
+    for (final reserved in ['p_command_id', 'p_requested_at']) {
+      test('envelope rejects payload ownership of $reserved', () {
+        // Resolve first so absence fails as the type contract, not ArgumentError.
+        correctionType();
+        expect(
+          () => command(body: {...payload, reserved: 'forged'}),
+          throwsArgumentError,
+        );
+      });
+    }
+
+    test('full desired pair and captured nonnegative integer revision pass through unchanged', () {
+      final value = command();
+      final args = arguments(value);
+      expect(args['p_base_revision'], isA<int>());
+      expect(args['p_base_revision'], greaterThanOrEqualTo(0));
+      expect(args['p_base_revision'], 3);
+      expect(args['p_desired_started_at'], '2026-11-06T05:30:00.000Z');
+      expect(args['p_desired_ended_at'], '2026-11-06T07:45:00.000Z');
+      expect(args['p_reason'], '  تصحيح وقت التشغيل الفعلي  '.trim());
+      expect(value.payload.containsKey('p_command_id'), isFalse);
+      expect(value.payload.containsKey('p_requested_at'), isFalse);
+    });
+
+    test('repeated argument construction preserves envelope identity and frozen request', () {
+      final value = command();
+      final first = arguments(value);
+      final second = arguments(value);
+      expect(second, first);
+      expect(first, {
+        ...payload,
+        'p_command_id': 'cmd-correction-1',
+        'p_requested_at': '2026-11-06T08:15:00.000Z',
+      });
+      // Bookkeeping must not replace base revision or request time. This only
+      // tests construction; it does not authorize dispatch/retry of correction.
+      final bookkeeping = value.copyWith(retryCount: 5);
+      expect(arguments(bookkeeping), first);
+      expect(value.commandId, 'cmd-correction-1');
+      expect(value.occurredAt, DateTime.utc(2026, 11, 6, 8, 15));
+      expect(value.payload, payload);
+    });
+
+    test('final RPC keys contain no client actor or financial authority', () {
+      final args = arguments(command());
+      expect(args.keys.toSet(), {
+        'p_session_id',
+        'p_base_revision',
+        'p_reason',
+        'p_desired_started_at',
+        'p_desired_ended_at',
+        'p_command_id',
+        'p_requested_at',
+      });
+      for (final forbidden in [
+        'amount',
+        'rate',
+        'price',
+        'charge',
+        'financial_status',
+        'p_actor_id',
+        'user_id',
+        'operator_id',
+        'role',
+        'permission',
+        'operational_revision',
+      ]) {
+        expect(
+          args.keys.where((key) => key.contains(forbidden)),
+          isEmpty,
+          reason: forbidden,
+        );
+      }
+    });
+    // DISPATCH_LANE_CLASSIFICATION_DEFERRED.
+    // DEFERRED_TO_CORRECTION_DISPATCH_RED: stale_revision is business review,
+    // not blind retry even though generic SQLSTATE 40001 is retryable.
+    // After ambiguous dispatch, recover by sessionId + original commandId via
+    // get_session_correction_receipt before considering any further write.
   });
 }

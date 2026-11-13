@@ -6,6 +6,7 @@
 library;
 
 import 'command_id_generator.dart';
+import 'start_recovery_policy.dart';
 import 'command_intent_evidence_reader.dart';
 import 'command_intent_policy.dart';
 
@@ -16,9 +17,15 @@ import 'command_type.dart';
 import 'outbox_store.dart';
 import 'outbox_repository.dart';
 import 'sync_status.dart';
+import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 class InMemoryOutboxStore
     implements
+        StartRecoveryLocalStore,
+        SessionFinancialAdjustmentStore,
+        ManualSessionEntryFollowUpStore,
+        SessionCorrectionInsertStore,
         SessionExecutionStore,
         AtomicCommandDispatchStore,
         OutboxStore,
@@ -38,6 +45,56 @@ class InMemoryOutboxStore
   final _paymentReads = <(String, String, String), Map<String, Object?>>{};
   bool _closed = false;
 
+  StartRecoverySnapshot _startRecoverySnapshot(String account) => StartRecoverySnapshot(
+    account, List.unmodifiable(_commands[account] ?? []),
+    {'sequence_counter':'${_sequences[account] ?? 0}', for (final e in _bundles.entries) if(e.key.startsWith('$account::')) e.key.substring(account.length + 2):e.value},
+    List.unmodifiable(_mappings[account]?.values ?? <IdMapping>[]));
+
+  @override
+  Future<StartRecoveryPolicy?> currentStartRecoveryPolicy(String accountId) async {
+    _assertOpen();
+    if(!_bundles.keys.any((k)=>k.startsWith('$accountId::$startRecoveryPrefix'))) return null;
+    return _startRecoverySnapshot(accountId).policy;
+  }
+
+  @override
+  Future<StartRecoverySnapshot> readStartRecovery(String accountId) async {
+    _assertOpen();
+    return _startRecoverySnapshot(accountId);
+  }
+
+  @override
+  Future<T> startRecoveryTransaction<T>(String accountId,
+    StartRecoveryWrite<T> Function(StartRecoverySnapshot) decide) async {
+    _assertOpen();
+    final write = decide(_startRecoverySnapshot(accountId));
+    if (write.values.keys.any((k) => !k.startsWith(startRecoveryPrefix) || _bundles.containsKey('$accountId::$k'))) {
+      throw StateError('start_resolution_append_only_conflict');
+    }
+    final confirmed = write.confirmStart;
+    if(confirmed != null) {
+      _update(accountId, confirmed.localId, (c)=>c.copyWith(status:CommandStatus.confirmed,serverResponse:write.acceptedReceipt,clearLastError:true));
+      _mappings.putIfAbsent(accountId,()=>{}).putIfAbsent(_mappingKey(confirmed.localId,EntityKind.session),()=>IdMapping(localId:confirmed.localId,kind:EntityKind.session,serverId:write.acceptedReceipt!['id'] as String,resolvedAt:confirmed.occurredAt));
+    }
+    for (final e in write.values.entries) { _bundles['$accountId::${e.key}'] = e.value; }
+    return write.result;
+  }
+
+  bool _recoveryAllows(String account, String local, {Object? contradiction}) {
+    final policy = _startRecoverySnapshot(account).policy;
+    final root = policy.protectedRoot(local);
+    if(root == null) return true;
+    final command = _byLocalId[local];
+    if(command != null && policy.mayDispatch(command)) return true;
+    if(contradiction != null && policy.contradicts(root,local,contradiction)) {
+      final value=jsonEncode({'version':1,'account_id':account,'root_local_id':root,'local_id':local,
+        'observed_at':DateTime.now().toUtc().toIso8601String(),'contradictory_evidence':contradiction});
+      _bundles.putIfAbsent('$account::${startRecoveryLateKey(root,local,contradiction)}',()=>value);
+      _bundles.putIfAbsent('$account::${startRecoveryConflictKey(root)}',()=>value);
+    }
+    return false;
+  }
+
   @override
   Future<void> initialize() async {}
 
@@ -45,6 +102,7 @@ class InMemoryOutboxStore
   Future<CommandEnvelope> insert(CommandEnvelope envelope) async {
     _assertOpen();
 
+    if (!_startRecoverySnapshot(envelope.accountId).policy.mayCreate(envelope)) throw StateError('resolved_start_child_isolated');
     if (_usedCommandIds.contains(envelope.commandId)) {
       throw DuplicateCommandIdException(envelope.commandId);
     }
@@ -105,9 +163,11 @@ class InMemoryOutboxStore
     final bundleKey = '$accountId::$key';
     final prior = _bundles[bundleKey];
     if (prior != null) return prior;
+    if(!_startRecoverySnapshot(accountId).policy.mayRecord(key,value)) throw StateError('isolated_stop_control_epoch');
     final ids = <String>{};
     final locals = <String>{};
     for (final command in commands) {
+      if (!_startRecoverySnapshot(accountId).policy.mayCreate(command)) throw StateError('resolved_start_child_isolated');
       if (command.accountId != accountId ||
           !ids.add(command.commandId) ||
           _usedCommandIds.contains(command.commandId) ||
@@ -117,7 +177,11 @@ class InMemoryOutboxStore
       }
     }
     for (final command in commands.where((c) => c.type == CommandType.startOperationalSession)) {
-      final existing = existingOperationalStart(_commands[accountId] ?? [], command.wellId!);
+      final existing = existingOperationalStart([...(_commands[accountId] ?? []).where(_startRecoverySnapshot(accountId).policy.blocksOperationalStart), ..._startRecoverySnapshot(accountId).policy.controlSources], command.wellId!,
+        sessionBoundLocalIds: {
+          for (final m in _mappings[accountId]?.values ?? const <IdMapping>[])
+            if (m.kind == EntityKind.session) m.localId,
+        });
       if (existing != null) throw ExistingOperationalStart(existing);
     }
     if (isCurrent != null && !isCurrent()) throw StateError('stale_runtime');
@@ -209,7 +273,7 @@ class InMemoryOutboxStore
 
   List<CommandEnvelope> _bookingRows(String accountId) =>
       (_commands[accountId] ?? <CommandEnvelope>[])
-          .where((c) => c.type == CommandType.createBooking)
+          .where((c) => c.type == CommandType.createBooking && _startRecoverySnapshot(accountId).policy.actionable(c))
           .toList();
 
   @override
@@ -299,6 +363,7 @@ class InMemoryOutboxStore
         row.nextAttemptAt?.isAfter(attemptedAt) == true) {
       return false;
     }
+    if (!_recoveryAllows(accountId,localId)) return false;
     final all = _bookingRows(accountId);
     if (all.where((c) => c.status == CommandStatus.dispatching).length >= 3 ||
         all.any(
@@ -344,6 +409,7 @@ class InMemoryOutboxStore
         row.lastAttemptAt != claimedAt) {
       return false;
     }
+    if (!_recoveryAllows(accountId,localId,contradiction:response)) return false;
     _update(
       accountId,
       localId,
@@ -388,6 +454,59 @@ class InMemoryOutboxStore
       if (next != null && (wake == null || next.isBefore(wake))) wake = next;
     }
     return wake;
+  }
+
+  @override
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  }) async {
+    _assertOpen();
+    // لا انتظار بين القراءات: لقطة واحدة في دورة تنفيذ الذاكرة.
+    final command = _byLocalId[localId];
+    if (command == null ||
+        command.accountId != accountId ||
+        command.wellId != wellId) {
+      return null;
+    }
+    final bindings = (_mappings[accountId]?.values ?? const <IdMapping>[])
+        .where((m) => m.localId == localId)
+        .toList();
+    final sessions = bindings
+        .where((m) => m.kind == EntityKind.session)
+        .toList();
+    return manualSessionEntryFollowUpFromSnapshot(
+      command,
+      boundSessionId: sessions.isEmpty ? null : sessions.single.serverId,
+      unsafeBinding:
+          bindings.any((m) => m.kind != EntityKind.session) ||
+          sessions.length > 1,
+    );
+  }
+
+  @override
+  Future<void> recordSessionFinancialAdjustmentObservation({
+    required String accountId,required String localId,
+    required SessionFinancialAdjustmentState state,
+    required DateTime observedAt,Map<String,Object?>? result,
+  }) async {
+    _assertOpen();
+    final row=_byLocalId[localId];
+    if(row==null||row.accountId!=accountId||
+       row.type!=CommandType.adjustSessionFinancialAmount||
+       row.status!=CommandStatus.dispatching) {
+      throw StateError('financial_adjustment_observation_scope_changed');
+    }
+    final status=state==SessionFinancialAdjustmentState.accepted
+      ?CommandStatus.confirmed:state==SessionFinancialAdjustmentState.processing
+      ?CommandStatus.dispatching:CommandStatus.review;
+    _update(accountId,localId,(c)=>c.copyWith(status:status,
+      clearLastError:status!=CommandStatus.review,
+      lastError:status==CommandStatus.review?state.wireValue:null,
+      lastAttemptAt:observedAt,
+      serverResponse:Map<String,Object?>.unmodifiable(Map.from(
+        result??sessionFinancialObservation(state)))));
   }
 
   @override
@@ -469,7 +588,8 @@ class InMemoryOutboxStore
     ];
     if (roots.length != 1) return null;
     final root = roots.single;
-    if (root.type != CommandType.startOperationalSession &&
+    if (root.type != CommandType.adoptExternalSession &&
+        root.type != CommandType.startOperationalSession &&
           root.type != CommandType.startIrrigationSession &&
         root.type != CommandType.startAdhocSession &&
         root.type != CommandType.startBookingSession) {
@@ -504,6 +624,18 @@ class InMemoryOutboxStore
     _paymentReads[(accountId, wellId, localSessionId)] = Map.unmodifiable(
       value,
     );
+  }
+
+  @override
+  Future<CommandEnvelope> insertSessionCorrection(CommandEnvelope command) async {
+    _assertOpen();
+    validateSessionCorrectionInsert(command);
+    final existing = existingSessionCorrection(
+      _commands[command.accountId] ?? const <CommandEnvelope>[], command,
+    );
+    if (existing != null) return existing;
+    // لا await بين القرار وتحديث الفهارس داخل insert.
+    return insert(command);
   }
 
   @override
@@ -547,11 +679,11 @@ class InMemoryOutboxStore
     final mappingReads = <(String, String, EntityKind), String?>{};
     CommandEnvelope? row(String account, String id) {
       final c = _byLocalId[id];
-      return c?.accountId == account ? c : null;
+      return c?.accountId == account ? c : _startRecoverySnapshot(account).policy.controlSource(id);
     }
 
     String? mappingValue(String account, String id, EntityKind kind) {
-      final m = _mappings[account]?[_mappingKey(id, kind)];
+      final m = _mappings[account]?[_mappingKey(id, kind)] ?? (kind==EntityKind.session ? _startRecoverySnapshot(account).policy.controlMapping(id) : null);
       return m == null
           ? null
           : jsonEncode([m.localId, m.kind.storageValue, m.serverId]);
@@ -582,7 +714,7 @@ class InMemoryOutboxStore
         id,
         kind,
       ), () => mappingValue(account, id, kind));
-      return _mappings[account]?[_mappingKey(id, kind)];
+      return _mappings[account]?[_mappingKey(id, kind)] ?? (kind==EntityKind.session ? _startRecoverySnapshot(account).policy.controlMapping(id) : null);
     }
 
     final reader = CommandIntentEvidenceReader.fromReads(
@@ -627,6 +759,7 @@ class InMemoryOutboxStore
       attemptId: SecureIdGenerator().newId(),
       startedAt: attemptedAt.toUtc(),
     );
+    if (!_recoveryAllows(accountId, localId)) return DispatchClaimResult(DispatchClaimDecision.concurrentChange);
     final history =
         '$accountId::${dispatchAttemptHistoryKey(localId, token.attemptId)}';
     if (_bundles.containsKey(history)) {
@@ -686,6 +819,7 @@ class InMemoryOutboxStore
     String? entityId,
   }) {
     _assertOpen();
+    if (!_recoveryAllows(attempt.accountId, attempt.localId, contradiction: status == CommandStatus.confirmed ? response : null)) return false;
     final c = _byLocalId[attempt.localId];
     final currentKey =
         '${attempt.accountId}::${dispatchAttemptCurrentKey(attempt.localId)}';
@@ -742,6 +876,7 @@ class InMemoryOutboxStore
     String reason,
   ) async {
     _assertOpen();
+    if(!_recoveryAllows(observed.accountId,observed.localId)) return false;
     observed = freezeDispatchCommand(observed);
     final mapping =
         _mappings[observed.accountId]?[_mappingKey(
@@ -771,6 +906,7 @@ class InMemoryOutboxStore
     Map<String, Object?> receipt,
   ) async {
     _assertOpen();
+    if (!_recoveryAllows(observed.accountId, observed.localId, contradiction: receipt)) return false;
     receipt = freezeDispatchReceipt(receipt)!;
     observed = freezeDispatchCommand(observed);
     final mapping =
@@ -817,6 +953,7 @@ class InMemoryOutboxStore
     Map<String, Object?> receipt,
   ) async {
     _assertOpen();
+    if (!_recoveryAllows(observed.accountId, observed.localId, contradiction: receipt)) return false;
     receipt = freezeDispatchReceipt(receipt)!;
     observed = freezeDispatchCommand(observed);
     final mapping =
@@ -866,6 +1003,7 @@ class InMemoryOutboxStore
     receipt = freezeDispatchReceipt(receipt)!;
     observed = freezeDispatchCommand(observed);
     _assertOpen();
+    if (!_recoveryAllows(observed.accountId, observed.localId, contradiction: receipt)) return false;
     final root = observed.aggregateLocalId;
     final charge =
         _mappings[observed.accountId]?[_mappingKey(
@@ -875,13 +1013,13 @@ class InMemoryOutboxStore
     if (!canReconcileCompletionReceipt(
       observed: observed,
       current: _byLocalId[observed.localId],
-      root: root == null ? null : _byLocalId[root],
+      root: root == null ? null : (_byLocalId[root] ?? _startRecoverySnapshot(observed.accountId).policy.controlSource(root)),
       sessionMapping: root == null
           ? null
           : _mappings[observed.accountId]?[_mappingKey(
               root,
               EntityKind.session,
-            )],
+            )] ?? _startRecoverySnapshot(observed.accountId).policy.controlMapping(root),
       chargeMapping: charge,
       sessionId: sessionId,
       receipt: receipt,
@@ -936,7 +1074,10 @@ class InMemoryOutboxStore
     required SessionExecutionWrite<T> Function(SessionExecutionSnapshot) decide,
   }) async {
     _assertOpen();
-    final candidate = _byLocalId[sessionLocalId];
+    final recovery = _startRecoverySnapshot(accountId).policy;
+    if(!recovery.mayControl(sessionLocalId)) throw StateError('resolved_start_child_isolated');
+    final anchor = recovery.controlAnchor(sessionLocalId);
+    final candidate = _byLocalId[sessionLocalId] ?? recovery.controlSource(sessionLocalId);
     final root =
         candidate?.accountId == accountId && candidate?.wellId == wellId
         ? candidate
@@ -944,27 +1085,29 @@ class InMemoryOutboxStore
     final events =
         (_bySession[(accountId, sessionLocalId)] ?? const <String>{})
             .map((id) => _byLocalId[id]!)
-            .where((c) => c.wellId == wellId)
+            .where((c) => c.wellId == wellId && recovery.actionable(c))
             .toList()
           ..sort((a, b) => a.sequence.compareTo(b.sequence));
     final write = decide(SessionExecutionSnapshot(root: root, events: events));
+    if(write.commands.any((c)=>!recovery.mayCreate(c))) throw StateError('isolated_stop_control_epoch');
     validateManualStopMaterialization(
+      controlAnchor:anchor,
       account: accountId,
       well: wellId,
       local: sessionLocalId,
       root: root,
       events: events,
       savedRequest:
-          _bundles['$accountId::session.manual_stop.request.v1/${Uri.encodeComponent(wellId)}/${Uri.encodeComponent(sessionLocalId)}'],
+          _bundles['$accountId::${controlEpochKey('session.manual_stop.request.v1/${Uri.encodeComponent(wellId)}/${Uri.encodeComponent(sessionLocalId)}',anchor)}'],
       previousLink:
-          _bundles['$accountId::${manualStopMaterializationKey(wellId, sessionLocalId)}'],
+          _bundles['$accountId::${controlEpochKey(manualStopMaterializationKey(wellId, sessionLocalId),anchor)}'],
       previousEffect:
-          _bundles['$accountId::session.completion.v1.$wellId.$sessionLocalId'],
+          _bundles['$accountId::${controlEpochKey('session.completion.v1.$wellId.$sessionLocalId',anchor)}'],
       mapping:
           _mappings[accountId]?[_mappingKey(
             sessionLocalId,
             EntityKind.session,
-          )],
+          )] ?? recovery.controlMapping(sessionLocalId),
       write: write,
     );
     final ids = <String>{};
@@ -1003,6 +1146,7 @@ class InMemoryOutboxStore
       return false;
     }
 
+    if (!_recoveryAllows(accountId, localId)) return false;
     final rows = _commands[accountId]!;
 
     if (rows[index].status != CommandStatus.pending) {
@@ -1080,6 +1224,7 @@ class InMemoryOutboxStore
   Future<void> putMapping(String accountId, IdMapping mapping) async {
     _assertOpen();
 
+    if (!_recoveryAllows(accountId, mapping.localId, contradiction: {'session_id':mapping.serverId})) return;
     if (mapping.kind == EntityKind.session) {
       final old =
           _mappings[accountId]?[_mappingKey(mapping.localId, mapping.kind)];
@@ -1104,7 +1249,7 @@ class InMemoryOutboxStore
   ) async {
     _assertOpen();
 
-    return _mappings[accountId]?[_mappingKey(localId, kind)];
+    return _mappings[accountId]?[_mappingKey(localId, kind)] ?? (kind==EntityKind.session ? _startRecoverySnapshot(accountId).policy.controlMapping(localId) : null);
   }
 
   @override
@@ -1169,8 +1314,10 @@ class InMemoryOutboxStore
       return;
     }
 
+    final proposed = transform(_commands[accountId]![index]);
+    if (!_recoveryAllows(accountId, localId, contradiction: proposed.status == CommandStatus.confirmed || proposed.serverResponse?.containsKey('id') == true ? proposed.serverResponse : null)) return;
     final rows = _commands[accountId]!;
-    rows[index] = transform(rows[index]);
+    rows[index] = proposed;
     _byLocalId[localId] = rows[index];
   }
 

@@ -16,6 +16,8 @@ import '../sync/command_envelope.dart';
 import '../sync/command_reference.dart';
 import '../sync/command_transport.dart';
 import '../sync/command_type.dart';
+import '../sync/start_recovery_policy.dart';
+import '../sync/manual_session_entry.dart';
 import '../sync/entity_reference.dart';
 import '../sync/farmer_identity_review.dart';
 import '../sync/outbox_repository.dart';
@@ -24,12 +26,29 @@ import '../sync/sqlite_outbox_store.dart';
 import '../sync/supabase_command_transport.dart';
 import '../sync/sync_engine.dart';
 import '../sync/sync_status.dart';
+import '../sync/session_correction_receipt.dart';
+import '../sync/session_financial_adjustment.dart';
 import 'active_session_projector.dart';
+import 'operational_start_recovery.dart';
+import '../sync/operational_start_receipt.dart';
 import 'active_session_record.dart';
 import 'session_crop_snapshot.dart';
 import 'time_integrity.dart';
 import 'manual_stop_request_store.dart';
 import '../sync/command_intent_policy.dart';
+
+/// لقطة للأمر المتين؛ القبول المثبت لا يمثل الحالة المالية الحالية.
+class SessionCorrectionCommandObservation {
+  const SessionCorrectionCommandObservation({
+    required this.command,
+    required this.request,
+    this.accepted,
+  });
+
+  final CommandEnvelope command;
+  final SessionCorrectionReceiptRequest request;
+  final SessionCorrectionReceiptResponse? accepted;
+}
 
 /// نتيجة قراءة فقط من الطابور وقراءة مالية خادمية محفوظة فيه.
 /// إصدار الدفعات يمنع رفع قراءة بدأت قبل الإقرار إلى حقيقة سارية بعده.
@@ -48,7 +67,12 @@ class CompletedSessionPaymentState {
     final raw = storedRead?['detail'];
     if (raw is! Map) return null;
     final value = Map<String, dynamic>.from(raw);
+    final canRead = value['can_read_session_corrections'];
+    final canCorrect = value['can_correct_session'];
+    if (canRead is! bool || canCorrect is! bool) return null;
     return SessionDetailData(
+      canReadSessionCorrections: canRead,
+      canCorrectSession: canCorrect,
       session: SessionHistoryItem.fromContract(
         Map<String, dynamic>.from(value['session'] as Map),
       ),
@@ -147,6 +171,7 @@ class OfflineSessionCoordinator {
     Future<bool> Function(String accountId)? commandQueuedScheduler,
     BookingLocalLedger? bookingLedger,
     TimeIntegritySource? timeIntegritySource,
+    String? Function()? currentAccountId,
   }) : _store = store ?? SqliteOutboxStore(),
        _commandQueuedScheduler = commandQueuedScheduler,
        // لا سعر افتراضي في العميل (م-41D6): اللقطات تُغذّى من
@@ -168,6 +193,12 @@ class OfflineSessionCoordinator {
         (supabaseClient == null
             ? null
             : SupabaseCommandTransport(supabaseClient));
+    _operationalReceiptTransport = transport is OperationalStartReceiptTransport
+        ? transport as OperationalStartReceiptTransport : null;
+    _recoveryAccountId = currentAccountId ?? () {
+      final session = supabaseClient?.auth.currentSession;
+      return session == null || session.isExpired ? null : session.user.id;
+    };
     if (transport != null) {
       _syncEngine = SyncEngine(store: _store, transport: transport);
     }
@@ -186,6 +217,14 @@ class OfflineSessionCoordinator {
 
   static OfflineSessionCoordinator get instance => _instance ??=
       OfflineSessionCoordinator(supabaseClient: _foregroundSupabaseClient);
+
+  OperationalStartReceiptTransport? _operationalReceiptTransport;
+  late final String? Function() _recoveryAccountId;
+
+  /// بوابة فحص/اعتماد إيصال بدء فقط؛ لا تشغيل للمزامنة من هذا المسار.
+  OperationalStartRecovery operationalStartRecovery(OperationsRepository repository) =>
+      OperationalStartRecovery(store: _store, transport: _operationalReceiptTransport,
+        repository: repository, currentAccountId: _recoveryAccountId);
 
   final OutboxStore _store;
   final Set<(String, String)> _humanStartInFlight = {};
@@ -1960,6 +1999,173 @@ class OfflineSessionCoordinator {
     );
   }
 
+  /// يقرأ أمر التصحيح نفسه دون تشغيل المزامنة أو دورة عرض الجلسة.
+  Future<SessionCorrectionCommandObservation?> readSessionCorrectionCommand({
+    required String accountId,
+    required String wellId,
+    required String sessionId,
+    required String localId,
+    required String commandId,
+  }) async {
+    await _outbox.initialize();
+    final command = await _outbox.byLocalId(accountId, localId);
+    if (command == null) return null;
+    final session = command.payload['p_session_id'];
+    if (command.accountId != accountId ||
+        command.localId != localId ||
+        command.type != CommandType.correctIrrigationSession ||
+        command.commandId != commandId ||
+        command.wellId != wellId ||
+        session is! String ||
+        session.trim().isEmpty ||
+        session != sessionId) {
+      throw StateError('session_correction_observation_identity_mismatch');
+    }
+    final request = SessionCorrectionReceiptRequest.fromCommand(command);
+    if (request == null) {
+      throw StateError('session_correction_observation_invalid_command');
+    }
+    SessionCorrectionReceiptResponse? accepted;
+    if (command.status == CommandStatus.confirmed) {
+      final receipt = command.serverResponse;
+      if (receipt == null) {
+        throw StateError('session_correction_observation_missing_receipt');
+      }
+      final checked = parseSessionCorrectionReceipt(request, {
+        'contract': 'get_session_correction_receipt',
+        'version': 1,
+        'session_id': request.sessionId,
+        'command_id': request.commandId,
+        'command_type': 'correct_irrigation_session',
+        'retry_authorized': false,
+        'status': 'accepted',
+        'receipt': receipt,
+      });
+      if (checked is! SessionCorrectionReceiptResponse ||
+          checked.state != SessionCorrectionReceiptState.accepted ||
+          checked.receipt == null) {
+        throw StateError('session_correction_observation_invalid_receipt');
+      }
+      accepted = checked;
+    }
+    return SessionCorrectionCommandObservation(
+      command: command,
+      request: request,
+      accepted: accepted,
+    );
+  }
+
+  /// يبني مغلف إدخال يدوي مستقلًا قبل حفظه وإعطاء فرصة إرسال.
+  Future<CommandEnvelope> prepareManualSessionEntry({
+    required String accountId, required ManualSessionEntryFacts facts,
+  }) async {
+    await initialize();
+    return _outbox.prepareManualSessionEntry(accountId: accountId, facts: facts);
+  }
+
+  /// نفس المغلف لنفس فعل المستخدم؛ الحفظ يسبق جدولة أي اتصال.
+  Future<CommandEnvelope> submitManualSessionEntry(CommandEnvelope intent) async {
+    await initialize();
+    final saved = await _outbox.saveManualSessionEntry(intent);
+    if (saved.status == CommandStatus.pending || saved.status == CommandStatus.dispatching) {
+      // لا نغيّر اختيار بئر أخرى. الاستعادة الصريحة الحالية تستهلك القبول.
+      await _triggerSync(saved.accountId, refreshProjection: false);
+    }
+    return saved;
+  }
+
+  Future<ManualSessionEntryRead?> readManualSessionEntry({
+    required String accountId, required String wellId, required String localId,
+  }) async {
+    await initialize();
+    return _outbox.readManualSessionEntry(accountId: accountId,
+      wellId: wellId, localId: localId);
+  }
+
+  /// لقطة المتابعة لا ترسل ولا تعيد إنشاء طلب؛ الأهلية لنية جديدة يؤكدها المستخدم.
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  }) async {
+    await initialize();
+    return _outbox.readManualSessionEntryFollowUp(
+      accountId: accountId,
+      wellId: wellId,
+      localId: localId,
+    );
+  }
+
+  Future<ManualSessionEntryObservation?> observeManualSessionEntry({
+    required String accountId, required String wellId, required String localId,
+  }) async {
+    await initialize();
+    return _outbox.observeManualSessionEntry(accountId: accountId,
+      wellId: wellId, localId: localId);
+  }
+
+  Future<SessionFinancialAdjustmentFollowUpLookup> readSessionFinancialAdjustmentFollowUp({
+    required String accountId, required String wellId,
+    required String sessionId, required String localId,
+  }) async {
+    await initialize();
+    return _outbox.readSessionFinancialAdjustmentFollowUp(accountId: accountId,
+        wellId: wellId, sessionId: sessionId, localId: localId);
+  }
+
+  Future<SessionFinancialAdjustmentFollowUpLookup> findBlockingSessionFinancialAdjustmentFollowUp({
+    required String accountId, required String wellId, required String sessionId,
+  }) async {
+    await initialize();
+    return _outbox.findBlockingSessionFinancialAdjustmentFollowUp(
+        accountId: accountId, wellId: wellId, sessionId: sessionId);
+  }
+
+  Future<CommandEnvelope> submitSessionFinancialAdjustment({
+    required String accountId,required String wellId,required String sessionId,
+    required int baseOperationalRevision,
+    required int baseSystemFinancialRevision,
+    required int baseManualApprovalRevision,
+    required int approvedAmountYER,required String reason,
+  }) async {
+    await initialize();
+    final envelope=await _outbox.enqueueSessionFinancialAdjustment(
+      accountId:accountId,wellId:wellId,sessionId:sessionId,
+      baseOperationalRevision:baseOperationalRevision,
+      baseSystemFinancialRevision:baseSystemFinancialRevision,
+      baseManualApprovalRevision:baseManualApprovalRevision,
+      approvedAmountYER:approvedAmountYER,reason:reason);
+    await _triggerSync(accountId,refreshProjection:false);
+    return envelope;
+  }
+
+  /// يحفظ نية التصحيح محليًا قبل منح فرصة مزامنة، دون انتظار قبول الخادم.
+  Future<CommandEnvelope> submitSessionCorrection({
+    required String accountId,
+    required String wellId,
+    required String sessionId,
+    required int baseRevision,
+    required String reason,
+    required DateTime desiredStartedAt,
+    required DateTime desiredEndedAt,
+  }) async {
+    await initialize();
+    final envelope = await _outbox.enqueueSessionCorrection(
+      accountId: accountId,
+      wellId: wellId,
+      sessionId: sessionId,
+      baseRevision: baseRevision,
+      reason: reason,
+      desiredStartedAt: desiredStartedAt,
+      desiredEndedAt: desiredEndedAt,
+    );
+    if (envelope.status == CommandStatus.pending ||
+        envelope.status == CommandStatus.dispatching) {
+      await _triggerSync(accountId, refreshProjection: false);
+    }
+    return envelope;
+  }
+
   /// إنشاء مزارع جديد وحفظه متينًا في الطابور المحلي أولًا (ق-89 / ق-114 / م-21).
   Future<FarmerAccount> enqueueFarmer({
     required String accountId,
@@ -2534,6 +2740,8 @@ class OfflineSessionCoordinator {
   static Map<String, Object?> _cacheDetail(SessionDetailData data) {
     final s = data.session;
     return {
+      'can_read_session_corrections': data.canReadSessionCorrections,
+      'can_correct_session': data.canCorrectSession,
       'session': {
         'id': s.id,
         'well_id': s.wellId,
@@ -2672,7 +2880,9 @@ class OfflineSessionCoordinator {
         root.status == CommandStatus.review) {
       return false;
     }
-    final context = root.type == CommandType.startBookingSession
+    final context = root.type == CommandType.adoptExternalSession
+        ? {for (final e in (root.payload['p_request'] as Map).entries) 'p_${e.key}': e.value}
+        : root.type == CommandType.startBookingSession
         ? root.localContext
         : root.payload;
     final farmer = context['p_farmer_well_account_id'];
@@ -2930,15 +3140,18 @@ class OfflineSessionCoordinator {
     String accountId,
     String sessionLocalId,
   ) async {
-    final start = await _outbox.byLocalId(accountId, sessionLocalId);
+    final start = await _outbox.byLocalId(accountId, sessionLocalId) ?? (await readStartRecoveryPolicy(_store,accountId))?.controlSource(sessionLocalId);
     if (start == null || !_isSessionStartType(start.type)) {
       throw StateError('مرجع جلسة محلي غير صالح: $sessionLocalId');
     }
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
+    if(recovery != null && !recovery.mayControl(sessionLocalId)) throw StateError('resolved_start_child_isolated');
     return start;
   }
 
   /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
   static bool _isSessionStartType(CommandType type) =>
+      type == CommandType.adoptExternalSession ||
       type == CommandType.startOperationalSession ||
       type == CommandType.startIrrigationSession ||
       type == CommandType.startAdhocSession ||
@@ -2948,7 +3161,7 @@ class OfflineSessionCoordinator {
     String accountId,
     String sessionLocalId,
   ) async {
-    final root = await _store.commandByLocalId(accountId, sessionLocalId);
+    final root = await _store.commandByLocalId(accountId, sessionLocalId) ?? (await readStartRecoveryPolicy(_store,accountId))?.controlSource(sessionLocalId);
     final wellId = root?.wellId ?? root?.payload['p_well_id'] as String?;
     final records = root == null
         ? <ActiveSessionRecord>[]
@@ -2977,6 +3190,7 @@ class OfflineSessionCoordinator {
     String? wellId,
     bool paymentOnly = false,
     bool waitForCompletion = false,
+    bool refreshProjection = true,
   }) async {
     try {
       await _commandQueuedScheduler?.call(accountId);
@@ -2984,7 +3198,9 @@ class OfflineSessionCoordinator {
       // الأمر محفوظ؛ تعطل جدولة النظام لا يحوّله إلى فشل حفظ.
     }
     if (_syncEngine == null) return;
-    final projectionGeneration = ++_syncProjectionGeneration;
+    final projectionGeneration = refreshProjection
+        ? ++_syncProjectionGeneration
+        : null;
     final opportunity = _syncEngine!
         .runAfterCurrent(accountId)
         .then((report) async {
@@ -2992,6 +3208,8 @@ class OfflineSessionCoordinator {
             await _commandQueuedScheduler?.call(accountId);
             if (!_farmChanges.isClosed && wellId != null) _farmChanges.add(wellId);
           }
+          // فرصة التصحيح لا تغيّر الاختيار ولا تلغي إسقاطًا مفيدًا آخر.
+          if (!refreshProjection) return;
           if (!paymentOnly &&
               projectionGeneration != _syncProjectionGeneration) {
             return;

@@ -72,10 +72,11 @@ state_ok=no
 if [ -f "$agents_file" ]; then
   section4=$(sed -n '/^## 4\./,/^## 5\./p' "$agents_file" 2>/dev/null)
   candidates=$(printf '%s\n' "$section4" \
-    | sed -n 's/.*الهجرة التالية[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+    | sed -nE 's/.*الهجرة[[:space:]]+((المرقمة|الوظيفية)[[:space:]]+)?التالية[[:space:]]*(=[[:space:]]*|تبقى[[:space:]]*)[*]*([0-9]+)[*]*.*/\4/p' \
     | sort -u)
   candidate_count=$(printf '%s' "$candidates" | grep -c . || true)
-  if [ "$candidate_count" = 1 ]; then
+  if [ "$candidate_count" = 1 ] \
+    && printf '%s\n' "$candidates" | grep -Eq '^[0-9]+$'; then
     sealed_next=$candidates
     state_ok=yes
   fi

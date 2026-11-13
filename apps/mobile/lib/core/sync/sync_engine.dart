@@ -31,8 +31,12 @@ import 'command_envelope.dart';
 import 'command_reference.dart';
 import 'command_transport.dart';
 import 'command_type.dart';
+import 'start_recovery_policy.dart';
 import 'outbox_store.dart';
 import 'sync_status.dart';
+import 'session_correction_receipt.dart';
+import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
 
 /// حصيلة تشغيل واحد للحلقة.
 class SyncRunReport {
@@ -191,12 +195,15 @@ class SyncEngine {
         .recoverRecordedRequests(accountId);
     final recovered = await _recoverStaleClaims(accountId);
 
-    var attempted = 0;
-    var confirmed = 0;
-    var retryScheduled = 0;
-    var needsReview = 0;
-    var skipped = blockedStops;
-    var blockedByReview = blockedStops;
+    final corrections = await _runSessionCorrections(accountId);
+    final financial = await _runSessionFinancialAdjustments(accountId);
+    final manual = await _runManualSessionEntries(accountId);
+    var attempted = corrections.attempted + financial.attempted + manual.attempted;
+    var confirmed = corrections.confirmed + financial.confirmed + manual.confirmed;
+    var retryScheduled = corrections.retryScheduled + financial.retryScheduled + manual.retryScheduled;
+    var needsReview = corrections.needsReview + financial.needsReview + manual.needsReview;
+    var skipped = blockedStops + corrections.skipped + financial.skipped + manual.skipped;
+    var blockedByReview = blockedStops + corrections.blockedByReview + financial.blockedByReview + manual.blockedByReview;
     var farmMappingsCreated = 0;
     var farmResultsChanged = false;
 
@@ -209,8 +216,8 @@ class SyncEngine {
       }
       if (pass > 0) {
         // إعادة تصفير المتخطى للمرور الإضافي لأن الأوامر غير المحسومة وحدها تُحسب
-        skipped = blockedStops;
-        blockedByReview = blockedStops;
+        skipped = blockedStops + corrections.skipped + financial.skipped + manual.skipped;
+        blockedByReview = blockedStops + corrections.blockedByReview + financial.blockedByReview + manual.blockedByReview;
       }
       unblockedByResolver = false;
 
@@ -422,6 +429,346 @@ class SyncEngine {
       farmResultsChanged: farmResultsChanged,
     );
   }
+
+  Future<SyncRunReport> _runSessionFinancialAdjustments(String accountId) async {
+    if(_store is! SessionFinancialAdjustmentStore||
+       _transport is! SessionFinancialAdjustmentTransport) {
+      final n=(await _store.pendingCommands(accountId)).where((c)=>
+        c.type==CommandType.adjustSessionFinancialAmount).length;
+      return SyncRunReport(skipped:n,blockedByReview:n);
+    }
+    final transport=_transport as SessionFinancialAdjustmentTransport;
+    var attempted=0,confirmed=0,retries=0,review=0,skipped=0,blocked=0;
+    for(final command in await _store.pendingCommands(accountId)) {
+      if(command.type!=CommandType.adjustSessionFinancialAmount) continue;
+      if(command.status==CommandStatus.review){skipped++;blocked++;continue;}
+      if(command.status==CommandStatus.confirmed) continue;
+      final request=SessionFinancialAdjustmentRequest.fromCommand(command);
+      if(request==null){
+        if(command.status==CommandStatus.pending&&await _store.claim(accountId,
+          command.localId,attemptedAt:_clock().toUtc())){
+          await _store.recordSessionFinancialAdjustmentObservation(
+            accountId:accountId,localId:command.localId,
+            state:SessionFinancialAdjustmentState.unresolved,
+            observedAt:_clock().toUtc());review++;
+        } else {skipped++;}
+        continue;
+      }
+      final at=_clock().toUtc();
+      final first=command.status==CommandStatus.pending&&
+        command.lastAttemptAt==null&&command.retryCount==0&&
+        command.serverResponse==null;
+      final safeRetry=command.status==CommandStatus.pending&&
+        command.lastError=='financial_adjustment_preflight_not_sent';
+      SessionFinancialAdjustmentRead read;
+      if(first||safeRetry){
+        if(!await _store.claim(accountId,command.localId,attemptedAt:at)){
+          skipped++;continue;
+        }
+        attempted++;
+        try{read=await transport.adjustSessionFinancialAmount(request);}
+        on Object{skipped++;continue;}
+      } else if(command.status==CommandStatus.dispatching){
+        try{read=await transport.readSessionFinancialAdjustmentReceipt(
+          SessionFinancialAdjustmentReceiptRequest.fromCommand(command)!);}
+        on Object{skipped++;continue;}
+      } else {skipped++;blocked++;continue;}
+      if(read is SessionFinancialAdjustmentReadFailure){
+        if((first||safeRetry)&&read.executionNotStarted){
+          await _store.releaseForRetry(accountId,command.localId,
+            error:'financial_adjustment_preflight_not_sent',attemptedAt:at);
+          retries++;
+        } else if(read.kind==SessionFinancialAdjustmentReadFailureKind.network||
+                  read.kind==SessionFinancialAdjustmentReadFailureKind.authentication){
+          // The durable dispatch claim proves an attempt, not server processing.
+          skipped++;
+        } else {
+          await _store.recordSessionFinancialAdjustmentObservation(
+            accountId:accountId,localId:command.localId,
+            state:SessionFinancialAdjustmentState.unresolved,observedAt:at);
+          review++;
+        }
+        continue;
+      }
+      final response=read as SessionFinancialAdjustmentResponse;
+      await _store.recordSessionFinancialAdjustmentObservation(
+        accountId:accountId,localId:command.localId,state:response.state,
+        observedAt:at,result:sessionFinancialStoredResult(response));
+      if(response.state==SessionFinancialAdjustmentState.accepted) {
+        confirmed++;
+      } else if(response.state==SessionFinancialAdjustmentState.processing) {
+        skipped++;
+      } else {
+        review++;
+      }
+    }
+    return SyncRunReport(attempted:attempted,confirmed:confirmed,
+      retryScheduled:retries,needsReview:review,skipped:skipped,
+      blockedByReview:blocked+review);
+  }
+
+  /// لا تتكرر كتابة الإدخال اليدوي بعد احتمال خروج الطلب إلى الشبكة.
+  Future<SyncRunReport> _runManualSessionEntries(String accountId) async {
+    const notSent = 'manual_entry_execution_not_started';
+    var attempted = 0;
+    var confirmed = 0;
+    var review = 0;
+    var retries = 0;
+    var blocked = 0;
+    for (final c in await _store.pendingCommands(accountId)) {
+      if (!isManualSessionEntry(c.type)) continue;
+      if (c.status == CommandStatus.review) {
+        blocked++;
+        continue;
+      }
+      final request = ManualSessionEntryReceiptRequest.fromCommand(c);
+      if (request == null) {
+        await _store.markNeedsReview(accountId,c.localId,
+          error: 'manual_entry_local_contract_invalid', attemptedAt: _clock().toUtc());
+        review++;
+        continue;
+      }
+      final at = _clock().toUtc();
+      ManualSessionEntryRead read;
+      final neverDispatched = (!c.wasAttempted && c.lastAttemptAt == null) ||
+          c.lastError == notSent;
+      if (c.status == CommandStatus.pending && neverDispatched) {
+        if (!await _store.claim(accountId,c.localId,attemptedAt: at)) continue;
+        attempted++;
+        try {
+          final result = await _transport.dispatch(DispatchRequest(
+            accountId: accountId, type: c.type, commandId: c.commandId,
+            arguments: buildRpcArguments(type: c.type, commandId: c.commandId,
+              occurredAt: c.occurredAt, resolvedPayload: c.payload),
+          ));
+          if (result is DispatchFailed && result.executionNotStarted) {
+            // إثبات النقل قبل الشبكة فقط؛ ليس خطأ HTTP ولا غياب إيصال.
+            await _store.releaseForRetry(accountId,c.localId,
+              error:notSent,attemptedAt:at);
+            retries++;
+            continue;
+          }
+          // حتى الخطأ القابل للإعادة ليس إثباتًا على عدم التنفيذ.
+          read = result is DispatchAccepted
+              ? parseManualSessionEntryResult(request,result.response)
+              : result is DispatchFailed && result.serverResponse != null
+                  ? parseManualSessionEntryResult(request,result.serverResponse)
+                  : const ManualSessionEntryReadFailure(ManualSessionEntryReadFailureKind.network);
+        } on Object {
+          retries++;
+          continue;
+        }
+      } else {
+        final transport = _transport;
+        if (transport is! ManualSessionEntryReceiptTransport) {
+          retries++;
+          continue;
+        }
+        try {
+          read = await (transport as ManualSessionEntryReceiptTransport).readManualSessionEntryReceipt(request);
+          // لا تُقبل نتيجة مزيفة تتجاوز التحقق عند حد النقل.
+          if (read is ManualSessionEntryOutcome && read.result != null) {
+            read = parseManualSessionEntryResult(request,read.result);
+          }
+        } on Object {
+          retries++;
+          continue;
+        }
+      }
+      if (read is! ManualSessionEntryOutcome) {
+        retries++;
+      } else if (read.state == ManualSessionEntryState.accepted) {
+        final prior = c.type == CommandType.adoptExternalSession
+            ? await _store.mapping(accountId,c.localId,EntityKind.session) : null;
+        if (prior != null && prior.serverId != read.sessionId) {
+          await _store.markNeedsReview(accountId,c.localId,
+            error:'manual_entry_session_identity_conflict',attemptedAt:at);
+          review++;
+          continue;
+        }
+        await _confirm(accountId,c,DispatchAccepted(
+          response: read.result!,entityId: read.sessionId),at);
+        confirmed++;
+      } else if (read.state.requiresAction) {
+        await _store.markNeedsReview(accountId,c.localId,
+          error: 'manual_entry_${read.state.name}',attemptedAt: at,
+          serverResponse: read.result);
+        review++;
+      } else {
+        // processing / not_found / unresolved: لا إفراج ولا كتابة ثانية.
+        retries++;
+      }
+    }
+    return SyncRunReport(attempted: attempted,confirmed: confirmed,
+      needsReview: review,retryScheduled: retries,blockedByReview: blocked,
+      skipped: blocked);
+  }
+
+  /// التصحيح يملك حاجز غموض متينًا: لا كتابة بعد dispatching إلا بقرار إنسان.
+  Future<SyncRunReport> _runSessionCorrections(String accountId) async {
+    var attempted = 0;
+    var confirmed = 0;
+    var retries = 0;
+    var review = 0;
+    var skipped = 0;
+    var blocked = 0;
+    for (final command in await _store.pendingCommands(accountId)) {
+      if (command.type != CommandType.correctIrrigationSession ||
+          command.status == CommandStatus.confirmed) {
+        continue;
+      }
+      if (command.status == CommandStatus.review) {
+        skipped++;
+        blocked++;
+        continue;
+      }
+      final request = SessionCorrectionReceiptRequest.fromCommand(command);
+      final at = command.status == CommandStatus.dispatching
+          ? command.lastAttemptAt
+          : _clock().toUtc();
+      Future<void> requireReview(String reason) async {
+        await _store.markNeedsReview(
+          accountId,
+          command.localId,
+          error: 'session_correction_$reason',
+          attemptedAt: at ?? _clock().toUtc(),
+        );
+        review++;
+      }
+
+      if (request == null || at == null) {
+        await requireReview('local_contract_invalid');
+        continue;
+      }
+      if (command.status == CommandStatus.pending) {
+        if (!await _store.claim(accountId, command.localId, attemptedAt: at)) {
+          skipped++;
+          continue;
+        }
+        attempted++;
+        DispatchResult result;
+        try {
+          result = await _transport.dispatch(DispatchRequest(
+            accountId: command.accountId,
+            type: command.type,
+            commandId: command.commandId,
+            arguments: buildRpcArguments(
+              type: command.type,
+              commandId: command.commandId,
+              occurredAt: command.occurredAt,
+              resolvedPayload: command.payload,
+            ),
+          ));
+        } on Object {
+          // قد يكون الطلب خرج بالفعل؛ التشغيل التالي يقرأ الإيصال أولًا.
+          skipped++;
+          continue;
+        }
+        if (result is DispatchAccepted) {
+          final checked = _checkCorrectionReceipt(request, 'accepted', result.response);
+          if (checked is SessionCorrectionReceiptResponse &&
+              checked.state == SessionCorrectionReceiptState.accepted &&
+              checked.receipt != null) {
+            await _store.markConfirmed(accountId, command.localId,
+                serverResponse: checked.receipt!, attemptedAt: at);
+            confirmed++;
+          } else {
+            skipped++;
+          }
+          continue;
+        }
+        final failure = result as DispatchFailed;
+        if (_isCorrectionStaleRevision(failure)) {
+          await requireReview('stale_revision');
+        } else if (failure.executionNotStarted) {
+          await _store.releaseForRetry(accountId, command.localId,
+              error: failure.message, attemptedAt: at);
+          retries++;
+        } else if (failure.code != null && !failure.isRetryable) {
+          await requireReview('server_rejected');
+        } else {
+          skipped++;
+        }
+        continue;
+      }
+
+      final transport = _transport;
+      if (transport is! SessionCorrectionReceiptTransport) {
+        skipped++;
+        continue;
+      }
+      SessionCorrectionReceiptRead read;
+      try {
+        read = await (transport as SessionCorrectionReceiptTransport)
+            .readSessionCorrectionReceipt(request);
+      } on Object {
+        skipped++;
+        continue;
+      }
+      // حتى النقل المزيّف لا يستطيع تجاوز عقد الإيصال المشترك.
+      if (read is SessionCorrectionReceiptResponse) {
+        final status = switch (read.state) {
+          SessionCorrectionReceiptState.accepted => 'accepted',
+          SessionCorrectionReceiptState.processing => 'processing',
+          SessionCorrectionReceiptState.notFound => 'not_found',
+          SessionCorrectionReceiptState.unresolved => 'unresolved',
+        };
+        read = _checkCorrectionReceipt(request, status, read.receipt);
+      }
+      if (read is SessionCorrectionReceiptResponse) {
+        switch (read.state) {
+          case SessionCorrectionReceiptState.accepted:
+            await _store.markConfirmed(accountId, command.localId,
+                serverResponse: read.receipt!, attemptedAt: at);
+            confirmed++;
+          case SessionCorrectionReceiptState.processing:
+            skipped++;
+          case SessionCorrectionReceiptState.notFound:
+            await requireReview('receipt_not_found');
+          case SessionCorrectionReceiptState.unresolved:
+            await requireReview('receipt_unresolved');
+        }
+      } else if (read is SessionCorrectionReceiptFailure) {
+        switch (read.kind) {
+          case SessionCorrectionReceiptFailureKind.network:
+          case SessionCorrectionReceiptFailureKind.authentication:
+            skipped++;
+          case SessionCorrectionReceiptFailureKind.forbidden:
+            await requireReview('receipt_forbidden');
+          case SessionCorrectionReceiptFailureKind.malformed:
+            await requireReview('receipt_malformed');
+        }
+      }
+    }
+    return SyncRunReport(
+      attempted: attempted,
+      confirmed: confirmed,
+      retryScheduled: retries,
+      needsReview: review,
+      skipped: skipped,
+      blockedByReview: blocked,
+    );
+  }
+
+  bool _isCorrectionStaleRevision(DispatchFailed failure) =>
+      failure.code == '40001' &&
+      const {'stale_revision', '40001: stale_revision'}
+          .contains(failure.message.trim());
+
+  SessionCorrectionReceiptRead _checkCorrectionReceipt(
+    SessionCorrectionReceiptRequest request,
+    String status,
+    Map<String, Object?>? receipt,
+  ) => parseSessionCorrectionReceipt(request, {
+    'contract': 'get_session_correction_receipt',
+    'version': 1,
+    'session_id': request.sessionId,
+    'command_id': request.commandId,
+    'command_type': 'correct_irrigation_session',
+    'retry_authorized': false,
+    'status': status,
+    'receipt': receipt,
+  });
 
   Future<_OperationalResult> _runOperational(CommandEnvelope candidate) async {
     if (const {
@@ -759,11 +1106,20 @@ class SyncEngine {
     }
   }
 
-  Future<List<CommandEnvelope>> _legacyPending(String accountId) {
+  Future<List<CommandEnvelope>> _legacyPending(String accountId) async {
     final store = _store;
-    return store is BookingDispatchStore
-        ? (store as BookingDispatchStore).pendingLegacyCommands(accountId)
-        : store.pendingCommands(accountId);
+    final rows = store is BookingDispatchStore
+        ? await (store as BookingDispatchStore).pendingLegacyCommands(accountId)
+        : await store.pendingCommands(accountId);
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
+    // التصحيح ينتظر مسار الإرسال والاسترداد المخصص، دون تغيير صفه المتين.
+    return rows
+        // الأنواع المتقاعدة محفوظة للقراءة؛ لا حجز ولا إعادة إرسال قديمة.
+        .where((command) => (recovery?.actionable(command) ?? true) && !command.type.isRetired &&
+            command.type != CommandType.correctIrrigationSession &&
+            command.type != CommandType.adjustSessionFinancialAmount &&
+            !isManualSessionEntry(command.type))
+        .toList();
   }
 
   Future<bool> hasReadyBookingCreates(String accountId) async {
@@ -1075,6 +1431,7 @@ class SyncEngine {
 
     for (final command in await _legacyPending(accountId)) {
       if (q137OperationalCommand(command.type) ||
+          command.type == CommandType.adjustSessionFinancialAmount ||
           command.status != CommandStatus.dispatching) {
         continue;
       }

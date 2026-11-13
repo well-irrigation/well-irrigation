@@ -8,6 +8,9 @@ import 'command_type.dart';
 
 enum CommandIntentOrigin { provenHuman, provenAutomatic, unresolved }
 
+bool sessionFinancialHistoryMutation(CommandType type) =>
+    type == CommandType.adjustSessionFinancialAmount;
+
 bool q137OperationalCommand(CommandType type) => const {
   CommandType.startOperationalSession,
   CommandType.startIrrigationSession,

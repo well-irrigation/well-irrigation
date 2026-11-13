@@ -105,6 +105,12 @@ billing.invoice_corrections|invoice_corrections_session_id_fkey|f|FOREIGN KEY (s
 billing.invoice_corrections|invoice_corrections_source_id_key|u|UNIQUE (source_id)
 billing.invoice_corrections|invoice_corrections_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id)
 billing.invoice_corrections|invoice_corrections_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id)
+billing.invoice_financial_adjustments|invoice_financial_adjustments_adjustment_id_fkey|f|FOREIGN KEY (adjustment_id) REFERENCES billing.session_financial_adjustments(id)
+billing.invoice_financial_adjustments|invoice_financial_adjustments_invoice_id_adjustment_id_key|u|UNIQUE (invoice_id, adjustment_id)
+billing.invoice_financial_adjustments|invoice_financial_adjustments_invoice_id_fkey|f|FOREIGN KEY (invoice_id) REFERENCES billing.invoices(id)
+billing.invoice_financial_adjustments|invoice_financial_adjustments_journal_entry_id_fkey|f|FOREIGN KEY (journal_entry_id) REFERENCES finance.journal_entries(id)
+billing.invoice_financial_adjustments|invoice_financial_adjustments_pkey|p|PRIMARY KEY (adjustment_id)
+billing.invoice_financial_adjustments|manual_invoice_complete|t|TRIGGER DEFERRABLE INITIALLY DEFERRED
 billing.invoice_lines|invoice_lines_invoice_id_fkey|f|FOREIGN KEY (invoice_id) REFERENCES billing.invoices(id)
 billing.invoice_lines|invoice_lines_invoice_id_line_number_key|u|UNIQUE (invoice_id, line_number)
 billing.invoice_lines|invoice_lines_line_number_check|c|CHECK ((line_number > 0))
@@ -231,6 +237,7 @@ billing.session_charge_corrections|session_charge_corrections_tenant_id_fkey|f|F
 billing.session_charge_corrections|session_charge_corrections_tenant_id_reconciliation_command_key|u|UNIQUE (tenant_id, reconciliation_command_id)
 billing.session_charge_corrections|session_charge_corrections_weighted_rate_minor_check|c|CHECK ((weighted_rate_minor > 0))
 billing.session_charge_corrections|session_charge_corrections_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id)
+billing.session_charge_corrections|system_manual_coverage|t|TRIGGER DEFERRABLE INITIALLY DEFERRED
 billing.session_charges|session_charges_amount_formula_check|c|CHECK (((pricing_mode = 'segments'::text) OR (amount_minor = (((duration_seconds)::bigint * price_per_hour_minor) / 3600))))
 billing.session_charges|session_charges_amount_minor_check|c|CHECK ((amount_minor >= 0))
 billing.session_charges|session_charges_duration_seconds_check|c|CHECK ((duration_seconds >= 0))
@@ -240,6 +247,44 @@ billing.session_charges|session_charges_pricing_mode_check|c|CHECK ((pricing_mod
 billing.session_charges|session_charges_session_id_fkey|f|FOREIGN KEY (session_id) REFERENCES ops.irrigation_sessions(id) ON DELETE CASCADE
 billing.session_charges|session_charges_session_id_key|u|UNIQUE (session_id)
 billing.session_charges|session_charges_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
+billing.session_financial_adjustments|manual_approval_complete|t|TRIGGER DEFERRABLE INITIALLY DEFERRED
+billing.session_financial_adjustments|session_financial_adjustment_applied_system_financial_rev_check|c|CHECK ((applied_system_financial_revision >= 0))
+billing.session_financial_adjustments|session_financial_adjustment_base_manual_approval_revisio_check|c|CHECK ((base_manual_approval_revision >= 0))
+billing.session_financial_adjustments|session_financial_adjustment_base_system_financial_revisi_check|c|CHECK ((base_system_financial_revision >= 0))
+billing.session_financial_adjustments|session_financial_adjustments_accepted_at_check|c|CHECK (isfinite(accepted_at))
+billing.session_financial_adjustments|session_financial_adjustments_actor_id_fkey|f|FOREIGN KEY (actor_id) REFERENCES iam.profiles(id)
+billing.session_financial_adjustments|session_financial_adjustments_approved_amount_minor_check|c|CHECK ((approved_amount_minor >= 0))
+billing.session_financial_adjustments|session_financial_adjustments_base_operational_revision_check|c|CHECK ((base_operational_revision >= 0))
+billing.session_financial_adjustments|session_financial_adjustments_check|c|CHECK (((manual_approval_revision)::numeric = ((base_manual_approval_revision)::numeric + (1)::numeric)))
+billing.session_financial_adjustments|session_financial_adjustments_check1|c|CHECK (((delta_minor)::numeric = ((approved_amount_minor)::numeric - (previous_effective_minor)::numeric)))
+billing.session_financial_adjustments|session_financial_adjustments_check2|c|CHECK ((applied_system_financial_revision >= base_system_financial_revision))
+billing.session_financial_adjustments|session_financial_adjustments_check3|c|CHECK ((applied_system_financial_revision = base_operational_revision))
+billing.session_financial_adjustments|session_financial_adjustments_created_at_check|c|CHECK (isfinite(created_at))
+billing.session_financial_adjustments|session_financial_adjustments_manual_approval_revision_check|c|CHECK ((manual_approval_revision > 0))
+billing.session_financial_adjustments|session_financial_adjustments_pkey|p|PRIMARY KEY (id)
+billing.session_financial_adjustments|session_financial_adjustments_posted_at_check|c|CHECK (isfinite(posted_at))
+billing.session_financial_adjustments|session_financial_adjustments_previous_effective_minor_check|c|CHECK ((previous_effective_minor >= 0))
+billing.session_financial_adjustments|session_financial_adjustments_reason_check|c|CHECK ((NULLIF(btrim(reason), ''::text) IS NOT NULL))
+billing.session_financial_adjustments|session_financial_adjustments_requested_at_check|c|CHECK (isfinite(requested_at))
+billing.session_financial_adjustments|session_financial_adjustments_session_charge_id_fkey|f|FOREIGN KEY (session_charge_id) REFERENCES billing.session_charges(id)
+billing.session_financial_adjustments|session_financial_adjustments_session_id_fkey|f|FOREIGN KEY (session_id) REFERENCES ops.irrigation_sessions(id)
+billing.session_financial_adjustments|session_financial_adjustments_session_id_manual_approval_re_key|u|UNIQUE (session_id, manual_approval_revision)
+billing.session_financial_adjustments|session_financial_adjustments_status_check|c|CHECK ((status = 'accepted'::text))
+billing.session_financial_adjustments|session_financial_adjustments_system_snapshot_minor_check|c|CHECK ((system_snapshot_minor >= 0))
+billing.session_financial_adjustments|session_financial_adjustments_tenant_id_command_id_key|u|UNIQUE (tenant_id, command_id)
+billing.session_financial_adjustments|session_financial_adjustments_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id)
+billing.session_financial_adjustments|session_financial_adjustments_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id)
+billing.session_financial_resolution_links|manual_resolution_complete|t|TRIGGER DEFERRABLE INITIALLY DEFERRED
+billing.session_financial_resolution_links|session_financial_resolution_links_adjustment_id_fkey|f|FOREIGN KEY (adjustment_id) REFERENCES billing.session_financial_adjustments(id)
+billing.session_financial_resolution_links|session_financial_resolution_links_correction_id_fkey|f|FOREIGN KEY (correction_id) REFERENCES billing.session_charge_corrections(correction_id)
+billing.session_financial_resolution_links|session_financial_resolution_links_pkey|p|PRIMARY KEY (correction_id)
+billing.session_invoice_financial_snapshots|invoice_financial_snapshot_complete|t|TRIGGER DEFERRABLE INITIALLY DEFERRED
+billing.session_invoice_financial_snapshots|session_invoice_financial_snapshot_effective_amount_minor_check|c|CHECK ((effective_amount_minor > 0))
+billing.session_invoice_financial_snapshots|session_invoice_financial_snapshots_check|c|CHECK (((carry_in_minor)::numeric = ((effective_amount_minor)::numeric - (system_amount_minor)::numeric)))
+billing.session_invoice_financial_snapshots|session_invoice_financial_snapshots_invoice_id_fkey|f|FOREIGN KEY (invoice_id) REFERENCES billing.invoices(id)
+billing.session_invoice_financial_snapshots|session_invoice_financial_snapshots_pkey|p|PRIMARY KEY (invoice_id)
+billing.session_invoice_financial_snapshots|session_invoice_financial_snapshots_session_id_fkey|f|FOREIGN KEY (session_id) REFERENCES ops.irrigation_sessions(id)
+billing.session_invoice_financial_snapshots|session_invoice_financial_snapshots_system_amount_minor_check|c|CHECK ((system_amount_minor >= 0))
 billing.well_pricing|well_pricing_pkey|p|PRIMARY KEY (id)
 billing.well_pricing|well_pricing_price_per_hour_minor_check|c|CHECK ((price_per_hour_minor > 0))
 billing.well_pricing|well_pricing_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
@@ -775,12 +820,18 @@ ops.notifications|notifications_recipient_profile_id_fkey|f|FOREIGN KEY (recipie
 ops.notifications|notifications_session_id_fkey|f|FOREIGN KEY (session_id) REFERENCES ops.irrigation_sessions(id) ON DELETE CASCADE
 ops.notifications|notifications_type_check|c|CHECK ((type = ANY (ARRAY['long_session'::text, 'approaching_long_session'::text, 'distribution_finalized'::text, 'expense_recorded'::text, 'handover_declared'::text, 'handover_confirmed'::text, 'handover_difference'::text, 'handover_settled'::text, 'shift_opened'::text, 'shift_closed'::text, 'shift_open_too_long'::text, 'shift_blocked'::text, 'session_transfer_requested'::text, 'session_transfer_accepted'::text, 'session_transfer_rejected'::text, 'period_reopen_requested'::text, 'period_reopen_ready'::text, 'period_reopen_approved'::text, 'period_reopen_rejected'::text, 'distribution_approved'::text, 'daily_summary'::text, 'debt_threshold_exceeded'::text])))
 ops.notifications|notifications_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
+ops.operational_occurrences|manual_session_entry_resolved|t|TRIGGER DEFERRABLE INITIALLY DEFERRED
+ops.operational_occurrences|manual_session_entry_shape|c|CHECK ((
+CASE
+    WHEN (provenance = ANY (ARRAY['manual_historical_completed'::text, 'manual_external_active'::text])) THEN ((source_booking_id IS NULL) AND (settlement_command_id IS NULL) AND (completion_command_id IS NULL) AND (original_request_id = occurrence_command_id) AND (server_session_id IS NOT NULL) AND (NULLIF(btrim(manual_reason), ''::text) IS NOT NULL) AND (jsonb_typeof(original_facts) = 'object'::text) AND (jsonb_typeof((original_facts -> 'start'::text)) = 'object'::text) AND ((original_facts - ARRAY['start'::text, 'fuel_tank_id'::text, 'fuel_quantity_ml'::text, 'fuel_measurement_type'::text]) = '{}'::jsonb) AND (((original_facts -> 'start'::text) - ARRAY['pump_id'::text, 'farm_id'::text, 'farmer_well_account_id'::text, 'energy_source'::text, 'fuel_owner_person_id'::text, 'crops'::text]) = '{}'::jsonb) AND (jsonb_typeof(((original_facts -> 'start'::text) -> 'pump_id'::text)) = 'string'::text) AND (jsonb_typeof(((original_facts -> 'start'::text) -> 'farm_id'::text)) = 'string'::text) AND (jsonb_typeof(((original_facts -> 'start'::text) -> 'farmer_well_account_id'::text)) = 'string'::text) AND (((original_facts -> 'start'::text) ->> 'energy_source'::text) = ANY (ARRAY['solar'::text, 'well_diesel'::text, 'farmer_diesel'::text])) AND isfinite(started_at) AND (started_at <= created_at) AND (((provenance = 'manual_historical_completed'::text) AND (ended_at IS NOT NULL) AND isfinite(ended_at) AND (ended_at <= created_at)) OR ((provenance = 'manual_external_active'::text) AND (ended_at IS NULL))) AND (((status = 'materializing'::text) AND (manual_result IS NULL) AND (resolved_at IS NULL)) OR ((status = 'accepted'::text) AND (jsonb_typeof(manual_result) = 'object'::text))))
+    ELSE ((manual_reason IS NULL) AND (manual_notes IS NULL) AND (manual_result IS NULL))
+END IS TRUE))
 ops.operational_occurrences|operational_occurrences_check|c|CHECK (((ended_at IS NULL) OR (ended_at > started_at)))
 ops.operational_occurrences|operational_occurrences_check1|c|CHECK (((status <> 'accepted'::text) OR ((server_session_id IS NOT NULL) AND (resolved_at IS NOT NULL))))
 ops.operational_occurrences|operational_occurrences_check2|c|CHECK (((provenance <> 'historical_settlement'::text) OR ((ended_at IS NOT NULL) AND (settlement_command_id IS NOT NULL) AND (completion_command_id IS NOT NULL))))
 ops.operational_occurrences|operational_occurrences_original_operator_id_fkey|f|FOREIGN KEY (original_operator_id) REFERENCES iam.profiles(id)
 ops.operational_occurrences|operational_occurrences_pkey|p|PRIMARY KEY (tenant_id, occurrence_command_id)
-ops.operational_occurrences|operational_occurrences_provenance_check|c|CHECK ((provenance = ANY (ARRAY['accepted_start'::text, 'delay_start_group'::text, 'historical_settlement'::text])))
+ops.operational_occurrences|operational_occurrences_provenance_check|c|CHECK ((provenance = ANY (ARRAY['accepted_start'::text, 'delay_start_group'::text, 'historical_settlement'::text, 'manual_historical_completed'::text, 'manual_external_active'::text])))
 ops.operational_occurrences|operational_occurrences_server_session_id_fkey|f|FOREIGN KEY (server_session_id) REFERENCES ops.irrigation_sessions(id) DEFERRABLE INITIALLY DEFERRED
 ops.operational_occurrences|operational_occurrences_server_session_id_key|u|UNIQUE (server_session_id)
 ops.operational_occurrences|operational_occurrences_source_booking_id_fkey|f|FOREIGN KEY (source_booking_id) REFERENCES ops.irrigation_bookings(id)

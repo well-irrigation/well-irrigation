@@ -18,14 +18,17 @@ library;
 
 import '../sync/command_envelope.dart';
 import '../sync/command_type.dart';
+import '../sync/start_recovery_policy.dart';
 import '../sync/command_transport.dart';
 import '../sync/outbox_store.dart';
 import '../sync/sync_status.dart';
+import '../sync/manual_session_entry.dart';
 import 'active_session_record.dart';
 import 'manual_stop_request_store.dart';
 import 'session_business_state.dart';
 import 'session_crop_snapshot.dart';
 import 'session_segment.dart';
+import 'server_control_snapshot.dart';
 import 'time_integrity.dart';
 
 /// لقطة تسعير محلية — القسم 17 من وثيقة أندرويد.
@@ -167,7 +170,7 @@ class ActiveSessionProjector {
     required DateTime now,
     SessionTimeContext? timeContext,
   }) async {
-    final root = await store.commandByLocalId(accountId, startCommandLocalId);
+    final root = await store.commandByLocalId(accountId, startCommandLocalId) ?? (await readStartRecoveryPolicy(store,accountId))?.controlSource(startCommandLocalId);
     if (root == null) return null;
     final all = await projectAll(
       accountId,
@@ -221,9 +224,11 @@ class ActiveSessionProjector {
     String? wellId,
     Map<String, SessionTimeContext> timeContexts = const {},
   }) async {
-    final commands = wellId == null
+    final rawCommands = wellId == null
         ? await store.allCommands(accountId)
         : await store.commandsForWell(accountId, wellId);
+    final recovery = await readStartRecoveryPolicy(store,accountId);
+    final commands = [...rawCommands.where((c) => recovery?.actionable(c) ?? true), ...?recovery?.controlSources.where((c)=>wellId==null || c.wellId==wellId)];
     final mappings = wellId == null
         ? await store.mappings(accountId)
         : (await Future.wait(
@@ -250,6 +255,17 @@ class ActiveSessionProjector {
 
     for (final command in commands) {
       if (_isSessionStartType(command.type)) {
+        if (command.type == CommandType.adoptExternalSession) {
+          final request = ManualSessionEntryReceiptRequest.fromCommand(command);
+          final outcome = request == null ? null
+              : parseManualSessionEntryResult(request,command.serverResponse);
+          if (command.status != CommandStatus.confirmed ||
+              outcome is! ManualSessionEntryOutcome ||
+              outcome.state != ManualSessionEntryState.accepted ||
+              serverIdByLocalId[command.localId]?.serverId != outcome.sessionId) {
+            continue;
+          }
+        }
         byAggregate.putIfAbsent(command.localId, () => []).add(command);
         continue;
       }
@@ -303,10 +319,12 @@ class ActiveSessionProjector {
           accountId: accountId,
           start: start,
           events: entry.value,
-          recordedStop: await _recordedManualStop(start),
+          serverControl: recovery?.control(start.localId),
+          recoveryConflict: recovery?.root(start.localId) == StartRecoveryDisposition.conflict,
+          recordedStop: recovery?.root(start.localId) == StartRecoveryDisposition.conflict ? null : await _recordedManualStop(start),
           now: now,
           timeContext: timeContext,
-          serverIdByLocalId: serverIdByLocalId,
+          serverIdByLocalId: {...serverIdByLocalId, if(recovery?.controlMapping(start.localId) case final IdMapping m) start.localId:m},
           lastSync: lastSync,
           prerequisiteRequiresReview: await _prerequisiteRequiresReview(
             accountId,
@@ -434,6 +452,8 @@ class ActiveSessionProjector {
     required DateTime? lastSync,
     required bool prerequisiteRequiresReview,
     ManualStopRequest? recordedStop,
+    ServerControlSnapshot? serverControl,
+    bool recoveryConflict = false,
   }) {
     final ordered = [...events]
       ..sort((a, b) => a.sequence.compareTo(b.sequence));
@@ -456,10 +476,17 @@ class ActiveSessionProjector {
       flags.addAll(resolved.flags);
     }
 
-    final segments = <SessionSegment>[];
+    final segments = <SessionSegment>[
+      if(serverControl != null) for(final segment in serverControl.segments) SessionSegment(
+        kind:segment.isStop ? SegmentKind.paused : SegmentKind.running,
+        startedAt:segment.startedAt,endedAt:segment.endedAt,energySource:segment.energySourceCode,
+        pauseReason:segment.isStop ? segment.segmentType : null,
+        billableOverride:segment.isBillable,
+      ),
+    ];
     final payments = <LocalPayment>[];
 
-    DateTime? completedAt;
+    DateTime? completedAt = serverControl?.endedAt;
     CommandEnvelope? completion;
     Map<String, Object?>? acceptedCompletion;
     CommandEnvelope? acceptedCommand;
@@ -481,12 +508,14 @@ class ActiveSessionProjector {
     if (pendingStopAt != null && pendingStopAt.isBefore(start.occurredAt)) {
       flags.add(TimeIntegrityFlag.impossibleEventOrdering);
     }
-    final context = start.type == CommandType.startBookingSession
+    final context = start.type == CommandType.adoptExternalSession
+        ? {for (final e in (start.payload['p_request'] as Map).entries) 'p_${e.key}': e.value}
+        : start.type == CommandType.startBookingSession
         ? start.localContext
         : start.payload;
-    var energySource = context['p_energy_source'] as String?;
+    var energySource = serverControl?.segments.last.energySourceCode ?? context['p_energy_source'] as String?;
 
-    void openSegment(SegmentKind kind, DateTime at, {String? pauseReason}) {
+    void openSegment(SegmentKind kind, DateTime at, {String? pauseReason, bool? billableOverride}) {
       segments.add(
         SessionSegment(
           kind: kind,
@@ -496,6 +525,7 @@ class ActiveSessionProjector {
               ? pricing.rateFor(at, energySource: energySource)
               : null,
           pauseReason: pauseReason,
+          billableOverride:billableOverride,
         ),
       );
     }
@@ -539,7 +569,8 @@ class ActiveSessionProjector {
         case CommandType.startIrrigationSession:
         case CommandType.startAdhocSession:
         case CommandType.startBookingSession:
-          openSegment(SegmentKind.running, at);
+        case CommandType.adoptExternalSession:
+          if(serverControl == null) openSegment(SegmentKind.running, at);
 
         case CommandType.pauseIrrigationSession:
           closeOpenSegment(at);
@@ -562,10 +593,13 @@ class ActiveSessionProjector {
               ? segments[openIndex].kind
               : (segments.lastOrNull?.kind ?? SegmentKind.running);
 
+          final previous = openIndex >= 0 ? segments[openIndex] : null;
           closeOpenSegment(at);
           energySource =
               command.payload['p_new_source'] as String? ?? energySource;
-          openSegment(previousKind, at);
+          openSegment(previousKind, at,
+            pauseReason:serverControl == null ? null : previous?.pauseReason,
+            billableOverride:serverControl == null ? null : previous?.billableOverride);
 
         case CommandType.completeIrrigationSession:
           completion = command;
@@ -599,7 +633,15 @@ class ActiveSessionProjector {
             ),
           );
 
+        case CommandType.correctIrrigationSession:
+        case CommandType.adjustSessionFinancialAmount:
+        case CommandType.recordHistoricalSession:
+          // تصحيح جلسة خادمية تاريخية؛ لا يغيّر أحداث التشغيل المحلية.
+          break;
+
         case CommandType.createBooking:
+        case CommandType.cancelBooking:
+        case CommandType.rescheduleBooking:
         case CommandType.createFarmer:
         case CommandType.createFarm:
         case CommandType.resolveFarmerIdentity:
@@ -633,13 +675,13 @@ class ActiveSessionProjector {
       serverSessionId: serverIdByLocalId[start.localId]?.serverId,
       wellId: start.wellId ?? start.payload['p_well_id'] as String?,
       farmReference: _referenceOrId(context['p_farm_id']),
-      farmerReference: _referenceOrId(context['p_farmer_well_account_id']),
+      farmerReference: serverControl?.farmerId ?? _referenceOrId(context['p_farmer_well_account_id']),
       pumpId:
           _referenceOrId(context['p_pump_id']) ??
           _referenceOrId(start.serverResponse?['pump_id']),
       pumpName: start.localContext['pump_name'] as String?,
       crops: _cropSnapshot(start.payload['p_crops']),
-      startedAt: start.occurredAt.toUtc(),
+      startedAt: serverControl?.startedAt ?? start.occurredAt.toUtc(),
       completedAt: completedAt,
       completionCommandLocalId: completion?.localId,
       stopRequestedAt: pendingStopAt,
@@ -647,7 +689,7 @@ class ActiveSessionProjector {
       businessState: pendingStopAt != null
           ? SessionBusinessState.stopRequested
           : stateFromSegments(segments, completed: completedAt != null),
-      syncState: prerequisiteRequiresReview || invalidConfirmedCompletion
+      syncState: recoveryConflict || prerequisiteRequiresReview || invalidConfirmedCompletion
           ? SessionSyncState.conflict
           : pendingStopAt != null && pendingCommands.isEmpty
           ? SessionSyncState.localOnly
@@ -688,6 +730,7 @@ class ActiveSessionProjector {
 
   /// أمر البدء سواء بالعقد القديم أو بعقد المدة المخطّطة (ق-132/750).
   static bool _isSessionStartType(CommandType type) =>
+      type == CommandType.adoptExternalSession ||
       type == CommandType.startOperationalSession ||
       type == CommandType.startIrrigationSession ||
       type == CommandType.startAdhocSession ||

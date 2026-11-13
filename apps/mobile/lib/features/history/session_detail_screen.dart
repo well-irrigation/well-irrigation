@@ -11,6 +11,8 @@ import '../../core/utils/currency_utils.dart';
 import '../../core/widgets/currency_display.dart';
 import '../operations/widgets/payment_receipt_dialog.dart';
 import '../operations/widgets/session_completion_result.dart';
+import 'session_correction_screen.dart';
+import 'session_financial_adjustment_screen.dart';
 
 /// شاشة تفاصيل الجلسة والخط الزمني (UX-13 / 377 / ق-98)
 class SessionDetailScreen extends StatefulWidget {
@@ -45,6 +47,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   CompletedSessionPaymentState? _paymentState;
   bool _paymentOpening = false;
   bool _usingCachedRead = false;
+  bool get _canShowCorrectionAction =>
+      _detailData != null &&
+      !_usingCachedRead &&
+      _detailData!.canCorrectSession;
   OfflineSessionCoordinator get _coordinator =>
       widget.coordinator ?? OfflineSessionCoordinator.instance;
   bool get _canRecordPayment =>
@@ -60,6 +66,61 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   bool _refreshing = false;
   bool _refreshAgain = false;
   int _loadGeneration = 0;
+  String? _correctionOutcome;
+  String? _historicalCorrectionOutcome;
+  Object? _correctionOutcomeSnapshot;
+  bool _historyExpanded = false;
+  bool _historyLoading = false;
+  bool _historyLoaded = false;
+  String? _historyError;
+  SessionCorrectionHistory? _correctionHistory;
+  String? _historySessionId;
+  int _historyGeneration = 0;
+
+  void _resetCorrectionHistory() {
+    _historyGeneration++;
+    _historyExpanded = false;
+    _historyLoading = false;
+    _historyLoaded = false;
+    _historyError = null;
+    _correctionHistory = null;
+    _historySessionId = null;
+  }
+
+  void _replaceDetailData(SessionDetailData data) {
+    final previousSessionId = _detailData?.session.id;
+    _detailData = data;
+    if (!data.canReadSessionCorrections ||
+        (previousSessionId != null && previousSessionId != data.session.id)) {
+      _resetCorrectionHistory();
+    }
+  }
+
+  // Value equality keeps messages valid across equivalent server reads.
+  // SessionHistoryItem represents financial review through financialStatus.
+  Object _correctionSnapshot(SessionDetailData data) {
+    final session = data.session;
+    return (
+      sessionId: session.id,
+      wellId: session.wellId,
+      revision: session.operationalRevision,
+      startedAt: session.effectiveStartedAt?.microsecondsSinceEpoch,
+      endedAt: session.effectiveEndedAt?.microsecondsSinceEpoch,
+      financialStatus: session.financialStatus,
+      financialReviewRequired:
+          session.financialStatus == 'financial_review_required',
+      financialAppliedRevision: session.financialAppliedRevision,
+      amount: session.totalAmountYER,
+      paidAmount: session.paidAmountYER,
+      paymentStatus: session.paymentStatus,
+      hasCharge: session.hasCharge,
+      hasInvoice: session.hasInvoice,
+    );
+  }
+
+  bool get _correctionOutcomeIsCurrent =>
+      _detailData != null &&
+      _correctionOutcomeSnapshot == _correctionSnapshot(_detailData!);
 
   void _onCompletion(ActiveSessionRecord record) {
     if (record.accountId != widget.accountId ||
@@ -92,7 +153,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       _paymentState = state;
       if (state != null) _localCompletion = state.record;
       if (_detailData == null && state?.cachedDetail != null) {
-        _detailData = state!.cachedDetail;
+        _replaceDetailData(state!.cachedDetail!);
         _usingCachedRead = true;
         _isLoading = false;
       }
@@ -113,6 +174,281 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       revision: revision,
     );
     await _restorePaymentState();
+  }
+
+  Future<void> _openSessionCorrection() async {
+    if (!_canShowCorrectionAction) return;
+    final session = _detailData!.session;
+    final start = session.effectiveStartedAt;
+    final end = session.effectiveEndedAt;
+    final revision = session.operationalRevision;
+    if (start == null || end == null || revision == null) return;
+    final result = await Navigator.of(context)
+        .push<SessionCorrectionAcceptedResult>(
+          MaterialPageRoute<SessionCorrectionAcceptedResult>(
+            builder: (_) => SessionCorrectionScreen(
+              coordinator: _coordinator,
+              accountId: widget.accountId,
+              wellId: widget.wellId,
+              sessionId: session.id,
+              effectiveStartedAt: start,
+              effectiveEndedAt: end,
+              operationalRevision: revision,
+            ),
+          ),
+        );
+    if (!mounted || result == null) return;
+    await _verifyCorrection(result);
+  }
+
+  Future<void> _verifyCorrection(SessionCorrectionAcceptedResult result) async {
+    final generation = ++_loadGeneration;
+    final receipt = result.accepted.receipt!;
+    final acceptedRevision = receipt['operational_revision'] as int;
+    final previousRevision = receipt['previous_revision'] as int;
+    final correctionId = receipt['correction_id'] as String;
+    final start = DateTime.parse(receipt['actual_started_at'] as String);
+    final end = DateTime.parse(receipt['actual_ended_at'] as String);
+    bool same(DateTime? a, DateTime b) => a?.isAtSameMomentAs(b) == true;
+    try {
+      final detail = await _repo.fetchSessionDetail(widget.sessionId);
+      final history = await _repo.fetchSessionCorrections(widget.sessionId);
+      final status = await _repo.fetchSessionCorrectionStatus(widget.sessionId);
+      if (!mounted || generation != _loadGeneration) return;
+      final matches = history.items
+          .where((item) => item.correctionId == correctionId)
+          .toList();
+      final session = detail.session;
+      final revision = session.operationalRevision;
+      var valid =
+          session.id == widget.sessionId &&
+          session.wellId == widget.wellId &&
+          history.sessionId == widget.sessionId &&
+          matches.length == 1 &&
+          revision != null &&
+          revision >= acceptedRevision;
+      if (valid) {
+        final item = matches.single;
+        valid =
+            item.sessionId == widget.sessionId &&
+            item.previousRevision == previousRevision &&
+            item.newRevision == acceptedRevision &&
+            same(item.afterStartedAt, start) &&
+            same(item.afterEndedAt, end);
+      }
+      final current = revision == acceptedRevision;
+      if (valid && current) {
+        valid =
+            same(session.effectiveStartedAt, start) &&
+            same(session.effectiveEndedAt, end) &&
+            status.sessionId == widget.sessionId &&
+            status.correctionId == correctionId &&
+            status.operationalRevision == acceptedRevision &&
+            status.financialStatus == session.financialStatus &&
+            (status.financialStatus != 'applied' ||
+                session.financialAppliedRevision == revision);
+      }
+      setState(() {
+        _historicalCorrectionOutcome = null;
+        _correctionOutcomeSnapshot = _correctionSnapshot(
+          valid ? detail : _detailData!,
+        );
+        if (!valid) {
+          _correctionOutcome =
+              'تم اعتماد طلب التصحيح، لكن تعذر التحقق من أحدث بيانات الجلسة.';
+          return;
+        }
+        _resetCorrectionHistory();
+        _replaceDetailData(detail);
+        _usingCachedRead = false;
+        if (!current) {
+          _correctionOutcome =
+              'تم اعتماد هذا التصحيح، وتوجد تعديلات أحدث على السجل.';
+          if (matches.single.financialReviewRequired) {
+            _historicalCorrectionOutcome =
+                'الأثر المالي لهذا التصحيح يحتاج إلى مراجعة.';
+          }
+        } else if (status.financialReviewRequired ||
+            status.financialStatus == 'financial_review_required') {
+          _correctionOutcome =
+              'تم اعتماد التصحيح، لكن المبلغ يحتاج إلى مراجعة.';
+        } else if (status.financialStatus == 'applied') {
+          _correctionOutcome = 'تم اعتماد التصحيح.';
+        } else {
+          _correctionOutcome = 'تم اعتماد التصحيح، والأثر المالي قيد المعالجة.';
+        }
+      });
+    } catch (_) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _historicalCorrectionOutcome = null;
+        _correctionOutcomeSnapshot = _correctionSnapshot(_detailData!);
+        _correctionOutcome =
+            'تم اعتماد طلب التصحيح، لكن تعذر تحميل أحدث بيانات الجلسة.';
+      });
+    }
+  }
+
+  String _correctionTime(DateTime time) {
+    final local = time.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _toggleCorrectionHistory() async {
+    final data = _detailData;
+    if (data?.canReadSessionCorrections != true || _historyLoading) return;
+    if (_historyExpanded) {
+      setState(() => _historyExpanded = false);
+      return;
+    }
+
+    final sessionId = data!.session.id;
+    setState(() => _historyExpanded = true);
+    if (_historyLoaded && _historySessionId == sessionId) return;
+    await _fetchCorrectionHistory(sessionId);
+  }
+
+  Future<void> _retryCorrectionHistory() async {
+    final data = _detailData;
+    if (data?.canReadSessionCorrections != true || _historyLoading) return;
+    setState(() => _historyExpanded = true);
+    await _fetchCorrectionHistory(data!.session.id);
+  }
+
+  Future<void> _fetchCorrectionHistory(String sessionId) async {
+    if (_historyLoading ||
+        _detailData?.canReadSessionCorrections != true ||
+        _detailData?.session.id != sessionId ||
+        (_historyLoaded && _historySessionId == sessionId)) {
+      return;
+    }
+
+    final generation = ++_historyGeneration;
+    setState(() {
+      _historyLoading = true;
+      _historyError = null;
+    });
+    try {
+      final history = await _repo.fetchSessionCorrections(sessionId);
+      if (history.sessionId != sessionId) {
+        throw StateError('Correction history session mismatch');
+      }
+      if (!mounted ||
+          generation != _historyGeneration ||
+          _detailData?.canReadSessionCorrections != true ||
+          _detailData?.session.id != sessionId) {
+        return;
+      }
+      setState(() {
+        _correctionHistory = history;
+        _historySessionId = sessionId;
+        _historyLoaded = true;
+        _historyLoading = false;
+        _historyError = null;
+      });
+    } catch (_) {
+      if (!mounted ||
+          generation != _historyGeneration ||
+          _detailData?.canReadSessionCorrections != true ||
+          _detailData?.session.id != sessionId) {
+        return;
+      }
+      setState(() {
+        _historyLoading = false;
+        _historyLoaded = false;
+        _historyError = 'تعذر تحميل سجل التصحيحات. حاول مرة أخرى.';
+      });
+    }
+  }
+
+  String _formatCorrectionDateTime(DateTime time) {
+    final local = time.toLocal();
+    final date = MaterialLocalizations.of(context).formatMediumDate(local);
+    return '$date، ${_formatTimeOnly(local)}';
+  }
+
+  Widget _correctionHistoryItem(SessionCorrectionItem item) {
+    final financialMessage = switch (item.financialStatus) {
+      'pending' => 'الأثر المالي قيد المعالجة.',
+      'applied' => 'تم تطبيق الأثر المالي.',
+      'financial_review_required' => 'الأثر المالي يحتاج إلى مراجعة.',
+      _ => null,
+    };
+
+    return _detailCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'قبل التصحيح',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text('البداية: ${_formatCorrectionDateTime(item.beforeStartedAt)}'),
+          Text('النهاية: ${_formatCorrectionDateTime(item.beforeEndedAt)}'),
+          const SizedBox(height: 8),
+          const Text(
+            'بعد التصحيح',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text('البداية: ${_formatCorrectionDateTime(item.afterStartedAt)}'),
+          Text('النهاية: ${_formatCorrectionDateTime(item.afterEndedAt)}'),
+          const SizedBox(height: 8),
+          const Text(
+            'سبب التصحيح',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text(item.reason),
+          const SizedBox(height: 8),
+          Text('تم الاعتماد: ${_formatCorrectionDateTime(item.acceptedAt)}'),
+          if (financialMessage != null) Text(financialMessage),
+          if (item.financialStatus == 'financial_review_required' &&
+              (item.financialReviewReason?.trim().isNotEmpty ?? false))
+            Text(item.financialReviewReason!.trim()),
+        ],
+      ),
+    );
+  }
+
+  Widget _correctionHistorySection() {
+    final history = _correctionHistory;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'سجل التصحيحات',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        TextButton(
+          key: const Key('session_correction_history_toggle'),
+          onPressed: _historyLoading ? null : _toggleCorrectionHistory,
+          child: Text(
+            _historyExpanded ? 'إخفاء سجل التصحيحات' : 'عرض سجل التصحيحات',
+          ),
+        ),
+        if (_historyExpanded) ...[
+          if (_historyLoading) const Text('جارٍ تحميل سجل التصحيحات...'),
+          if (_historyError case final error?) ...[
+            Text(error),
+            TextButton(
+              onPressed: _retryCorrectionHistory,
+              child: const Text('إعادة المحاولة'),
+            ),
+          ],
+          if (!_historyLoading &&
+              _historyError == null &&
+              _historyLoaded &&
+              _historySessionId == _detailData?.session.id &&
+              history?.items.isEmpty == true)
+            const Text('لا توجد تصحيحات مسجلة لهذه الجلسة.'),
+          if (!_historyLoading &&
+              _historyError == null &&
+              _historyLoaded &&
+              _historySessionId == _detailData?.session.id &&
+              history != null)
+            for (final item in history.items) _correctionHistoryItem(item),
+        ],
+      ],
+    );
   }
 
   Future<void> _recordDeferredPayment() async {
@@ -269,7 +605,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           await _rememberPaymentRead(detail, revision);
           if (mounted && generation == _loadGeneration) {
             setState(() {
-              _detailData = detail;
+              _replaceDetailData(detail);
               _usingCachedRead = false;
             });
           }
@@ -324,7 +660,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         if (!mounted || generation != _loadGeneration) return;
         setState(() {
           _usingCachedRead = false;
-          _detailData = data;
+          _replaceDetailData(data);
           _isLoading = false;
         });
       }
@@ -552,28 +888,13 @@ $moneyBlock
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                const Text(
-                  'تفاصيل جلسة',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                Text(
-                  '#${session.id.substring(0, session.id.length > 6 ? 6 : session.id.length)}',
-                  textDirection: TextDirection.ltr,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
+            const Text(
+              'تفاصيل جلسة',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
             Text(
               widget.wellName,
@@ -593,8 +914,31 @@ $moneyBlock
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _paymentMessages(),
+              if (_correctionOutcome case final message?) ...[
+                if (_correctionOutcomeIsCurrent) ...[
+                  Semantics(liveRegion: true, child: Text(message)),
+                  if (_historicalCorrectionOutcome case final historical?)
+                    Text(historical),
+                ],
+                if (session.effectiveStartedAt case final start?)
+                  Text('البداية الفعلية: ${_correctionTime(start)}'),
+                if (session.effectiveEndedAt case final end?)
+                  Text('النهاية الفعلية: ${_correctionTime(end)}'),
+                const SizedBox(height: 8),
+              ],
               // 1. كرت الملخص العام
               _buildSummaryCard(session, crops: data.crops),
+
+              if (_canShowCorrectionAction)
+                OutlinedButton(
+                  onPressed: _openSessionCorrection,
+                  child: const Text('تصحيح السجل'),
+                ),
+
+              if (data.canReadSessionCorrections) ...[
+                const SizedBox(height: 8),
+                _correctionHistorySection(),
+              ],
 
               const SizedBox(height: 8),
 
@@ -1014,11 +1358,11 @@ $moneyBlock
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Wrap(
+          Wrap(
             spacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(
+              const Text(
                 'تفاصيل السداد',
                 style: TextStyle(
                   fontSize: 13,
@@ -1026,10 +1370,25 @@ $moneyBlock
                   color: AppColors.deepBlue,
                 ),
               ),
-              Text(
+              const Text(
                 'وفق قراءة الخادم',
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
+              if (widget.accountId != null &&
+                  widget.wellId != null &&
+                  s.id == widget.sessionId &&
+                  s.wellId == widget.wellId &&
+                  (s.status == 'closed' || s.status == 'forgotten'))
+                SessionFinancialAdjustmentAction(
+                  key: ValueKey((widget.accountId, widget.wellId, widget.sessionId)),
+                  accountId: widget.accountId!,
+                  wellId: widget.wellId!,
+                  sessionId: widget.sessionId,
+                  sessionLabel: '${s.farmerName} · ${s.farmName}',
+                  repository: _repo,
+                  coordinator: _coordinator,
+                  onAccepted: _refreshFinance,
+                ),
             ],
           ),
           const SizedBox(height: 8),

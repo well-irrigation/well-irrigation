@@ -514,6 +514,9 @@ class _FarmerDetailScreenState extends State<FarmerDetailScreen>
                     sessionId: s.id,
                     wellName: widget.wellName,
                     repository: _repo,
+                    coordinator: _coordinator,
+                    accountId: widget.accountId,
+                    wellId: widget.wellId,
                   ),
                 ),
               );

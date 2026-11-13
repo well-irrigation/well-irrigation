@@ -10,6 +10,7 @@ library;
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'retry_classification.dart';
+import 'manual_session_entry.dart';
 
 /// طلب إرسال واحد: كل ما يحتاجه الخادم، محسوم المراجع.
 class DispatchRequest {
@@ -223,6 +224,7 @@ Map<String, Object?> buildRpcArguments({
   required DateTime occurredAt,
   required Map<String, Object?> resolvedPayload,
 }) {
+  if (type.isRetired) throw StateError('retired_command_dispatch_disabled');
   final eventTimeArgument = type.eventTimeArgument;
 
   return {
@@ -240,6 +242,14 @@ DispatchResult normalizeAcceptedResponse(
   CommandType type,
   Object? rawResponse,
 ) {
+  // التحقق المرتبط بالطلب يتم في المسار المخصص قبل أي تأكيد أو ربط.
+  if (isManualSessionEntry(type)) {
+    if (rawResponse is! Map || !rawResponse.keys.every((k) => k is String)) {
+      throw const FormatException('invalid_manual_entry_response');
+    }
+    return DispatchAccepted(
+      response: Map<String,Object?>.from(rawResponse),entityId: null);
+  }
   if (type == CommandType.createBooking) {
     final response = rawResponse is Map
         ? Map<String, Object?>.from(rawResponse)

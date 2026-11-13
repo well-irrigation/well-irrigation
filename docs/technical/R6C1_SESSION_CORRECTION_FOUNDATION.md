@@ -1,6 +1,8 @@
 # R6-C1 — هوية تصحيح التشغيل ومراجعته وتاريخه
 
-> الحالة الحاكمة الحالية: ADOPTED + DOCUMENTED + IMPLEMENTED + VERIFIED LOCAL + COMMITTED في `d6b4ef7566d633bc290fc3e633cf8e6fd799e96a`. تحقق المالك وفق سجل التسليم وانحدار C2/C3؛ لم يُسجل هنا عدد تاريخي مستقل. Pending أدناه تاريخي؛ C4 للواجهة العامة مؤجلة. المرجع الحالي: `../memory/RESUME_POINT.md`.
+> الحالة الحاكمة الحالية: ADOPTED + DOCUMENTED + IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + COMMITTED في `d6b4ef7566d633bc290fc3e633cf8e6fd799e96a`، ومدفوع في PR #68. تحقق المالك وفق سجل التسليم وانحدار C2/C3؛ لم يُسجل هنا عدد تاريخي مستقل. Pending أدناه تاريخي. **الواجهة:** تصحيح الجلسة من الهاتف منفذ؛ DEVICE ACCEPTANCE NOT FULLY CLOSED. **العقود العامة** `20261108002600`–`20261108003000` مدفوعة وغير منشورة سحابيًا؛ C4/C5 الموسّعان مؤجلان. المرجع الحالي: `../memory/RESUME_POINT.md`.
+
+**HISTORICAL:** الحالة التالية تصف لحظة تأليف الهجرة فقط.
 
 الحالة: Implemented / Static reviewed / Owner DB Verification Pending.
 أساس الجولة: `9b1885a331083a4e4b1828c6ffb6744e5598e383`، شجرة نظيفة.

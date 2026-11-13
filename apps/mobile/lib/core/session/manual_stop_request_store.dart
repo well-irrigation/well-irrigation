@@ -4,6 +4,7 @@ import '../sync/command_envelope.dart';
 import '../sync/command_reference.dart';
 import '../sync/command_id_generator.dart';
 import '../sync/command_type.dart';
+import '../sync/start_recovery_policy.dart';
 import '../sync/outbox_store.dart';
 
 /// حقيقة محلية: طلب المشغّل الإيقاف، وليست نتيجة إكمال أو أمرًا لتنفيذه.
@@ -16,6 +17,7 @@ class ManualStopRequest {
     required this.serverSessionId,
     required this.requestId,
     required this.requestedAt,
+    this.controlAnchor,
   });
 
   final String accountId;
@@ -25,9 +27,11 @@ class ManualStopRequest {
   final String? serverSessionId;
   final String requestId;
   final DateTime requestedAt;
+  final String? controlAnchor;
 
   Map<String, Object?> toJson() => {
     'version': 1,
+    if(controlAnchor != null) 'control_anchor':controlAnchor,
     'provenance': 'human_stop_request',
     'account_id': accountId,
     'well_id': wellId,
@@ -72,7 +76,10 @@ class ManualStopRequestStore {
     _checkScope(accountId, wellId, sessionLocalId);
     final session = await _session(accountId, wellId, sessionLocalId);
     final serverId = await _serverId(accountId, sessionLocalId);
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
+    final anchor = recovery?.controlAnchor(sessionLocalId);
     final candidate = ManualStopRequest._(
+      controlAnchor:anchor,
       accountId: accountId,
       wellId: wellId,
       sessionLocalId: sessionLocalId,
@@ -90,7 +97,7 @@ class ManualStopRequestStore {
     final saved = await (writer as AtomicLocalRecordStore)
         .insertLocalRecordOnce(
           accountId: accountId,
-          key: keyFor(wellId, sessionLocalId),
+          key: controlEpochKey(keyFor(wellId, sessionLocalId),anchor),
           value: jsonEncode(candidate.toJson()),
         );
     return _decode(saved, session, serverId);
@@ -103,6 +110,8 @@ class ManualStopRequestStore {
     final accountId = request.accountId,
         well = request.wellId,
         local = request.sessionLocalId;
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
+    if(request.controlAnchor != recovery?.controlAnchor(local)) throw StateError('isolated_stop_control_epoch');
     final start = await _session(accountId, well, local);
     if (_store is! SessionExecutionStore) {
       throw StateError('manual_stop_atomic_store_required');
@@ -136,7 +145,7 @@ class ManualStopRequestStore {
           throw StateError('multiple_completions_require_review');
         }
         final materialized = {
-          manualStopMaterializationKey(well, local): request.requestId,
+          controlEpochKey(manualStopMaterializationKey(well, local),request.controlAnchor): request.requestId,
         };
         if (old.isNotEmpty) {
           return SessionExecutionWrite(old.single, values: materialized);
@@ -153,7 +162,7 @@ class ManualStopRequestStore {
           deferCompletionNotification: true,
           values: {
             ...materialized,
-            'session.completion.v1.$well.$local': jsonEncode({
+            controlEpochKey('session.completion.v1.$well.$local',request.controlAnchor): jsonEncode({
               'version': 1,
               'provenance': 'session_completion_effect',
               'account_id': accountId,
@@ -173,6 +182,7 @@ class ManualStopRequestStore {
 
   /// نطاق الحساب فقط، وطلبات لم يثبت ربطها بأمر؛ لا مسح لتاريخ أوامر الجلسات.
   Future<int> recoverRecordedRequests(String accountId) async {
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
     var blocked = 0;
     for (final raw in await _store.readLocalValuesByPrefix(
       accountId,
@@ -189,9 +199,15 @@ class ManualStopRequestStore {
         }
         final well = value['well_id'] as String,
             local = value['session_local_id'] as String;
+        if(recovery?.protectedRoot(local) != null) {
+          final state = recovery!.root(local);
+          if(state == StartRecoveryDisposition.resolvedNonExecution || state == StartRecoveryDisposition.legacyRetired) continue;
+          if(state == StartRecoveryDisposition.conflict) { blocked++; continue; }
+          if(value['control_anchor'] != recovery.controlAnchor(local)) continue;
+        }
         final done = await _store.readBundle(
           accountId,
-          manualStopMaterializationKey(well, local),
+          controlEpochKey(manualStopMaterializationKey(well, local),value['control_anchor'] as String?),
         );
         if (done == value['request_id']) continue;
         final request = await read(
@@ -218,13 +234,17 @@ class ManualStopRequestStore {
     required String sessionLocalId,
   }) async {
     _checkScope(accountId, wellId, sessionLocalId);
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
+    final anchor = recovery?.controlAnchor(sessionLocalId);
     final saved = await _store.readBundle(
       accountId,
-      keyFor(wellId, sessionLocalId),
+      controlEpochKey(keyFor(wellId, sessionLocalId),anchor),
     );
     if (saved == null) return null;
     final session = await _session(accountId, wellId, sessionLocalId);
-    return _decode(saved, session, await _serverId(accountId, sessionLocalId));
+    final decoded = _decode(saved, session, await _serverId(accountId, sessionLocalId));
+    if(decoded.controlAnchor != anchor) throw const FormatException('invalid_stop_control_anchor');
+    return decoded;
   }
 
   Future<CommandEnvelope> _session(
@@ -232,7 +252,7 @@ class ManualStopRequestStore {
     String wellId,
     String localId,
   ) async {
-    final row = await _store.commandByLocalId(accountId, localId);
+    final row = await _store.commandByLocalId(accountId, localId) ?? (await readStartRecoveryPolicy(_store,accountId))?.controlSource(localId);
     if (row == null ||
         row.accountId != accountId ||
         row.wellId != wellId ||
@@ -244,6 +264,8 @@ class ManualStopRequestStore {
             row.payload['p_well_id'] != wellId)) {
       throw StateError('unproven_manual_stop_session');
     }
+    final recovery = await readStartRecoveryPolicy(_store,accountId);
+    if(recovery != null && !recovery.mayControl(localId)) throw StateError('resolved_start_child_isolated');
     return row;
   }
 
@@ -253,7 +275,7 @@ class ManualStopRequestStore {
       localId,
       EntityKind.session,
     );
-    if (mapping == null) return null;
+    if (mapping == null) return (await readStartRecoveryPolicy(_store,accountId))?.controlMapping(localId)?.serverId;
     if (mapping.localId != localId ||
         mapping.kind != EntityKind.session ||
         !_id(mapping.serverId)) {
@@ -289,6 +311,7 @@ class ManualStopRequestStore {
     final serverId = data['server_session_id'];
     if (data['version'] is! int ||
         data['version'] != 1 ||
+        (data['control_anchor'] != null && !_id(data['control_anchor'])) ||
         data['provenance'] != 'human_stop_request' ||
         data['account_id'] != session.accountId ||
         data['well_id'] != session.wellId ||
@@ -306,6 +329,7 @@ class ManualStopRequestStore {
       throw const FormatException('invalid_manual_stop_record');
     }
     return ManualStopRequest._(
+      controlAnchor:data['control_anchor'] as String?,
       accountId: session.accountId,
       wellId: session.wellId!,
       sessionLocalId: session.localId,

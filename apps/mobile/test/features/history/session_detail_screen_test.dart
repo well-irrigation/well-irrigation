@@ -1,7 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:well_irrigation_mobile/core/api/operations_repository.dart';
 import 'package:well_irrigation_mobile/features/history/session_detail_screen.dart';
+import 'package:well_irrigation_mobile/core/session/offline_session_coordinator.dart';
+import 'package:well_irrigation_mobile/core/session/active_session_record.dart';
+import 'package:well_irrigation_mobile/core/sync/in_memory_outbox_store.dart';
+
+import '../../core/session/session_test_support.dart' show acceptTestCompletion;
 
 /// مستودع اختبار يحاكي عقد `api.get_session_detail` (م-41C2).
 /// الشاشة لم تعد تملك تفصيلًا وهميًا: عقد حقيقي أو فشل صريح.
@@ -9,10 +16,14 @@ class _FakeOperationsRepository extends OperationsRepository {
   const _FakeOperationsRepository({
     this.shouldFail = false,
     this.billed = true,
+    this.canRead = false,
+    this.canCorrect = false,
   });
 
   final bool shouldFail;
   final bool billed;
+  final bool canRead;
+  final bool canCorrect;
 
   @override
   Future<SessionDetailData> fetchSessionDetail(String sessionId) async {
@@ -23,6 +34,8 @@ class _FakeOperationsRepository extends OperationsRepository {
     final started = DateTime(2026, 8, 31, 9);
 
     return SessionDetailData(
+      canReadSessionCorrections: canRead,
+      canCorrectSession: canCorrect,
       session: SessionHistoryItem(
         id: sessionId,
         wellId: 'well-1',
@@ -106,6 +119,7 @@ Widget _wrap({bool shouldFail = false, bool billed = true}) {
 }
 
 void main() {
+  _correctionActionVisibilityTests();
   group('SessionDetailScreen Tests (UX-13 / 377)', () {
     testWidgets('1. عرض تفاصيل الجلسة والخط الزمني والمستحق المالي', (
       tester,
@@ -231,4 +245,351 @@ void main() {
       expect(find.text('إعادة المحاولة'), findsOneWidget);
     });
   });
+}
+
+// Gate the canonical read independently of the real persisted detail cache.
+class _CorrectionReadRepository extends OperationsRepository {
+  Completer<SessionDetailData> response = Completer<SessionDetailData>();
+  int reads = 0;
+  @override
+  Future<SessionDetailData> fetchSessionDetail(String sessionId) {
+    reads++;
+    return response.future;
+  }
+}
+
+class _CorrectionEventCoordinator extends OfflineSessionCoordinator {
+  _CorrectionEventCoordinator(InMemoryOutboxStore store) : super(store: store);
+  final events = StreamController<ActiveSessionRecord>.broadcast();
+  @override
+  Stream<ActiveSessionRecord> watchCompletionResult({
+    required String accountId,
+    required String wellId,
+    required String serverSessionId,
+  }) => events.stream;
+}
+
+void _correctionActionVisibilityTests() {
+  const action = 'تصحيح السجل';
+  Future<SessionDetailData> data({required bool read, required bool correct}) =>
+      _FakeOperationsRepository(
+        canRead: read,
+        canCorrect: correct,
+      ).fetchSessionDetail('server');
+
+  void viewport(WidgetTester tester) {
+    tester.view.physicalSize = const Size(900, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+  }
+
+  Future<_CorrectionEventCoordinator> cachedCoordinator() async {
+    final store = InMemoryOutboxStore();
+    final c = _CorrectionEventCoordinator(store);
+    addTearDown(() async {
+      await c.events.close();
+      c.dispose();
+    });
+    final startTime = DateTime.utc(2026, 8, 31, 9);
+    final start = await c.startSession(
+      accountId: 'a',
+      wellId: 'well-1',
+      pumpId: 'p',
+      farmId: 'f',
+      farmerAccountId: 'acc-1',
+      energySource: 'solar',
+      startedAt: startTime,
+    );
+    final end = await c.completeSession(
+      accountId: 'a',
+      sessionLocalId: start.localId,
+      completedAt: startTime.add(const Duration(minutes: 90)),
+    );
+    await acceptTestCompletion(
+      store,
+      root: start,
+      completion: end,
+      serverId: 'server',
+      chargeId: 'charge',
+      amountMinor: 2917,
+    );
+    final state = (await c.restoreCompletedSession(
+      accountId: 'a',
+      wellId: 'well-1',
+      serverSessionId: 'server',
+    ))!;
+    await c.rememberSessionPaymentRead(
+      accountId: 'a',
+      wellId: 'well-1',
+      revision: state.revision,
+      detail: await data(read: true, correct: true),
+    );
+    final cached = (await c.restoreCompletedSession(
+      accountId: 'a',
+      wellId: 'well-1',
+      serverSessionId: 'server',
+    ))!;
+    expect(cached.cachedDetail!.canCorrectSession, isTrue);
+    return c;
+  }
+
+  Widget screen(OperationsRepository repo, {_CorrectionEventCoordinator? c}) =>
+      MaterialApp(
+        home: SessionDetailScreen(
+          sessionId: 'server',
+          wellName: 'بئر',
+          repository: repo,
+          coordinator: c,
+          accountId: c == null ? null : 'a',
+          wellId: c == null ? null : 'well-1',
+        ),
+      );
+
+  testWidgets(
+    'live canonical true exposes secondary correction after summary before timeline',
+    (tester) async {
+      viewport(tester);
+      await tester.pumpWidget(
+        screen(
+          const _FakeOperationsRepository(canRead: true, canCorrect: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text(action),
+        findsOneWidget,
+        reason: 'live canonical detail with canCorrectSession=true must expose correction',
+      );
+      final secondary = find.ancestor(
+        of: find.text(action),
+        matching: find.byWidgetPredicate(
+          (w) => w is OutlinedButton || w is TextButton,
+        ),
+      );
+      expect(secondary, findsOneWidget);
+      // Widget traversal order, not absolute pixel coordinates.
+      final texts = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.data)
+          .toList();
+      expect(
+        texts.indexOf('محمد علي الحبيشي'),
+        lessThan(texts.indexOf(action)),
+      );
+      expect(
+        texts.indexOf(action),
+        lessThan(texts.indexOf('الخط الزمني وتغيرات الطاقة')),
+      );
+    },
+  );
+
+  testWidgets('live correction action is enabled for opening the form', (
+    tester,
+  ) async {
+    viewport(tester);
+    await tester.pumpWidget(
+      screen(const _FakeOperationsRepository(canRead: true, canCorrect: true)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(action), findsOneWidget);
+    final button = find.ancestor(
+      of: find.text(action),
+      matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+    );
+    expect(button, findsOneWidget);
+    expect(
+      tester.widget<ButtonStyleButton>(button).onPressed,
+      isNotNull,
+      reason: 'Expected correction action to be enabled',
+    );
+  });
+
+  testWidgets(
+    'tap opens full-screen correction shell with effective snapshot and empty reason',
+    (tester) async {
+      viewport(tester);
+      final repo = _CorrectionReadRepository();
+      final snapshot = SessionDetailData(
+        canReadSessionCorrections: true,
+        canCorrectSession: true,
+        session: SessionHistoryItem(
+          id: 'server',
+          wellId: 'well-1',
+          farmerName: 'مزارع',
+          farmerCode: 'F1',
+          farmerAccountId: 'acc-1',
+          farmName: 'أرض',
+          pumpName: 'مضخة',
+          operatorName: 'مشغل',
+          // Deliberately distinguish all three sources. The form must use only
+          // explicit effective facts, never originals or legacy aliases.
+          startedAt: DateTime(2026, 8, 31, 7),
+          endedAt: DateTime(2026, 8, 31, 12),
+          originalStartedAt: DateTime(2026, 8, 31, 8),
+          originalEndedAt: DateTime(2026, 8, 31, 10),
+          effectiveStartedAt: DateTime(2026, 8, 31, 9),
+          effectiveEndedAt: DateTime(2026, 8, 31, 11),
+          operationalRevision: 3,
+          financialStatus: 'pending',
+          financialAppliedRevision: 0,
+        ),
+        segments: const [],
+      );
+      repo.response.complete(snapshot);
+      await tester.pumpWidget(screen(repo));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text(action));
+      await tester.tap(find.text(action));
+      await tester.pumpAndSettle();
+      final title = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text(action),
+      );
+      expect(
+        title,
+        findsOneWidget,
+        reason: 'Expected to find correction form screen after tap',
+      );
+      expect(find.byType(Dialog), findsNothing);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(
+        Navigator.of(tester.element(title)).canPop(),
+        isTrue,
+        reason: 'correction must open a separate full-screen route',
+      );
+
+      final start = find.byKey(const ValueKey('session_correction_start'));
+      final end = find.byKey(const ValueKey('session_correction_end'));
+      final reason = find.byKey(const ValueKey('session_correction_reason'));
+      for (final field in [start, end, reason]) {
+        expect(field, findsOneWidget);
+      }
+      for (final label in [
+        'البداية الفعلية',
+        'النهاية الفعلية',
+        'سبب التصحيح',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      // Time inputs may be read-only picker fields. Inspect their displayed
+      // text without depending on pixel positions or the correction screen type.
+      String inputText(Finder field) {
+        final editable = find.descendant(
+          of: field,
+          matching: find.byType(EditableText),
+        );
+        expect(editable, findsOneWidget);
+        return tester.widget<EditableText>(editable).controller.text;
+      }
+
+      final initialStart = inputText(start);
+      final initialEnd = inputText(end);
+      expect(initialStart, contains('09:00'));
+      expect(initialEnd, contains('11:00'));
+      expect(initialStart, isNot(contains('08:00')));
+      expect(initialStart, isNot(contains('07:00')));
+      expect(initialEnd, isNot(contains('10:00')));
+      expect(initialEnd, isNot(contains('12:00')));
+      expect(inputText(reason), isEmpty);
+
+      // No read on navigation: the opened form retains the supplied snapshot.
+      // BASE_REVISION_VALIDATION_DEFERRED_TO_DRAFT_CONTRACT_RED: revision is
+      // deliberately not exposed through a technical UI or private route API.
+      expect(repo.reads, 1);
+      repo.response = Completer<SessionDetailData>();
+      await tester.pump();
+      expect(inputText(start), initialStart);
+      expect(inputText(end), initialEnd);
+      expect(inputText(reason), isEmpty);
+      expect(repo.reads, 1);
+    },
+  );
+
+  for (final read in [true, false]) {
+    testWidgets('live read=$read correct=false hides correction', (
+      tester,
+    ) async {
+      viewport(tester);
+      await tester.pumpWidget(
+        screen(_FakeOperationsRepository(canRead: read, canCorrect: false)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('محمد علي الحبيشي'), findsOneWidget);
+      expect(find.text(action), findsNothing);
+    });
+  }
+
+  for (final result in ['true', 'false', 'failure']) {
+    testWidgets('cached true cannot authorize before canonical $result', (
+      tester,
+    ) async {
+      viewport(tester);
+      final c = await cachedCoordinator();
+      final repo = _CorrectionReadRepository();
+      await tester.pumpWidget(screen(repo, c: c));
+      await tester.pump();
+      await tester.pump();
+      expect(repo.reads, greaterThan(0));
+      expect(find.text('قراءة محفوظة على الجهاز'), findsOneWidget);
+      expect(
+        find.text(action),
+        findsNothing,
+        reason:
+            'cached true is historical only while canonical read is pending',
+      );
+      if (result == 'failure') {
+        repo.response.completeError(StateError('network unavailable'));
+      } else {
+        repo.response.complete(
+          await data(read: true, correct: result == 'true'),
+        );
+      }
+      await tester.pumpAndSettle();
+      if (result != 'failure') {
+        expect(find.text('قراءة محفوظة على الجهاز'), findsNothing);
+        expect(find.text('محمد علي الحبيشي'), findsOneWidget);
+      }
+      c.dispose();
+      expect(
+        find.text(action),
+        result == 'true' ? findsOneWidget : findsNothing,
+        reason: 'only successful live canonical true authorizes correction',
+      );
+    });
+  }
+
+  testWidgets(
+    'new canonical refresh revokes previously live correction capability',
+    (tester) async {
+      viewport(tester);
+      final c = await cachedCoordinator();
+      final repo = _CorrectionReadRepository();
+      repo.response.complete(await data(read: true, correct: true));
+      await tester.pumpWidget(screen(repo, c: c));
+      await tester.pumpAndSettle();
+      // Continue through revocation even in RED; assert the initial state last.
+      final initiallyVisible = find.text(action).evaluate().length;
+      final readsBefore = repo.reads;
+      repo.response = Completer<SessionDetailData>();
+      final state = (await c.restoreCompletedSession(
+        accountId: 'a',
+        wellId: 'well-1',
+        serverSessionId: 'server',
+      ))!;
+      // Existing completion notification refreshes canonical detail in-place.
+      c.events.add(state.record);
+      await tester.pump();
+      await tester.pump();
+      expect(repo.reads, greaterThan(readsBefore));
+      repo.response.complete(await data(read: true, correct: false));
+      await tester.pumpAndSettle();
+      expect(find.text(action), findsNothing);
+      c.dispose();
+      expect(
+        initiallyVisible,
+        1,
+        reason: 'initial live true must expose correction before revocation',
+      );
+    },
+  );
 }

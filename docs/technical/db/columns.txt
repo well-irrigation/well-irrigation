@@ -121,6 +121,21 @@ billing.account_credits|reason|text|NOT NULL|-
 billing.account_credits|created_by|uuid|NOT NULL|-
 billing.account_credits|created_at|timestamp with time zone|NOT NULL|clock_timestamp()
 billing.account_credits|repartition_event_id|uuid|null|-
+billing.approved_session_charges|id|uuid|null|-
+billing.approved_session_charges|session_id|uuid|null|-
+billing.approved_session_charges|well_id|uuid|null|-
+billing.approved_session_charges|duration_seconds|integer|null|-
+billing.approved_session_charges|price_per_hour_minor|bigint|null|-
+billing.approved_session_charges|amount_minor|bigint|null|-
+billing.approved_session_charges|pricing_mode|text|null|-
+billing.approved_session_charges|financial_applied_revision|bigint|null|-
+billing.approved_session_charges|effective_started_at|timestamp with time zone|null|-
+billing.approved_session_charges|effective_ended_at|timestamp with time zone|null|-
+billing.approved_session_charges|pricing_evidence|jsonb|null|-
+billing.approved_session_charges|original_amount_minor|bigint|null|-
+billing.approved_session_charges|system_amount_minor|bigint|null|-
+billing.approved_session_charges|approved_amount_minor|bigint|null|-
+billing.approved_session_charges|manual_approval_revision|bigint|null|-
 billing.customer_credit_events|id|uuid|NOT NULL|-
 billing.customer_credit_events|tenant_id|uuid|NOT NULL|-
 billing.customer_credit_events|well_id|uuid|NOT NULL|-
@@ -235,6 +250,10 @@ billing.invoice_explicit_settlements|total_minor|bigint|null|-
 billing.invoice_explicit_settlements|status|text|null|-
 billing.invoice_explicit_settlements|explicitly_settled_minor|numeric|null|-
 billing.invoice_explicit_settlements|scope_valid|boolean|null|-
+billing.invoice_financial_adjustments|adjustment_id|uuid|NOT NULL|-
+billing.invoice_financial_adjustments|invoice_id|uuid|NOT NULL|-
+billing.invoice_financial_adjustments|journal_entry_id|uuid|null|-
+billing.invoice_financial_adjustments|delta_minor|bigint|NOT NULL|-
 billing.invoice_lines|id|uuid|NOT NULL|gen_random_uuid()
 billing.invoice_lines|tenant_id|uuid|NOT NULL|-
 billing.invoice_lines|invoice_id|uuid|NOT NULL|-
@@ -456,6 +475,37 @@ billing.session_economic_settlements|scope_valid|boolean|null|-
 billing.session_economic_settlements|direct_settled_minor|numeric|null|-
 billing.session_economic_settlements|settled_minor|numeric|null|-
 billing.session_economic_settlements|outstanding_minor|numeric|null|-
+billing.session_financial_adjustments|id|uuid|NOT NULL|gen_random_uuid()
+billing.session_financial_adjustments|tenant_id|uuid|NOT NULL|-
+billing.session_financial_adjustments|well_id|uuid|NOT NULL|-
+billing.session_financial_adjustments|session_id|uuid|NOT NULL|-
+billing.session_financial_adjustments|session_charge_id|uuid|NOT NULL|-
+billing.session_financial_adjustments|command_id|uuid|NOT NULL|-
+billing.session_financial_adjustments|manual_approval_revision|bigint|NOT NULL|-
+billing.session_financial_adjustments|base_manual_approval_revision|bigint|NOT NULL|-
+billing.session_financial_adjustments|base_system_financial_revision|bigint|NOT NULL|-
+billing.session_financial_adjustments|base_operational_revision|bigint|NOT NULL|-
+billing.session_financial_adjustments|applied_system_financial_revision|bigint|NOT NULL|-
+billing.session_financial_adjustments|system_snapshot_minor|bigint|NOT NULL|-
+billing.session_financial_adjustments|previous_effective_minor|bigint|NOT NULL|-
+billing.session_financial_adjustments|approved_amount_minor|bigint|NOT NULL|-
+billing.session_financial_adjustments|delta_minor|bigint|NOT NULL|-
+billing.session_financial_adjustments|actor_id|uuid|NOT NULL|-
+billing.session_financial_adjustments|reason|text|NOT NULL|-
+billing.session_financial_adjustments|requested_at|timestamp with time zone|NOT NULL|-
+billing.session_financial_adjustments|accepted_at|timestamp with time zone|NOT NULL|-
+billing.session_financial_adjustments|created_at|timestamp with time zone|NOT NULL|clock_timestamp()
+billing.session_financial_adjustments|posted_at|timestamp with time zone|NOT NULL|-
+billing.session_financial_adjustments|status|text|NOT NULL|'accepted'::text
+billing.session_financial_resolution_links|correction_id|uuid|NOT NULL|-
+billing.session_financial_resolution_links|adjustment_id|uuid|NOT NULL|-
+billing.session_invoice_financial_snapshots|invoice_id|uuid|NOT NULL|-
+billing.session_invoice_financial_snapshots|session_id|uuid|NOT NULL|-
+billing.session_invoice_financial_snapshots|system_financial_revision|bigint|NOT NULL|-
+billing.session_invoice_financial_snapshots|manual_approval_revision|bigint|NOT NULL|-
+billing.session_invoice_financial_snapshots|system_amount_minor|bigint|NOT NULL|-
+billing.session_invoice_financial_snapshots|effective_amount_minor|bigint|NOT NULL|-
+billing.session_invoice_financial_snapshots|carry_in_minor|bigint|NOT NULL|-
 billing.session_read_settlements|session_charge_id|uuid|null|-
 billing.session_read_settlements|session_id|uuid|null|-
 billing.session_read_settlements|paid_minor|numeric|null|-
@@ -1320,6 +1370,9 @@ ops.operational_occurrences|server_session_id|uuid|null|-
 ops.operational_occurrences|status|text|NOT NULL|-
 ops.operational_occurrences|created_at|timestamp with time zone|NOT NULL|clock_timestamp()
 ops.operational_occurrences|resolved_at|timestamp with time zone|null|-
+ops.operational_occurrences|manual_reason|text|null|-
+ops.operational_occurrences|manual_notes|text|null|-
+ops.operational_occurrences|manual_result|jsonb|null|-
 ops.price_rules|id|uuid|NOT NULL|gen_random_uuid()
 ops.price_rules|tenant_id|uuid|NOT NULL|-
 ops.price_rules|price_schedule_id|uuid|NOT NULL|-

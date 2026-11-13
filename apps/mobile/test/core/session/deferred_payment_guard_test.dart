@@ -73,6 +73,8 @@ SessionDetailData finance(
   String status = 'partial',
   int paid = 40,
 }) => SessionDetailData(
+  canReadSessionCorrections: false,
+  canCorrectSession: false,
   session: SessionHistoryItem(
     id: server,
     wellId: 'w',
@@ -621,4 +623,55 @@ void main() {
       },
     );
   }
+  for (final flags in [
+    (read: true, correct: true),
+    (read: true, correct: false),
+    (read: false, correct: false),
+  ]) {
+    test('cached detail preserves server capabilities $flags without inference', () async {
+      final store = InMemoryOutboxStore();
+      final c = OfflineSessionCoordinator(store: store);
+      addTearDown(c.dispose);
+      await closedSession(c, store);
+      final before = (await c.restoreCompletedSession(
+        accountId: 'a', wellId: 'w', serverSessionId: 'server',
+      ))!;
+      await c.rememberSessionPaymentRead(
+        accountId: 'a', wellId: 'w', revision: before.revision,
+        detail: SessionDetailData(
+          session: finance('server').session,
+          segments: const [],
+          canReadSessionCorrections: flags.read,
+          canCorrectSession: flags.correct,
+        ),
+      );
+      final restored = (await c.restoreCompletedSession(
+        accountId: 'a', wellId: 'w', serverSessionId: 'server',
+      ))!;
+      final raw = Map<String, Object?>.from(restored.storedRead!['detail'] as Map);
+      expect(raw['can_read_session_corrections'], flags.read);
+      expect(raw['can_correct_session'], flags.correct);
+      expect(restored.cachedDetail!.canReadSessionCorrections, flags.read);
+      expect(restored.cachedDetail!.canCorrectSession, flags.correct);
+
+      // An old/malformed snapshot cannot manufacture a server decision.
+      for (final key in ['can_read_session_corrections', 'can_correct_session']) {
+        for (final malformed in <Object?>[null, 'true', 1, 0, <Object?>[]]) {
+          final invalid = {...raw, key: malformed};
+          final state = CompletedSessionPaymentState(
+            record: restored.record, revision: restored.revision,
+            paymentRead: {...restored.storedRead!, 'detail': invalid},
+          );
+          expect(state.cachedDetail, isNull, reason: '$key = $malformed');
+        }
+        final legacy = {...raw}..remove(key);
+        final state = CompletedSessionPaymentState(
+          record: restored.record, revision: restored.revision,
+          paymentRead: {...restored.storedRead!, 'detail': legacy},
+        );
+        expect(state.cachedDetail, isNull, reason: 'missing $key');
+      }
+    });
+  }
+
 }

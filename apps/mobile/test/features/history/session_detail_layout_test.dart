@@ -24,6 +24,8 @@ class _LayoutRepository extends OperationsRepository {
   Future<SessionDetailData> fetchSessionDetail(String sessionId) async {
     final start = DateTime(2026, 10, 14, 9);
     return SessionDetailData(
+      canReadSessionCorrections: false,
+      canCorrectSession: false,
       session: SessionHistoryItem(
         id: sessionId,
         wellId: 'well-1',
@@ -208,13 +210,8 @@ void main() {
         find.byType(Scrollable).first,
       );
       expect(scroll.position.maxScrollExtent, 0);
-      expect(find.text('#4fbe90'), findsOneWidget);
-      expect(
-        tester
-            .renderObject<RenderParagraph>(find.text('#4fbe90'))
-            .textDirection,
-        TextDirection.ltr,
-      );
+      expect(find.text('تفاصيل جلسة'), findsOneWidget);
+      expect(find.text('#4fbe90'), findsNothing);
       expect(find.textContaining('(Timeline)'), findsNothing);
       expect(find.text('الخط الزمني وتغيرات الطاقة'), findsOneWidget);
       expect(find.byTooltip('مشاركة الملخص'), findsNothing);

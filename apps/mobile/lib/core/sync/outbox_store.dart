@@ -19,6 +19,119 @@ import 'command_reference.dart';
 import 'command_envelope.dart';
 import 'command_type.dart';
 import 'sync_status.dart';
+import 'session_correction_receipt.dart';
+import 'manual_session_entry.dart';
+import 'session_financial_adjustment.dart';
+
+/// تصحيح غير محسوم للجلسة نفسها؛ لا يُستبدل ضمنيًا بطلب آخر.
+class SessionCorrectionConflict implements Exception {
+  const SessionCorrectionConflict(this.existing);
+  final CommandEnvelope existing;
+}
+
+/// قدرة إدراج اختيارية؛ لا تفرض دعم التصحيح على المخازن القديمة.
+abstract interface class SessionCorrectionInsertStore {
+  Future<CommandEnvelope> insertSessionCorrection(CommandEnvelope command);
+}
+
+extension SessionCorrectionInsertion on OutboxStore {
+  Future<CommandEnvelope> insertSessionCorrection(CommandEnvelope command) {
+    final store = this;
+    if (store is! SessionCorrectionInsertStore) {
+      throw StateError('session_correction_insert_unavailable');
+    }
+    return (store as SessionCorrectionInsertStore).insertSessionCorrection(command);
+  }
+}
+
+/// الحماية عند حد التخزين، بما فيه المتصل المباشر الذي يتجاوز المستودع.
+void validateSessionCorrectionInsert(CommandEnvelope command) {
+  final request = SessionCorrectionReceiptRequest.fromCommand(command);
+  final reason = command.payload['p_reason'];
+  if (request == null ||
+      command.localId.trim().isEmpty ||
+      command.status != CommandStatus.pending ||
+      command.aggregateLocalId != null ||
+      command.prerequisites.isNotEmpty ||
+      command.localContext.isNotEmpty ||
+      reason is! String ||
+      reason != reason.trim() ||
+      command.payload['p_desired_started_at'] !=
+          request.desiredStartedAt.toUtc().toIso8601String() ||
+      command.payload['p_desired_ended_at'] !=
+          request.desiredEndedAt.toUtc().toIso8601String() ||
+      request.desiredEndedAt.isAfter(command.occurredAt)) {
+    throw ArgumentError('invalid_session_correction_insert');
+  }
+}
+
+/// الهوية التنفيذية لا تدخل مقارنة الحقائق؛ نطاق الجلسة هو الحساب ومعرّفها.
+CommandEnvelope? existingSessionCorrection(
+  Iterable<CommandEnvelope> rows,
+  CommandEnvelope command,
+) {
+  final unresolved = <CommandEnvelope>[];
+  for (final row in rows) {
+    if (row.type != CommandType.correctIrrigationSession ||
+        row.accountId != command.accountId ||
+        !const {
+          CommandStatus.pending,
+          CommandStatus.dispatching,
+          CommandStatus.review,
+        }.contains(row.status)) {
+      continue;
+    }
+    final sessionId = row.payload['p_session_id'];
+    // الهوية غير المحددة ليست دليلًا على أن الصف يخص جلسة أخرى.
+    if (sessionId is! String || sessionId.trim().isEmpty) {
+      throw SessionCorrectionConflict(row);
+    }
+    if (sessionId == command.payload['p_session_id']) {
+      unresolved.add(row);
+    }
+  }
+  if (unresolved.isEmpty) return null;
+  final existing = unresolved.first;
+  const facts = {
+    'p_session_id', 'p_base_revision', 'p_reason',
+    'p_desired_started_at', 'p_desired_ended_at',
+  };
+  if (unresolved.length != 1 ||
+      existing.wellId != command.wellId ||
+      existing.payload.length != facts.length ||
+      !facts.every((key) => existing.payload[key] == command.payload[key])) {
+    throw SessionCorrectionConflict(existing);
+  }
+  return existing;
+}
+
+extension SessionFinancialAdjustmentStorage on OutboxStore {
+  Future<void> recordSessionFinancialAdjustmentObservation({
+    required String accountId,
+    required String localId,
+    required SessionFinancialAdjustmentState state,
+    required DateTime observedAt,
+    Map<String,Object?>? result,
+  }) {
+    final store = this;
+    if (store is! SessionFinancialAdjustmentStore) {
+      throw StateError('session_financial_adjustment_store_unavailable');
+    }
+    return (store as SessionFinancialAdjustmentStore)
+      .recordSessionFinancialAdjustmentObservation(accountId:accountId,
+        localId:localId,state:state,observedAt:observedAt,result:result);
+  }
+}
+
+abstract interface class SessionFinancialAdjustmentStore {
+  Future<void> recordSessionFinancialAdjustmentObservation({
+    required String accountId,
+    required String localId,
+    required SessionFinancialAdjustmentState state,
+    required DateTime observedAt,
+    Map<String,Object?>? result,
+  });
+}
 
 /// A competing human start is already durably represented.
 class ExistingOperationalStart implements Exception {
@@ -43,13 +156,29 @@ bool sameOperationalStartFacts(CommandEnvelope a, CommandEnvelope b) {
     keys.every((k) => jsonEncode(canonical(a.payload[k])) == jsonEncode(canonical(b.payload[k])));
 }
 
+/// الرفض النهائي للإدخال اليدوي ليس جلسة مفتوحة؛ المراجعة وحدها لا تثبت ذلك.
+bool representsPossibleActiveSession(
+  CommandEnvelope command, {
+  required bool hasCanonicalSessionBinding,
+}) {
+  if (command.type.produces != EntityKind.session) return false;
+  if (command.type != CommandType.adoptExternalSession ||
+      command.status != CommandStatus.review ||
+      command.lastAttemptAt == null || hasCanonicalSessionBinding) {
+    return true;
+  }
+  return !manualEntryTerminalResultProvesNoSession(command);
+}
+
 CommandEnvelope? existingOperationalStart(
   Iterable<CommandEnvelope> rows,
-  String wellId,
-) {
+  String wellId, {
+  required Set<String> sessionBoundLocalIds,
+}) {
   final commands = rows.toList();
   for (final root in commands) {
-    if (root.wellId != wellId || root.type.produces != EntityKind.session) {
+    if (root.wellId != wellId || !representsPossibleActiveSession(root,
+        hasCanonicalSessionBinding: sessionBoundLocalIds.contains(root.localId))) {
       continue;
     }
     final closed = commands.any(
@@ -70,6 +199,7 @@ bool canReconcileOperationalStartReceipt({
   required String? humanRecord,
   required IdMapping? mapping,
   required Map<String, Object?> receipt,
+  Map<String,Object?>? validatedEnvelope,
 }) {
   final request = OperationalStartReceiptRequest.fromCommand(observed);
   if (request == null ||
@@ -93,7 +223,7 @@ bool canReconcileOperationalStartReceipt({
         CommandStatus.review,
         CommandStatus.confirmed,
       }.contains(current.status) ||
-      !validOperationalStartReceipt(request, receipt) ||
+      !validOperationalStartEvidence(request, receipt, validatedEnvelope) ||
       (mapping != null &&
           (mapping.localId != observed.localId ||
               mapping.kind != EntityKind.session ||
@@ -117,7 +247,8 @@ bool canReviewOperationalStart({
   required String? humanRecord,
   required IdMapping? mapping,
 }) {
-  if (OperationalStartReceiptRequest.fromCommand(observed) == null ||
+  if (observed.type != CommandType.startOperationalSession ||
+      OperationalStartReceiptRequest.fromCommand(observed) == null ||
       observed.localId.trim().isEmpty ||
       current == null ||
       dispatchCommandFingerprint(current) !=
@@ -839,6 +970,8 @@ abstract interface class FarmSelectionStore {
   });
 }
 
+String controlEpochKey(String base, String? anchor) => anchor == null ? base : '$base/anchor/${Uri.encodeComponent(anchor)}';
+
 String manualStopMaterializationKey(String well, String local) =>
     'session.manual_stop.materialized.v1/${Uri.encodeComponent(well)}/${Uri.encodeComponent(local)}';
 
@@ -891,10 +1024,11 @@ void validateManualStopMaterialization<T>({
   required String? previousEffect,
   required IdMapping? mapping,
   required SessionExecutionWrite<T> write,
+  String? controlAnchor,
 }) {
   final raw = jsonDecode(savedRequest ?? 'null');
-  final link = manualStopMaterializationKey(well, local);
-  final effectKey = 'session.completion.v1.$well.$local';
+  final link = controlEpochKey(manualStopMaterializationKey(well, local),controlAnchor);
+  final effectKey = controlEpochKey('session.completion.v1.$well.$local',controlAnchor);
   final at = raw is Map && raw['requested_at'] is String
       ? DateTime.tryParse(raw['requested_at'] as String)
       : null;
@@ -921,6 +1055,7 @@ void validateManualStopMaterialization<T>({
       raw['well_id'] != well ||
       raw['session_local_id'] != local ||
       raw['session_command_id'] != root.commandId ||
+      raw['control_anchor'] != controlAnchor ||
       raw['request_id'] is! String ||
       (raw['request_id'] as String).isEmpty ||
       at == null ||
@@ -999,4 +1134,13 @@ void validateManualStopMaterialization<T>({
       effect['request_id'] != raw['request_id']) {
     throw StateError('manual_stop_completion_evidence_mismatch');
   }
+}
+
+/// قدرة قراءة اختيارية؛ غياب الدعم لا ينتج إذنًا افتراضيًا.
+abstract interface class ManualSessionEntryFollowUpStore {
+  Future<ManualSessionEntryFollowUp?> readManualSessionEntryFollowUp({
+    required String accountId,
+    required String wellId,
+    required String localId,
+  });
 }

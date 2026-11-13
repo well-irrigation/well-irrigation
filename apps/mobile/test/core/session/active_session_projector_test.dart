@@ -81,6 +81,79 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
+  group('historical correction is an operational projection no-op', () {
+    Future<void> enqueueHistoricalCorrection(OutboxRepository repository) async {
+      await repository.enqueueSessionCorrection(
+        accountId: sessionAccount,
+        wellId: sessionWell,
+        sessionId: 'server-historical-session-1',
+        baseRevision: 3,
+        reason: 'تصحيح وقت التشغيل الفعلي',
+        desiredStartedAt: DateTime.utc(2026, 11, 8, 2, 30),
+        desiredEndedAt: DateTime.utc(2026, 11, 8, 4, 45),
+      );
+    }
+
+    test('correction alone cannot invent a local session', () async {
+      testNow = DateTime.utc(2026, 11, 9, 9);
+      final store = await openStore();
+      await enqueueHistoricalCorrection(repositoryFor(store));
+      expect(await store.allCommands(sessionAccount), hasLength(1));
+      expect(await projectorFor(store).projectAll(
+        sessionAccount, now: testNow, wellId: sessionWell,
+      ), isEmpty);
+    });
+
+    test('historical correction leaves an active operational session unchanged', () async {
+      testNow = DateTime.utc(2026, 11, 9, 9);
+      final store = await openStore();
+      final repository = repositoryFor(store);
+      final startedAt = testNow.subtract(const Duration(minutes: 10));
+      final start = await repository.enqueue(
+        accountId: sessionAccount,
+        wellId: sessionWell,
+        type: CommandType.startOperationalSession,
+        occurredAt: startedAt,
+        payload: startSessionPayload(
+          well: sessionWell, farm: 'farm', farmerWellAccount: 'farmer',
+        ),
+      );
+      final projector = projectorFor(store);
+      final before = (await projector.projectAll(
+        sessionAccount, now: testNow, wellId: sessionWell,
+      )).single;
+      expect(before.localId, start.localId);
+      expect(before.businessState, SessionBusinessState.running);
+      expect(before.startedAt, startedAt);
+      expect(before.segments, hasLength(1));
+      expect(before.totals.billableSeconds, 600);
+      expect(before.currentEnergySource, 'diesel');
+
+      Map<String, Object?> facts(ActiveSessionRecord record) => {
+        'localId': record.localId,
+        'businessState': record.businessState,
+        'startedAt': record.startedAt,
+        'completedAt': record.completedAt,
+        'segments': record.segments.length,
+        'energy': record.currentEnergySource,
+        'billableSeconds': record.totals.billableSeconds,
+        'wallClockSeconds': record.totals.wallClockSeconds,
+        'pausedSeconds': record.totals.totalPausedSeconds,
+        'currentPauseSeconds': record.totals.currentPauseSeconds,
+        'accruedMinor': record.totals.accruedMinor,
+        'pricingPending': record.totals.pricingPending,
+        'approvedAmountMinor': record.approvedAmountMinor,
+        'payments': record.payments.length,
+      };
+      final snapshot = facts(before);
+      await enqueueHistoricalCorrection(repository);
+      final after = (await projector.projectAll(
+        sessionAccount, now: testNow, wellId: sessionWell,
+      )).single;
+      expect(facts(after), snapshot);
+    });
+  });
+
   test(
     'operational start projects source as metadata and review as conflict',
     () async {

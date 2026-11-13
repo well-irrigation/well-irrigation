@@ -33,6 +33,126 @@ void main() {
     await repository.initialize();
   });
 
+  group('R6C-4A correction excluded from generic dispatch', () {
+    Future<CommandEnvelope> enqueueCorrection() async {
+      final command = await repository.enqueue(
+        accountId: accountA,
+        wellId: wellOne,
+        type: CommandType.correctIrrigationSession,
+        occurredAt: DateTime.utc(2026, 11, 6, 8, 15),
+        payload: const {
+          'p_session_id': 'server-session-123',
+          'p_base_revision': 3,
+          'p_reason': 'تصحيح وقت التشغيل الفعلي',
+          'p_desired_started_at': '2026-11-06T05:30:00.000Z',
+          'p_desired_ended_at': '2026-11-06T07:45:00.000Z',
+        },
+      );
+      final stored = await repository.byLocalId(accountA, command.localId);
+      expect(stored, isNotNull);
+      expect(stored!.status, CommandStatus.pending);
+      expect(stored.references, isEmpty);
+      expect(stored.payload['p_session_id'], 'server-session-123');
+      expect(
+        (await repository.pending(accountA)).map((c) => c.localId),
+        contains(command.localId),
+      );
+      // قبول ناقص: المسار المخصص يبقيه غامضًا ولا يؤكده كنجاح عام.
+      transport.scheduleRawResponse(CommandType.correctIrrigationSession, {
+        'status': 'accepted',
+        'command_id': command.commandId,
+        'session_id': 'server-session-123',
+      });
+      return command;
+    }
+
+    Future<void> awaitingReceipt(CommandEnvelope original) async {
+      final stored = await repository.byLocalId(accountA, original.localId);
+      expect(stored, isNotNull);
+      expect(stored!.status, CommandStatus.dispatching);
+      expect(stored.localId, original.localId);
+      expect(stored.commandId, original.commandId);
+      expect(stored.occurredAt, original.occurredAt);
+      expect(stored.payload, original.payload);
+      expect(stored.retryCount, original.retryCount);
+      expect(stored.lastAttemptAt, testNow);
+      expect(stored.serverResponse, isNull);
+    }
+
+    test('dedicated correction rejects generic acceptance and never blindly resends', () async {
+      final command = await enqueueCorrection();
+      final first = await engine.run(accountA);
+      expect(transport.requestsFor(CommandType.correctIrrigationSession), hasLength(1));
+      expect(first.attempted, 1);
+      expect(first.confirmed, 0);
+      expect(first.retryScheduled, 0);
+      expect(first.needsReview, 0);
+      expect(first.skipped, 1);
+      expect(first.blockedByReview, 0);
+      expect(first.awaitsHumanDecision, isFalse);
+      expect(first.canRetryWithoutHelp, isTrue);
+      await awaitingReceipt(command);
+
+      // النقل بلا قارئ إيصال؛ غيابه لا يمنح إذن إعادة الكتابة.
+      final second = await engine.run(accountA);
+      expect(transport.requestsFor(CommandType.correctIrrigationSession), hasLength(1));
+      expect(second.attempted, 0);
+      expect(second.confirmed, 0);
+      expect(second.retryScheduled, 0);
+      expect(second.needsReview, 0);
+      expect(second.skipped, 1);
+      expect(second.blockedByReview, 0);
+      expect(second.awaitsHumanDecision, isFalse);
+      expect(second.canRetryWithoutHelp, isTrue);
+      await awaitingReceipt(command);
+    });
+
+    test(
+      'dedicated correction awaiting receipt never blocks an independent normal payment',
+      () async {
+        final correction = await enqueueCorrection();
+        final payment = await repository.enqueue(
+          accountId: accountA,
+          wellId: wellOne,
+          type: CommandType.recordPayment,
+          payload: recordPaymentPayload(farmerWellAccount: 'fwa-1'),
+          occurredAt: DateTime.utc(2026, 11, 6, 8, 16),
+        );
+        expect(payment.sequence, greaterThan(correction.sequence));
+        expect(
+          payment.effectiveAggregateId,
+          isNot(correction.effectiveAggregateId),
+        );
+        final report = await engine.run(accountA);
+        expect(transport.requestsFor(CommandType.recordPayment), hasLength(1));
+        expect(
+          transport.calledFunctions.where((name) => name == 'record_payment'),
+          hasLength(1),
+        );
+        expect(
+          (await repository.byLocalId(accountA, payment.localId))!.status,
+          CommandStatus.confirmed,
+        );
+        expect(
+          transport.requestsFor(CommandType.correctIrrigationSession),
+          hasLength(1),
+          reason: 'dedicated correction must not block independent payment',
+        );
+        expect(transport.calledFunctions, ['correct_irrigation_session', 'record_payment']);
+        expect(report.attempted, 2);
+        expect(report.confirmed, 1);
+        expect(report.retryScheduled, 0);
+        expect(report.needsReview, 0);
+        expect(report.skipped, 1);
+        expect(report.blockedByReview, 0);
+        expect(report.awaitsHumanDecision, isFalse);
+        expect(report.canRetryWithoutHelp, isTrue);
+        await awaitingReceipt(correction);
+      },
+    );
+    // جدار المرسل العام مثبت بالسلوك؛ عقد الاسترداد الكامل في T1.
+  });
+
   /// جلسة كاملة على بئر واحدة: بدء ثم إيقاف ثم استئناف ثم إنهاء.
   Future<List<CommandEnvelope>> enqueueFullSession({
     String well = wellOne,

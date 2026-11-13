@@ -38,10 +38,11 @@ begin
   -- ثم 43 بعد Migration 094 التي أضافت `team.manage` للمالك وحده.
   -- ثم 45 بعد Migration 112 التي أضافت `booking.cancel` و`booking.read`
   -- لعقد الحجوزات (ق-131 بند 8 / م-45 مرحلة B).
-  if v_count = 1 and v_count_2 = 45 then
-    raise notice 'PASS 1: session.energy.change مضافة والكتالوج = 45';
+  -- R6: صلاحيتا الإدخال اليدوي واعتماد المبلغ تضيفان ستة منح للأدوار المخولة.
+  if v_count = 1 and v_count_2 = 47 then
+    raise notice 'PASS 1: session.energy.change مضافة والكتالوج = 47';
   else
-    raise notice 'FAIL 1: energy_code=% catalog_total=% (توقع 1 و45)',
+    raise notice 'FAIL 1: energy_code=% catalog_total=% (توقع 1 و47)',
       v_count, v_count_2;
   end if;
 
@@ -90,10 +91,10 @@ begin
   -- ثم 79 بعد هجرة 094: `team.manage` للمالك وحده بلا توسيع.
   -- ثم 84 بعد هجرة 112: booking.cancel (مالك+مشغل) وbooking.read
   -- (مالك+مدير+مشغل) حفاظًا على دلالة قراءة 079.
-  if v_count = 85 then
-    raise notice 'PASS 3: iam.role_permissions = 85 (79 + 5 + 1)';
+  if v_count = 91 then
+    raise notice 'PASS 3: iam.role_permissions = 91 (79 + 5 + 1 + 3 + 3)';
   else
-    raise notice 'FAIL 3: role_permissions = % بدل 85', v_count;
+    raise notice 'FAIL 3: role_permissions = % بدل 91', v_count;
   end if;
 
 

@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../sync/command_reference.dart';
 import '../sync/entity_reference.dart';
 import '../utils/digit_utils.dart';
+import 'manual_session_entry_capability.dart';
+import 'session_financial_adjustment.dart';
 
 /// نماذج وبيانات التشغيل الميداني وسجل الجلسات (UX-07 / UX-08 / UX-13 / ق-80 / ق-84 / ق-98 / ق-114)
 
@@ -398,6 +400,270 @@ String segmentTypeLabel(String? code) {
   return kSegmentTypeLabels[code] ?? code;
 }
 
+const _sessionCorrectionKeys = [
+  'original_started_at',
+  'original_ended_at',
+  'effective_started_at',
+  'effective_ended_at',
+  'operational_revision',
+  'financial_status',
+  'financial_applied_revision',
+];
+
+String _readString(Map json, String key) {
+  final value = json[key];
+  if (value is! String || value.trim().isEmpty) {
+    throw FormatException('حقل عقد القراءة غير صالح: $key');
+  }
+  return value;
+}
+
+// يقبل إزاحات ISO الصريحة وكسورها دون ربط التحليل بتوقيت الجهاز.
+final _correctionTimestampPattern = RegExp(
+  r'^([+-]?\d{4,6})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})'
+  r'(?:[.,](\d+))?([Zz]|([+-])(\d{2})(?::?(\d{2}))?)$',
+);
+
+DateTime? _readTime(Map json, String key, {bool nullable = false}) {
+  final value = json[key];
+  if (nullable && json.containsKey(key) && value == null) return null;
+  FormatException invalid() => FormatException('وقت عقد القراءة غير صالح: $key');
+  final match = value is String
+      ? _correctionTimestampPattern.firstMatch(value)
+      : null;
+  if (match == null || match.end != (value as String).length) throw invalid();
+
+  final year = int.parse(match[1]!);
+  final month = int.parse(match[2]!);
+  final day = int.parse(match[3]!);
+  final hour = int.parse(match[4]!);
+  final minute = int.parse(match[5]!);
+  final second = int.parse(match[6]!);
+  final offsetHour = match[10] == null ? 0 : int.parse(match[10]!);
+  final offsetMinute = match[11] == null ? 0 : int.parse(match[11]!);
+  if (offsetHour > 23 || offsetMinute > 59) throw invalid();
+
+  // نتحقق من المكونات كما كُتبت قبل تطبيق الإزاحة: DateTime يطبّع
+  // تجاوزات اليوم والشهر والوقت، فلا يكفي نجاح parse لإثبات صحتها.
+  final DateTime wallTime;
+  try {
+    wallTime = DateTime.utc(year, month, day, hour, minute, second);
+  } on ArgumentError {
+    throw invalid();
+  }
+  if (wallTime.year != year ||
+      wallTime.month != month ||
+      wallTime.day != day ||
+      wallTime.hour != hour ||
+      wallTime.minute != minute ||
+      wallTime.second != second) {
+    throw invalid();
+  }
+  // التحليل الأصلي يحفظ الإزاحة ودقة الكسور التي يدعمها DateTime.
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) throw invalid();
+  return parsed.toLocal();
+}
+
+int? _readRevision(Map json, String key, {bool nullable = false}) {
+  final value = json[key];
+  if (nullable && json.containsKey(key) && value == null) return null;
+  if (value is! int || value < 0) {
+    throw FormatException('مراجعة عقد القراءة غير صالحة: $key');
+  }
+  return value;
+}
+
+String _readFinancialStatus(Map json, {bool correction = false}) {
+  final value = _readString(json, 'financial_status');
+  if (!const {
+        'pending',
+        'applied',
+        'financial_review_required',
+      }.contains(value) &&
+      (correction || value != 'not_applicable')) {
+    throw const FormatException('حالة الأثر المالي غير صالحة');
+  }
+  return value;
+}
+
+Map _readCorrectionEnvelope(Object? raw, String contract, String sessionId) {
+  if (raw is! Map ||
+      raw['contract'] != contract ||
+      raw['version'] is! int ||
+      raw['version'] != 1 ||
+      raw['session_id'] != sessionId ||
+      sessionId.trim().isEmpty) {
+    throw const FormatException('غلاف قراءة التصحيح غير صالح');
+  }
+  return raw;
+}
+
+bool _readReviewRequired(Map json, String financialStatus) {
+  final value = json['financial_review_required'];
+  if (value is! bool ||
+      value != (financialStatus == 'financial_review_required')) {
+    throw const FormatException('حالة مراجعة المبلغ غير متسقة');
+  }
+  return value;
+}
+
+String? _readReviewReason(Map json) {
+  final value = json['financial_review_reason'];
+  if (value == null) return null;
+  return _readString(json, 'financial_review_reason');
+}
+
+class SessionCorrectionHistory {
+  SessionCorrectionHistory._(
+    this.sessionId,
+    Iterable<SessionCorrectionItem> items,
+  ) : items = List.unmodifiable(items);
+
+  factory SessionCorrectionHistory.fromContract(
+    Object? raw, {
+    required String sessionId,
+  }) {
+    final json = _readCorrectionEnvelope(
+      raw,
+      'get_session_corrections',
+      sessionId,
+    );
+    final items = json['items'];
+    if (items is! List) throw const FormatException('سجل التصحيحات غير صالح');
+    return SessionCorrectionHistory._(
+      sessionId,
+      items.map((item) {
+        if (item is! Map) throw const FormatException('عنصر التصحيح غير صالح');
+        return SessionCorrectionItem.fromContract(item, sessionId: sessionId);
+      }),
+    );
+  }
+
+  String get contract => 'get_session_corrections';
+  int get version => 1;
+  final String sessionId;
+  final List<SessionCorrectionItem> items;
+}
+
+class SessionCorrectionItem {
+  const SessionCorrectionItem._({
+    required this.correctionId,
+    required this.sessionId,
+    required this.previousRevision,
+    required this.newRevision,
+    required this.operationalRevision,
+    required this.beforeStartedAt,
+    required this.beforeEndedAt,
+    required this.afterStartedAt,
+    required this.afterEndedAt,
+    required this.reason,
+    required this.requestedAt,
+    required this.acceptedAt,
+    required this.financialStatus,
+    required this.financialReviewRequired,
+    required this.financialReviewReason,
+  });
+
+  factory SessionCorrectionItem.fromContract(
+    Map json, {
+    required String sessionId,
+  }) {
+    if (json['session_id'] != sessionId) {
+      throw const FormatException('جلسة عنصر التصحيح غير مطابقة');
+    }
+    final previous = _readRevision(json, 'previous_revision')!;
+    final next = _readRevision(json, 'new_revision')!;
+    final operational = _readRevision(json, 'operational_revision')!;
+    if (next != previous + 1 || operational != next) {
+      throw const FormatException('مراجعات التصحيح غير متسقة');
+    }
+    final financial = _readFinancialStatus(json, correction: true);
+    return SessionCorrectionItem._(
+      correctionId: _readString(json, 'correction_id'),
+      sessionId: sessionId,
+      previousRevision: previous,
+      newRevision: next,
+      operationalRevision: operational,
+      beforeStartedAt: _readTime(json, 'before_started_at')!,
+      beforeEndedAt: _readTime(json, 'before_ended_at')!,
+      afterStartedAt: _readTime(json, 'after_started_at')!,
+      afterEndedAt: _readTime(json, 'after_ended_at')!,
+      reason: _readString(json, 'reason'),
+      requestedAt: _readTime(json, 'requested_at')!,
+      acceptedAt: _readTime(json, 'accepted_at')!,
+      financialStatus: financial,
+      financialReviewRequired: _readReviewRequired(json, financial),
+      financialReviewReason: _readReviewReason(json),
+    );
+  }
+
+  final String correctionId, sessionId, reason, financialStatus;
+  final int previousRevision, newRevision, operationalRevision;
+  final DateTime beforeStartedAt, beforeEndedAt, afterStartedAt, afterEndedAt;
+  final DateTime requestedAt, acceptedAt;
+  final bool financialReviewRequired;
+  final String? financialReviewReason;
+}
+
+class SessionCorrectionStatus {
+  const SessionCorrectionStatus._({
+    required this.sessionId,
+    required this.operationalRevision,
+    required this.status,
+    required this.financialStatus,
+    this.correctionId,
+    this.financialReviewRequired = false,
+    this.financialReviewReason,
+  });
+
+  factory SessionCorrectionStatus.fromContract(
+    Object? raw, {
+    required String sessionId,
+  }) {
+    final json = _readCorrectionEnvelope(
+      raw,
+      'get_session_correction_status',
+      sessionId,
+    );
+    final revision = _readRevision(json, 'operational_revision')!;
+    final financial = _readFinancialStatus(json, correction: revision > 0);
+    final status = _readString(json, 'status');
+    if (revision == 0) {
+      if (status != 'not_corrected' ||
+          financial != 'not_applicable' ||
+          json['correction_id'] != null) {
+        throw const FormatException('حالة الجلسة غير المصححة غير متسقة');
+      }
+      return SessionCorrectionStatus._(
+        sessionId: sessionId,
+        operationalRevision: revision,
+        status: status,
+        financialStatus: financial,
+      );
+    }
+    if (status != financial) {
+      throw const FormatException('حالة التصحيح غير متسقة');
+    }
+    return SessionCorrectionStatus._(
+      sessionId: sessionId,
+      operationalRevision: revision,
+      status: status,
+      financialStatus: financial,
+      correctionId: _readString(json, 'correction_id'),
+      financialReviewRequired: _readReviewRequired(json, financial),
+      financialReviewReason: _readReviewReason(json),
+    );
+  }
+
+  String get contract => 'get_session_correction_status';
+  int get version => 1;
+  final String sessionId, status, financialStatus;
+  final int operationalRevision;
+  final String? correctionId, financialReviewReason;
+  final bool financialReviewRequired;
+}
+
 class SessionHistoryItem {
   const SessionHistoryItem({
     required this.id,
@@ -410,6 +676,8 @@ class SessionHistoryItem {
     required this.operatorName,
     required this.startedAt,
     this.endedAt,
+    this.farmId,
+    this.pumpId,
     this.status = 'closed',
     this.energySourceCode,
     this.actualSeconds,
@@ -420,25 +688,67 @@ class SessionHistoryItem {
     this.hasCharge = false,
     this.hasInvoice = false,
     this.isSynced = true,
+    this.originalStartedAt,
+    this.originalEndedAt,
+    this.effectiveStartedAt,
+    this.effectiveEndedAt,
+    this.operationalRevision,
+    this.financialStatus,
+    this.financialAppliedRevision,
   });
 
   /// بناء العنصر من عقد `api.list_well_sessions` / `api.get_session_detail`.
   /// الجلسة غير المفوترة تصل بمبالغ null، فتبقى أصفارًا مع `hasCharge=false`
   /// وحالة `not_billed` — لا مبلغ مخترع ولا حالة سداد مصطنعة (ق-99).
-  factory SessionHistoryItem.fromContract(Map<String, dynamic> json) {
+  factory SessionHistoryItem.fromContract(
+    Map<String, dynamic> json, {
+    bool requireCorrectionFacts = false,
+  }) {
+    final explicit =
+        requireCorrectionFacts || _sessionCorrectionKeys.any(json.containsKey);
+    final completed =
+        json['status'] == 'closed' || json['status'] == 'forgotten';
+    final originalStart = explicit
+        ? _readTime(json, 'original_started_at')
+        : null;
+    final originalEnd = explicit
+        ? _readTime(json, 'original_ended_at', nullable: !completed)
+        : null;
+    final effectiveStart = explicit
+        ? _readTime(json, 'effective_started_at')
+        : null;
+    final effectiveEnd = explicit
+        ? _readTime(json, 'effective_ended_at', nullable: !completed)
+        : null;
     return SessionHistoryItem(
+      originalStartedAt: originalStart,
+      originalEndedAt: originalEnd,
+      effectiveStartedAt: effectiveStart,
+      effectiveEndedAt: effectiveEnd,
+      operationalRevision: explicit
+          ? _readRevision(json, 'operational_revision')
+          : null,
+      financialStatus: explicit ? _readFinancialStatus(json) : null,
+      financialAppliedRevision: explicit
+          ? _readRevision(json, 'financial_applied_revision', nullable: true)
+          : null,
       id: json['id'] as String? ?? '',
       wellId: json['well_id'] as String? ?? '',
       farmerName: json['farmer_name'] as String? ?? 'غير محدد',
       farmerCode: json['farmer_public_code'] as String? ?? '',
       farmerAccountId: json['farmer_well_account_id'] as String? ?? '',
+      farmId: json['farm_id'] as String?,
+      pumpId: json['pump_id'] as String?,
       farmName: json['farm_name'] as String? ?? 'غير محددة',
       pumpName: json['pump_name'] as String? ?? 'غير محددة',
       operatorName: json['operator_name'] as String? ?? 'غير محدد',
-      startedAt:
-          DateTime.tryParse(json['started_at'] as String? ?? '')?.toLocal() ??
-          DateTime.now(),
-      endedAt: json['ended_at'] != null
+      startedAt: explicit
+          ? effectiveStart!
+          : DateTime.tryParse(json['started_at'] as String? ?? '')?.toLocal() ??
+                DateTime.now(),
+      endedAt: explicit
+          ? effectiveEnd
+          : json['ended_at'] != null
           ? DateTime.tryParse(json['ended_at'] as String)?.toLocal()
           : null,
       status: json['status'] as String? ?? 'closed',
@@ -453,6 +763,7 @@ class SessionHistoryItem {
     );
   }
 
+  final String? farmId, pumpId;
   final String id;
   final String wellId;
   final String farmerName;
@@ -486,6 +797,12 @@ class SessionHistoryItem {
   final bool hasInvoice;
   final bool isSynced;
 
+  /// غياب العقد الصريح في القراءات القديمة يبقى مجهولًا، لا مراجعة صفر مصطنعة.
+  final DateTime? originalStartedAt, originalEndedAt;
+  final DateTime? effectiveStartedAt, effectiveEndedAt;
+  final int? operationalRevision, financialAppliedRevision;
+  final String? financialStatus;
+
   String get energySource => energySourceLabel(energySourceCode);
 
   bool get isBilled => hasCharge;
@@ -513,19 +830,50 @@ class SessionSegmentItem {
     this.fuelChargeYER = 0,
     this.totalChargeYER = 0,
     this.notes,
+    this.originalStartedAt,
+    this.originalEndedAt,
+    this.financialEvidenceBasis,
+    this.financialEvidenceRevision,
   });
 
   /// المقطع كما تعيده القاعدة: أعمدة الثواني والمبالغ المخزّنة، لا حساب محلي.
   factory SessionSegmentItem.fromContract(Map<String, dynamic> json) {
+    final explicit = const [
+      'original_started_at',
+      'original_ended_at',
+      'financial_evidence_basis',
+      'financial_evidence_revision',
+    ].any(json.containsKey);
+    final basis = explicit
+        ? _readString(json, 'financial_evidence_basis')
+        : null;
+    if (explicit &&
+        basis != 'original_execution' &&
+        basis != 'applied_reconciliation') {
+      throw const FormatException('مصدر الدليل المالي غير صالح');
+    }
     return SessionSegmentItem(
+      originalStartedAt: explicit
+          ? _readTime(json, 'original_started_at')
+          : null,
+      originalEndedAt: explicit
+          ? _readTime(json, 'original_ended_at', nullable: true)
+          : null,
+      financialEvidenceBasis: basis,
+      financialEvidenceRevision: explicit
+          ? _readRevision(json, 'financial_evidence_revision')
+          : null,
       sequenceNumber: (json['sequence_number'] as num?)?.toInt() ?? 0,
       segmentType: json['segment_type'] as String? ?? '',
       isStop: json['is_stop'] as bool? ?? false,
       isBillable: json['is_billable'] as bool? ?? false,
-      startedAt:
-          DateTime.tryParse(json['started_at'] as String? ?? '')?.toLocal() ??
-          DateTime.now(),
-      endedAt: json['ended_at'] != null
+      startedAt: explicit
+          ? _readTime(json, 'started_at')!
+          : DateTime.tryParse(json['started_at'] as String? ?? '')?.toLocal() ??
+                DateTime.now(),
+      endedAt: explicit
+          ? _readTime(json, 'ended_at', nullable: true)
+          : json['ended_at'] != null
           ? DateTime.tryParse(json['ended_at'] as String)?.toLocal()
           : null,
       energySourceCode: json['energy_source'] as String?,
@@ -553,6 +901,9 @@ class SessionSegmentItem {
   final int fuelChargeYER;
   final int totalChargeYER;
   final String? notes;
+  final DateTime? originalStartedAt, originalEndedAt;
+  final String? financialEvidenceBasis;
+  final int? financialEvidenceRevision;
 
   String get energySource => energySourceLabel(energySourceCode);
   String get typeLabel => segmentTypeLabel(segmentType);
@@ -562,6 +913,8 @@ class SessionDetailData {
   const SessionDetailData({
     required this.session,
     required this.segments,
+    required this.canReadSessionCorrections,
+    required this.canCorrectSession,
     this.crops = const [],
     this.paymentMethod,
     this.paymentReference,
@@ -570,6 +923,8 @@ class SessionDetailData {
 
   final SessionHistoryItem session;
   final List<SessionSegmentItem> segments;
+  final bool canReadSessionCorrections;
+  final bool canCorrectSession;
 
   /// محاصيل هذه الجلسة كما حُفظت وقت بدئها (ق-131 البند 1) — لقطة
   /// مستقلة لا تتبع الأرض، والجلسات الأقدم من الميزة قائمة فارغة.
@@ -599,7 +954,7 @@ class FarmerDetailData {
   final List<SessionHistoryItem> recentSessions;
 }
 
-class OperationsRepository {
+class OperationsRepository implements ManualSessionEntryCapabilityReader {
   const OperationsRepository([this._client]);
 
   final SupabaseClient? _client;
@@ -611,6 +966,149 @@ class OperationsRepository {
     } catch (_) {
       return null;
     }
+  }
+
+  /// قراءة جديدة بلا مخبأ؛ تبديل الهوية أثناء الطلب يبطل النتيجة القديمة.
+  @override
+  Future<ManualSessionEntryCapability> fetchManualSessionEntryCapability({
+    required String accountId,
+    required String wellId,
+  }) async {
+    if (accountId.isEmpty || accountId.trim() != accountId ||
+        wellId.isEmpty || wellId.trim() != wellId) {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.malformed,
+      );
+    }
+    final client = _effectiveClient;
+    if (client == null) {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.unavailable,
+      );
+    }
+    bool sameIdentity() {
+      final session = client.auth.currentSession;
+      return session != null && !session.isExpired && session.user.id == accountId;
+    }
+    if (!sameIdentity()) {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.authentication,
+      );
+    }
+    final Object? raw;
+    try {
+      raw = await client.schema('api').rpc(
+        'get_manual_session_entry_capability', params: {'p_well_id': wellId},
+      ).timeout(const Duration(seconds: 20));
+    } on PostgrestException catch (error) {
+      throw ManualSessionEntryCapabilityUnavailable(switch (error.code) {
+        '42501' => ManualSessionEntryCapabilityFailure.forbidden,
+        '28000' || 'PGRST301' || 'PGRST302' => ManualSessionEntryCapabilityFailure.authentication,
+        _ => ManualSessionEntryCapabilityFailure.network,
+      });
+    } on AuthException {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.authentication,
+      );
+    } on FormatException {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.malformed,
+      );
+    } on Object {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.network,
+      );
+    }
+    if (!sameIdentity()) {
+      throw const ManualSessionEntryCapabilityUnavailable(
+        ManualSessionEntryCapabilityFailure.identityChanged,
+      );
+    }
+    return ManualSessionEntryCapability.fromContract(raw, wellId: wellId);
+  }
+
+  Future<SessionFinancialAdjustmentCapability>
+  getSessionFinancialAdjustmentCapability({
+    required String accountId,
+    required String sessionId,
+  }) => _readSessionFinancialContract(
+    accountId: accountId,
+    sessionId: sessionId,
+    rpc: 'get_session_financial_adjustment_capability',
+    parse: (raw) => SessionFinancialAdjustmentCapability.fromContract(
+      raw,
+      sessionId: sessionId,
+    ),
+  );
+
+  Future<SessionFinancialState> getSessionFinancialState({
+    required String accountId,
+    required String sessionId,
+  }) => _readSessionFinancialContract(
+    accountId: accountId,
+    sessionId: sessionId,
+    rpc: 'get_session_financial_state',
+    parse: (raw) => SessionFinancialState.fromContract(
+      raw,
+      sessionId: sessionId,
+    ),
+  );
+
+  Future<T> _readSessionFinancialContract<T>({
+    required String accountId,
+    required String sessionId,
+    required String rpc,
+    required T Function(Object?) parse,
+  }) async {
+    if (accountId.trim().isEmpty || accountId.trim() != accountId ||
+        sessionId.trim().isEmpty || sessionId.trim() != sessionId) {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.malformed,
+      );
+    }
+    final client = _effectiveClient;
+    if (client == null) {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.unavailable,
+      );
+    }
+    bool sameIdentity() {
+      final session = client.auth.currentSession;
+      return session != null && !session.isExpired &&
+          session.user.id == accountId;
+    }
+    if (!sameIdentity()) {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.authentication,
+      );
+    }
+    final Object? raw;
+    try {
+      raw = await client.schema('api').rpc(
+        rpc, params: {'p_session_id': sessionId},
+      ).timeout(const Duration(seconds: 20));
+    } on PostgrestException catch (error) {
+      throw SessionFinancialAdjustmentReadUnavailable(switch (error.code) {
+        '42501' => SessionFinancialAdjustmentReadFailure.forbidden,
+        '28000' || 'PGRST301' || 'PGRST302' =>
+          SessionFinancialAdjustmentReadFailure.authentication,
+        _ => SessionFinancialAdjustmentReadFailure.network,
+      });
+    } on AuthException {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.authentication,
+      );
+    } on Object {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.network,
+      );
+    }
+    if (!sameIdentity()) {
+      throw const SessionFinancialAdjustmentReadUnavailable(
+        SessionFinancialAdjustmentReadFailure.identityChanged,
+      );
+    }
+    return parse(raw);
   }
 
   /// استخراج عناصر عقد قراءة من مغلّف `{contract, version, items}` (ق-98)
@@ -1082,6 +1580,30 @@ class OperationsRepository {
         .toList();
   }
 
+  /// Fresh current-session read only; no history matching and no cached fallback.
+  Future<SessionDetailData?> fetchCurrentOperationalSession(String wellId) async {
+    final client = _effectiveClient;
+    final account = client?.auth.currentUser?.id;
+    if (client == null || account == null || wellId.trim().isEmpty) throw StateError('current_session_auth_required');
+    final raw = await client.schema('api').rpc('get_well_day_schedule',params:{'p_well_id':wellId});
+    if (client.auth.currentUser?.id != account) throw StateError('current_session_identity_changed');
+    if (raw is! Map || raw['status'] != 'ok' || raw['well_id'] != wellId || !raw.containsKey('current_session')) {
+      throw const FormatException('invalid_current_session_read');
+    }
+    final current = raw['current_session'];
+    if (current == null) return null;
+    if (current is! Map || current['session_id'] is! String || (current['session_id'] as String).trim().isEmpty ||
+        current['well_id'] != wellId || current['status'] != 'open' || current['ended_at'] != null) {
+      throw const FormatException('invalid_current_session_scope');
+    }
+    final detail = await fetchSessionDetail(current['session_id'] as String);
+    if (client.auth.currentUser?.id != account || detail.session.id != current['session_id'] ||
+        detail.session.wellId != wellId || detail.session.status != 'open' || detail.session.endedAt != null) {
+      throw StateError('current_session_changed');
+    }
+    return detail;
+  }
+
   /// جلب تفصيل الجلسة ومقاطعها عبر عقد `api.get_session_detail`
   /// (م-41C2). المقاطع تُقرأ بأعمدتها الحقيقية: `sequence_number` و
   /// `actual_seconds` و`billable_seconds` والمبالغ المخزّنة — لا حساب
@@ -1105,6 +1627,20 @@ class OperationsRepository {
       throw StateError('عقد تفصيل الجلسة لم يُعِد بيانات الجلسة');
     }
 
+    final canReadSessionCorrections =
+        sessionJson['can_read_session_corrections'];
+    final canCorrectSession = sessionJson['can_correct_session'];
+    if (canReadSessionCorrections is! bool) {
+      throw const FormatException(
+        'Invalid session detail can_read_session_corrections',
+      );
+    }
+    if (canCorrectSession is! bool) {
+      throw const FormatException(
+        'Invalid session detail can_correct_session',
+      );
+    }
+
     final segments = (response['segments'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map(
@@ -1120,8 +1656,11 @@ class OperationsRepository {
     final crops = cropsFromContract(response);
 
     return SessionDetailData(
+      canReadSessionCorrections: canReadSessionCorrections,
+      canCorrectSession: canCorrectSession,
       session: SessionHistoryItem.fromContract(
         Map<String, dynamic>.from(sessionJson),
+        requireCorrectionFacts: true,
       ),
       segments: segments,
       crops: crops,
@@ -1131,6 +1670,34 @@ class OperationsRepository {
           ? DateTime.tryParse(payment['paid_at'] as String)?.toLocal()
           : null,
     );
+  }
+
+  Future<SessionCorrectionHistory> fetchSessionCorrections(
+    String sessionId,
+  ) async {
+    final client = _effectiveClient;
+    if (client == null) throw StateError('Supabase client is unavailable');
+    final response = await client
+        .schema('api')
+        .rpc('get_session_corrections', params: {'p_session_id': sessionId});
+    return SessionCorrectionHistory.fromContract(
+      response,
+      sessionId: sessionId,
+    );
+  }
+
+  Future<SessionCorrectionStatus> fetchSessionCorrectionStatus(
+    String sessionId,
+  ) async {
+    final client = _effectiveClient;
+    if (client == null) throw StateError('Supabase client is unavailable');
+    final response = await client
+        .schema('api')
+        .rpc(
+          'get_session_correction_status',
+          params: {'p_session_id': sessionId},
+        );
+    return SessionCorrectionStatus.fromContract(response, sessionId: sessionId);
   }
 
   /// جلب الملف الشخصي الكامل للمزارع وأراضيه وكشف حسابه (UX-13 / 380)

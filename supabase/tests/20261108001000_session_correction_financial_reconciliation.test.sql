@@ -286,8 +286,12 @@ begin
  denied:=false;begin perform pg_temp.c2_apply(f,c,gen_random_uuid());exception when insufficient_privilege then denied:=true;end;
  perform pg_temp.c2_check(denied,'28e private reconciliation still enforces session.correct');
  update core.well_assignments set role='operator' where well_id=(f->>'well')::uuid and profile_id=(f->>'actor')::uuid;
- perform pg_temp.c2_check(not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
- where n.nspname='api' and p.proname in ('correct_irrigation_session','reconcile_session_correction')),'29 no public write endpoints');
+ perform pg_temp.c2_check(
+ to_regprocedure('api.correct_irrigation_session(uuid,uuid,bigint,text,timestamptz,timestamptz,timestamptz)') is not null
+ and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+ where n.nspname='api' and (p.proname='reconcile_session_correction'
+  or p.prosrc ~ 'billing[[:space:]]*\.[[:space:]]*reconcile_session_correction[[:space:]]*\(')),
+ '29 operational correction endpoint allowed; public financial reconciliation remains closed');
  perform pg_temp.c2_check(not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
  where n.nspname='billing' and p.proname in ('reconcile_session_correction','derive_session_correction_charge',
   'post_session_correction_delta','validate_session_financial_correction') and p.prosrc~
