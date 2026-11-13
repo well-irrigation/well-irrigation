@@ -671,6 +671,25 @@ VERIFIED + DEVICE ACCEPTANCE PENDING + READY TO ADVANCE؛ D = IMPLEMENTED
 UNRESOLVED FINANCIAL CONFLICTS = NONE` كما أفادها المالك، ولا تعني نجاح
 قبول جهاز أو دمجًا أو نشرًا سحابيًا.
 
+## ق-138 — رقعة Android SQLite ذات العاملين (2026-11-13)
+
+| البند | الحالة |
+| --- | --- |
+| القرار | ق-138 — `Android SQLite worker pool safety for current multi-connection foreground/background architecture` |
+| المصدر التقني | `SQLITE_TRANSACTION_LOCK_AUDIT.md` (المصدر التفصيلي) و`FOREGROUND_SYNC_LATENCY.md` §7 |
+| التنفيذ | نسخة vendored من `sqflite_android 2.4.3` في `third_party/sqflite_android/`؛ `THREAD_COUNT=2`؛ ربط `dependency_overrides` بمسار محلي في `apps/mobile/pubspec.yaml` و`pubspec.lock`؛ لا `devSetOptions` في الإنتاج |
+| الدليل | RED/GREEN لاختبار تقدم مالك المعاملة (`worker=1` FAIL / `worker=2` PASS)؛ A/B على الجهاز (`57→56` ≈3.8s بدل ≈4m30s)؛ Android الأصلية 11 PASS؛ المركزة 53 PASS؛ sync/recovery/notifications 2144 PASS؛ full mobile package 3359 PASS؛ `flutter analyze` 0 issues؛ `git diff --check` PASS؛ قبول جهاز Samsung SM-A136U PASS؛ تعديل مالي `56→55` ≈4.62s بلا تكرار |
+| الأثر على الخادم/المال | لا شيء — لا تغيير في Supabase أو `api` أو عقود الخادم أو دلالات المال |
+| الحالة | IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + **GIT CLOSEOUT PENDING** |
+| المطلوب للإغلاق | commit ثم push ثم PR ثم CI ناجح على الرقعة نفسها ثم merge؛ بعده تتحول الحالة إلى CLOSED |
+| القيود | لا تدّعي ملكية عامة لملف SQLite؛ كل ترقية/إزالة `third_party`/تغيير worker count تبطل القبول وتستوجب إعادة Device Acceptance (الثوابت 769–773) |
+| المسألة المستقلة | F-RECON (المصالحة بعد التصحيح) لم تُصلح هنا؛ مفتوحة في `../memory/OPEN_ISSUES.md` |
+
+**ما لم يُثبت:** CI VERIFIED على رقعة F-SYNC = UNKNOWN (لم يُشغَّل)؛
+PUSHED = NO؛ MERGED = NO؛ CLOUD DEPLOYED = غير منطبق (لا هجرة).
+`DEVICE ACCEPTED = PASS` لهذا البند وحده، ولا يُنقل إلى أي حزمة أخرى.
+
+
 ## سجل المطابقة الحاكم R6 — بعد التزام C3
 
 **HISTORICAL LIMIT:** السجل التالي يصف لحظة ما بعد C3، وخلايا

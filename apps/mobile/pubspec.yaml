@@ -42,6 +42,11 @@ dev_dependencies:
   # Runs the real SQLite store in host tests, without a device.
   sqflite_common_ffi: ^2.3.4
 
+# Pinned native worker default; see third_party/sqflite_android/PATCHES.md.
+dependency_overrides:
+  sqflite_android:
+    path: ../../third_party/sqflite_android
+
 flutter:
   uses-material-design: true
 

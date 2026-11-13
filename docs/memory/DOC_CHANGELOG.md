@@ -1,5 +1,68 @@
 # سجل تغييرات الوثائق
 
+## 2026-11-13 — توثيق F-SYNC وق-138 وتصحيح حالة السحابة
+
+**جولة توثيق فقط.** لا كود إنتاج ولا `apps/mobile/**` ولا `third_party/**`
+ولا `supabase/**` ولا migrations ولا عقود خادم ولا `.github/**` ولا سكربتات
+ولا `AGENTS.md` ولا بروتوكولات الحوكمة ولا Documentation Gate. لا stage
+ولا commit ولا push.
+
+**تغييرات مصدر F-SYNC الإنتاجية** (`apps/mobile/pubspec.yaml`،
+`apps/mobile/pubspec.lock`، `third_party/sqflite_android/`) **كانت موجودة
+في الشجرة قبل هذه الجولة** ولم تُنشأ ولم تُعدّل فيها.
+
+### ما تغيّر
+
+1. **توثيق السبب الجذري لـF-SYNC:** أُضيف
+   `technical/SQLITE_TRANSACTION_LOCK_AUDIT.md` (المصدر التقني التفصيلي)
+   و`technical/FOREGROUND_SYNC_LATENCY.md` (استُعيدت لتفصل أسباب تأخير
+   المقدمة المغلقة عن عطل SQLite المنفصل وعن F-RECON).
+2. **ق-138 جديد** في `DECISIONS.md`: اعتماد رقعة Android SQLite ذات
+   عاملين ومنع الرجوع الصامت إلى worker واحد — بالحالة
+   `ADOPTED + IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
+   GIT CLOSEOUT PENDING`.
+3. **ثوابت جديدة 769–773** في `technical/INVARIANTS.md`.
+4. **`technical/SYNC_ARCHITECTURE.md`:** قسم ق-138 عن طبقة SQLite المحلية
+   المشتركة بين المقدمة والخلفية وما لم يتغير وما يترتب على أي ترقية.
+5. **`technical/DECISION_IMPLEMENTATION_MATRIX.md`:** صف مطابقة ق-138
+   بالتنفيذ والأدلة والحالة والقيود.
+6. **قبول الجهاز مسجل:** Samsung SM-A136U، اختبارات 11/53/2144/3359 بلا
+   FAIL/SKIP/LOAD_FAILURE، `flutter analyze` 0 issues، وتعديل مالي
+   `56→55` مقبول في ≈4.62s بلا تكرار، و`WorkManager` بقي نشطًا.
+7. **تصحيح حالة السحابة:** النص الذي قال إن السحابة متوقفة عند
+   `20261108002500` وإن `20261108002600`–`20261108003000` غير منشورة صار
+   **غير صحيح**: الفحص المباشر أثبت وجود الهجرات حتى `20261111000000`
+   ⇒ `CLOUD MIGRATION GATE = CLEARED`. صُحح في `OPEN_ISSUES.md`
+   و`PROJECT_MAP.md` و`RESUME_POINT.md`، وبقي النص القديم في
+   `RESUME_HISTORY.md` موسومًا **HISTORICAL**.
+8. **F-RECON سُجل منفصلًا** في `OPEN_ISSUES.md` كـ`OPEN / BLOCKED`
+   (`status=pending`, `attempt_count=0`, `last_attempt_at=NULL`, وبلا
+   مستهلك runtime إنتاجي مثبت)، مع قاعدة عدم افتراض الكتابة فوق موافقة
+   مالية يدوية سابقة. F-RECON **لم تُصلح** ولم تُخلط بـF-SYNC.
+9. **`OPEN_ISSUES.md`:** صُحح نص «لم يبدأ» بشأن قبول جهاز التعديل المالي
+   اليدوي (صار Device Acceptance = PASS)، وصُحح وصف عقود التصحيح بأنها غير
+   منشورة سحابيًا. وأُضيف بند **F-SYNC Git closeout** كحالة تنفيذ/دمج لا
+   كعيب معماري.
+10. **`RESUME_POINT.md`** أُعيد إلى رأس قصير (CURRENT / proven state /
+    critical open issue / NEXT / do-not-redo guards)، ونُقلت اللقطة
+    السابقة إلى `RESUME_HISTORY.md`.
+11. **`PROGRESS.md`** سجل فقط ما ثبت: التشخيص وA/B والرقعة ونتائج
+    الاختبارات والتحليل وقبول الجهاز واستمرار `WorkManager` والقبول
+    المالي الأخير. **لم يُكتب** merged/pushed/CI verified/closed in Git.
+12. **`PROJECT_MAP.md`:** حُدث المؤشر العلوي فقط.
+
+### لماذا تغيّر
+
+لأن عطل F-SYNC أُغلق تقنيًا وجهازيًا، ولأن المعرفة الحاكمة عنه كانت في
+المحادثة لا في المستودع؛ وتوثيق Documentation Gate يمنع الانتقال إلى
+F-RECON قبل حفظ فهم هذا العطل مع أدلته وحدود ضمانه.
+
+### هل تغيّر Baseline
+
+لا. لا تغيير في كود الإنتاج ولا في الهجرات ولا في عقود الخادم؛ حالة
+F-SYNC الحاكمة هي **GIT CLOSEOUT PENDING**، و`CLOSED` لا تُكتب قبل إغلاق
+Git.
+
 ## 2026-11-13 — إغلاق توثيقي بعد دمج PR #68
 
 جولة توثيق فقط بعد الدمج: لا كود ولا اختبار ولا SQL ولا هجرة ولا نشر ولا

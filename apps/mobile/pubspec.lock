@@ -754,12 +754,11 @@ packages:
     source: hosted
     version: "2.4.3"
   sqflite_android:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: sqflite_android
-      sha256: d0548f9d7422a2dae99ec6f8b0a3074463b132d216fa5ba0d230eeefc901983b
-      url: "https://pub.dev"
-    source: hosted
+      path: "../../third_party/sqflite_android"
+      relative: true
+    source: path
     version: "2.4.3"
   sqflite_common:
     dependency: transitive
