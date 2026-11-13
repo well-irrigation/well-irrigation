@@ -171,6 +171,7 @@ audit.log(p_tenant_id uuid, p_well_id uuid, p_action text, p_entity_type text, p
 audit.prevent_audit_modification()|trigger|volatile|invoker|-
 audit.track_changes()|trigger|volatile|definer|search_path=audit, core, pg_temp
 billing.adjust_credit_application(p_application uuid, p_operation text, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+billing.adjust_credit_application_core(p_actor_id uuid, p_application uuid, p_operation text, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.allocate_payment(p_payment_id uuid, p_allocations jsonb)|jsonb|volatile|definer|search_path=billing, finance, core, audit, iam, pg_temp
 billing.apply_account_credit(p_credit uuid, p_invoice uuid, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.apply_manual_session_approval(p_session uuid, p_command uuid, p_base_op bigint, p_base_sys bigint, p_base_manual bigint, p_amount bigint, p_reason text, p_requested timestamp with time zone)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
@@ -186,6 +187,7 @@ billing.check_session_financial_correction()|trigger|volatile|definer|search_pat
 billing.check_system_manual_coverage()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 billing.credit_event_replay(p_tenant uuid, p_source uuid, p_revision bigint, p_request jsonb)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.derive_session_correction_charge(p_correction uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+billing.enqueue_session_correction_reconciliation()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 billing.enter_financial_write(p_well uuid, p_permission text, p_roles text[], p_expected_tenant uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.establish_paired_system_basis(p_correction uuid, p_approval uuid, p_posted timestamp with time zone)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.fill_payment_context()|trigger|volatile|definer|search_path=billing, ops, finance, core, pg_temp
@@ -210,15 +212,20 @@ billing.issue_session_invoice(p_session_id uuid, p_issued_by uuid)|uuid|volatile
 billing.issue_session_invoice_result(p_session uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.journalize_invoice()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
 billing.journalize_payment()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
+billing.lease_session_correction_reconciliation_messages(p_qty integer, p_visibility_timeout_seconds integer)|TABLE(msg_id bigint, read_count integer)|volatile|definer|search_path=pg_catalog, pg_temp
 billing.lock_customer_credit_well(p_well uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.manual_financial_posting_context(p_well uuid)|timestamp with time zone|volatile|definer|search_path=pg_catalog, pg_temp
 billing.manual_financial_session_scope(p_session uuid)|uuid|stable|definer|search_path=pg_catalog, pg_temp
 billing.post_customer_credit_entry(p_event uuid, p_tenant uuid, p_well uuid, p_account uuid, p_amount bigint, p_issue boolean, p_posted_at timestamp with time zone, p_actor uuid)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
 billing.post_session_correction_delta(p_correction uuid, p_invoice uuid, p_evidence jsonb, p_previous jsonb, p_posted_at timestamp with time zone)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
+billing.post_session_correction_delta_core(p_actor_id uuid, p_correction uuid, p_invoice uuid, p_evidence jsonb, p_previous jsonb, p_posted_at timestamp with time zone)|uuid|volatile|definer|search_path=pg_catalog, pg_temp
+billing.process_session_correction_reconciliation_message(p_msg_id bigint)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.read_manual_financial_receipt(p_session uuid, p_command uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 billing.read_manual_session_financial_state(p_session uuid)|jsonb|stable|definer|search_path=pg_catalog, pg_temp
 billing.rebalance_payment_capacity(p_payment uuid, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.reconcile_session_correction(p_correction uuid, p_command_id uuid, p_posted_at timestamp with time zone)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+billing.reconcile_session_correction_core(p_actor_id uuid, p_correction uuid, p_command_id uuid, p_posted_at timestamp with time zone)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+billing.reconciliation_actor_authorized(p_well uuid, p_actor uuid)|boolean|stable|definer|search_path=pg_catalog, pg_temp
 billing.record_payment(p_well_id uuid, p_farmer_well_account_id uuid, p_amount_minor bigint, p_method text, p_allocations jsonb, p_session_charge_id uuid, p_payer_person_id uuid, p_cashbox_id uuid, p_paid_at timestamp with time zone, p_note text, p_attachment_url text)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.refresh_adjusted_invoice()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 billing.refresh_application_adjusted_invoice()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
@@ -231,6 +238,7 @@ billing.reject_session_financial_history_mutation()|trigger|volatile|definer|sea
 billing.release_credit_application(p_application uuid, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.release_payment_allocation(p_allocation uuid, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.repartition_payment_internal(p_payment uuid, p_allocation uuid, p_credit uuid, p_amount bigint, p_mode text, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin uuid, p_parent uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
+billing.repartition_payment_internal_core(p_actor_id uuid, p_payment uuid, p_allocation uuid, p_credit uuid, p_amount bigint, p_mode text, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin uuid, p_parent uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.require_customer_credit_well_lock(p_well uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.require_no_disputed_invoice(p_invoice uuid, p_requested_minor bigint)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.require_valid_payment_partition(ok boolean, amount numeric)|numeric|immutable|invoker|search_path=pg_catalog, pg_temp
@@ -403,6 +411,7 @@ iam.current_person_id(p_tenant_id uuid)|uuid|stable|definer|search_path=iam, cor
 iam.handle_new_user()|trigger|volatile|definer|search_path=iam, pg_temp
 iam.has_farmer_self_access(p_well_id uuid)|boolean|stable|invoker|search_path=pg_catalog, pg_temp
 iam.has_well_permission(p_well_id uuid, p_permission_code text)|boolean|stable|definer|search_path=pg_catalog, pg_temp
+iam.has_well_permission_for_actor(p_well_id uuid, p_permission_code text, p_actor_id uuid)|boolean|stable|definer|search_path=pg_catalog, pg_temp
 iam.has_well_role(p_well_id uuid, p_roles text[])|boolean|stable|definer|search_path=core, pg_temp
 iam.is_partner_only(p_well_id uuid)|boolean|stable|definer|search_path=pg_catalog, pg_temp
 iam.is_well_partner(p_well_id uuid)|boolean|stable|definer|search_path=core, pg_temp

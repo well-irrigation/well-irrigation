@@ -1525,6 +1525,23 @@ ops.shifts|actual_cash_minor|bigint|null|-
 ops.shifts|cash_difference_minor|bigint|null|-
 ops.shifts|notes|text|null|-
 ops.shifts|created_at|timestamp with time zone|NOT NULL|now()
+pgmq.a_session_correction_reconciliation|msg_id|bigint|NOT NULL|-
+pgmq.a_session_correction_reconciliation|read_ct|integer|NOT NULL|0
+pgmq.a_session_correction_reconciliation|enqueued_at|timestamp with time zone|NOT NULL|now()
+pgmq.a_session_correction_reconciliation|archived_at|timestamp with time zone|NOT NULL|now()
+pgmq.a_session_correction_reconciliation|vt|timestamp with time zone|NOT NULL|-
+pgmq.a_session_correction_reconciliation|message|jsonb|null|-
+pgmq.a_session_correction_reconciliation|headers|jsonb|null|-
+pgmq.meta|queue_name|character varying|NOT NULL|-
+pgmq.meta|is_partitioned|boolean|NOT NULL|-
+pgmq.meta|is_unlogged|boolean|NOT NULL|-
+pgmq.meta|created_at|timestamp with time zone|NOT NULL|now()
+pgmq.q_session_correction_reconciliation|msg_id|bigint|NOT NULL|-
+pgmq.q_session_correction_reconciliation|read_ct|integer|NOT NULL|0
+pgmq.q_session_correction_reconciliation|enqueued_at|timestamp with time zone|NOT NULL|now()
+pgmq.q_session_correction_reconciliation|vt|timestamp with time zone|NOT NULL|-
+pgmq.q_session_correction_reconciliation|message|jsonb|null|-
+pgmq.q_session_correction_reconciliation|headers|jsonb|null|-
 reporting.cashbox_balances|tenant_id|uuid|null|-
 reporting.cashbox_balances|well_id|uuid|null|-
 reporting.cashbox_balances|cashbox_id|uuid|null|-
