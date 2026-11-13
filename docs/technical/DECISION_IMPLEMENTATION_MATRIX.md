@@ -1,6 +1,6 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-11-12
+**آخر تحديث:** 2026-11-13
 
 خادم R6 منشور ومتحقق سحابيًا بتاريخ 2026-11-05 حتى `20261108002500`؛ لا يعني ذلك نشر عقود تصحيح الجلسة `20261108002600`–`20261108003000` ولا قبول واجهة الهاتف على جهاز.
 
@@ -612,47 +612,51 @@ UX-12 لا تغلق تقنيًا بمجرد وجود `complete` و
 **الحالة عند تدوين هذا الأصل:** Adopted + توثيق محلي فقط؛ تنفيذ التحول واختباره ونشره Pending. **HISTORICAL / SUPERSEDED:** نُفذ التحول لاحقًا؛ الحالة الحاكمة في «مطابقة الحزم المنفذة» أدناه.
 
 
-## مطابقة الحزم المنفذة — الحالة الحقيقية (2026-11-12)
+## مطابقة الحزم المنفذة — الحالة الحقيقية (2026-11-13)
 
 تفصل هذه المصفوفة كل حالة عن الأخرى. `UNKNOWN` تعني غياب دليل لا نفيًا،
 و`PENDING` تعني لم يبدأ، و`PARTIAL` تعني بعض النطاق ثبت وبعضه لا.
 **لا تُستنتج حالة من حالة**: نجاح الخادم لا يثبت الواجهة، والاختبار
-المحلي لا يثبت CI، والدمج لا يثبت قبول الجهاز.
+المحلي لا يثبت CI، وCI لا يثبت قبول الجهاز، والدمج لا يثبت النشر السحابي.
 
 | الحزمة | DECIDED | DOCUMENTED | SERVER IMPLEMENTED | MOBILE IMPLEMENTED | UI IMPLEMENTED | LOCAL VERIFIED | CI VERIFIED | COMMITTED | PUSHED | MERGED | CLOUD DEPLOYED | DEVICE ACCEPTED |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A — R6-A/B والبدء من الهاتف | YES | YES | YES | YES | YES | YES | UNKNOWN | YES | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| B — تصحيح الجلسة المنفذة | YES | YES | YES | YES | YES | YES | UNKNOWN | YES | NO | NO | PARTIAL | PENDING |
-| C — الإدخال اليدوي للجلسة التاريخية | YES | YES | YES | YES | YES | YES | UNKNOWN | YES | NO | NO | NO | PENDING |
-| D — تعديل مبلغ الجلسة اليدوي | YES | YES | YES | YES | YES | YES | UNKNOWN | YES | NO | NO | NO | PENDING |
+| A — R6-A/B والبدء من الهاتف | YES | YES | YES | YES | YES | YES | PASS | YES | YES | PARTIAL | PARTIAL | PARTIAL |
+| B — تصحيح الجلسة المنفذة | YES | YES | YES | YES | YES | YES | PASS | YES | YES | NO | PARTIAL | PENDING |
+| C — الإدخال اليدوي للجلسة التاريخية | YES | YES | YES | YES | YES | YES | PASS | YES | YES | NO | NO | PENDING |
+| D — تعديل مبلغ الجلسة اليدوي | YES | YES | YES | YES | YES | YES | PASS | YES | YES | NO | NO | PENDING |
 
 **تفصيل الخلايا غير المطلقة:**
 
-- **A — PUSHED/MERGED = PARTIAL:** مسار البدء من الهاتف مدموج في `main`
-  عبر PR #67؛ التعافي الموجّه محلي في `4d48654` بلا دفع.
+- **PUSHED = YES للجميع:** رأس الفرع على GitHub هو `eec07a2` في PR #68.
+- **CI VERIFIED = PASS للجميع:** run `43327175243` على `eec07a2`؛ تطبيق
+  PASS وقاعدة PASS واختبارات `FILES=90 PASS=2899 FAIL=0 ERROR=0`،
+  وSupabase Preview SKIPPED وليس فشلًا. CI لا يعني قبول جهاز.
+- **MERGED = NO لـB وC وD:** PR #68 مفتوح وMERGEABLE = YES ولم يُدمج.
+- **A — MERGED = PARTIAL:** مسار البدء من الهاتف مدموج في `main` عبر
+  PR #67؛ التعافي الموجّه والبقية في PR #68 غير المدموج.
 - **A — CLOUD DEPLOYED = PARTIAL:** خادم R6-A/B ضمن الدفعة المنشورة حتى
   `20261108002500`؛ واجهة الهاتف ليست نشرًا سحابيًا.
 - **A — DEVICE ACCEPTED = PARTIAL:** سجل الجهاز المحفوظ يخص التعافي
   الموجّه (إصلاح + إيقاف إجباري + إعادة فتح) لا مسار البدء كاملًا.
-- **B — COMMITTED = YES:** سلسلة `6f85860`…`3dcefda` محلية.
+- **B — COMMITTED = YES:** سلسلة `6f85860`…`3dcefda`، ومدفوعة.
 - **B — CLOUD DEPLOYED = PARTIAL:** أساس C1/C2 ضمن الدفعة المنشورة؛
   عقود الكتابة/القراءة/الإيصال/القدرة `20261108002600`–`20261108003000`
-  محلية غير منشورة.
-- **C — COMMITTED = YES:** سلسلة `f7eab60`…`5cde971`.
+  مدفوعة في PR #68 وغير منشورة سحابيًا.
+- **C — COMMITTED = YES:** سلسلة `f7eab60`…`5cde971`، ومدفوعة.
 - **D — COMMITTED = YES:** خادم + نواة + Outbox + نقل + استعادة + متابعة
-  + واجهة، محليًا.
-- **CI VERIFIED = UNKNOWN للجميع:** لا سجل داخل المستودع لهذه
-  الالتزامات؛ دمج PR #67 لا يُقرأ فحصًا موثقًا.
+  + واجهة، مدفوعة في PR #68.
 - **CLOUD DEPLOYED = NO لـC وD:** لا نشر سحابي لعقودهما بعد.
 
-**الحالة الحاكمة المختصرة:** A = IMPLEMENTED + VERIFIED LOCAL + PARTIAL
-DEVICE ACCEPTANCE + READY TO ADVANCE + NOT FINAL CLOSED؛ B = IMPLEMENTED
-+ VERIFIED LOCAL + DEVICE ACCEPTANCE NOT FULLY CLOSED + READY TO ADVANCE؛
-C = IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE PENDING + READY TO
-ADVANCE؛ D = IMPLEMENTED / LOCAL VERIFIED / DEVICE ACCEPTANCE PENDING.
+**الحالة الحاكمة المختصرة:** A = IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED
++ PARTIAL DEVICE ACCEPTANCE + READY TO ADVANCE + NOT FINAL CLOSED؛
+B = IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + DEVICE ACCEPTANCE NOT
+FULLY CLOSED + READY TO ADVANCE؛ C = IMPLEMENTED + VERIFIED LOCAL + CI
+VERIFIED + DEVICE ACCEPTANCE PENDING + READY TO ADVANCE؛ D = IMPLEMENTED
++ VERIFIED LOCAL + CI VERIFIED + DEVICE ACCEPTANCE PENDING.
 `FINANCIAL GOVERNANCE = PASS` و`EXHAUSTIVE READ = COMPLETE` و`LIVE
 UNRESOLVED FINANCIAL CONFLICTS = NONE` كما أفادها المالك، ولا تعني نجاح
-قبول جهاز أو نشرًا سحابيًا.
+قبول جهاز أو دمجًا أو نشرًا سحابيًا.
 
 ## سجل المطابقة الحاكم R6 — بعد التزام C3
 

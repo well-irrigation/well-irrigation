@@ -1,8 +1,8 @@
 # اعتماد تعديل مبلغ جلسة — نواة الهاتف
 
-**الحالة:** منفذ محليًا في نواة الهاتف، والواجهة التابعة منفذة أيضًا
-(`MANUAL_SESSION_FINANCIAL_ADJUSTMENT_UI.md`). DEVICE ACCEPTANCE PENDING؛
-لا سجل جهاز بعد.
+**الحالة:** منفذ في نواة الهاتف، والواجهة التابعة منفذة أيضًا
+(`MANUAL_SESSION_FINANCIAL_ADJUSTMENT_UI.md`). VERIFIED LOCAL + CI VERIFIED
+على `eec07a2` ومدفوع في PR #68. DEVICE ACCEPTANCE PENDING؛ لا سجل جهاز بعد.
 **عقد الخادم:** `MANUAL_SESSION_FINANCIAL_ADJUSTMENT_SERVER.md`.
 **النطاق:** نماذج القراءة، الأمر المتين، النقل النوعي، والاستعادة بالإيصال أولًا.
 

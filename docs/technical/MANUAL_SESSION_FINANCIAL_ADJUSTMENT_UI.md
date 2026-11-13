@@ -1,7 +1,7 @@
 # واجهة تعديل مبلغ الجلسة
 
-**الحالة:** IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE PENDING.
-الواجهة واختباراتها محفوظة في الفرع المحلي؛ لا سجل جهاز بعد. عقد الخادم:
+**الحالة:** IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + DEVICE ACCEPTANCE
+PENDING. الواجهة واختباراتها مدفوعة في PR #68؛ لا سجل جهاز بعد. عقد الخادم:
 `MANUAL_SESSION_FINANCIAL_ADJUSTMENT_SERVER.md`، والنواة:
 `MANUAL_SESSION_FINANCIAL_ADJUSTMENT_MOBILE_CORE.md`.
 

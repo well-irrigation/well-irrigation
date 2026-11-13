@@ -1,7 +1,7 @@
 # النواة المحلية لإضافة جلسة سقي سابقة
 
-**الحالة:** IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE PENDING.
-الواجهة التابعة منفذة أيضًا ومحفوظة محليًا؛ لا سجل جهاز بعد.
+**الحالة:** IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + DEVICE ACCEPTANCE
+PENDING. الواجهة التابعة منفذة أيضًا ومدفوعة في PR #68؛ لا سجل جهاز بعد.
 
 هذه الوثيقة تصف توصيل عقود الخادم المقبولة بالطابور القائم. الواجهة التابعة
 موثقة في `MANUAL_SESSION_ENTRY_UI.md`. لا يتضمن هذا المسار تعديلًا ماليًا

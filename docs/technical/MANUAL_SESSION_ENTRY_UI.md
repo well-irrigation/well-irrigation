@@ -1,8 +1,8 @@
 # إضافة جلسة سقي سابقة — واجهة الهاتف
 
-**الحالة:** IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE PENDING.
-الواجهة واختباراتها محفوظة في الفرع المحلي؛ لا سجل جهاز بعد.
-سلسلة التنفيذ `f7eab60`…`5cde971` محلية غير مدفوعة. المرجع:
+**الحالة:** IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + DEVICE ACCEPTANCE
+PENDING. الواجهة واختباراتها محفوظة ومدفوعة في PR #68؛ لا سجل جهاز بعد.
+سلسلة التنفيذ `f7eab60`…`5cde971`. المرجع:
 `../memory/RESUME_POINT.md` و`../technical/DECISION_IMPLEMENTATION_MATRIX.md`.
 
 المدخل في سجل الجلسات بعنوان «إضافة جلسة سقي سابقة». تُقرأ صلاحية الحساب

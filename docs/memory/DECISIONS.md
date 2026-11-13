@@ -7728,24 +7728,27 @@ Committed؛ كان DB Verification Pending عند التدوين.
 | Q — متبقي المصدر C3: الأصل المؤهل ناقص المؤكد هو المتبقي؛ المؤهل يعاد تلقائيًا؛ الاختيار/التعديل اليدوي لا ينتقل؛ القديم غير المتاح ظاهر قراءة فقط خارج الحساب | منع دفتر ترحيل موازٍ | لا سطر صناعي للشريك الخارج ولا دفع/قيد للعرض؛ الأقدم باق | `supabase/migrations/20261108002500_distribution_carry_forward_read_model.sql` | `docs/technical/R6C2_SESSION_FINANCIAL_RECONCILIATION.md` والاختبار الدائم المقابل؛ حالة المرحلة أعلاه |
 
 
-## ملحق R6 — واجهة الهاتف وتصحيح الجلسة (تدوين 2026-11-12)
+## ملحق R6 — واجهة الهاتف وتصحيح الجلسة (تدوين 2026-11-12، تحديث الحالة 2026-11-13)
 
 **النوع:** ملحق تدوين حالة، لا قرار مرقّم جديد. لا ينسخ أي قرار قائم ولا
 يغيّر حدوده، ويثبت ما نُفذ فعلًا بعد «ملحق قرارات R6 الحاكم» أعلاه حتى لا
 يُعاد تنفيذه. عند التعارض في وصف الحالة، هذا الملحق هو الحاكم للواجهة
 والتصحيح، والقرارات C–Q تبقى حاكمة لعقودها المالية.
 
-**سقف الإثبات المعلن:** كل ما يلي **LOCAL** إلا ما نُصّ عليه. `CI VERIFIED
-= UNKNOWN` لهذه الالتزامات المحلية؛ دمج PR #67 لا يُقرأ فحصًا موثقًا.
-`CLOUD DEPLOYED` يخص دفعة R6 حتى `20261108002500` وحدها. لا يُستنتج
-حالة من حالة أخرى، وغياب الدليل يُكتب `UNKNOWN` أو `PENDING`.
+**سقف الإثبات المعلن (2026-11-13):** الحزم أدناه **IMPLEMENTED + LOCAL
+VERIFIED + PUSHED + CI VERIFIED** على الرأس `eec07a2` في PR #68، و**MERGED
+= NO**. `CI VERIFIED = PASS` (run `43327175243`؛ تطبيق PASS وقاعدة PASS
+واختبارات `FILES=90 PASS=2899 FAIL=0 ERROR=0`، وSupabase Preview SKIPPED
+وليس فشلًا). القبول الجهازي يبقى منفصلًا ولم يُغلق. `CLOUD DEPLOYED` يخص
+دفعة R6 حتى `20261108002500` وحدها. لا يُستنتج حالة من حالة أخرى، وغياب
+الدليل يُكتب `UNKNOWN` أو `PENDING`.
 
 | الحزمة | الحالة الحاكمة | حد الإثبات | المرجع |
 | --- | --- | --- | --- |
-| A — R6-A/B فصل الحجز عن التشغيل وإقرار البدء، مع مسار البدء من الهاتف | IMPLEMENTED + VERIFIED LOCAL + PARTIAL DEVICE ACCEPTANCE + READY TO ADVANCE + NOT FINAL CLOSED | بدء التشغيل مدموج في `main` عبر PR #67؛ التعافي الموجّه محفوظ محليًا؛ قبول الجهاز الجزئي يخص مسار التعافي الموجّه لا مسار البدء كاملًا | `../technical/R6A_OPERATIONAL_START_SEPARATION.md` و`../technical/R6B_OPERATIONAL_START_RECEIPT.md` و`../technical/OPERATIONAL_START_GUIDED_RECOVERY.md` |
-| B — تصحيح الجلسة المنفذة، مع تصالح مالي وعقود كتابة/قراءة/إيصال/قدرة | IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE NOT FULLY CLOSED + READY TO ADVANCE | عقود `20261108002600`–`20261108003000` محفوظة محليًا وغير منشورة سحابيًا؛ سلسلة `6f85860`…`3dcefda` | `../technical/R6C1_SESSION_CORRECTION_FOUNDATION.md` و`../design/UX_UI_SPEC.md` |
-| C — الإدخال اليدوي للجلسة التاريخية | IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE PENDING + READY TO ADVANCE | سلسلة `f7eab60`…`5cde971`؛ لا سجل جهاز بعد | `../technical/MANUAL_SESSION_ENTRY_SERVER_CONTRACT.md` و`../technical/MANUAL_SESSION_ENTRY_MOBILE_CORE.md` و`../technical/MANUAL_SESSION_ENTRY_UI.md` |
-| D — تعديل مبلغ الجلسة اليدوي (تصحيح مالي يدوي) | IMPLEMENTED / LOCAL VERIFIED / DEVICE ACCEPTANCE PENDING | خادم + نواة + Outbox + نقل + استعادة بالإيصال أولًا + متابعة + واجهة | `../technical/MANUAL_SESSION_FINANCIAL_ADJUSTMENT_SERVER.md` و`../technical/MANUAL_SESSION_FINANCIAL_ADJUSTMENT_MOBILE_CORE.md` و`../technical/MANUAL_SESSION_FINANCIAL_ADJUSTMENT_UI.md` |
+| A — R6-A/B فصل الحجز عن التشغيل وإقرار البدء، مع مسار البدء من الهاتف | IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + PARTIAL DEVICE ACCEPTANCE + READY TO ADVANCE + NOT FINAL CLOSED | بدء التشغيل مدموج في `main` عبر PR #67؛ التعافي الموجّه في `4d48654` ومدفوع عبر PR #68؛ قبول الجهاز الجزئي يخص مسار التعافي الموجّه لا مسار البدء كاملًا | `../technical/R6A_OPERATIONAL_START_SEPARATION.md` و`../technical/R6B_OPERATIONAL_START_RECEIPT.md` و`../technical/OPERATIONAL_START_GUIDED_RECOVERY.md` |
+| B — تصحيح الجلسة المنفذة، مع تصالح مالي وعقود كتابة/قراءة/إيصال/قدرة | IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + DEVICE ACCEPTANCE NOT FULLY CLOSED + READY TO ADVANCE | عقود `20261108002600`–`20261108003000` محفوظة في PR #68 وغير منشورة سحابيًا؛ سلسلة `6f85860`…`3dcefda` مدفوعة | `../technical/R6C1_SESSION_CORRECTION_FOUNDATION.md` و`../design/UX_UI_SPEC.md` |
+| C — الإدخال اليدوي للجلسة التاريخية | IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + DEVICE ACCEPTANCE PENDING + READY TO ADVANCE | سلسلة `f7eab60`…`5cde971` مدفوعة في PR #68؛ لا سجل جهاز بعد | `../technical/MANUAL_SESSION_ENTRY_SERVER_CONTRACT.md` و`../technical/MANUAL_SESSION_ENTRY_MOBILE_CORE.md` و`../technical/MANUAL_SESSION_ENTRY_UI.md` |
+| D — تعديل مبلغ الجلسة اليدوي (تصحيح مالي يدوي) | IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + DEVICE ACCEPTANCE PENDING | خادم + نواة + Outbox + نقل + استعادة بالإيصال أولًا + متابعة + واجهة؛ مدفوع في PR #68 | `../technical/MANUAL_SESSION_FINANCIAL_ADJUSTMENT_SERVER.md` و`../technical/MANUAL_SESSION_FINANCIAL_ADJUSTMENT_MOBILE_CORE.md` و`../technical/MANUAL_SESSION_FINANCIAL_ADJUSTMENT_UI.md` |
 
 **حدود المال في التعديل اليدوي:** تحرير المبلغ حركة إضافية مربوطة بالمصدر،
 والرصيد الناتج حساب عميل غير نقدي، ولا payment/advance مصطنع ولا مدين نقدي.

@@ -1,5 +1,25 @@
 # سجل تغييرات الوثائق
 
+## 2026-11-13 — دفع PR #68 ونجاح CI وإصلاح الفهرس المولَّد
+
+حُدثت `RESUME_POINT.md` و`PROGRESS.md` وهذا السجل و`OPEN_ISSUES.md`
+و`DECISIONS.md` و`DECISION_IMPLEMENTATION_MATRIX.md` بعد دفع الفرع
+وإنشاء PR #68 على الرأس `eec07a2`.
+
+الحالة المسجلة: PUSHED = PASS، PR CREATED = PASS، PR OPEN = YES،
+MERGEABLE = YES، MERGED = NO، CI VERIFIED = PASS (run `43327175243`).
+تطبيق PASS وقاعدة PASS واختبارات القاعدة `FILES=90 PASS=2899 FAIL=0
+ERROR=0`، وSupabase Preview SKIPPED وليس failure.
+
+وثُبت تصنيف الفشل السابق على `d140f0a`: فشل خطوة مطابقة الفهرس المولَّد
+وحدها، بسبب `docs/technical/db/*.txt` القديمة مقابل المخطط الحالي.
+أُعيد توليدها بـ`npm run c:db` ونجح `db:reset` و`db:test` و`db:index`
+محليًا، ثم حُفظ الإصلاح في `eec07a2`. التصنيف: `GENERATED DB INDEX
+STALE -> FIXED`، وليس عيب migration أو فشل قاعدة أو اختبار أو بيئة.
+
+لم تتغير حالة الميزات: القبول الجهازي يبقى متبقيًا أو جزئيًا، ولا نشر
+سحابي للهجرات بعد `20261108002500`، ولا إعادة تنفيذ لأي حزمة.
+
 ## 2026-11-12 — توحيد التوثيق مع واجهة R6 وتصحيح الجلسة المنجزة
 
 جولة توثيق فقط بلا كود أو اختبار أو SQL أو هجرة أو نشر أو Commit. حُدثت
@@ -19,8 +39,10 @@ C = IMPLEMENTED + VERIFIED LOCAL + DEVICE ACCEPTANCE PENDING + READY TO
 ADVANCE؛ التعديل المالي = IMPLEMENTED / LOCAL VERIFIED / DEVICE
 ACCEPTANCE PENDING. `FINANCIAL GOVERNANCE = PASS` و`EXHAUSTIVE READ =
 COMPLETE` و`LIVE UNRESOLVED FINANCIAL CONFLICTS = NONE` كما أفادها
-المالك. `CI VERIFIED = UNKNOWN` للالتزامات المحلية؛ السحابة مثبتة حتى
-`20261108002500` فقط، وعقود `20261108002600`–`20261108003000` محلية.
+المالك. `CI VERIFIED = UNKNOWN` للالتزامات المحلية **HISTORICAL**؛ انتهى
+بعد دفع PR #68 ونجاح فحص `eec07a2` (انظر مدخل 2026-11-13). السحابة
+مثبتة حتى `20261108002500` فقط، وعقود `20261108002600`–`20261108003000`
+محلية غير منشورة.
 
 ## 2026-11-05 — نشر R6 واعتماد مواضع الواجهة
 
@@ -98,7 +120,7 @@ Pending النشط بعد التثبيت مع إبقاء لقطات التدقي
 ولا إعادة اختبار/بناء؛ وحالة A/B تبقى COMPLETE. عائق inotify السابق بيئي وحُلّ.
 
 
-**آخر تحديث:** 2026-11-12
+**آخر تحديث:** 2026-11-13
 
 يُوثّق هنا كل تغيير يطرأ على الوثائق المرجعية، حتى يُعرف لماذا اختلف النص عن الأصل.
 

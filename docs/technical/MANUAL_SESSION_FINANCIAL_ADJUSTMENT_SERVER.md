@@ -1,8 +1,9 @@
 # اعتماد تعديل مبلغ جلسة — عقد الخادم
 
-الحالة: IMPLEMENTED + VERIFIED LOCAL + COMMITTED محليًا؛ **DEVICE ACCEPTANCE
-PENDING** للواجهة التابعة. الهاتف والواجهة المالية نُفذا في مسار مستقل
-(`MANUAL_SESSION_FINANCIAL_ADJUSTMENT_UI.md`)؛ هذا الملف يصف عقد الخادم وحده.
+الحالة: IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + COMMITTED؛ مدفوع في
+PR #68. **DEVICE ACCEPTANCE PENDING** للواجهة التابعة. الهاتف والواجهة
+المالية نُفذا في مسار مستقل (`MANUAL_SESSION_FINANCIAL_ADJUSTMENT_UI.md`)؛
+هذا الملف يصف عقد الخادم وحده.
 هذه الوثيقة لا تصف المسودة المرفوضة السابقة؛ الملفان غير المتعقبين أُعيدا
 بناؤهما وفق التصميم المصحح. لا تعديل لهجرة منشورة، ولا نشر سحابي.
 
