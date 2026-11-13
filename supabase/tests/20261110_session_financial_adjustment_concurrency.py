@@ -73,6 +73,105 @@ def data(lines):
     return json.loads(next(x[5:] for x in reversed(lines) if x.startswith('DATA:')))
 
 
+
+def f_recon_worker_races(setup, container):
+    """Opt-in queue races reuse the established two-connection lock harness."""
+    test = (ROOT/'supabase/tests/20261110000000_session_financial_adjustment.test.sql').read_text()
+    setup.run(test[test.index('create function pg_temp.sfa_fixture'):test.index('create function pg_temp.sfa_zero_reads')])
+    for scenario in ('manual_first', 'worker_first'):
+        f = data(setup.run("begin; set local timezone='UTC'; select 'DATA:'||pg_temp.sfa_fixture(10000,0,true)::text; commit;"))
+        sid, actor = f['session'], f['actor']
+        correction = data(setup.run(f"begin; select 'DATA:'||to_json(pg_temp.sfa_correct('{json.dumps(f)}'::jsonb,0,8000)); commit;"))
+        msg = data(setup.run(f"select 'DATA:'||json_build_object('id',min(msg_id),'count',count(*)) from pgmq.q_session_correction_reconciliation where message=jsonb_build_object('correction_id','{correction}'::uuid);"))
+        require(msg['count'] == 1, scenario+' committed correction has exactly one durable message to independent transaction')
+        mid = msg['id']
+        setup.run("begin; set local role reconciliation_executor; select * from billing.lease_session_correction_reconciliation_messages(100,60); commit;")
+        worker_prefix = "begin; set local timezone='UTC'; select set_config('request.jwt.claim.sub','',true); set local role reconciliation_executor;"
+        human_prefix = f"begin; set local timezone='UTC'; select set_config('request.jwt.claim.sub','{actor}',true); set local role authenticated;"
+        worker = f"billing.process_session_correction_reconciliation_message({mid})"
+        manual_cmd = str(uuid.uuid4())
+        manual = lambda system: f"api.adjust_session_financial_amount('{sid}','{manual_cmd}',1,{system},0,8500,'worker race manual decision','{f['posting']}')"
+        a, b = Connection(container), Connection(container)
+        try:
+            first_prefix, second_prefix = (human_prefix, worker_prefix) if scenario == 'manual_first' else (worker_prefix, human_prefix)
+            first, second = (manual(0), worker) if scenario == 'manual_first' else (worker, manual(0))
+            winner = data(a.run(first_prefix+f"select 'DATA:'||({first})::text;"))
+            require(winner['status'] == ('accepted' if scenario == 'manual_first' else 'applied'), scenario+' first transaction canonical result before commit')
+            if scenario == 'worker_first':
+                visible = data(setup.run(f"select 'DATA:'||json_build_object('queue',exists(select 1 from pgmq.q_session_correction_reconciliation where msg_id={mid}),'money',exists(select 1 from billing.session_charge_corrections where correction_id='{correction}'));"))
+                require(visible == {'queue': True, 'money': False}, 'worker_first no uncommitted financial or archive visibility')
+            b.send(second_prefix+f"select 'DATA:'||({second})::text; commit;\n\\echo F_RECON_SECOND_DONE")
+            waited = False
+            for _ in range(40):
+                if data(setup.run(f"select 'DATA:'||to_json({a.pid}=any(pg_blocking_pids({b.pid})));")):
+                    waited = True
+                    break
+                time.sleep(0.05)
+            require(waited, scenario+' observed real two-connection root lock contention')
+            a.run('commit;')
+            loser = data(b.until('F_RECON_SECOND_DONE'))
+            if scenario == 'manual_first':
+                require(loser['status']=='applied' and loser['already_completed'], 'manual_first worker preserves explicitly paired approval')
+            else:
+                require(loser['status']=='conflict_revision', 'worker_first stale manual basis explicitly rejected')
+                # A changed revision basis is a new human command, not replay.
+                manual_cmd = str(uuid.uuid4())
+                accepted = data(setup.run(human_prefix+f"select 'DATA:'||({manual(1)})::text; commit;"))
+                require(accepted['status']=='accepted', 'worker_first explicit manual resubmission on current basis accepted')
+            proof_sql = f"""select 'DATA:'||json_build_object(
+ 'system_count',(select count(*) from billing.session_charge_corrections where correction_id='{correction}'),
+ 'system_revisions',(select count(distinct operational_revision) from billing.session_charge_corrections where session_id='{sid}'),
+ 'approval_count',(select count(*) from billing.session_financial_adjustments where session_id='{sid}'),
+ 'approval_revisions',(select count(distinct manual_approval_revision) from billing.session_financial_adjustments where session_id='{sid}'),
+ 'effective',(select amount_minor from billing.approved_session_charges where session_id='{sid}'),
+ 'invoice',(select total_minor from billing.effective_invoice_totals where session_id='{sid}'),
+ 'work',(select status from ops.session_correction_reconciliations where correction_id='{correction}'),
+ 'queue',(select count(*) from pgmq.q_session_correction_reconciliation where msg_id={mid}),
+ 'archive',(select count(*) from pgmq.a_session_correction_reconciliation where msg_id={mid}));"""
+            proof = data(setup.run(proof_sql))
+            require(proof == {'system_count':1,'system_revisions':1,'approval_count':1,'approval_revisions':1,
+                              'effective':8500,'invoice':8500,'work':'applied','queue':0,'archive':1},
+                    scenario+' no deadlock duplicate system/revision or overwritten manual decision')
+            # Force an actual redelivery through the queue, then compare all money.
+            duplicate = data(setup.run(f"begin; select 'DATA:'||to_json(pgmq.send('session_correction_reconciliation',jsonb_build_object('correction_id','{correction}'::uuid))); commit;"))
+            setup.run("begin; set local role reconciliation_executor; select * from billing.lease_session_correction_reconciliation_messages(100,60); commit;")
+            replay = data(setup.run(worker_prefix+f"select 'DATA:'||billing.process_session_correction_reconciliation_message({duplicate})::text; commit;"))
+            require(replay['status']=='applied' and replay['already_completed'] and data(setup.run(proof_sql))==proof,
+                    scenario+' committed redelivery preserves canonical economic effect')
+            print('CASE f_recon_'+scenario+' COMPLETE', flush=True)
+        finally:
+            a.close()
+            b.close()
+
+
+    # Authorization is read again AFTER the worker waits for the financial root.
+    f = data(setup.run("begin; set local timezone='UTC'; select 'DATA:'||pg_temp.sfa_fixture(10000,0,true)::text; commit;"))
+    c = data(setup.run(f"begin; select 'DATA:'||to_json(pg_temp.sfa_correct('{json.dumps(f)}'::jsonb,0,8000)); commit;"))
+    mid = data(setup.run(f"select 'DATA:'||to_json(msg_id) from pgmq.q_session_correction_reconciliation where message=jsonb_build_object('correction_id','{c}'::uuid);"))
+    setup.run("begin; set local role reconciliation_executor; select * from billing.lease_session_correction_reconciliation_messages(100,60); commit;")
+    a, b = Connection(container), Connection(container)
+    try:
+        a.run(f"begin; select billing.lock_customer_credit_well('{f['well']}');")
+        b.send(f"begin; set local role reconciliation_executor; select 'DATA:'||billing.process_session_correction_reconciliation_message({mid})::text; commit;\n\\echo REVOKED_DONE")
+        waited = False
+        for _ in range(40):
+            if data(setup.run(f"select 'DATA:'||to_json({a.pid}=any(pg_blocking_pids({b.pid})));")):
+                waited = True
+                break
+            time.sleep(0.05)
+        require(waited, 'revoked_actor real worker wait before authorization revalidation')
+        a.run(f"update core.well_assignments set status='inactive' where well_id='{f['well']}'; commit;")
+        r = data(b.until('REVOKED_DONE'))
+        require(r['status']=='financial_review_required' and r['review_code']=='actor_authorization_changed',
+                'revoked_actor after-wait assignment change becomes terminal review')
+        proof = data(setup.run(f"select 'DATA:'||json_build_object('money',(select count(*) from billing.session_charge_corrections where correction_id='{c}'),'archive',(select count(*) from pgmq.a_session_correction_reconciliation where msg_id={mid}),'effective',(select amount_minor from billing.approved_session_charges where session_id='{f['session']}'));"))
+        require(proof == {'money':0,'archive':1,'effective':10000}, 'revoked_actor after-wait no financial effect or actor substitution')
+        print('CASE f_recon_revoked_actor_wait COMPLETE', flush=True)
+    finally:
+        a.close()
+        b.close()
+
+
 def main():
     if os.environ.get('MANUAL_FINANCIAL_DISPOSABLE_DATABASE') != 'yes':
         raise SystemExit('DISPOSABLE_LOCAL_DATABASE_OPT_IN_REQUIRED')
@@ -88,6 +187,9 @@ def main():
     try:
         proof = data(setup.run("select 'DATA:'||json_build_object('db',current_database(),'user',current_user,'local',inet_server_addr() is null);"))
         require(proof == {'db': 'postgres', 'user': 'postgres', 'local': True}, 'local socket database identity')
+        if os.environ.get('F_RECON_WORKER_RACE_ONLY') == 'yes':
+            f_recon_worker_races(setup, container)
+            return
         test = (ROOT/'supabase/tests/20261110000000_session_financial_adjustment.test.sql').read_text()
         fixture = test[test.index('create function pg_temp.sfa_fixture'):test.index('create function pg_temp.sfa_adjust')]
         setup.run(fixture)

@@ -949,6 +949,9 @@ ops.shifts|shifts_pkey|p|PRIMARY KEY (id)
 ops.shifts|shifts_status_check|c|CHECK ((status = ANY (ARRAY['open'::text, 'handover_pending'::text, 'closed'::text, 'cancelled'::text])))
 ops.shifts|shifts_tenant_id_fkey|f|FOREIGN KEY (tenant_id) REFERENCES core.tenants(id) ON DELETE CASCADE
 ops.shifts|shifts_well_id_fkey|f|FOREIGN KEY (well_id) REFERENCES core.wells(id) ON DELETE CASCADE
+pgmq.a_session_correction_reconciliation|a_session_correction_reconciliation_pkey|p|PRIMARY KEY (msg_id)
+pgmq.meta|meta_queue_name_key|u|UNIQUE (queue_name)
+pgmq.q_session_correction_reconciliation|q_session_correction_reconciliation_pkey|p|PRIMARY KEY (msg_id)
 sync.processed_commands|processed_commands_pkey|p|PRIMARY KEY (id)
 sync.processed_commands|processed_commands_status_check|c|CHECK ((status = ANY (ARRAY['processing'::text, 'accepted'::text, 'rejected'::text, 'conflict'::text])))
 sync.processed_commands|processed_commands_tenant_id_command_id_key|u|UNIQUE (tenant_id, command_id)
