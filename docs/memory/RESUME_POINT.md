@@ -1,44 +1,56 @@
-# نقطة الاستئناف — PR #68 مدموج في main، والتالي هو قبول الجهاز (2026-11-13)
+# نقطة الاستئناف — F-SYNC منفذ ومقبول جهازيًا، وGit Closeout هو الخطوة (2026-11-13)
 
-**الحالة:** نافذ · **القرارات الحاكمة:** ق-93، ق-127، ق-128، ق-129، ق-130، ق-131، ق-132، ق-133، ق-134، ق-135، ق-136، ق-137 وملحق R6 في `DECISIONS.md` · **السرد الزمني:** `RESUME_HISTORY.md`
+**الحالة:** نافذ · **القرارات الحاكمة:** ق-93، ق-127، ق-128، ق-129، ق-130، ق-131، ق-132، ق-133، ق-134، ق-137، **ق-138** وملحق R6 في `DECISIONS.md` · **السرد الزمني:** `RESUME_HISTORY.md`
 
 هذا الملف **رأس قصير** يُقرأ في كل جلسة: الحالة الآن، والتالي، والحدود
-الحيّة. السرد الزمني لكل الجولات السابقة انتقل حرفًا بحرف إلى
-`docs/memory/RESUME_HISTORY.md` ويُقرأ عند الحاجة وحدها. ما بقي هنا ليس
-تاريخًا — هو ما يُلزم الجولة القادمة.
+الحيّة. السرد الزمني واللقطات السابقة في `docs/memory/RESUME_HISTORY.md`
+ويُقرأ عند الحاجة وحدها.
 
-## CURRENT / NEXT — PR #68 مدموج = PASS (2026-11-13)
+## CURRENT
 
-**PR:** `#68` بعنوان `feat: complete R6 session correction and manual financial flows` · **PR HEAD قبل الدمج:** `2ce191d4c61b82d27b837950074dac16b43f5297` · **merge commit:** `0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f` · **وقت الدمج:** `2026-11-13T13:47:20Z` · **`github/main` = `0e5a8efd637b819ae1f7c8ed42b22c3cf4bb499f`**.
+```text
+F-SYNC production patch implemented + local verified + device accepted.
+Git closeout pending.
 
-**الحالة:** PUSHED = PASS · PR #68 = MERGED · MERGED = PASS · CI VERIFIED = PASS. **لا Git/PR/CI gate أمام الانتقال بعد الآن.**
+Cloud migration gate cleared through 20261111000000.
 
-**CI النهائي على رأس PR قبل الدمج:** تطبيق PASS، قاعدة PASS، اختبارات القاعدة `FILES=90 PASS=2899 FAIL=0 ERROR=0`، الفهرس المولَّد PASS، وSupabase Preview SKIPPED وليس failure (run `43327175243` على `eec07a2`). الفشل السابق `GENERATED DB INDEX STALE` أُغلق نهائيًا بـ`eec07a2 docs(db): refresh generated schema index for R6`، ولا يوجد DB implementation failure أو migration failure مفتوح بسبب تلك الحادثة.
+Manual financial device acceptance PASS.
 
-**COMPLETED / READY TO ADVANCE — التنفيذ موجود ولا يُعاد:**
+Session correction operational acceptance PASS.
 
-1. **R6-A/B التنفيذ التشغيلي** — IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED + PARTIAL DEVICE ACCEPTANCE + NOT FINAL CLOSED. مسار البدء من الهاتف مدموج في `main` عبر PR #67؛ التعافي الموجّه في `4d48654`. **DEVICE ACCEPTANCE ≠ CI VERIFIED.**
-2. **تصحيح الجلسة المكتملة** — IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED؛ DEVICE ACCEPTANCE NOT FULLY CLOSED. عقود الكتابة/القراءة/الإيصال/القدرة `20261108002600`–`20261108003000` محفوظة في PR #68 و**غير منشورة سحابيًا**.
-3. **الإدخال اليدوي للجلسة التاريخية** — IMPLEMENTED + VERIFIED LOCAL + CI VERIFIED؛ DEVICE ACCEPTANCE PENDING.
-4. **تعديل مبلغ الجلسة اليدوي** — IMPLEMENTED end-to-end (خادم + نواة + Outbox + نقل + استعادة بالإيصال أولًا + متابعة + واجهة)؛ LOCAL VERIFIED + CI VERIFIED؛ DEVICE ACCEPTANCE PENDING.
+F-RECON remains OPEN/BLOCKED because no runtime reconciliation
+consumer has been proven.
+```
 
-**ACCEPTANCE DEBT:** ما تبقى **قبول جهاز** لكل حزمة كما يثبت الدليل، ولا يُحوَّل أي منها إلى Implementation Pending: R6-A/B جزئي، والتصحيح غير مغلق، والإدخال اليدوي والتعديل المالي لم يبدآ.
+**F-SYNC (ق-138):** عطل تعليق SQLite على Android أُغلق تقنيًا بنسخة
+vendored من `sqflite_android 2.4.3` بـ`THREAD_COUNT=2` في
+`third_party/`؛ لا `devSetOptions` في الإنتاج. الحالة
+**IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + GIT CLOSEOUT PENDING**.
+المصدر التقني التفصيلي: `../technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`.
 
-**NEXT — بالترتيب:**
+**السحابة:** الهجرات منشورة ومثبتة حتى `20261111000000`، فلا بوابة سحابية
+خلفية على المشروع الآن. لا يُستنتج من ذلك قبول جهاز، ولا يُستنتج قبول
+جهاز من نجاح نشر.
 
-1. **قبول جهاز لتعديل مبلغ الجلسة اليدوي** الموجود بالفعل؛ فهو أول دين قبول والمهمة الحالية الفعلية.
-2. بعد إغلاقه فقط: ربط **الحساب المالي للمزارع** بامتدادات C0/C0.1/C0.2: نقدي/غير نقدي/القيمة المتاحة، والتطبيق والاستخدام الفعّال، وتعديل استخدام الرصيد في سياق الفاتورة، وتفاصيل استخدام الدفعة في سياق السند، وحفظ الأصل والتحرير والاستعادة. الكتابة الحالية داخلية؛ **لا يُفترض وجود كتابة عامة**، والربط يبدأ من القراءات.
-3. **الإعدادات المالية:** الأرصدة الافتتاحية + تعويض العامل.
-4. ربط **التوزيع والمصروفات والخزانات** بـR6.
-5. **اتساق المزامنة واللغة** في الشاشات المضافة.
+**F-RECON:** `ops.session_correction_reconciliations` بقي `pending` مع
+`attempt_count=0` و`last_attempt_at=NULL`، ولا مستهلك runtime إنتاجي
+مثبت يبدأ `billing.reconcile_session_correction(...)`. عند وجود موافقة
+مالية يدوية سابقة لا يُفترض أن المصالحة تكتب فوقها.
 
-لا بطاقة رئيسية جديدة، ولا نظام مالي موازٍ، ولا إعادة تنفيذ لأي مما سبق. و**لا يُقرأ نجاح CI بديلًا عن قبول الجهاز، ولا الدمج بديلًا عن نشر سحابي**؛ الهجرات بعد `20261108002500` غير منشورة بلا دليل نشر مستقل.
+## NEXT
 
-**المالية الآن:** `FINANCIAL GOVERNANCE = PASS` · `EXHAUSTIVE READ = COMPLETE` · `LIVE UNRESOLVED FINANCIAL CONFLICTS = NONE` — نتيجة التدقيق المالي النهائي كما أفادها المالك؛ التفصيل في `RESUME_HISTORY.md` وملحق R6 في `DECISIONS.md`. ولا يفتح هذا كتابة مالية عامة جديدة.
+1. **Git/PR/CI closeout لـF-SYNC** — commit ثم push ثم PR ثم CI ناجح على
+   الرقعة نفسها ثم merge. بعده فقط تتحول الحالة إلى CLOSED.
+2. بعد اجتياز بوابة التوثيق بعد الدمج: بدء **F-RECON**.
 
-**HISTORICAL:** حالة «PR #68 مفتوح · MERGEABLE = YES · MERGED = NO · الدمج هو الخطوة التالية» صحيحة حتى دمج 2026-11-13T13:47:20Z فقط، ولا تُقرأ كحالة اليوم؛ الدمج أثبت MERGED = PASS. ولقطة 2026-11-05 التي جعلت «UI_BINDING = NEXT» وأعلنت عدم بدء التنفيذ محفوظة في `RESUME_HISTORY.md`؛ بدأ التنفيذ ونُفذ، ولا تُقرأ كحالة اليوم. وتاريخ الهجرات السحابي (150 سجلًا مقابل 149 ملفًا) يبقى فرقًا توثيقيًا صيانويًا غير مانع.
+## DO NOT REDO — حراس إلزامية
 
-الأقسام السابقة وأوصاف CURRENT/NEXT القديمة محفوظة في `RESUME_HISTORY.md` كتاريخ، ولا تحدد المهمة الحالية.
+```text
+DO NOT reimplement R6.
+DO NOT redo F-SYNC diagnosis.
+DO NOT delete sequence 55 as an F-SYNC fix.
+DO NOT remove vendored sqflite patch without device re-acceptance.
+```
 
 ## 5. حدود لا تُخترق
 
@@ -58,6 +70,10 @@
 - **قبل حجب أي إجراء على المستخدم** اقرأ صلاحية الخادم ووسائطه: منعُ عملٍ
   يقبله الخادم **فشل كاذب**، وهو مرآة النجاح الكاذب. والسلطة **طبقتان**
   (فحص مسمّى + RLS) تتحركان معًا وإلا فالنتيجة غياب كاذب.
+- **ق-138 / الثوابت 769–773:** لا رجوع صامت إلى عامل واحد، ولا
+  `devSetOptions` كاعتماد إنتاجي، وكل ترقية `sqflite`/`sqflite_android` أو
+  إزالة `third_party/` أو إعادة hosted أو تغيير worker count تُبطل دليل
+  القبول وتستوجب إعادة Device Acceptance.
 - **لا تقرأ ملفات الهجرات كاملة** لإثبات وجود عمود أو قيد أو دالة:
   ابحث في `docs/technical/db/*.txt` المولَّد بـ`npm run db:index`.
 - **`partner` و`accountant` و`viewer`** مقبولون في

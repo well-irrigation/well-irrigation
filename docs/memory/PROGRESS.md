@@ -1,5 +1,99 @@
 # سجل التقدم
 
+## 2026-11-13 — F-SYNC: رقعة Android SQLite ذات عاملين (مثبت محليًا وجهازيًا، Git Closeout Pending)
+
+**جولة توثيق فقط.** تغييرات المصدر الإنتاجية لـF-SYNC
+(`apps/mobile/pubspec.yaml` و`apps/mobile/pubspec.lock` و`third_party/`)
+كانت موجودة في الشجرة **قبل** هذه الجولة ولم تُنشأ فيها. لا commit ولا
+push ولا PR ولا CI ولا merge ضمن هذه الجولة.
+
+**المسجَّل أدناه كل ما ثبت فعلًا، ولا شيء منه يعني دمجًا أو نشرًا.**
+
+### التشخيص المثبت (جهاز Samsung SM-A136U · Android 12 · API 31)
+
+- `SqliteOutboxStore._bookingTransaction` origin=background:
+  `elapsed_ms=132841` (≈2m13s) عبر `_recoverBookingRegistrations`.
+- `SqliteNotificationEventStore.recoverScheduleLeases`
+  origin=foreground: `elapsed_ms=263242` (≈4m23s).
+- `SqliteOutboxStore.openDatabase`: `elapsed_ms=87541` · `open_failed`.
+- `SqliteOutboxStore.sessionSnapshot`: `wait_ms=82644`.
+- دليل الحسم: `recoverScheduleLeases commit` عند `18:40:17.496` ثم بدء
+  `sessionSnapshot` عند `18:40:17.508` — أي بعد التحـرير بـ12ms.
+- استبعاد Supabase: `local attempt` → `Supabase ingress` ≈4 دقائق،
+  ومعالجة الخادم 517ms و654ms؛ التأخير قبل وصول HTTP.
+- عنصر Outbox بالتسلسل 55 تابع لجذر 54 في review بلا `last_attempt_at`؛
+  صُنّف `separate historical recovery/cleanup debt` ولم يُحذف.
+- السبب: `sqflite_android 2.4.3` بـ`THREAD_COUNT=1` وتجمع عمال ساكن
+  مشترك ⇒ `Android sqflite single-worker starvation under competing
+  same-file connections`.
+
+### إثبات A/B
+
+`SqfliteOptions()..androidThreadCount = 2` مع `Sqflite.devSetOptions`
+في المقدمة والخلفية (تشخيص فقط): زال التعليق من البداية والمزارعين
+والأراضي وقائمة الجلسات وتفاصيلها على نفس الهاتف ونفس البيانات، وقُبل
+`financial adjustment 57 → 56` في ≈3.8s بدل ≈4m30s.
+
+### الإصلاح الإنتاجي
+
+نسخة vendored مثبتة من `sqflite_android 2.4.3` في
+`third_party/sqflite_android/` بتغيير وحيد `THREAD_COUNT=2`، بلا
+`devSetOptions`؛ `dependency_overrides` بمسار محلي في
+`apps/mobile/pubspec.yaml`، و`pubspec.lock` يسجل مصدر `path`. الإصدار
+يبقى `2.4.3` بلا ترقية عامة لبقية dependencies.
+
+### نتائج الاختبارات المحلية
+
+| المجموعة | PASS | FAIL | SKIP | LOAD_FAILURE |
+| --- | ---: | ---: | ---: | ---: |
+| Android الأصلية | 11 | 0 | 0 | 0 |
+| المركزة | 53 | 0 | 0 | 0 |
+| sync/recovery/notifications | 2144 | 0 | 0 | 0 |
+| full mobile package | 3359 | 0 | 0 | 0 |
+
+`flutter analyze` = 0 issues؛ `git diff --check` = PASS. واختبار تقدم
+مالك المعاملة RED/GREEN: `worker=1` → FAIL، `worker=2` → PASS، مع
+التصريح بأنه لا يحاكي أقفال Android الكاملة.
+
+### قبول الجهاز
+
+البداية والمزارعون والأراضي والملاحة بين الحجوزات والجلسات وسجل
+الجلسات وتفاصيلها = PASS بلا تعلّق طويل. `WorkManager` بقي نشطًا:
+
+```text
+19:40:02 start → 19:40:05 SUCCESS
+19:41:38 start → 19:41:43 RETRY → 19:42:13 retry → 19:42:16 SUCCESS
+19:42:34 start (بعد force-stop) → 19:42:37 SUCCESS
+```
+
+`RETRY` ليست فشلًا ما دامت المحاولة اللاحقة `SUCCESS`.
+
+### التعديل المالي النهائي
+
+الجلسة `3ff580e6-bfa4-423f-82c3-8114119a7e97`: `56 → 55`،
+`command_id=89422cd8-af66-493c-81be-d0a535297d07`،
+`status=accepted`،
+`requested_at=2026-11-13 16:41:38.111097+00`،
+`accepted_at=2026-11-13 16:41:42.734034+00` ⇒ ≈4.62s.
+`approved_amount_minor=55` و`manual_approval_revision=3`؛ قراءة canonical
+PASS وعدد صفوف الأمر الأخير = 1 ⇒ `no duplicate PASS`.
+
+### الحالة المسجلة
+
+```text
+F-SYNC: IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + GIT CLOSEOUT PENDING
+```
+
+**لم يحدث:** commit، push، PR، CI على الرقعة، merge. لذلك **لا** تُقرأ
+هذه الحزمة مدموجة أو مغلقة في Git، ولا يجوز كتابة `CLOSED` قبل إغلاق
+Git. ولا يعني ذلك نشرًا سحابيًا أو تغييرًا في `api` أو دلالات المال.
+
+**F-RECON** مسألة مستقلة ما زالت `OPEN / BLOCKED`
+(`ops.session_correction_reconciliations`: `status=pending`,
+`attempt_count=0`, `last_attempt_at=NULL`، بلا مستهلك runtime إنتاجي
+مثبت) ولم تُصلح في هذه الجولة. التفصيل التقني في
+`../technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`.
+
 ## 2026-11-13 — دمج PR #68 في main وإغلاق بوابة Git/PR/CI
 
 **PR #68 مدموج فعليًا.** العنوان `feat: complete R6 session correction and

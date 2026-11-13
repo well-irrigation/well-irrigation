@@ -1,7 +1,7 @@
 # سجل القرارات
 
-**آخر قرار مرقّم:** ق-137 (آخر قرار معتمد: ق-137)
-**آخر تحديث:** 2026-10-20
+**آخر قرار مرقّم:** ق-138 (آخر قرار معتمد: ق-138)
+**آخر تحديث:** 2026-11-13
 **صاحب القرار:** خالد النجحي — مالك المشروع
 
 ---
@@ -7770,3 +7770,153 @@ COMPLETE` · `LIVE UNRESOLVED FINANCIAL CONFLICTS = NONE` — نتيجة الت�
 **ما لا يُعاد عمله:** لا تنفيذ جديد لـR6-A/B، ولا لتصحيح الجلسة، ولا
 للإدخال اليدوي، ولا للتعديل المالي اليدوي. المتبقي **قبول جهاز** لا
 برمجة، ولا بطاقة رئيسية جديدة، ولا نظام مالي موازٍ.
+
+
+---
+
+## ق-138 — اعتماد رقعة Android SQLite ذات عاملين لـsqflite_android ومنع الرجوع الصامت إلى worker واحد (اعتماد المالك 2026-11-13)
+
+**الحالة: ADOPTED + IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED +
+GIT CLOSEOUT PENDING**
+
+### المشكلة
+
+على جهاز Android، تستخدم المقدمة ومحرك `WorkManager` الخلفي أكثر من
+اتصال إلى ملف SQLite نفسه (مسار `resolveOutboxDatabasePath` الموحد) عبر
+عازلَي Flutter منفصلين. `sqflite_android 2.4.3` عرّف افتراضيًا:
+
+```java
+static private int THREAD_COUNT = 1;
+```
+
+تحت هذا العدد، ينفَّذ كل عمل قاعدة على مؤشر واحد مشترك بين كل اتصالات
+الملف. النمط المثبت:
+
+```text
+connection A begins transaction and holds SQLite lock
+connection B waits for that lock on the only Android worker
+connection A needs the same worker to continue/commit
+=> starvation / deadlock-like long wait
+```
+
+الصياغة المعتمدة: `Android sqflite single-worker starvation under
+competing same-file connections`. لا يوصف بأنه `Dart logical deadlock`
+قطعيّ.
+
+### الأدلة
+
+قياسات جهاز `Samsung SM-A136U` (Android 12 / API 31) قبل الإصلاح:
+
+- `SqliteOutboxStore._bookingTransaction` origin=background: `132841ms`
+  ≈ 2m13s (عبر `_recoverBookingRegistrations`).
+- `SqliteNotificationEventStore.recoverScheduleLeases` origin=foreground:
+  `263242ms` ≈ 4m23s.
+- `SqliteOutboxStore.openDatabase`: `87541ms` `open_failed`.
+- `SqliteOutboxStore.sessionSnapshot`: `wait_ms=82644`.
+
+الدليل الحاسم: `recoverScheduleLeases commit` عند `18:40:17.496`
+وبدء `sessionSnapshot` عند `18:40:17.508` — أي بعد تحرير المعاملة بـ12ms
+فقط. قراءة محلية تنتظر دقائق ثم تتقدم لحظة تحرير القفل.
+
+استبعاد Supabase: `local attempt` إلى `Supabase ingress` نحو 4 دقائق،
+ومعالجة الخادم 517ms و654ms — التأخير يحدث **قبل** وصول HTTP للخادم.
+عنصر Outbox بالتسلسل 55 (`completeIrrigationSession` تابع لجذر 54 في
+review، بلا `last_attempt_at`) **ليس السبب**؛ تصنيفه
+`separate historical recovery/cleanup debt` ولا يُحذف.
+
+### القرار
+
+لا يوجد `Sqflite.devSetOptions` في الحل الإنتاجي. اعتُمدت نسخة
+vendored ومثبتة من `sqflite_android 2.4.3` داخل المستودع
+(`third_party/sqflite_android/`) مع التغيير الإنتاجي الوحيد:
+
+```diff
+-static private int THREAD_COUNT = 1;
++static private int THREAD_COUNT = 2;
+```
+
+ويشير `apps/mobile/pubspec.yaml` إلى المسار المحلي عبر
+`dependency_overrides`، وانعكس ذلك في `pubspec.lock` كمصدر `path`.
+الإصدار يبقى `2.4.3` ولا توجد ترقية عامة لبقية dependencies. الرقعة
+وتجزئتها وحدودها في `third_party/sqflite_android/PATCHES.md`.
+
+### سبب القرار
+
+اختبار A/B أثبت أن **العامل الأحادي هو الشرط التنفيذي**: بضبط
+`androidThreadCount=2` عبر `devSetOptions` على نفس الهاتف ونفس البيانات
+زال التعليق من البداية والمزارعين والأراضي وسجل الجلسات وتفاصيلها،
+وقُبل تعديل مالي `57 → 56` في نحو `3.8s` بدل نحو `4m30s`. الرقعة
+الأصغر (سطر واحد مثبّت) وصلت إلى نفس النتيجة على الجهاز بمنتج حقيقي
+بلا واجهة Dev-only.
+
+### البدائل المستبعدة
+
+| البديل | سبب الاستبعاد |
+| --- | --- |
+| `Sqflite.devSetOptions` إنتاجيًا | `Deprecated('Dev only')`؛ صالح لإثبات A/B فقط |
+| ترقية إلى `2.4.6` | العدد الافتراضي بقي `1`؛ لا دليل upstream على إصلاح تلقائي |
+| busy timeout / retries أطول | لا تزيل starvation وقد تطيل الانتظار |
+| تعطيل `WorkManager` | يكسر ضمانات العمل دون اتصال والخلفية |
+| تنظيف Outbox | العنصر 55 ليس السبب |
+| إضافة أصلية خاصة بالملكية | الرقعة الأصغر أثبتت نجاحًا فعليًا على الجهاز فلم تعد الخيار الأول |
+
+### Trade-off
+
+رفع `THREAD_COUNT` إلى 2 يزيل شرط العامل الوحيد المثبت، لكنه لا ينشئ
+قفل ملكية عامًّا ولا يجعل كتابات SQLite متوازية: SQLite ما زال يحكم
+تعارض الكتابة، وحجز الأوامر وreceipt-first يبقيان مسؤولية core الحالي.
+كل ترقية لـ`sqflite`/`sqflite_android` تبطل دليل القبول وتستوجب مراجعة
+upstream وإعادة قبول الجهاز؛ وإعادة الحزمة إلى مصدر hosted تلغي الرقعة
+صامتة إن لم تُراجع `dependency_overrides`. لا ضمان جدولة مطلق لكل عدد
+اتصالات، ولا تدّعي الرقعة ضمان ملكية عامة لـSQLite.
+
+### متطلبات الصيانة — إعادة Device Acceptance إلزامية عند أي مما يلي
+
+1. ترقية `sqflite`/`sqflite_android` (يُتحقق أولًا من العدد الافتراضي
+   upstream ومدى إصلاحه للعطل).
+2. إزالة `third_party/sqflite_android` أو تعديل الرقعة.
+3. إعادة الحزمة إلى hosted dependency أو تغيير مسار `dependency_overrides`.
+4. تغيير worker count لأي سبب.
+
+### الأثر
+
+- **لا تغيير** في `api`/Supabase/عقود الخادم أو دلالات المال.
+- **لا تغيير** في مخطط SQLite (`schemaVersion`) أو في `singleInstance`
+  أو دورة حياة الاتصالات أو `WorkManager`.
+- الرقعة مثبتة داخل `apps/mobile/pubspec.yaml` و`pubspec.lock` و
+  `third_party/` — تحرّكها أو حذفها مسؤولية المالك وليس الوكيل المحلي.
+- لا تدّعي الرقعة `global database ownership guarantee`.
+
+### نتائج الإثبات
+
+- اختبار RED/GREEN على تقدم مالك المعاملة: `worker=1` → FAIL،
+  `worker=2` → PASS. لا يحاكي الاختبار أقفال Android الكاملة.
+- Android الأصلية 11 PASS / 0 FAIL / 0 SKIP / 0 LOAD_FAILURE.
+- المركزة 53 PASS / 0 FAIL / 0 SKIP / 0 LOAD_FAILURE.
+- sync/recovery/notifications 2144 PASS / 0 FAIL / 0 SKIP / 0 LOAD_FAILURE.
+- full mobile package 3359 PASS / 0 FAIL / 0 SKIP / 0 LOAD_FAILURE.
+- `flutter analyze` = 0 issues؛ `git diff --check` = PASS.
+- جهاز Samsung SM-A136U: البداية/المزارعون/الأراضي/الحجوزات والملاحة/
+  سجل الجلسات/تفاصيلها PASS بلا تعليق طويل؛ `WorkManager` بقي نشطًا
+  (دورات start→SUCCESS وstart→RETRY→retry→SUCCESS وبعد force-stop
+  start→SUCCESS).
+- التعديل المالي الأخير `56 → 55` للجلسة
+  `3ff580e6-bfa4-423f-82c3-8114119a7e97`: قُبل في ≈4.62s
+  (`requested_at=2026-11-13 16:41:38.111097+00` /
+  `accepted_at=2026-11-13 16:41:42.734034+00`)،
+  `command_id=89422cd8-af66-493c-81be-d0a535297d07`,
+  `approved_amount_minor=55`، `manual_approval_revision=3`،
+  canonical readback PASS وno duplicate PASS.
+
+### المرجع
+
+`docs/technical/SQLITE_TRANSACTION_LOCK_AUDIT.md` (المصدر التقني
+التفصيلي) و`docs/technical/FOREGROUND_SYNC_LATENCY.md` و
+`third_party/sqflite_android/PATCHES.md`.
+
+### المسألة المفتوحة الناتجة
+
+الرقعة لم تُغلق في Git: لا commit ولا push ولا PR ولا CI على الرقعة
+نفسها ولا merge حتى تدوين هذا القرار؛ **GIT CLOSEOUT PENDING**، ولا
+تُحوَّل إلى CLOSED إلا بعد إغلاق Git. وF-RECON مسألة مستقلة مفتوحة
+**لم تُصلح** في هذه الجولة؛ تفصيلها في `../memory/OPEN_ISSUES.md`.

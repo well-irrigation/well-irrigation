@@ -1,8 +1,28 @@
 # خريطة المشروع — مصادر الحقيقة الحالية
 
-**آخر تحديث:** 2026-11-13
+**آخر تحديث:** 2026-11-13 (جولة توثيق F-SYNC)
 
-## مؤشر R6 الحالي — PR #68 مدموج في main (2026-11-13)
+## مؤشر الحالة الحالي — F-SYNC وGit Closeout (2026-11-13)
+
+**الخطوة الحالية:** **Git/PR/CI closeout لـF-SYNC** (رقعة Android SQLite
+ذات العاملين، ق-138). الحالة **IMPLEMENTED + LOCAL VERIFIED + DEVICE
+ACCEPTED + GIT CLOSEOUT PENDING**؛ لا commit ولا push ولا PR ولا CI على
+الرقعة نفسها ولا merge، و`CLOSED` لا تُكتب قبل إغلاق Git.
+
+- **آخر قرار مرقم = ق-138** (`memory/DECISIONS.md`)، وآخر invariant = 773.
+- **المصدر التقني لـF-SYNC موجود فعلًا:**
+  `technical/SQLITE_TRANSACTION_LOCK_AUDIT.md` (التفصيلي) و
+  `technical/FOREGROUND_SYNC_LATENCY.md` (تفصل أسباب المقدمة عن عطل
+  SQLite وعن F-RECON).
+- **السحابة الحالية حتى `20261111000000`** ⇒ `CLOUD MIGRATION GATE =
+  CLEARED`. لا يُستنتج نشر من دمج ولا قبول جهاز من نشر.
+- **F-RECON يأتي بعد F-SYNC** ولا يُدمج معه: `OPEN / BLOCKED` لغياب
+  مستهلك runtime إنتاجي مثبت يبدأ
+  `billing.reconcile_session_correction(...)`؛ التفصيل في
+  `memory/OPEN_ISSUES.md`.
+- الحالة الحاكمة والتالي حصريًا في `memory/RESUME_POINT.md`.
+
+## مؤشر R6 — PR #68 مدموج في main (2026-11-13)
 
 **الدمج مكتمل:** PR #68 بعنوان `feat: complete R6 session correction and
 manual financial flows` مدموج؛ PR HEAD قبل الدمج
@@ -20,9 +40,12 @@ PASS، قاعدة PASS، اختبارات `FILES=90 PASS=2899 FAIL=0 ERROR=0`، 
 `a1eda8520d112e4ab438983e1406dbb478bdea47`. نُفذت كذلك واجهة
 R6-A/B من الهاتف، وتصحيح الجلسة، والإدخال اليدوي للجلسة التاريخية،
 وتعديل مبلغ الجلسة اليدوي؛ **كلها الآن في `main`، وقبول الجهاز متبق أو
-جزئي**، ولا يزال **الدمج ليس نشرًا سحابيًا**. خادم R6 منشور سحابيًا حتى
-`20261108002500`؛ عقود التصحيح `20261108002600`–`20261108003000`
-غير منشورة. آخر قرار **مرقم** هو ق-137؛ قرارات R6 المعتمدة غير
+جزئي**، ولا يزال **الدمج ليس نشرًا سحابيًا**. خادم R6 منشور سحابيًا، والفحص
+المباشر أثبت وجود الهجرات حتى `20261111000000` بما فيها عقود التصحيح
+`20261108002600`–`20261108003000` و`20261109000100/0200`
+و`20261110000000` و`20261111000000` ⇒ `CLOUD MIGRATION GATE = CLEARED`
+(النص الأقدم الذي قال إن السحابة متوقفة عند `20261108002500` صار
+**HISTORICAL** وغير صحيح). آخر قرار **مرقم** هو ق-138؛ قرارات R6 المعتمدة غير
 المرقمة في `memory/DECISIONS.md` ملحق R6. الحالة الحالية والتالي
 حصريًا في `memory/RESUME_POINT.md`؛ التفاصيل في
 `technical/R6C2_SESSION_FINANCIAL_RECONCILIATION.md`، ومطابقة الحزم
@@ -30,9 +53,10 @@ R6-A/B من الهاتف، وتصحيح الجلسة، والإدخال اليد
 أدناه لقطات زمنية ولا تتغلب على هذا المؤشر.
 
 **وثائق قياس حديثة مسجلة:** `technical/FOREGROUND_SYNC_LATENCY.md`
-و`technical/SQLITE_TRANSACTION_LOCK_AUDIT.md` و
-`technical/SESSION_READ_PERFORMANCE.md` و
-`technical/OPERATIONAL_START_GUIDED_RECOVERY.md`.
+و`technical/SQLITE_TRANSACTION_LOCK_AUDIT.md` (المصدر التقني الحاكم
+لـF-SYNC/ق-138) و`technical/SESSION_READ_PERFORMANCE.md` و
+`technical/OPERATIONAL_START_GUIDED_RECOVERY.md` و
+`third_party/sqflite_android/PATCHES.md` (شرح الرقعة وصيانتها).
 
 هذه الوثيقة تحدد أي ملف يفوز عند التعارض، وتفصل بين
 الحالة الحالية والسجل التاريخي.
