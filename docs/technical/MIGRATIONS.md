@@ -1,6 +1,6 @@
 # الهجرات
 
-**آخر تحديث:** 2026-09-22
+**آخر تحديث:** 2026-11-14
 
 سجل ملفات هجرة قاعدة البيانات، وحالة كل ملف: هل كُتب؟ وهل **طُبّق فعليًا**؟ وهما أمران مختلفان تمامًا.
 
@@ -1841,3 +1841,113 @@ pipeline `2869239530` = database success + app success، وmain pipeline
 - الاختبارات الدائمة: كتلة PB في `20261001_113_booking_execution_contracts.test.sql` (16 تحققًا من PB0 إلى PB11b). نتيجة `db:test` المحلي: `FILES=52 PASS=1119 FAIL=0 ERROR=0` (منها Test 113 = `227 PASS`). الفهرس المولّد: `columns=891 constraints=544 functions=265 triggers=49` (زيادة دالة واحدة).
 - إثبات التزامن: نجاح `scripts/p1b_transition_concurrency_proof.py` باتصالين مستقلين بـ PostgreSQL: السيناريو أ أثبت منع التنفيذ المزدوج بحجب الاتصال الثاني ثم رفضه نظيفًا (`current_not_reached_operational_end`) وبقاء دفتر أوامر نظيف، والسيناريو ب أثبت الـ idempotency لنفس command_id بإعادة الرد المخزن وسجل أمر واحد.
 - لا يوجد قرار جديد مطلوب؛ السلوك خاضع بالكامل لق-134. بقاء M113 مفتوحة Partial/NOT CLOSED؛ الجدولة (P2) وOffline/Flutter والترحيل والإنتاج باقية Pending.
+
+## F-RECON — 20261114000000: طابور المصالحة المالية لمستهلك runtime (2026-11-14)
+
+**الحالة:** Implemented + Local Verified + CI Verified + **Cloud Deployed /
+Verified على `hxfhczpfrfdpzsobfbab`**. القرار ق-139، والمصدر التقني
+`R6C2_SESSION_FINANCIAL_RECONCILIATION.md` قسم `R6-C2-D`.
+
+**الغرض:** إغلاق عطل F-RECON (تصحيح جلسة مقبول بلا مستهلك مالي) بإعطاء
+`ops.session_correction_reconciliations` مستهلك runtime متينًا.
+
+**المكوّنات:**
+
+- طابور PGMQ متين مسجَّل (Basic Queue) باسم
+  `session_correction_reconciliation` مع جدولَي `pgmq.q_…` و`pgmq.a_…`.
+  الطابور **نقل فقط**، وجدول العمل هو الحقيقة التجارية.
+- دور تنفيذ تقني `reconciliation_executor` بخصائص مقفولة:
+  `NOLOGIN`, `NOINHERIT`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`,
+  `NOBYPASSRLS`.
+- زناد إدراج بنيوي `session_correction_reconciliation_enqueue` على جدول
+  العمل عبر `billing.enqueue_session_correction_reconciliation()`؛
+  الحمولة `correction_id` وحده.
+- عقود الإيجار والمعالجة: `billing.process_session_correction_reconciliation_message(bigint)`
+  يملك الأثر المالي ومعالجة الطابور النهائية معًا؛ لا `pgmq.pop()`،
+  والقراءة بمهلة ظهور، والحالات النهائية تُؤرشف.
+- دعم عامل Edge: `supabase/functions/session-correction-reconciliation-worker/`
+  بدفعة 4 وتزامن 2 ومهلة ظهور 60 ثانية.
+
+**الاختبار الدائم:**
+`supabase/tests/20261114000000_session_correction_reconciliation_queue.test.sql`.
+
+**الأساس المحلي:** F-RECON 77/0؛ المصالحة 50/0؛ المال اليدوي 119/0؛
+P2 auth/automation 187/0؛ التزامن 18/0؛ المركز 451/0؛ الانحدار الكامل
+91 ملفًا / 2976 PASS / 0 FAIL / 0 ERROR.
+
+**Git:** PR #72 merge `b855bb600059d6a91b971fd2ce2070097a1e4dde`
+(`2026-11-13T23:14:00Z`)، CI PASS.
+
+**السحابة:** نُشرت بنجاح على `hxfhczpfrfdpzsobfbab`. اعتماد خاطئ على
+العامل ⇒ HTTP 401 `credential_rejected`؛ اعتماد صحيح ⇒ HTTP 200.
+**`supabase/tests` لا تعمل سحابيًا**؛ المُثبت وجود الأهداف لا نجاح
+التحققات.
+
+## F-RECON — 20261114003258: تفعيل الإيقاظ التلقائي للمصالحة (2026-11-14)
+
+**الحالة:** Implemented + Local Verified + CI Verified + **Cloud Deployed /
+Verified على `hxfhczpfrfdpzsobfbab`**. القرار ق-139.
+
+**الغرض:** تحويل مستهلك المصالحة من نداء يدوي إلى إيقاظ مجدول تلقائي
+fail-closed، بلا تسريب اعتماد ولا معرّفات عمل في طبقة الجدولة.
+
+**المكوّنات:**
+
+- `billing.wake_session_correction_reconciliation()`: نقطة الإيقاظ
+  الوحيدة، تقرأ عنوان المشروع والاعتماد من Vault وتتصل عبر `pg_net`
+  بالعامل القائم.
+- مهمة `pg_cron` باسم `session-correction-reconciliation-wake`، الجدولة
+  `* * * * *`، والأمر بالضبط
+  `select billing.wake_session_correction_reconciliation();`.
+- جسم HTTP المجدول `{}` فقط؛ معرّفات العمل (correction/session/command)
+  محظورة فيه.
+- صف حالة الإيقاظ المفرد `billing.session_correction_reconciliation_wake_state`
+  مع `last_request_id` و`last_requested_at` لتسلسل القرارات.
+- بوابة التداخل/الاستعادة: طلب غير مُجاب أحدث من 120 ثانية ⇒ `in_flight`
+  بلا إيقاظ ثانٍ؛ استجابة أو تقادم ≥ 120 ثانية ⇒ يُسمح بالإيقاظ التالي.
+  مهلة `pg_net` = `115000 ms`.
+- قراءة Vault بالاسمين `f_recon_project_url` و`f_recon_worker_credential`؛
+  لا URL ولا اعتماد في الهجرة أو `cron.job`.
+- `billing.session_correction_reconciliation_health()`: صحة خاصة
+  مُطهَّرة، لا تُظهر جسم استجابة أو خطأ خام ولا اعتمادًا.
+- سحب `EXECUTE` من `PUBLIC`، `anon`، `authenticated`، `service_role`،
+  `reconciliation_executor` على **الدالتين وحدهما**
+  (`billing.wake_session_correction_reconciliation()` و
+  `billing.session_correction_reconciliation_health()`)، وسحب صلاحيات
+  **الجدول** `billing.session_correction_reconciliation_wake_state`
+  (بلا قراءة/كتابة) من الأدوار نفسها. `EXECUTE` لا يوصف على جدول.
+
+**الاختبار الدائم:**
+`supabase/tests/20261114003258_f_recon_automatic_activation.test.sql`.
+
+**الأساس المحلي:** R4-B المركز 21 PASS؛ الطابور القديم 77 PASS؛
+المصالحة 50 PASS؛ المال اليدوي 119 PASS؛ الانحدار الكامل 92 ملفًا /
+2997 PASS / 0 FAIL / 0 ERROR؛ `db:index` PASS؛ فحص الفرق PASS.
+
+**Git:** PR #73 merge `9c11409f9da73fde26ac31e67d69955f56b0e115`
+(`2026-11-14T00:56:43Z`)؛ app SUCCESS + db SUCCESS; Supabase Preview
+SKIPPED؛ تشغيل `main` #103 `43537477685` = SUCCESS.
+
+**عقد fail-closed:** يُثبته **الاختبار الدائم المحلي**:
+`configuration_missing` بلا إرسال طلب HTTP عند (أ) عمل جاهز مع غياب قيم
+Vault، (ب) URL وحده، (ج) اعتماد فارغ.
+
+**السحابة:** نُشرت بنجاح **قبل** إيداع اعتماد العامل في Vault، فبقيت
+المجدولة نشطة على طابور فارغ، والصحة خاملة، ولم يصدر طلب `pg_net` ولا
+إيقاظ HTTP. **حدّ الادعاء:** لأن الطابور كان فارغًا، لم يُجرِّب الإنتاج
+حالة `configuration_missing` مع عمل جاهز؛ فالإنتاج يثبت الترتيب الآمن
+والخمول وغياب HTTP، والعقد يثبته الاختبار المحلي. بعد إيداع الاعتماد: مجدولة نشطة كل دقيقة، طابور active=0
+وready=0، معلّق=0، `pg_net` المعلّق=0، الصحة `in_flight=false`
+و`last_request_id=null`، وتشغيلات متتالية ناجحة. **`supabase/tests` لا
+تعمل سحابيًا.**
+
+**E2E تلقائي إنتاجي = VERIFIED (2026-11-14):** تصحيح شرعي من تطبيق
+Android مرّ عبر `cron → pg_net → Edge → applied → archive` بلا نداء
+يدوي: التصحيح `9719c2fe-6e7b-49a1-8a70-c3e3fd86d0b9`، `msg_id=2` بـ
+`read_ct=1`، `pg_cron` `jobid=6`/`runid=794`، `pg_net` الطلب `25` بردّ
+HTTP `200`، المال `2763 → 3968` (`+1205`)، `attempt_count=1`، وصفر
+تعديلات مالية يدوية. حالة F-RECON صارت `CLOSED / PASS` (ق-139). هذا
+سجل تحقق لا يغيّر وقائع الهجرتين ولا رقم السقف.
+
+**ملاحظة الترقيم:** الهجرتان تقنيتان باسم timestamp ولا تستهلكان اسم
+**M114** ولا تغيّران ترتيب M113 → M114.

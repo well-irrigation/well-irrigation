@@ -1,4 +1,11 @@
-# الحالة الحاكمة الحالية — R6-C3 (تحقق محلي ناجح)
+# الحالة الحاكمة الحالية — R6-C2-D: المستهلك التلقائي للمصالحة (F-RECON، 2026-11-14)
+
+**تحديث 2026-11-14:** الحالة الحاكمة لهذا المستند لم تعد R6-C3 وحدها.
+**F-RECON = CLOSED / PASS**: التنفيذ مغلق ومثبت محليًا وCI ومُنشَّط
+سحابيًا وكانري إنتاجي مضبوط ناجح (ق-139)، ثم **تحقق المسار التلقائي
+الإنتاجي كاملًا** بتصحيح شرعي واحد في `2026-11-14`. اقرأ قسم `R6-C2-D`
+أدناه أولًا. أقسام R6-C3 وR6-C2 التالية **تاريخية** في ادعاءات حالتها،
+ولا يُعاد كتابة أدلتها كأنها كانت معروفة حينها.
 
 **تحديث إغلاق التوثيق:** R6-C2 = VERIFIED + COMMITTED في
 `4ef062afecd53773546955cefa29b810c560e17a`؛ R6-C3 =
@@ -6,6 +13,270 @@ VERIFIED + COMMITTED في `a1eda8520d112e4ab438983e1406dbb478bdea47`.
 الدليل المحلي أدناه ثابت لكل مرحلة؛ أرقام C3 لا تستبدل أرقام C2.
 لا تحقق سحابي أو إنتاجي، ولا تنفيذ واجهة الهاتف الجديدة. أي وصف
 «لا commit» أو «R6-C3 التالي» أدناه لقطة تاريخية قبل التثبيت.
+
+## R6-C2-D — المستهلك التلقائي للمصالحة (F-RECON، 2026-11-14)
+
+**الحالة:** IMPLEMENTED + LOCAL VERIFIED + CI VERIFIED + CLOUD ACTIVATED
++ CONTROLLED PRODUCTION CANARY VERIFIED +
+**AUTOMATIC PRODUCTION BUSINESS E2E VERIFIED / CLOSED / PASS**.
+القرار: ق-139 في `../memory/DECISIONS.md`. الثوابت: 774–783 في
+`INVARIANTS.md`. دليل الإغلاق في قسم
+«Production automatic E2E verification — 2026-11-14» أدناه.
+
+**العطل الذي أغلقه هذا القسم:** أصبح تصحيح الجلسة التشغيلي مقبولًا على
+الخادم بينما بقي سجل المصالحة `ops.session_correction_reconciliations`
+في `status=pending` مع `attempt_count=0` و`last_attempt_at=NULL`، لأن
+**لا مستهلك runtime** يبدأ `billing.reconcile_session_correction(...)`.
+النتيجة أن فرق تسعير الجلسة كان يستقر غير مسوّى في القراءة الحالية.
+
+### فصل الطابور عن حقيقة العمل
+
+- `ops.session_correction_reconciliations` هو **الحقيقة التجارية**:
+  حالة العمل، وعدد المحاولات، وبصمة النسخة المالية المطبقة، ونتيجة
+  آخر طلب مالي.
+- `pgmq.q_session_correction_reconciliation` طابور PGMQ متين مسجَّل
+  (Basic Queue) وهو **نقل فقط**. لا يقود الحالة ولا يحلّ محلّها.
+- لا `pgmq.pop()` في أي مسار. القراءة بإيجار عبر مهلة الظهور،
+  والحالات النهائية للعمل `applied` و`financial_review_required` تُؤرشف رسالتها؛ وإذا كانت الرسالة قد اكتملت سابقًا فقد يعيد المعالج `already_completed` في
+  `pgmq.a_session_correction_reconciliation`.
+
+الحدّة الملزمة: لو فُقدت رسالة، بقي العمل حقيقة قابلة للاكتشاف؛ ولو
+اعتُبر الطابور حقيقة، لفقدان رسالة واحدة صار فقدان مال.
+
+### الإدراج البنيوي
+
+زناد `AFTER INSERT` على جدول العمل:
+
+```text
+ops.session_correction_reconciliations
+  → session_correction_reconciliation_enqueue
+  → billing.enqueue_session_correction_reconciliation()
+```
+
+الإدراج **بنيوي** لا تطوعي من مسار كتابة: أي قبول تصحيح ينشئ عنصر عمل
+`pending` فيدخل الطابور في المعاملة نفسها. حمولة الرسالة
+`correction_id` وحده — لا مبلغ ولا حساب ولا هوية.
+
+### العامل والمعالج الخاص
+
+- Edge function: `supabase/functions/session-correction-reconciliation-worker/index.ts`.
+- الأثر المالي ومعالجة الطابور النهائية يملكهما **المعالج الخاص**
+  `billing.process_session_correction_reconciliation_message(p_msg_id bigint)`
+  في ضبط معاملاتي واحد. لا مسار مالي موازٍ، ولا كتابة جدولية مباشرة من
+  العامل.
+- الدفعة = 4 عناصر، تزامن العامل = 2، مهلة الظهور = 60 ثانية.
+
+### هوية التنفيذ
+
+- الدور `reconciliation_executor` هو **هوية تنفيذ تقنية**: العامل يصل
+  به لا بهوية بشرية.
+- لا انتحال `auth.uid()` ولا JWT بشرية، و`service_role` ليس فاعل أعمال.
+- الفاعل البشري المرجعي (الحاكم) `ops.session_corrections.actor_id`، ويُعاد
+  التحقق من تفويضه **بعد كل انتظار** (قفل جلسة/بئر وقرار الالتزام)، لا
+  قبله فقط.
+- سحب التفويض أثناء الانتظار ⇒ نتيجة `review` ثابتة **بلا أثر مالي**.
+- خصائص الدور: `NOLOGIN`, `NOINHERIT`, `NOSUPERUSER`, `NOCREATEDB`,
+  `NOCREATEROLE`, `NOBYPASSRLS` — مُتحقَّق منها في الإنتاج.
+- `EXECUTE` مسحوب من `PUBLIC` و`anon` و`authenticated` و`service_role`
+  و`reconciliation_executor` على **الدالتين وحدهما**:
+  `billing.wake_session_correction_reconciliation()` و
+  `billing.session_correction_reconciliation_health()`.
+- صلاحيات **الجدول** `billing.session_correction_reconciliation_wake_state`
+  مسحوبة من الأدوار نفسها (بلا قراءة/كتابة). وهي جدول لا دالة، فلا
+  يوصف عليها `EXECUTE`.
+
+### الأمر الحتمي والترتيب والتراجع والأرشفة
+
+- معرّف الأمر التلقائي مشتق:
+  `md5('session-correction-auto-reconcile:v1:' || correction_id::text)::uuid`.
+  لا يُخترع في العميل ولا يتغير بتكرار المحاولة، فالإعادة ترجع النتيجة
+  الأصلية بما فيها `review`.
+- تصحيحات الجلسة نفسها تحفظ **ترتيب السابق**: لا يُطبَّق N قبل N−1،
+  ويتحقق ذلك مع الحالات القائمة في R6-C1/R6-C2.
+- الفشل العابر أو غير المصنف (انقطاع، تعارض قفل، رد غير متوقع) يتراجع
+  **ذرّيًا** لإعادة المحاولة، بلا قبول مالي كاذب؛ ويبقى المعرّف نفسه.
+- الحالات النهائية للعمل `applied` و`financial_review_required` تُؤرشف رسالتها؛ وإذا كانت الرسالة قد اكتملت سابقًا فقد يعيد المعالج `already_completed`،
+  فلا تُعاد معالجة رسالة منتهية، ولا أثر مالي مكرر.
+- موافقة مالية يدوية سابقة **لا تُكتب فوقها آليًا**؛ هذا الشرط يحل إلى
+  `review` ثابت.
+
+### الإيقاظ المجدول وpg_net
+
+```text
+pg_cron
+ → billing.wake_session_correction_reconciliation()
+ → pg_net
+ → Edge worker القائم
+```
+
+- مهمة `pg_cron` باسم `session-correction-reconciliation-wake`، الجدولة
+  `* * * * *`،
+  والأمر بالضبط `select billing.wake_session_correction_reconciliation();`.
+- جسم HTTP المجدول `{}` **فقط**؛ معرّفات العمل فيه محظورة.
+- قرارات الإيقاظ متسلسلة بقفل صف الحالة المفرد
+  `billing.session_correction_reconciliation_wake_state`:
+  طلب غير مُجاب أحدث من 120 ثانية ⇒ `in_flight` بلا إيقاظ ثانٍ؛ وجود
+  استجابة **أو** تقادم ≥ 120 ثانية ⇒ يُسمح بالإيقاظ التالي.
+- مهلة `pg_net` = `115000 ms`، وهي **أقل عمدًا** من نافذة الاستعادة
+  120 ثانية للطلب غير المُجاب، كي تصبح الاستجابة أو المهلة قابلة
+  للملاحظة قبل عتبة الطلب المتقادم. الطلب نفسه لا يدوم 120 ثانية.
+
+### Vault وfail-closed
+
+- الأسماء: `f_recon_project_url` و`f_recon_worker_credential`. لا URL
+  ولا اعتماد إنتاجي في الهجرة أو `cron.job` أو أي وثيقة أو مخرَج، ولا
+  قيمة سرّ ولا رابط اتصال كامل.
+
+**عقد fail-closed (يُثبته الاختبار الدائم المحلي):**
+
+```text
+عمل جاهز + غياب قيم Vault  ⇒ configuration_missing، بلا طلب HTTP
+URL وحده                   ⇒ configuration_missing
+اعتماد فارغ                ⇒ configuration_missing
+```
+
+**الترتيب الآمن في الإنتاج:** يُنشر المجدول **قبل** إيداع اعتماد العامل،
+فيبقى النظام خاملًا لا نصفَ مخوَّل — غياب الاعتماد ليس نجاحًا ولا فشلًا
+بل خمول مقصود. **حدّ الادعاء:** الطابور الإنتاجي كان **فارغًا** حينها،
+فالإنتاج لم يُجرِّب `configuration_missing` مع عمل جاهز؛ العقد يثبت
+بالاختبار المحلي، والإنتاج يثبت الترتيب والخمول وغياب الإيقاظ.
+
+### عقد اعتماد العامل والنقل
+
+```text
+Edge يتوقع السرّ          : F_RECON_WORKER_CREDENTIAL
+المجدول يقرأ من Vault     : f_recon_worker_credential
+المجدول يرسله في الترويسة : x-f-recon-worker-key
+جسم الطلب المجدول         : {} بالضبط
+```
+
+- لا تحمل طبقة HTTP أي معرّف عمل: لا `correction_id` ولا `session_id` ولا
+  `command_id`.
+- نقل قاعدة البيانات في الوظيفة الحدّية من `SUPABASE_DB_URL` المستضاف.
+  وهذا الرابط **نقل فقط**: السلطة التجارية تأتي من
+  `set local role reconciliation_executor` مع فحوص الفاعل المرجعي، لا
+  من صلاحية الرابط نفسه.
+- الوظيفة الحدّية تقبل أيضًا `Authorization: Bearer` وفق الشيفرة
+  الحالية؛ وهذا ليس شرطًا في عقد المجدولة، التي تستعمل
+  `x-f-recon-worker-key`.
+- لا تُطبع ولا تُوثَّق قيمة سرّ ولا رابط اتصال كامل.
+
+### الصحة
+
+`billing.session_correction_reconciliation_health()` خاصة ومُطهَّرة:
+تعيد حالة الإيقاظ وحالة الطابور/العمل المعلّق، ولا تُظهر جسم استجابة
+أو خطأ خام ولا اعتمادًا. تُقرأ بصلاحية المالك لا بأدوار العميل.
+
+### أدلة الإثبات
+
+**محلي — طبقة التنفيذ:** F-RECON 77/0؛ المصالحة 50/0؛ المال اليدوي
+119/0؛ P2 auth/automation 187/0؛ التزامن 18/0؛ المركز 451/0؛ الانحدار
+الكامل 91 ملفًا / 2976 PASS / 0 FAIL / 0 ERROR.
+
+**محلي — طبقة التفعيل:** R4-B المركز 21 PASS؛ الطابور القديم 77 PASS؛
+المصالحة 50 PASS؛ المال اليدوي 119 PASS؛ الانحدار الكامل 92 ملفًا /
+2997 PASS / 0 FAIL / 0 ERROR؛ `db:index` PASS؛ فحص الفرق PASS.
+
+**Git وCI:** PR #72 دُمج عند
+`b855bb600059d6a91b971fd2ce2070097a1e4dde` (`2026-11-13T23:14:00Z`)،
+CI PASS. PR #73 دُمج عند
+`9c11409f9da73fde26ac31e67d69955f56b0e115` (`2026-11-14T00:56:43Z`)؛
+app SUCCESS، db SUCCESS، Supabase Preview SKIPPED. تشغيل `main` #103
+برقم `43537477685` = SUCCESS على التزام الدمج.
+
+**R4-A (كانري إنتاجي مضبوط = PASS):** تصحيح إنتاجي حقيقي قائم عولج
+**مرة واحدة** بنداء Edge يدوي مضبوط:
+
+```text
+correction ed95ceb5-7ba3-4ad9-a8c1-1606d7712b3c
+session    23c8d287-f453-4888-9cc4-27e2eb66bb44
+
+قبل:  pending, attempt_count=0, revision=0, amount_minor=74
+بعد:  HTTP 200, leased=1 applied=1 review=0 failed=0
+      applied, attempt_count=1, amount_minor=283, revision=1
+      صف واحد delta=209, queue target=0,
+      archive read_ct=1, لا تكرار لأثر مالي
+```
+
+**R4-B (تفعيل تلقائي = PASS):** تجربة جافة بهجرة واحدة بالضبط
+(`20261114003258`)؛ نُشرت قبل وجود الاعتماد في Vault، فرُصدت الحالة
+قبل التفعيل: هجرة واحدة، مجدولة (وظيفة `pg_cron`) نشطة واحدة،
+`* * * * *`، أمر مطابق، URL = 1، الاعتماد = 0، الطابور = 0، المعلّق = 0،
+`pg_net` المعلّق = 0، دالتا الإيقاظ والصحة موجودتان، الصحة خاملة، ولا
+طلب HTTP، وتشغيل ناجح على طابور فارغ. بعد إيداع الاعتماد: URL = 1، الاعتماد = 1، المجدولة كل دقيقة،
+active = 0 ready = 0، المعلّق = 0، `pg_net` المعلّق = 0، الصحة
+`in_flight=false` و`last_request_id=null`، وتشغيلات متتالية ناجحة.
+اعتماد خاطئ ⇒ 401 `credential_rejected`؛ اعتماد صحيح ⇒ 200 مع أصفار
+كلها. أُزيلت أسرار صدفة المحلي بعد ذلك.
+
+### فجوة الدليل كما كانت قبل ملاحظة الإغلاق الإنتاجية في 2026-11-14 (سياق تاريخي)
+
+**قبل ملاحظة E2E الإنتاجية عند نحو 14:12 UTC في 2026-11-14** لم يكن قد
+رُصد تصحيح إنتاجي شرعي جديد يدخل الطابور
+ثم يُوقَظ تلقائيًا عبر `cron → pg_net → Edge → مصالحة مالية` ثم يُؤرشف،
+**بلا نداء يدوي**، وكانت F-RECON تُقرأ `PARTIAL`.
+
+R4-A يثبت المصالحة المالية الحقيقية بنداء يدوي مضبوط. R4-B يثبت
+الجدولة والأمن والترتيب الآمن للتفعيل والصحة، وعقد fail-closed يثبته
+الاختبار المحلي لا طابور إنتاج فارغ. **الجزءان لا يُركَّبان** دليلًا على
+المسار التلقائي الكامل؛ وهذه القاعدة **باقية ولم تُخفَّف**. وإنما زال
+موضوعها لأن الملاحظة حصلت فعلًا، لا لأن الأدلة رُكِّبت. **ولا يجوز
+اختلاق تصحيح إنتاجي لأي بوابة دليل** (الثابت 783). العنصر
+`F-RECON-E2E` في `../memory/OPEN_ISSUES.md` صار `CLOSED / PASS`.
+
+### Production automatic E2E verification — 2026-11-14
+
+**النتيجة: PASS.** تصحيح جلسة شرعي أصله تطبيق Android المثبَّت عبر
+واجهة تصحيح الجلسة، مرّ بالمسار التلقائي كاملًا بلا نداء يدوي وبلا
+تعديل مالي يدوي، ثم أُرشف نهائيًا مرة واحدة بلا تكرار.
+
+```text
+correction_id            = 9719c2fe-6e7b-49a1-8a70-c3e3fd86d0b9
+session_id               = a357b5ca-2109-465c-93cc-d3af7236b5c8
+phone command_id         = 39073bd7-ea7b-4951-97b5-b3088eb1c827
+reason                   = وقت الانتهاء الفعلي
+revision                 = 0 -> 1
+started_at               = 2026-11-12 11:55:58.824406+00  (بلا تغيير)
+ended_at                 = 2026-11-12 12:12:45.578487+00 -> 12:20:00+00
+
+requested_at             = 2026-11-14 14:11:23.431224+00
+accepted_at              = 2026-11-14 14:11:27.393321+00
+queue msg_id             = 2   enqueued_at 14:11:27.270650+00  (correction_id فقط)
+pg_cron jobid/runid      = 6 / 794
+pg_cron window           = 14:12:00.329982+00 -> 14:12:00.431459+00 (succeeded)
+wake                     = select billing.wake_session_correction_reconciliation();
+pg_net request id        = 25   requested_at 14:12:00.428407+00
+HTTP                     = 200, timed_out = false, error_msg = null
+Edge                     = POST /functions/v1/session-correction-reconciliation-worker
+User-Agent               = pg_net/0.20.4   14:12:02.625Z
+
+work status              = applied          attempt_count = 1
+last_error               = NULL             financial_applied_revision = 1
+reconciliation_command_id= 6272213e-811e-b25c-b8d4-480bd81819ec
+amount                   = 2763 -> 3968      delta_minor = +1205
+billable_seconds         = 1429              weighted_rate_minor = 10000
+financial correction row = 2026-11-14 14:12:02.540492+00
+
+archive rows / read_ct   = 1 / 1   archived_at 14:12:02.387546+00
+active_queue_rows        = 0
+financial_correction_rows= 1
+manual_financial_adjustment_rows = 0
+processed_command_rows   = 1
+invoice_correction_rows  = 0
+```
+
+**`3968` هو المبلغ الحاكم** لأنه مشتق قطعة قطعة من دليل الشرائح التاريخي
+المحفوظ وقواعد البتر. لا يُدوَّن أي تقدير بشري سابق كأثر ولا كمرجع.
+
+**حدود هذا الدليل:** حالة إنتاجية واحدة على هذا المشروع. لا يُستنتج منها
+حجم أعمال ولا أزمنة استجابة عامة ولا نطاق، ولا تُعمَّم على مسارات أخرى،
+ولا تُقرأ نجاحًا لاختبارات دائمة لم تُشغَّل سحابيًا.
+
+**حدود الادعاء:** `supabase/tests` **لا تعمل سحابيًا**؛ المُثبت سحابيًا
+وجود الأهداف وسلوك التفعيل، لا نجاح التحققات على الإنتاج. ولا تغيير في
+`api` أو عقود العميل من هذا القسم.
+
+---
 
 ## R6-C3 — إظهار المصادر المتبقية وغير المتاحة
 

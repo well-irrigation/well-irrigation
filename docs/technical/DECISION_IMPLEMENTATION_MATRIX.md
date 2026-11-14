@@ -1,8 +1,11 @@
 # Decision ↔ Implementation Matrix
 
-**آخر تحديث:** 2026-11-13
+**آخر تحديث:** 2026-11-14
 
-خادم R6 منشور ومتحقق سحابيًا بتاريخ 2026-11-05 حتى `20261108002500`؛ لا يعني ذلك نشر عقود تصحيح الجلسة `20261108002600`–`20261108003000` ولا قبول واجهة الهاتف على جهاز.
+سقف النشر والتحقق السحابي ورقم الهجرة الوظيفية التالية في `AGENTS.md` §4
+وحده، ولا يُنشأ هنا سقف منافس. في ما يخص F-RECON: هجرتا timestamp
+`20261114000000` و`20261114003258` منشورتان ومتحققتان على مشروع
+الإنتاج. ولا يعني أي نشر سحابي قبولَ واجهة الهاتف على جهاز.
 
 هذه المصفوفة تتبع القرارات التي لها أثر مباشر على
 الكود أو المعمارية أو الاختبارات.
@@ -683,7 +686,7 @@ UNRESOLVED FINANCIAL CONFLICTS = NONE` كما أفادها المالك، ولا
 | الحالة | **CLOSED** / IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + CI VERIFIED + MERGED |
 | الإغلاق في Git | PR #70 · PR HEAD `656f73d407861a71ae728c56066ac54d621ac322` · CI workflow `checks`، run `43482437255`، `success` (2 successful / 0 failing / 1 skipped) · merge commit `b7736d18cdffd89b39b776392256e2598a62f834` · `2026-11-13T18:36:21Z` |
 | القيود | لا تدّعي ملكية عامة لملف SQLite؛ كل ترقية/إزالة `third_party`/تغيير worker count تبطل القبول وتستوجب إعادة Device Acceptance (الثوابت 769–773) |
-| المسألة المستقلة | F-RECON (المصالحة بعد التصحيح) لم تُصلح هنا؛ مفتوحة في `../memory/OPEN_ISSUES.md` |
+| المسألة المستقلة | F-RECON (المصالحة بعد التصحيح) لم تُصلح **في هذه الجولة**؛ صحيحة حتى 2026-11-13 فقط. تلقت قرارها **ق-139** وقسمها التقني `R6-C2-D`، وحالتها الآن `PARTIAL` في `../memory/OPEN_ISSUES.md` |
 
 **الحالة النهائية:** CI VERIFIED = PASS (run `43482437255`)؛
 PUSHED = YES؛ MERGED = YES؛ **F-SYNC = CLOSED**؛ CLOUD DEPLOYED = غير
@@ -691,6 +694,28 @@ PUSHED = YES؛ MERGED = YES؛ **F-SYNC = CLOSED**؛ CLOUD DEPLOYED = غير
 أي حزمة أخرى. **HISTORICAL:** خلايا «CI VERIFIED = UNKNOWN / PUSHED = NO /
 MERGED = NO» وصفت الرقعة قبل دمج PR #70 فقط.
 
+
+## ق-139 — المستهلك التلقائي للمصالحة المالية بعد تصحيح الجلسة (2026-11-14)
+
+| المجال | التنفيذ/الدليل | الحالة |
+| --- | --- | --- |
+| القرار | ق-139: طابور متين، هوية تنفيذ تقنية، إيقاظ مجدول fail-closed، وفصل المسار المالي اليدوي | Adopted + Documented |
+| المكوّنات — طبقة التنفيذ | `20261114000000_session_correction_reconciliation_queue.sql`: طابور PGMQ متين `session_correction_reconciliation`، دور `reconciliation_executor`، زناد إدراج بنيوي، المعالج الخاص `billing.process_session_correction_reconciliation_message(bigint)`، أمر حتمي مشتق، ترتيب السابق، أرشفة نهائية، ومنع الكتابة فوق موافقة يدوية سابقة | Implemented |
+| المكوّنات — طبقة التفعيل | `20261114003258_f_recon_automatic_activation.sql`: `billing.wake_session_correction_reconciliation()`، صف حالة الإيقاظ، بوابة تداخل/استعادة 120 ثانية، `pg_net` بمهلة `115000 ms` (أقل من النافذة عمدًا)، قراءة Vault، صحة مُطهَّرة `billing.session_correction_reconciliation_health()`، وسحب `EXECUTE` عن الدالتين وصلاحيات جدول حالة الإيقاظ | Implemented |
+| العامل | `supabase/functions/session-correction-reconciliation-worker/index.ts` — دفعة 4، تزامن 2، مهلة ظهور 60 ثانية | Implemented |
+| الاختبارات الدائمة | `supabase/tests/20261114000000_session_correction_reconciliation_queue.test.sql` و`supabase/tests/20261114003258_f_recon_automatic_activation.test.sql` | PASS محليًا |
+| الدليل المحلي | F-RECON 77/0؛ المصالحة 50/0؛ المال اليدوي 119/0؛ P2 auth/automation 187/0؛ التزامن 18/0؛ المركز 451/0؛ الانحدار 91 ملفًا / 2976 PASS / 0 FAIL / 0 ERROR. طبقة التفعيل: R4-B 21 PASS؛ الانحدار 92 ملفًا / 2997 PASS / 0 FAIL / 0 ERROR؛ `db:index` PASS؛ فحص الفرق PASS | Local Verified |
+| Git/CI | PR #72 merge `b855bb600059d6a91b971fd2ce2070097a1e4dde` (`2026-11-13T23:14:00Z`)؛ PR #73 merge `9c11409f9da73fde26ac31e67d69955f56b0e115` (`2026-11-14T00:56:43Z`)؛ app SUCCESS + db SUCCESS؛ تشغيل `main` #103 `43537477685` = SUCCESS | CI Verified |
+| السحابة | `hxfhczpfrfdpzsobfbab`: الهجرتان منشورتان؛ العامل ACTIVE **إصدار 2** بـ`verify_jwt=false` (الإصدار 1 حالة تاريخية سابقة)؛ مجدولة كل دقيقة؛ Vault معدّ؛ اعتماد خاطئ 401 وصحيح 200؛ ترتيب تفعيل آمن أثناء غياب الاعتماد (عقد fail-closed يُثبته الاختبار المحلي)؛ تصحيحات الصلاحيات مثبتة | Cloud Activated |
+| كانري إنتاجي | R4-A: تصحيح حقيقي عولج مرة واحدة بنداء يدوي مضبوط، `74 → 283` (`+209`)، صف واحد، `review=0`، أرشيف `read_ct=1`، بلا تكرار | Controlled Canary Verified |
+| E2E تلقائي إنتاجي | تصحيح شرعي من تطبيق Android: `9719c2fe-6e7b-49a1-8a70-c3e3fd86d0b9` / جلسة `a357b5ca-2109-465c-93cc-d3af7236b5c8`؛ `msg_id=2` بـ`read_ct=1`؛ `pg_cron` `jobid=6`/`runid=794`؛ `pg_net` الطلب `25` بردّ HTTP `200`؛ `applied` بـ`attempt_count=1`؛ `2763 → 3968` (`+1205`)؛ `financial_applied_revision=1`؛ تعديلات مالية يدوية 0؛ أمر معالجة 1؛ صف تصحيح مالي 1؛ بلا تكرار (2026-11-14) | **E2E Verified** |
+| الحالة الكلية | IMPLEMENTED + LOCAL VERIFIED + CI VERIFIED + CLOUD ACTIVATED + CONTROLLED CANARY VERIFIED + AUTOMATIC PRODUCTION BUSINESS E2E VERIFIED | **CLOSED / PASS** |
+| القيود | لا `pgmq.pop()`؛ لا هوية بشرية للعامل؛ لا `service_role` فاعلًا؛ لا URL/اعتماد خارج Vault؛ لا معرّفات عمل في HTTP المجدول؛ لا كتابة آليّة فوق موافقة يدوية (774–783) | ملزمة |
+
+**المراجع:** ق-139 (مع قسم إغلاق دليل الإنتاج التلقائي `2026-11-14`)؛ `INVARIANTS.md` 774–783؛
+`R6C2_SESSION_FINANCIAL_RECONCILIATION.md` قسم `R6-C2-D`.
+
+---
 
 ## سجل المطابقة الحاكم R6 — بعد التزام C3
 
