@@ -1,6 +1,6 @@
-# نقطة الاستئناف — F-SYNC مغلق (PR #70 مدموج)، والتالي هو F-RECON (2026-11-13)
+# نقطة الاستئناف — F-RECON مغلق بالكامل: E2E تلقائي إنتاجي مُتحقَّق (2026-11-14)
 
-**الحالة:** نافذ · **القرارات الحاكمة:** ق-93، ق-127، ق-128، ق-129، ق-130، ق-131، ق-132، ق-133، ق-134، ق-137، **ق-138** وملحق R6 في `DECISIONS.md` · **السرد الزمني:** `RESUME_HISTORY.md`
+**الحالة:** نافذ · **القرارات الحاكمة:** ق-93، ق-127، ق-128، ق-129، ق-130، ق-131، ق-132، ق-133، ق-134، ق-137، ق-138، **ق-139** وملحق R6 في `DECISIONS.md` · **السرد الزمني:** `RESUME_HISTORY.md`
 
 هذا الملف **رأس قصير** يُقرأ في كل جلسة: الحالة الآن، والتالي، والحدود
 الحيّة. السرد الزمني واللقطات السابقة في `docs/memory/RESUME_HISTORY.md`
@@ -9,18 +9,19 @@
 ## CURRENT
 
 ```text
-F-SYNC = CLOSED.
-Implemented + local verified + device accepted + CI verified + merged
-via PR #70.
+F-RECON = CLOSED / PASS (ق-139).
 
-Cloud migration gate cleared through 20261111000000.
+IMPLEMENTATION CLOSED + LOCAL VERIFIED + CI VERIFIED +
+CLOUD ACTIVATED + CONTROLLED PRODUCTION CANARY VERIFIED +
+AUTOMATIC PRODUCTION BUSINESS E2E VERIFIED (ق-139، إغلاق 2026-11-14).
+
+F-RECON-E2E OBSERVATION = CLOSED / PASS.
+
+F-SYNC = CLOSED (PR #70). Do not reopen.
 
 Manual financial device acceptance PASS.
-
 Session correction operational acceptance PASS.
-
-F-RECON remains OPEN/BLOCKED because no runtime reconciliation
-consumer has been proven.
+Manual financial adjustment path remains separate and not replaced.
 ```
 
 **F-SYNC (ق-138) = CLOSED:** عطل تعليق SQLite على Android أُغلق بنسخة
@@ -34,22 +35,53 @@ merge commit `b7736d18cdffd89b39b776392256e2598a62f834` ·
 `../technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`. **لا خطوة Git متبقية
 على F-SYNC، ولا يُعاد تشخيصه.**
 
-**السحابة:** الهجرات منشورة ومثبتة حتى `20261111000000`، فلا بوابة سحابية
-خلفية على المشروع الآن. لا يُستنتج من ذلك قبول جهاز، ولا يُستنتج قبول
-جهاز من نجاح نشر.
+**السحابة:** سقف النشر والتحقق ورقم الهجرة الوظيفية التالية في
+`AGENTS.md` §4 **حصريًا**، ولا يُكرَّر هنا. وفي ما يخص F-RECON تحديدًا:
+الهجرتان `20261114000000` و`20261114003258` مثبت نشرُهما والتحقق منهما
+على `hxfhczpfrfdpzsobfbab`. لا يُستنتج من ذلك قبول جهاز، ولا يُستنتج
+قبول جهاز من نجاح نشر. `supabase/tests` لا تعمل سحابيًا أبدًا.
 
-**F-RECON:** `ops.session_correction_reconciliations` بقي `pending` مع
-`attempt_count=0` و`last_attempt_at=NULL`، ولا مستهلك runtime إنتاجي
-مثبت يبدأ `billing.reconcile_session_correction(...)`. عند وجود موافقة
-مالية يدوية سابقة لا يُفترض أن المصالحة تكتب فوقها.
+**F-RECON — الدليل السحابي:** العامل `session-correction-reconciliation-worker`
+ACTIVE إصدار 2 بـ`verify_jwt=false` (الإصدار 1 كان حالةً تاريخية سابقة)؛ المجدولة
+`session-correction-reconciliation-wake` نشطة كل دقيقة؛ Vault معدّ
+بالاسمين `f_recon_project_url` و`f_recon_worker_credential`؛ الصحة
+خاملة بعد التفعيل؛ ولا أسرار نشر محفوظة محليًا بعد التنظيف.
+
+**Git:** PR #72 merge `b855bb600059d6a91b971fd2ce2070097a1e4dde` في
+`2026-11-13T23:14:00Z`؛ PR #73 merge
+`9c11409f9da73fde26ac31e67d69955f56b0e115` في
+`2026-11-14T00:56:43Z`؛ تشغيل `main` بعد الدمج #103 برقم `43537477685`
+= SUCCESS.
+
+**R4-A:** تصحيح إنتاجي حقيقي عولج مرة واحدة بنداء يدوي مضبوط:
+`74 → 283` بمقدار `+209`، أثر مالي واحد، أرشيف بـ`read_ct=1`، بلا
+تكرار. **R4-B:** الجدولة التلقائية والأمن والصلاحيات والترتيب الآمن
+للتفعيل والصحة مثبتة. **عقد fail-closed** يثبته الاختبار الدائم المحلي
+(`configuration_missing` بلا طلب HTTP)؛ والإنتاج أثبت الترتيب الآمن
+والخمول وغياب HTTP على طابور فارغ، لا `configuration_missing` مع عمل
+جاهز.
+
+**E2E تلقائي إنتاجي = VERIFIED (2026-11-14):** تصحيح شرعي أصله تطبيق
+Android عبر واجهة تصحيح الجلسة، مرّ بالمسار التلقائي كاملًا:
+`pending → queue → cron → pg_net → Edge → applied → archive` بلا نداء
+يدوي وبلا تعديل مالي يدوي. التصحيح
+`9719c2fe-6e7b-49a1-8a70-c3e3fd86d0b9`، الجلسة
+`a357b5ca-2109-465c-93cc-d3af7236b5c8`، أمر الهاتف
+`39073bd7-ea7b-4951-97b5-b3088eb1c827`. الرسالة `msg_id=2` بـ`read_ct=1`؛
+مهمة `pg_cron` `jobid=6` التشغيل `runid=794` في
+`2026-11-14T14:12:00Z`؛ `pg_net` الطلب `25` بردّ HTTP `200`؛ العمل
+`applied` بـ`attempt_count=1`؛ المبلغ `2763 → 3968` بمقدار `+1205`؛
+`financial_applied_revision=1`. تعديلات مالية يدوية = 0، وأوامر معالجة = 1،
+و`archive_rows = 1` بـ`read_ct = 1`، وصفوف تصحيح مالي = 1.
+وحدّ الدليل الأسبق بقي قاعدة: R4-A + R4-B لا يُركَّبان وحدهما دليلًا
+على E2E؛ وقد زال موضوع الفجوة بملاحظة إنتاجية فعلية.
 
 ## NEXT
 
-1. **F-RECON** — بدء المسألة المستقلة: إثبات مستهلك runtime إنتاجي يبدأ
-   `billing.reconcile_session_correction(...)`، ثم إغلاق `pending` بدليل،
-   مع عدم افتراض الكتابة فوق موافقة مالية يدوية سابقة.
-2. بعده: بنود قبول الجهاز المتبقية للحزم R6 دون تحويل دين القبول إلى
-   دين تنفيذ.
+1. **قبول الجهاز المتبقي للحزم R6** — بنود القبول على جهاز/محاكي
+   Android للـA وB وC وD وفق `OPEN_ISSUES.md`، دون تحويل دين القبول إلى
+   دين تنفيذ. هذه هي المهمة التالية بترتيب المشروع القائم.
+2. لا بند تنفيذي جديد يُخترع قبل إغلاق دين قبول الجهاز.
 
 ## DO NOT REDO — حراس إلزامية
 
@@ -59,6 +91,17 @@ DO NOT redo F-SYNC diagnosis.
 DO NOT delete sequence 55 as an F-SYNC fix.
 DO NOT remove vendored sqflite patch without device re-acceptance.
 DO NOT reopen F-SYNC Git closeout — PR #70 is merged.
+
+DO NOT reimplement the F-RECON queue, worker, role or wake contract.
+DO NOT use pgmq.pop(); PGMQ is delivery, work table is business truth.
+DO NOT give the technical worker a human auth.uid()/JWT.
+DO NOT treat service_role as the business actor.
+DO NOT hardcode the project URL or worker credential; Vault names only.
+DO NOT put business IDs in the scheduler HTTP body ({} only).
+DO NOT overwrite a prior manual financial approval automatically.
+DO NOT infer an E2E claim from component proofs; keep the 2026-11-14
+   evidence, and never fabricate a correction for any future evidence gate.
+DO NOT use F-RECON to unsuspend ق-137 booking automation.
 ```
 
 ## 5. حدود لا تُخترق
@@ -79,6 +122,11 @@ DO NOT reopen F-SYNC Git closeout — PR #70 is merged.
 - **قبل حجب أي إجراء على المستخدم** اقرأ صلاحية الخادم ووسائطه: منعُ عملٍ
   يقبله الخادم **فشل كاذب**، وهو مرآة النجاح الكاذب. والسلطة **طبقتان**
   (فحص مسمّى + RLS) تتحركان معًا وإلا فالنتيجة غياب كاذب.
+- **ق-139 / الثوابت 774–783:** الطابور نقل والعمل حقيقة، وأمر
+  المصالحة مشتق، وهوية التنفيذ ليست الفاعل، ودور
+  `reconciliation_executor` مقفول، وموافقة يدوية سابقة لا تُكتب فوقها،
+  والإيقاظ `{}` بلا معرّفات عمل، والأسرار في Vault، والصحة خاصة
+  مُطهَّرة، والتفعيل fail-closed، والجزء المُثبت لا يُقرأ كلًّا.
 - **ق-138 / الثوابت 769–773:** لا رجوع صامت إلى عامل واحد، ولا
   `devSetOptions` كاعتماد إنتاجي، وكل ترقية `sqflite`/`sqflite_android` أو
   إزالة `third_party/` أو إعادة hosted أو تغيير worker count تُبطل دليل

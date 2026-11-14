@@ -1,5 +1,99 @@
 # سجل التقدم
 
+## 2026-11-14 — F-RECON: تنفيذ مغلق، تفعيل سحابي ناجح، وE2E تلقائي إنتاجي مُتحقَّق
+
+**جولة توثيق فقط** (باستثناء توثيقي مؤقت من المالك). لا `apps/**` ولا
+`supabase/**` ولا هجرات ولا عقود خادم في هذه الجولة.
+
+**الحالة:** `F-RECON = CLOSED / PASS` · **IMPLEMENTATION CLOSED /
+LOCAL VERIFIED / CI VERIFIED / CLOUD ACTIVATED / CONTROLLED PRODUCTION
+CANARY VERIFIED** · **AUTOMATIC PRODUCTION BUSINESS E2E = VERIFIED**.
+
+**ملاحظة ترتيب:** كُتبت مسودة هذا المدخل أولًا وحالة F-RECON حينها
+`PARTIAL`؛ ثم حصلت الملاحظة الإنتاجية التلقائية في `2026-11-14` **قبل**
+نشر PR التوثيق، فحُدِّث المدخل بدليلها. لا يوجد سرد ثانٍ ولا تسلسل
+زمني مضاعف.
+
+**Git وCI:**
+
+```text
+PR #72 merge b855bb600059d6a91b971fd2ce2070097a1e4dde 2026-11-13T23:14:00Z
+PR #73 merge 9c11409f9da73fde26ac31e67d69955f56b0e115 2026-11-14T00:56:43Z
+main post-merge CI run 43537477685 = SUCCESS
+PR #73 CI: app SUCCESS, db SUCCESS, Supabase Preview SKIPPED
+```
+
+**التنفيذ (PR #72):** طابور PGMQ متين `session_correction_reconciliation`،
+زناد إدراج بنيوي، معالج خاص
+`billing.process_session_correction_reconciliation_message(bigint)`، دور
+تنفيذ تقني `reconciliation_executor`، أمر مصالحة حتمي مشتق، ترتيب
+السابق، أرشفة نهائية، وبوابة عدم الكتابة فوق موافقة يدوية سابقة.
+العامل: `supabase/functions/session-correction-reconciliation-worker/index.ts`.
+
+**الأدلة المحلية للتنفيذ:** F-RECON 77/0؛ المصالحة 50/0؛ المال اليدوي
+119/0؛ P2 auth/automation 187/0؛ التزامن 18/0؛ المركز 451/0؛ الانحدار
+الكامل 91 ملفًا / 2976 PASS / 0 FAIL / 0 ERROR.
+
+**التفعيل التلقائي (PR #73):** `pg_cron → billing.wake_session_correction_reconciliation()
+→ pg_net → Edge`. المجدولة `session-correction-reconciliation-wake` على
+`* * * * *` وجسم HTTP `{}` وحده؛ تسلسل بقفل صف حالة؛ بوابة 120 ثانية؛
+مهلة `pg_net` = `115000 ms`؛ Vault بالاسمين `f_recon_project_url` و
+`f_recon_worker_credential`؛ صحة خاصة مُطهَّرة.
+
+**الأدلة المحلية للتفعيل:** R4-B المركز 21 PASS؛ الطابور القديم 77 PASS؛
+المصالحة 50 PASS؛ المال اليدوي 119 PASS؛ الانحدار الكامل 92 ملفًا /
+2997 PASS / 0 FAIL / 0 ERROR؛ `db:index` PASS؛ فحص الفرق PASS.
+
+**السحابة — `hxfhczpfrfdpzsobfbab`:**
+
+- `20261114000000` و`20261114003258` منشورتان ومتحققتان.
+- العامل ACTIVE **إصدار 2** بـ`verify_jwt=false` (الإصدار 1 حالة
+  تاريخية سابقة)؛ اعتماد خاطئ ⇒ 401 `credential_rejected`، صحيح ⇒ 200
+  بأصفار كاملة.
+- المجدولة نشطة كل دقيقة؛ تشغيلات متتالية ناجحة.
+- الصلاحيات: لا `EXECUTE` على دالتي الإيقاظ والصحة، ولا صلاحيات قراءة/
+  كتابة على جدول حالة الإيقاظ، لـ`anon`/`authenticated`/`service_role`/
+  `reconciliation_executor`؛ وبقي الدور بالخصائص الست المقفولة.
+- **R4-A كانري إنتاجي = PASS:** تصحيح حقيقي واحد بنداء يدوي مضبوط،
+  `74 → 283` بمقدار `+209`، صف تصحيح واحد، `review=0`، أرشيف
+  `read_ct=1`، بلا تكرار لأثر مالي.
+- **R4-B تفعيل = PASS:** الهجرة نُشرت قبل وجود الاعتماد في Vault
+  فبقيت خاملة، والطابور صفر، والصحة خاملة
+  (`in_flight=false`, `last_request_id=null`)، ولا طلب `pg_net` ولا
+  إيقاظ HTTP؛ ثم وُضع الاعتماد فصارت فعّالة.
+- **عقد fail-closed = إثبات محلي:** `configuration_missing` بلا طلب HTTP
+  عند عمل جاهز مع غياب قيم Vault، أو URL وحده، أو اعتماد فارغ. الإنتاج
+  أثبت الترتيب الآمن والخمول وغياب HTTP فقط، لأن طابوره كان فارغًا.
+- **تنظيف الأسرار المحلية = PASS:** `F_RECON_KEY` و`DBPASS` و`DBURL`
+  أُزيلت بعد الانتهاء.
+
+**حدّ الادعاء:** `supabase/tests` لا تعمل سحابيًا؛ المُثبت سحابيًا وجود
+الأهداف وسلوك التفعيل، لا نجاح التحققات.
+
+**E2E تلقائي إنتاجي = VERIFIED (2026-11-14):** تصحيح جلسة شرعي أدخله
+المستخدم من واجهة تصحيح الجلسة في تطبيق Android المثبَّت، ومرّ بالمسار
+`pending → queue → cron → pg_net → Edge → applied → archive` بلا نداء
+يدوي وبلا تعديل مالي يدوي.
+
+```text
+correction_id  9719c2fe-6e7b-49a1-8a70-c3e3fd86d0b9
+session_id     a357b5ca-2109-465c-93cc-d3af7236b5c8
+phone cmd      39073bd7-ea7b-4951-97b5-b3088eb1c827
+queue          msg_id 2 · read_ct 1 · archived_at 14:12:02.387546+00
+pg_cron        jobid 6 · runid 794 · 14:12:00.329982+00 → .431459+00 succeeded
+pg_net         request 25 · 14:12:00.428407+00 · HTTP 200
+work           applied · attempt_count 1 · financial_applied_revision 1
+amount         2763 → 3968 · delta +1205
+absence        manual_financial_adjustment_rows 0 · processed_command_rows 1
+               financial_correction_rows 1 · active_queue_rows 0 · بلا تكرار
+```
+
+لذلك `F-RECON = CLOSED / PASS`، وعنصر `F-RECON-E2E` في `OPEN_ISSUES.md`
+صار `CLOSED / PASS`.
+
+**المرجع:** ق-139؛ الثوابت 774–783؛ `../technical/R6C2_SESSION_FINANCIAL_RECONCILIATION.md`
+قسم `R6-C2-D`.
+
 ## 2026-11-13 — F-SYNC مغلق: PR #70 مدموج و CI ناجح
 
 **PR #70** (`fix/android-sqlite-ownership`) مدموج فعليًا. PR HEAD قبل
@@ -103,11 +197,13 @@ F-SYNC: IMPLEMENTED + LOCAL VERIFIED + DEVICE ACCEPTED + GIT CLOSEOUT PENDING
 بدمج PR #70** — انظر المدخل أعلاه. والحالة الحاكمة اليوم `CLOSED`، ولا
 يعني ذلك نشرًا سحابيًا أو تغييرًا في `api` أو دلالات المال.
 
-**F-RECON** مسألة مستقلة ما زالت `OPEN / BLOCKED`
-(`ops.session_correction_reconciliations`: `status=pending`,
-`attempt_count=0`, `last_attempt_at=NULL`، بلا مستهلك runtime إنتاجي
-مثبت) ولم تُصلح في هذه الجولة. التفصيل التقني في
-`../technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`.
+**HISTORICAL — F-RECON قبل ق-139:** في تلك الجولة كانت F-RECON مسألة
+مستقلة `OPEN / BLOCKED` (`status=pending`, `attempt_count=0`,
+`last_attempt_at=NULL`، بلا مستهلك runtime إنتاجي مثبت) ولم تُصلح **في
+تلك الجولة**. أُبطل هذا النص بـق-139 والتفعيل السحابي في 2026-11-14؛
+يُحفظ للسرد ولا يُقرأ كحالة اليوم. الحالة الحالية: `PARTIAL` كما في
+مدخل 2026-11-14 أعلاه.
+التفصيل التاريخي في `../technical/SQLITE_TRANSACTION_LOCK_AUDIT.md`.
 
 ## 2026-11-13 — دمج PR #68 في main وإغلاق بوابة Git/PR/CI
 
