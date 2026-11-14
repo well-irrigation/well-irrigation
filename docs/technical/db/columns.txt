@@ -464,6 +464,9 @@ billing.session_charges|computed_at|timestamp with time zone|NOT NULL|now()
 billing.session_charges|created_at|timestamp with time zone|NOT NULL|now()
 billing.session_charges|updated_at|timestamp with time zone|NOT NULL|now()
 billing.session_charges|pricing_mode|text|NOT NULL|'flat'::text
+billing.session_correction_reconciliation_wake_state|singleton|boolean|NOT NULL|true
+billing.session_correction_reconciliation_wake_state|last_request_id|bigint|null|-
+billing.session_correction_reconciliation_wake_state|last_requested_at|timestamp with time zone|null|-
 billing.session_economic_settlements|session_charge_id|uuid|null|-
 billing.session_economic_settlements|session_id|uuid|null|-
 billing.session_economic_settlements|well_id|uuid|null|-

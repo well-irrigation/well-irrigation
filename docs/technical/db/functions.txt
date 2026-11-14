@@ -248,12 +248,14 @@ billing.reverse_account_credit(p_credit uuid, p_amount bigint, p_source uuid, p_
 billing.reverse_allocation_credit_legacy(p_credit uuid, p_amount bigint, p_source uuid, p_revision bigint, p_reason text, p_posted_at timestamp with time zone, p_origin_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.reverse_payment(p_payment_id uuid, p_reason text, p_reversed_by uuid)|uuid|volatile|definer|search_path=billing, finance, core, pg_temp
 billing.serialize_partition_invoice_change()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
+billing.session_correction_reconciliation_health()|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 billing.session_read_financial_context(p_session_ids uuid[], p_include_latest boolean)|TABLE(session_id uuid, session_charge_id uuid, paid_minor numeric, latest_payment jsonb)|stable|invoker|search_path=pg_catalog, pg_temp
 billing.split_overpayment_to_advance()|trigger|volatile|definer|search_path=billing, finance, core, pg_temp
 billing.validate_application_adjustment_event(p_event billing.customer_credit_events)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.validate_manual_financial_approval(p_id uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.validate_payment_repartition(e billing.customer_credit_events)|void|volatile|definer|search_path=pg_catalog, pg_temp
 billing.validate_session_financial_correction(p_correction uuid)|void|volatile|definer|search_path=pg_catalog, pg_temp
+billing.wake_session_correction_reconciliation()|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 core.accept_well_invitation(p_invitation_id uuid)|jsonb|volatile|definer|search_path=pg_catalog, pg_temp
 core.bind_booking_automation_to_human_operator()|trigger|volatile|definer|search_path=pg_catalog, pg_temp
 core.bump_well_assignment_authorization_revision()|trigger|volatile|invoker|search_path=pg_catalog, pg_temp
